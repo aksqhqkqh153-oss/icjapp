@@ -1,0 +1,9 @@
+{
+  "name": "이청잘",
+  "short_name": "이청잘",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "description": "이청잘 운영 웹앱"
+}

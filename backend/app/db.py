@@ -1,0 +1,909 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import secrets
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Iterable
+
+from .settings import settings
+
+try:
+    import psycopg  # type: ignore
+except Exception:  # pragma: no cover - optional dependency for local sqlite development
+    psycopg = None
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+SQLITE_DB_PATH = DATA_DIR / "app.db"
+DB_PATH = Path(settings.sqlite_db_path) if settings.sqlite_db_path else SQLITE_DB_PATH
+DB_ENGINE = "postgresql" if settings.database_url.lower().startswith(("postgres://", "postgresql://")) else "sqlite"
+DB_LABEL = settings.database_url if DB_ENGINE == "postgresql" else str(DB_PATH)
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def utcnow() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def make_token() -> str:
+    return secrets.token_hex(24)
+
+
+class CompatRow(dict):
+    def __init__(self, keys: Iterable[str], values: Iterable[Any]):
+        key_list = list(keys)
+        value_list = list(values)
+        super().__init__(zip(key_list, value_list))
+        self._keys = key_list
+        self._values = value_list
+
+    def __getitem__(self, key):  # type: ignore[override]
+        if isinstance(key, int):
+            return self._values[key]
+        return super().__getitem__(key)
+
+    def keys(self):  # type: ignore[override]
+        return list(self._keys)
+
+
+class CompatCursor:
+    def __init__(self, cursor: Any, backend: str):
+        self._cursor = cursor
+        self._backend = backend
+        self.lastrowid = getattr(cursor, 'lastrowid', None)
+
+    @property
+    def description(self):
+        return getattr(self._cursor, 'description', None)
+
+    def _normalize_row(self, row: Any):
+        if row is None:
+            return None
+        if self._backend == 'sqlite':
+            return row
+        description = self.description or []
+        keys = [col[0] for col in description]
+        return CompatRow(keys, row)
+
+    def fetchone(self):
+        return self._normalize_row(self._cursor.fetchone())
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        return [self._normalize_row(row) for row in rows]
+
+
+class CompatConnection:
+    def __init__(self, conn: Any, backend: str):
+        self._conn = conn
+        self._backend = backend
+
+    def execute(self, sql: str, params: tuple | list = ()):
+        cur = self._conn.cursor()
+        cur.execute(_transform_sql(sql, self._backend), params)
+        return CompatCursor(cur, self._backend)
+
+    def executescript(self, sql_script: str):
+        statements = [stmt.strip() for stmt in sql_script.split(';') if stmt.strip()]
+        for stmt in statements:
+            self.execute(stmt)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+
+def row_to_dict(row: Any) -> dict:
+    if row is None:
+        return {}
+    if isinstance(row, dict):
+        return dict(row)
+    return {k: row[k] for k in row.keys()}
+
+
+def json_loads(value, default):
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except Exception:
+        return default
+
+
+def _append_sql_clause(sql: str, clause: str) -> str:
+    stripped = sql.rstrip()
+    if stripped.endswith(';'):
+        return stripped[:-1] + clause + ';'
+    return stripped + clause
+
+
+def _transform_insert_or_replace(sql: str) -> str:
+    match = re.search(r'INSERT\s+OR\s+REPLACE\s+INTO\s+([a-zA-Z_][\w]*)\s*(\((.*?)\))?\s*VALUES', sql, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return sql.replace('INSERT OR REPLACE INTO', 'INSERT INTO')
+    table = match.group(1)
+    columns_raw = match.group(3) or ''
+    columns = [col.strip() for col in columns_raw.split(',') if col.strip()]
+    conflict_map = {
+        'preferences': ['user_id'],
+        'blocks': ['blocker_id', 'blocked_user_id'],
+    }
+    conflict_cols = conflict_map.get(table, columns[:1])
+    update_cols = [col for col in columns if col not in conflict_cols]
+    if not update_cols:
+        return _append_sql_clause(sql.replace('INSERT OR REPLACE INTO', 'INSERT INTO'), ' ON CONFLICT DO NOTHING')
+    assignments = ', '.join(f'{col} = EXCLUDED.{col}' for col in update_cols)
+    transformed = sql.replace('INSERT OR REPLACE INTO', 'INSERT INTO')
+    return _append_sql_clause(transformed, f" ON CONFLICT ({', '.join(conflict_cols)}) DO UPDATE SET {assignments}")
+
+
+def _sqlite_schema_to_postgres(sql: str) -> str:
+    converted = sql
+    converted = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY', converted, flags=re.IGNORECASE)
+    converted = re.sub(r'INTEGER\s+PRIMARY\s+KEY', 'BIGINT PRIMARY KEY', converted, flags=re.IGNORECASE)
+    converted = re.sub(r'\bINTEGER\b', 'BIGINT', converted)
+    converted = re.sub(r'\bAUTOINCREMENT\b', '', converted, flags=re.IGNORECASE)
+    return converted
+
+
+def _transform_column_ddl(ddl: str, backend: str) -> str:
+    if backend != 'postgresql':
+        return ddl
+    return re.sub(r'\bINTEGER\b', 'BIGINT', ddl)
+
+
+def _transform_sql(sql: str, backend: str) -> str:
+    if backend != 'postgresql':
+        return sql
+    transformed = sql
+    if re.search(r'INSERT\s+OR\s+IGNORE\s+INTO', transformed, flags=re.IGNORECASE):
+        transformed = re.sub(r'INSERT\s+OR\s+IGNORE\s+INTO', 'INSERT INTO', transformed, flags=re.IGNORECASE)
+        transformed = _append_sql_clause(transformed, ' ON CONFLICT DO NOTHING')
+    if re.search(r'INSERT\s+OR\s+REPLACE\s+INTO', transformed, flags=re.IGNORECASE):
+        transformed = _transform_insert_or_replace(transformed)
+    transformed = transformed.replace('?', '%s')
+    return transformed
+
+
+@contextmanager
+def get_conn():
+    if DB_ENGINE == 'postgresql':
+        if psycopg is None:
+            raise RuntimeError('DATABASE_URL 이 PostgreSQL 로 설정되었지만 psycopg 가 설치되지 않았습니다.')
+        conn = psycopg.connect(settings.database_url)
+        wrapped = CompatConnection(conn, 'postgresql')
+        try:
+            yield wrapped
+            wrapped.commit()
+        except Exception:
+            wrapped.rollback()
+            raise
+        finally:
+            wrapped.close()
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON;')
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    nickname TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    grade INTEGER NOT NULL DEFAULT 6,
+    approved INTEGER NOT NULL DEFAULT 1,
+    gender TEXT DEFAULT '',
+    birth_year INTEGER DEFAULT 1990,
+    region TEXT DEFAULT '서울',
+    bio TEXT DEFAULT '',
+    one_liner TEXT DEFAULT '',
+    interests TEXT DEFAULT '[]',
+    tendencies TEXT DEFAULT '[]',
+    photo_url TEXT DEFAULT '',
+    latitude REAL DEFAULT 37.5665,
+    longitude REAL DEFAULT 126.9780,
+    phone TEXT DEFAULT '',
+    recovery_email TEXT DEFAULT '',
+    vehicle_number TEXT DEFAULT '',
+    branch_no INTEGER,
+    marital_status TEXT DEFAULT '',
+    resident_address TEXT DEFAULT '',
+    business_name TEXT DEFAULT '',
+    business_number TEXT DEFAULT '',
+    business_type TEXT DEFAULT '',
+    business_item TEXT DEFAULT '',
+    business_address TEXT DEFAULT '',
+    bank_account TEXT DEFAULT '',
+    bank_name TEXT DEFAULT '',
+    mbti TEXT DEFAULT '',
+    google_email TEXT DEFAULT '',
+    resident_id TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS verification_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recovery_email TEXT NOT NULL,
+    code TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS feed_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    image_url TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feed_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES feed_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feed_likes (
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES feed_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS feed_bookmarks (
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES feed_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS follows (
+    from_user_id INTEGER NOT NULL,
+    to_user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (from_user_id, to_user_id),
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS passes (
+    from_user_id INTEGER NOT NULL,
+    to_user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (from_user_id, to_user_id),
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS friend_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_id INTEGER NOT NULL,
+    target_user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    responded_at TEXT DEFAULT '',
+    UNIQUE (requester_id, target_user_id),
+    FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS friends (
+    user_id INTEGER NOT NULL,
+    friend_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, friend_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS direct_chat_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_id INTEGER NOT NULL,
+    target_user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    responded_at TEXT DEFAULT '',
+    UNIQUE (requester_id, target_user_id),
+    FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dm_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_key TEXT NOT NULL,
+    sender_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    attachment_name TEXT DEFAULT '',
+    attachment_url TEXT DEFAULT '',
+    attachment_type TEXT DEFAULT '',
+    reply_to_id INTEGER,
+    mention_user_id INTEGER,
+    reactions TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    region TEXT DEFAULT '',
+    creator_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_room_members (
+    room_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (room_id, user_id),
+    FOREIGN KEY (room_id) REFERENCES group_rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_room_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    attachment_name TEXT DEFAULT '',
+    attachment_url TEXT DEFAULT '',
+    attachment_type TEXT DEFAULT '',
+    reply_to_id INTEGER,
+    mention_user_id INTEGER,
+    reactions TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (room_id) REFERENCES group_rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS chat_room_settings (
+    user_id INTEGER NOT NULL,
+    room_type TEXT NOT NULL,
+    room_ref TEXT NOT NULL,
+    custom_name TEXT DEFAULT '',
+    pinned INTEGER NOT NULL DEFAULT 0,
+    favorite INTEGER NOT NULL DEFAULT 0,
+    muted INTEGER NOT NULL DEFAULT 0,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, room_type, room_ref),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS chat_mentions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    room_type TEXT NOT NULL,
+    room_ref TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    seen INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS voice_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_type TEXT NOT NULL,
+    creator_id INTEGER NOT NULL,
+    target_user_id INTEGER,
+    group_room_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    ended_by_user_id INTEGER,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS voice_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (room_id) REFERENCES voice_rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meetup_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    place TEXT NOT NULL,
+    meetup_date TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    content TEXT DEFAULT '',
+    cautions TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meetup_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    schedule_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (schedule_id) REFERENCES meetup_schedules(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS board_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    image_url TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS board_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES board_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT DEFAULT '',
+    event_date TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    location TEXT DEFAULT '',
+    color TEXT DEFAULT '#2563eb',
+    move_start_date TEXT DEFAULT '',
+    move_end_date TEXT DEFAULT '',
+    platform TEXT DEFAULT '',
+    customer_name TEXT DEFAULT '',
+    department_info TEXT DEFAULT '',
+    amount1 TEXT DEFAULT '',
+    amount2 TEXT DEFAULT '',
+    amount_item TEXT DEFAULT '',
+    deposit_method TEXT DEFAULT '',
+    deposit_amount TEXT DEFAULT '',
+    deposit_status TEXT DEFAULT '',
+    image_data TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS work_schedule_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    schedule_date TEXT NOT NULL,
+    schedule_time TEXT NOT NULL DEFAULT '',
+    customer_name TEXT NOT NULL DEFAULT '',
+    representative_names TEXT NOT NULL DEFAULT '',
+    staff_names TEXT NOT NULL DEFAULT '',
+    memo TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS work_schedule_day_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    schedule_date TEXT NOT NULL,
+    excluded_business TEXT NOT NULL DEFAULT '',
+    excluded_staff TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, schedule_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS inquiries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'received',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL,
+    target_user_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    closed_at TEXT DEFAULT '',
+    closed_by INTEGER,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blocker_id INTEGER NOT NULL,
+    blocked_user_id INTEGER NOT NULL,
+    reason TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE (blocker_id, blocked_user_id),
+    FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS preferences (
+    user_id INTEGER PRIMARY KEY,
+    data TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS admin_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS region_boundaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    region TEXT NOT NULL,
+    geojson TEXT NOT NULL
+);
+"""
+
+def insert_notification(conn: sqlite3.Connection, user_id: int, type_: str, title: str, body: str) -> None:
+    conn.execute(
+        "INSERT INTO notifications(user_id, type, title, body, created_at) VALUES (?, ?, ?, ?, ?)",
+        (user_id, type_, title, body, utcnow()),
+    )
+
+def seed_if_empty(conn: sqlite3.Connection) -> None:
+    count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    if count:
+        return
+
+    users = [
+        ("admin@example.com", "admin1234", "관리자", "admin", "기타", 1988, "서울 강남구", "이청잘 운영 관리자입니다.", "민원과 신고를 관리합니다.", ["운영", "관리"], ["신속", "정확"], "", 37.498, 127.028, "01000000000", "admin-reset@example.com", "", None),
+        ("mina@example.com", "demo1234", "미나", "user", "여성", 1995, "서울 송파구", "소형이사 경험이 많은 기사입니다.", "친절하고 꼼꼼합니다.", ["원룸이사", "짐보관"], ["친절", "안전"], "", 37.514, 127.106, "01011112222", "mina-reset@example.com", "12가3456", 3),
+        ("juno@example.com", "demo1234", "주노", "user", "남성", 1991, "서울 마포구", "빠른 응답과 일정 조율이 강점입니다.", "야간 작업 가능", ["사무실이사", "포장이사"], ["정확", "신속"], "", 37.556, 126.91, "01022223333", "juno-reset@example.com", "34나7890", 8),
+        ("sora@example.com", "demo1234", "소라", "user", "여성", 1997, "경기 성남시", "여성 1인가구 이사 상담 환영", "상담 먼저 가능합니다.", ["원룸이사", "용달"], ["상담", "배려"], "", 37.42, 127.126, "01033334444", "sora-reset@example.com", "56다1234", 12),
+        ("haon@example.com", "demo1234", "하온", "user", "남성", 1990, "인천 연수구", "주말 작업 선호", "장거리 협의 가능", ["장거리", "포장이사"], ["책임감", "성실"], "", 37.406, 126.678, "01044445555", "haon-reset@example.com", "78라4321", 15),
+    ]
+    for email, password, nickname, role, gender, birth_year, region, bio, one_liner, interests, tendencies, photo_url, lat, lon, phone, recovery_email, vehicle_number, branch_no in users:
+        conn.execute(
+            """
+            INSERT INTO users (
+                email, password_hash, nickname, role, gender, birth_year, region, bio, one_liner,
+                interests, tendencies, photo_url, latitude, longitude, phone, recovery_email, vehicle_number, branch_no, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                email, hash_password(password), nickname, role, gender, birth_year, region, bio, one_liner,
+                json.dumps(interests, ensure_ascii=False), json.dumps(tendencies, ensure_ascii=False), photo_url,
+                lat, lon, phone, recovery_email, vehicle_number, branch_no, utcnow()
+            ),
+        )
+
+    posts = [
+        (2, "강남 → 송파 원룸이사 가능한 기사님 일정 공유합니다.", ""),
+        (3, "마포구 소형 사무실 이전 상담 가능합니다. 오전 타임 선호.", ""),
+        (4, "여성 고객 전용 1인 이사 문의 환영합니다.", ""),
+    ]
+    for user_id, content, image_url in posts:
+        conn.execute("INSERT INTO feed_posts(user_id, content, image_url, created_at) VALUES (?, ?, ?, ?)", (user_id, content, image_url, utcnow()))
+
+    conn.execute("INSERT INTO feed_likes(post_id, user_id, created_at) VALUES (1, 3, ?)", (utcnow(),))
+    conn.execute("INSERT INTO feed_likes(post_id, user_id, created_at) VALUES (1, 4, ?)", (utcnow(),))
+    conn.execute("INSERT INTO feed_bookmarks(post_id, user_id, created_at) VALUES (2, 2, ?)", (utcnow(),))
+    conn.execute("INSERT INTO follows(from_user_id, to_user_id, created_at) VALUES (2, 3, ?)", (utcnow(),))
+    conn.execute("INSERT INTO follows(from_user_id, to_user_id, created_at) VALUES (3, 2, ?)", (utcnow(),))
+    conn.execute("INSERT INTO friends(user_id, friend_id, created_at) VALUES (2, 3, ?)", (utcnow(),))
+    conn.execute("INSERT INTO friends(user_id, friend_id, created_at) VALUES (3, 2, ?)", (utcnow(),))
+
+    room_key = "2:3"
+    conn.execute("INSERT INTO dm_messages(room_key, sender_id, message, created_at) VALUES (?, ?, ?, ?)", (room_key, 2, "안녕하세요. 이번 주 금요일 가능하실까요?", utcnow()))
+    conn.execute("INSERT INTO dm_messages(room_key, sender_id, message, created_at) VALUES (?, ?, ?, ?)", (room_key, 3, "네, 오전 시간 가능합니다.", utcnow()))
+
+    conn.execute("INSERT INTO group_rooms(title, description, region, creator_id, created_at) VALUES (?, ?, ?, ?, ?)", ("서울권 기사님 오픈방", "서울·경기권 기사님들 정보 공유", "서울", 2, utcnow()))
+    conn.execute("INSERT INTO group_room_members(room_id, user_id, created_at) VALUES (1, 2, ?)", (utcnow(),))
+    conn.execute("INSERT INTO group_room_members(room_id, user_id, created_at) VALUES (1, 3, ?)", (utcnow(),))
+    conn.execute("INSERT INTO group_room_messages(room_id, sender_id, message, created_at) VALUES (1, 2, ?, ?)", ("오늘 송파 일정 가능하신 분 계신가요?", utcnow()))
+    conn.execute("INSERT INTO group_room_messages(room_id, sender_id, message, created_at) VALUES (1, 3, ?, ?)", ("오후 3시 이후 가능합니다.", utcnow()))
+
+    conn.execute(
+        "INSERT INTO meetup_schedules(creator_id, title, place, meetup_date, start_time, end_time, content, cautions, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (2, "기사님 네트워킹 모임", "서울 잠실", "2026-03-30", "14:00", "16:00", "이사 일정 협업 및 차량 공유 논의", "지각 주의", "간단한 다과 제공", utcnow())
+    )
+    conn.execute("INSERT INTO meetup_reviews(schedule_id, user_id, content, created_at) VALUES (1, 3, ?, ?)", ("지난 모임에서 실무 정보 교류가 유익했습니다.", utcnow()))
+
+    for category, title, content, user_id in [
+        ("free", "서울 지역 주말 일정 공유", "이번 주말 1톤 차량 수요가 많습니다.", 2),
+        ("anonymous", "고객 응대 팁 공유", "전화 응대 스크립트를 정리해두면 좋습니다.", 3),
+        ("tips", "포장재 비용 절감 팁", "재사용 가능한 박스를 미리 확보하세요.", 4),
+    ]:
+        conn.execute("INSERT INTO board_posts(category, user_id, title, content, created_at) VALUES (?, ?, ?, ?, ?)", (category, user_id, title, content, utcnow()))
+
+    conn.execute("INSERT INTO board_comments(post_id, user_id, content, created_at) VALUES (1, 3, ?, ?)", ("좋은 정보 감사합니다.", utcnow()))
+
+    conn.execute("INSERT INTO calendar_events(user_id, title, content, event_date, start_time, end_time, location, color, move_start_date, move_end_date, platform, customer_name, department_info, amount1, amount2, amount_item, deposit_status, image_data, created_at) VALUES (2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 ("09:00 (공홈) (송파고객) ((180,000원)) (계약금입금)", "고객 요청 확인 필요", "2026-03-28", "09:00", "11:00", "서울 송파구", "#16a34a", "2026-03-28", "2026-03-28", "공홈", "송파고객", "1팀", "180000", "", "", "계약금입금", "", utcnow()))
+
+    conn.execute("INSERT INTO inquiries(user_id, category, title, content, status, created_at) VALUES (2, ?, ?, ?, 'received', ?)",
+                 ("기능문의", "일정 공유 기능 건의", "기사님끼리 일정표를 더 쉽게 공유하고 싶습니다.", utcnow()))
+
+    conn.execute("INSERT INTO reports(reporter_id, target_user_id, reason, detail, status, created_at) VALUES (2, 4, ?, ?, 'open', ?)",
+                 ("부적절한 메시지", "채팅 중 부적절한 표현이 있었습니다.", utcnow()))
+
+    default_pref = json.dumps({
+        "groupChatNotifications": True,
+        "directChatNotifications": True,
+        "likeNotifications": True,
+        "theme": "dark",
+    }, ensure_ascii=False)
+    for user_id in range(1, 6):
+        conn.execute("INSERT INTO preferences(user_id, data) VALUES (?, ?)", (user_id, default_pref))
+
+    conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES ('total_vehicle_count', '', ?)", (utcnow(),))
+
+    geojson = json.dumps({
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "서울권"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[126.76,37.42],[127.18,37.42],[127.18,37.70],[126.76,37.70],[126.76,37.42]]]
+                }
+            }
+        ]
+    }, ensure_ascii=False)
+    conn.execute("INSERT INTO region_boundaries(region, geojson) VALUES (?, ?)", ("서울", geojson))
+
+def _ensure_columns(conn: Any, table: str, columns: dict[str, str]) -> None:
+    if DB_ENGINE == 'postgresql':
+        existing = {
+            row[0]
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?",
+                (table,),
+            ).fetchall()
+        }
+    else:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, ddl in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {_transform_column_ddl(ddl, DB_ENGINE)}")
+
+
+def init_db() -> None:
+    schema_sql = _sqlite_schema_to_postgres(SCHEMA_SQL) if DB_ENGINE == 'postgresql' else SCHEMA_SQL
+    with get_conn() as conn:
+        conn.executescript(schema_sql)
+        _ensure_columns(conn, 'calendar_events', {
+            'move_start_date': "TEXT DEFAULT ''",
+            'move_end_date': "TEXT DEFAULT ''",
+            'platform': "TEXT DEFAULT ''",
+            'customer_name': "TEXT DEFAULT ''",
+            'department_info': "TEXT DEFAULT ''",
+            'amount1': "TEXT DEFAULT ''",
+            'amount2': "TEXT DEFAULT ''",
+            'amount_item': "TEXT DEFAULT ''",
+            'deposit_method': "TEXT DEFAULT ''",
+            'deposit_amount': "TEXT DEFAULT ''",
+            'deposit_status': "TEXT DEFAULT ''",
+            'image_data': "TEXT DEFAULT ''",
+        })
+        _ensure_columns(conn, 'users', {
+            'vehicle_number': "TEXT DEFAULT ''",
+            'branch_no': 'INTEGER',
+            'grade': 'INTEGER NOT NULL DEFAULT 6',
+            'approved': 'INTEGER NOT NULL DEFAULT 1',
+            'marital_status': "TEXT DEFAULT ''",
+            'resident_address': "TEXT DEFAULT ''",
+            'business_name': "TEXT DEFAULT ''",
+            'business_number': "TEXT DEFAULT ''",
+            'business_type': "TEXT DEFAULT ''",
+            'business_item': "TEXT DEFAULT ''",
+            'business_address': "TEXT DEFAULT ''",
+            'bank_account': "TEXT DEFAULT ''",
+            'bank_name': "TEXT DEFAULT ''",
+            'mbti': "TEXT DEFAULT ''",
+            'google_email': "TEXT DEFAULT ''",
+            'resident_id': "TEXT DEFAULT ''",
+        })
+        default_admin_settings = {
+            'total_vehicle_count': '',
+            'branch_count_override': '',
+            'admin_mode_access_grade': '1',
+            'role_assign_actor_max_grade': '3',
+            'role_assign_target_min_grade': '3',
+            'account_suspend_actor_max_grade': '3',
+            'account_suspend_target_min_grade': '3',
+            'signup_approve_actor_max_grade': '3',
+            'signup_approve_target_min_grade': '7',
+        }
+        for setting_key, setting_value in default_admin_settings.items():
+            conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
+        _ensure_columns(conn, 'dm_messages', {
+            'reply_to_id': 'INTEGER',
+            'mention_user_id': 'INTEGER',
+            'reactions': "TEXT DEFAULT '[]'",
+        })
+        _ensure_columns(conn, 'group_room_messages', {
+            'attachment_name': "TEXT DEFAULT ''",
+            'attachment_url': "TEXT DEFAULT ''",
+            'attachment_type': "TEXT DEFAULT ''",
+            'reply_to_id': 'INTEGER',
+            'mention_user_id': 'INTEGER',
+            'reactions': "TEXT DEFAULT '[]'",
+        })
+        if settings.seed_demo_data:
+            seed_if_empty(conn)
+            conn.execute("UPDATE users SET grade = 1, approved = 1 WHERE email = 'admin@example.com'")
+            conn.execute("UPDATE users SET grade = 4, approved = 1 WHERE email IN ('mina@example.com', 'juno@example.com', 'sora@example.com', 'haon@example.com')")
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('12가3456', 3, 'mina@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('34나7890', 8, 'juno@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('56다1234', 12, 'sora@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('78라4321', 15, 'haon@example.com'))
+            has_admin_dm = conn.execute("SELECT 1 FROM dm_messages WHERE room_key = ? LIMIT 1", ('1:2',)).fetchone()
+            if not has_admin_dm:
+                conn.execute("INSERT INTO dm_messages(room_key, sender_id, message, created_at) VALUES (?, ?, ?, ?)", ('1:2', 2, '관리자님, 금일 기사 배정 문의드립니다.', utcnow()))
+            room_exists = conn.execute("SELECT 1 FROM group_rooms WHERE id = 1").fetchone()
+            if room_exists:
+                conn.execute("INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (1, 1, ?)", (utcnow(),))
+
+            work_entry_exists = conn.execute("SELECT 1 FROM work_schedule_entries LIMIT 1").fetchone()
+            if not work_entry_exists:
+                today = datetime.utcnow().date()
+                demo_entries = [
+                    (1, today.isoformat(), '09:00', '김민수', '대표A/대표B', '직원1/직원2', '엘리베이터 예약 확인 필요'),
+                    (1, (today + timedelta(days=1)).isoformat(), '10:30', '박서연', '대표C', '직원3/직원4', '사다리차 가능 여부 확인'),
+                    (1, (today + timedelta(days=2)).isoformat(), '08:00', '이준호', '대표A/대표D', '직원2/직원5', '장거리 이동 건'),
+                ]
+                for user_id, schedule_date, schedule_time, customer_name, representative_names, staff_names, memo in demo_entries:
+                    conn.execute(
+                        """
+                        INSERT INTO work_schedule_entries(user_id, schedule_date, schedule_time, customer_name, representative_names, staff_names, memo, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (user_id, schedule_date, schedule_time, customer_name, representative_names, staff_names, memo, utcnow(), utcnow()),
+                    )
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (1, today.isoformat(), '사업자A', '직원7', utcnow(), utcnow()),
+                )
+
+def get_user_by_token(conn: sqlite3.Connection, token: str):
+    return conn.execute(
+        """
+        SELECT u.* FROM auth_tokens t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.token = ?
+        """,
+        (token,),
+    ).fetchone()
+
+
+
+ROLE_LABELS = {
+    1: '관리자',
+    2: '부관리자',
+    3: '중간관리자',
+    4: '사업자',
+    5: '직원',
+    6: '일반',
+    7: '기타',
+}
+
+def grade_label(grade: int | None) -> str:
+    try:
+        grade_num = int(grade or 6)
+    except Exception:
+        grade_num = 6
+    return ROLE_LABELS.get(grade_num, '일반')
+
+def user_public_dict(row: sqlite3.Row) -> dict:
+    grade = int(row['grade'] if row['grade'] is not None else 6)
+    approved = bool(row['approved'] if row['approved'] is not None else 1)
+    return {
+        'id': row['id'],
+        'email': row['email'],
+        'nickname': row['nickname'],
+        'role': row['role'],
+        'grade': grade,
+        'grade_label': grade_label(grade),
+        'approved': approved,
+        'gender': row['gender'],
+        'birth_year': row['birth_year'],
+        'region': row['region'],
+        'bio': row['bio'],
+        'one_liner': row['one_liner'],
+        'interests': json_loads(row['interests'], []),
+        'photo_url': row['photo_url'],
+        'latitude': row['latitude'],
+        'longitude': row['longitude'],
+        'phone': row['phone'],
+        'recovery_email': row['recovery_email'],
+        'vehicle_number': row['vehicle_number'],
+        'branch_no': row['branch_no'],
+        'marital_status': row['marital_status'] if 'marital_status' in row.keys() else '',
+        'resident_address': row['resident_address'] if 'resident_address' in row.keys() else '',
+        'business_name': row['business_name'] if 'business_name' in row.keys() else '',
+        'business_number': row['business_number'] if 'business_number' in row.keys() else '',
+        'business_type': row['business_type'] if 'business_type' in row.keys() else '',
+        'business_item': row['business_item'] if 'business_item' in row.keys() else '',
+        'business_address': row['business_address'] if 'business_address' in row.keys() else '',
+        'bank_account': row['bank_account'] if 'bank_account' in row.keys() else '',
+        'bank_name': row['bank_name'] if 'bank_name' in row.keys() else '',
+        'mbti': row['mbti'] if 'mbti' in row.keys() else '',
+        'google_email': row['google_email'] if 'google_email' in row.keys() else '',
+        'resident_id': row['resident_id'] if 'resident_id' in row.keys() else '',
+        'created_at': row['created_at'],
+    }

@@ -1,0 +1,13 @@
+{
+  "appId": "com.ichungjal.app",
+  "appName": "이청잘",
+  "webDir": "../frontend/dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}
