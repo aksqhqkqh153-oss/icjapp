@@ -461,11 +461,12 @@ def startup():
 
 @app.get("/api/health")
 def health():
+    safe_db_label = "postgresql" if DB_ENGINE == "postgresql" else "sqlite"
     return {
         "ok": True,
         "app_env": settings.app_env,
         "db_engine": DB_ENGINE,
-        "db_label": DB_LABEL,
+        "db_label": safe_db_label,
         "site_url": settings.app_public_url,
         "api_url": settings.api_public_url,
         "policy_url": settings.policy_url,

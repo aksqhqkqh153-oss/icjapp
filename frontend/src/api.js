@@ -1,6 +1,12 @@
 const ENV_API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim()
 const isLocalHost = typeof window !== 'undefined' && ['127.0.0.1', 'localhost'].includes(window.location.hostname)
 const API_BASE = isLocalHost ? '' : ENV_API_BASE
+const PUBLIC_AUTH_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/password-reset/request',
+  '/api/auth/password-reset/confirm',
+])
 
 export function getApiBase() {
   return API_BASE
@@ -29,13 +35,21 @@ export function getStoredUser() {
   }
 }
 
+function shouldAttachAuthHeader(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+  if (PUBLIC_AUTH_PATHS.has(path)) {
+    return false
+  }
+  return method !== 'OPTIONS'
+}
+
 export async function api(path, options = {}) {
   const token = getToken()
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   }
-  if (token) {
+  if (token && shouldAttachAuthHeader(path, options)) {
     headers.Authorization = `Bearer ${token}`
   }
   const res = await fetch(`${API_BASE}${path}`, {
@@ -44,7 +58,7 @@ export async function api(path, options = {}) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.detail || '요청 처리 중 오류가 발생했습니다.')
+    throw new Error(data.detail || `요청 처리 중 오류가 발생했습니다. (${res.status})`)
   }
   return data
 }
@@ -60,7 +74,7 @@ export async function uploadFile(file, category = 'general') {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.detail || '파일 업로드 중 오류가 발생했습니다.')
+    throw new Error(data.detail || `파일 업로드 중 오류가 발생했습니다. (${res.status})`)
   }
   return data
 }

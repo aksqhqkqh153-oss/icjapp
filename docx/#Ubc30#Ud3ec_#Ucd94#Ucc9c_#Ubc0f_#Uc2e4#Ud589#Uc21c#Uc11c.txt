@@ -23,7 +23,7 @@
    - 이미지 파일 저장소로 추천
    - egress 요금이 없어 모바일 앱에서 이미지 조회가 많아도 운영이 단순함
 3. Cloudflare DNS / 도메인 연결
-   - www.icj24app.com 운영 도메인 연결
+   - www.icj2424app.com 운영 도메인 연결
 
 [추천 조합]
 - 1순위: Railway Hobby + Cloudflare R2 + Cloudflare DNS

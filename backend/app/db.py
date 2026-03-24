@@ -171,7 +171,9 @@ def _transform_column_ddl(ddl: str, backend: str) -> str:
 def _transform_sql(sql: str, backend: str) -> str:
     if backend != 'postgresql':
         return sql
-    transformed = sql
+    transformed = sql.strip()
+    if re.fullmatch(r'SELECT\s+last_insert_rowid\(\)\s*;?', transformed, flags=re.IGNORECASE):
+        return 'SELECT lastval() AS last_insert_rowid'
     if re.search(r'INSERT\s+OR\s+IGNORE\s+INTO', transformed, flags=re.IGNORECASE):
         transformed = re.sub(r'INSERT\s+OR\s+IGNORE\s+INTO', 'INSERT INTO', transformed, flags=re.IGNORECASE)
         transformed = _append_sql_clause(transformed, ' ON CONFLICT DO NOTHING')

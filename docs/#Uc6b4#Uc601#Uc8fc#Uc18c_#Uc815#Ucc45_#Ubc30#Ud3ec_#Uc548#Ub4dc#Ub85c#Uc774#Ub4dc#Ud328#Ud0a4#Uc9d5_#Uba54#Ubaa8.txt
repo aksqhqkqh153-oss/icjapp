@@ -1,11 +1,11 @@
 이청잘 앱 런칭 준비 메모 (운영 주소 / 정책 / 배포 / 안드로이드 패키징)
 
 [1. 운영 주소 확정]
-- 사용할 실제 서버 주소: https://www.icj24app.com
-- 사용할 정책 페이지 주소: https://www.icj24app.com/privacy-policy
+- 사용할 실제 서버 주소: https://www.icj2424app.com
+- 사용할 정책 페이지 주소: https://www.icj2424app.com/privacy-policy
 - 프런트 운영 환경파일: frontend/.env.production
-- 현재 반영값: VITE_API_BASE_URL=https://www.icj24app.com
-- 주의: 추후 API를 api.icj24app.com 같은 별도 서브도메인으로 분리하면 위 값도 함께 변경할 것
+- 현재 반영값: VITE_API_BASE_URL=https://www.icj2424app.com
+- 주의: 추후 API를 api.icj2424app.com 같은 별도 서브도메인으로 분리하면 위 값도 함께 변경할 것
 
 [2. 정책 페이지 확정]
 - 운영자명: 이청잘(이집청년 이사잘하네)
@@ -65,7 +65,7 @@
 7) 서명키 생성 후 AAB 빌드
 
 [8. 다음 단계 - 우선순위]
-1) 운영 서버(https://www.icj24app.com) 실제 배포 환경 준비
+1) 운영 서버(https://www.icj2424app.com) 실제 배포 환경 준비
 2) 앱 내부 계정 삭제 기능 실제 구현
 3) 첨부 이미지 저장소를 Cloudflare R2 등 오브젝트 스토리지로 연결
 4) Android Studio에서 Android 플랫폼 생성 및 AAB 빌드
@@ -73,7 +73,7 @@
 6) 스토어용 스크린샷, 아이콘, 소개문, 심사용 계정 정리
 
 [9. GPT에게 다음에 요청할 때 참고할 내용]
-- 운영 도메인은 https://www.icj24app.com 으로 확정
-- 정책 페이지 주소는 https://www.icj24app.com/privacy-policy 기준
+- 운영 도메인은 https://www.icj2424app.com 으로 확정
+- 정책 페이지 주소는 https://www.icj2424app.com/privacy-policy 기준
 - 무료 최선은 테스트용, 실운영은 Railway + Cloudflare R2 조합 우선 검토
 - 현재 가장 중요한 추가 개발 항목은 앱 내부 계정 삭제 기능과 이미지 저장소 외부화
