@@ -2105,3 +2105,138 @@ label { font-size: 14px; color: #cbd5e1; }
 @media (max-width: 860px) {
   .assignee-chip-list input { min-width: 120px; }
 }
+
+.notification-icon-button {
+  position: relative;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+}
+.notification-bell {
+  font-size: 18px;
+  line-height: 1;
+}
+.notification-badge {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--card-bg, #111827);
+}
+.auto-login-check {
+  align-self: flex-start;
+}
+.notification-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: transparent;
+}
+.notification-item.unread {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.08);
+}
+.profile-list {
+  gap: 10px;
+}
+.profile-row {
+  align-items: center;
+}
+.profile-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.assignee-suggestion-list.portal {
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.28);
+}
+.compact-edit-button {
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.work-day-status-button,
+.calendar-day-summary-button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  padding: 8px 10px;
+  margin: 8px 0 10px;
+  text-align: left;
+}
+.work-day-status-vehicle,
+.calendar-day-summary-vehicle {
+  font-weight: 800;
+}
+.work-day-status-divider {
+  display: none;
+}
+.work-day-status-editor {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.03);
+  margin-bottom: 12px;
+}
+.work-day-status-editor.popup {
+  margin-bottom: 0;
+}
+.work-day-status-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.work-day-status-editor-grid label {
+  display: grid;
+  gap: 6px;
+}
+.work-day-status-editor-memo {
+  min-height: 180px;
+  resize: vertical;
+}
+.calendar-top-actions.filled {
+  gap: 0;
+  width: 100%;
+}
+.calendar-entry-band.filled {
+  min-height: 44px;
+  flex: 1 1 0;
+}
+.calendar-cell-topline {
+  align-items: stretch;
+}
+.calendar-top-actions {
+  flex: 1 1 auto;
+}
+.calendar-day-summary-status {
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .work-day-status-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .calendar-day-summary-button,
+  .work-day-status-button {
+    grid-template-columns: 72px 1fr;
+  }
+}

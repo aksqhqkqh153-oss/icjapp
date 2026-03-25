@@ -185,6 +185,11 @@ class WorkScheduleDayNoteIn(BaseModel):
     schedule_date: str
     excluded_business: str = ""
     excluded_staff: str = ""
+    available_vehicle_count: int = 0
+    status_a_count: int = 0
+    status_b_count: int = 0
+    status_c_count: int = 0
+    day_memo: str = ""
 class AdminModeConfigIn(BaseModel):
     total_vehicle_count: str = ""
     branch_count_override: str = ""
@@ -1665,6 +1670,21 @@ def list_notifications(user=Depends(require_user)):
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50", (user["id"],)).fetchall()
         return [row_to_dict(r) for r in rows]
+
+@app.get("/api/notifications/unread-count")
+def notifications_unread_count(user=Depends(require_user)):
+    with get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (user["id"],)).fetchone()[0]
+        return {"count": int(count or 0)}
+
+@app.post("/api/notifications/{notification_id}/read")
+def mark_notification_read(notification_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        conn.execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", (notification_id, user["id"]))
+        row = conn.execute("SELECT * FROM notifications WHERE id = ? AND user_id = ?", (notification_id, user["id"])).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='알림을 찾을 수 없습니다.')
+        return row_to_dict(row)
 @app.get("/api/feed-like-notifications")
 def feed_like_notifications(user=Depends(require_user)):
     with get_conn() as conn:
@@ -1860,6 +1880,17 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         staff_tokens = [token.strip() for token in re.split(r'[\n,/]+', excluded_staff or '') if token.strip()]
         staff_display = [token if '-' in token else f'{token}-열외' for token in staff_tokens]
         day_entries = sorted(entries_by_date[key], key=lambda item: ((item.get('schedule_time') or '99:99') if (item.get('schedule_time') or '') not in ('', '미정') else '99:99', str(item.get('customer_name') or item.get('title') or ''), str(item.get('id'))))
+        note_available_count = note.get('available_vehicle_count')
+        computed_available = max(total_vehicle_count - excluded_vehicle_count, 0)
+        try:
+            available_vehicle_count = max(int(note_available_count), 0) if note_available_count not in (None, '') else computed_available
+        except (TypeError, ValueError):
+            available_vehicle_count = computed_available
+        def _safe_count(value):
+            try:
+                return max(int(value or 0), 0)
+            except (TypeError, ValueError):
+                return 0
         output.append({
             'date': key,
             'title': _schedule_day_title(base_date, target),
@@ -1869,7 +1900,11 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'excluded_staff': excluded_staff,
             'excluded_staff_names': staff_display,
             'excluded_vehicle_count': excluded_vehicle_count,
-            'available_vehicle_count': max(total_vehicle_count - excluded_vehicle_count, 0),
+            'available_vehicle_count': available_vehicle_count,
+            'status_a_count': _safe_count(note.get('status_a_count')),
+            'status_b_count': _safe_count(note.get('status_b_count')),
+            'status_c_count': _safe_count(note.get('status_c_count')),
+            'day_memo': note.get('day_memo', '') or '',
         })
     return {'days': output}
 @app.post("/api/work-schedule/entries")
@@ -1920,13 +1955,20 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
         now = utcnow()
         if existing:
             conn.execute(
-                "UPDATE work_schedule_day_notes SET excluded_business = ?, excluded_staff = ?, updated_at = ? WHERE user_id = ? AND schedule_date = ?",
-                (payload.excluded_business, payload.excluded_staff, now, user['id'], payload.schedule_date),
+                """
+                UPDATE work_schedule_day_notes
+                SET excluded_business = ?, excluded_staff = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, updated_at = ?
+                WHERE user_id = ? AND schedule_date = ?
+                """,
+                (payload.excluded_business, payload.excluded_staff, payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, now, user['id'], payload.schedule_date),
             )
         else:
             conn.execute(
-                "INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, now, now),
+                """
+                INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, now, now),
             )
         row = conn.execute("SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
         return row_to_dict(row)

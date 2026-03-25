@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, clearSession, getStoredUser, setSession, uploadFile } from './api'
+import { api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { createPortal } from 'react-dom'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -98,6 +99,7 @@ function Layout({ children, user, onLogout }) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [notificationCount, setNotificationCount] = useState(0)
   const isScheduleView = location.pathname === '/schedule'
   const bottomLinks = [
     ['/', '홈'],
@@ -122,6 +124,19 @@ function Layout({ children, user, onLogout }) {
     setSettingsOpen(false)
   }, [location.pathname])
 
+  useEffect(() => {
+    let ignore = false
+    async function loadNotificationCount() {
+      try {
+        const result = await api('/api/notifications/unread-count')
+        if (!ignore) setNotificationCount(Number(result?.count || 0))
+      } catch (_) {
+        if (!ignore) setNotificationCount(0)
+      }
+    }
+    loadNotificationCount()
+  }, [location.pathname, user?.id])
+
   return (
     <div className={`app-shell${isScheduleView ? ' schedule-wide' : ''}`}>
       <header className="topbar topbar-fixed">
@@ -143,8 +158,9 @@ function Layout({ children, user, onLogout }) {
         </div>
         <div className="page-heading">{pageTitle(location.pathname)}</div>
         <div className="topbar-right">
-          <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button active-icon' : 'ghost icon-button'} onClick={() => navigate('/notifications')}>
-            알림
+          <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button active-icon notification-icon-button' : 'ghost icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
+            <span className="notification-bell">🔔</span>
+            {notificationCount > 0 && <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>}
           </button>
           <div className="dropdown-wrap">
             <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button active-icon' : 'ghost icon-button'} onClick={() => setSettingsOpen(v => !v)}>
@@ -177,6 +193,7 @@ function AuthPage({ onLogin }) {
   const navigate = useNavigate()
   const [accounts, setAccounts] = useState([])
   const [form, setForm] = useState({ email: 'admin@example.com', password: 'admin1234' })
+  const [autoLogin, setAutoLogin] = useState(getRememberedLogin())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -191,7 +208,7 @@ function AuthPage({ onLogin }) {
         method: 'POST',
         body: JSON.stringify(form),
       })
-      setSession(data.access_token, data.user)
+      setSession(data.access_token, data.user, autoLogin)
       onLogin(data.user)
       navigate('/')
     } catch (err) {
@@ -208,6 +225,7 @@ function AuthPage({ onLogin }) {
         <form onSubmit={submit} className="stack">
           <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" autoComplete="username" />
           <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" autoComplete="current-password" />
+          <label className="check auto-login-check"><input type="checkbox" checked={autoLogin} onChange={e => setAutoLogin(e.target.checked)} /> 자동로그인</label>
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
           {error && <div className="error">{error}</div>}
         </form>
@@ -742,6 +760,7 @@ function ProfilePage({ onUserUpdate }) {
 
 function FriendsPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [profile, setProfile] = useState(null)
   const [users, setUsers] = useState([])
   const [data, setData] = useState({ friends: [], received_requests: [], sent_requests: [] })
@@ -767,6 +786,10 @@ function FriendsPage() {
   }
 
   useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => {
+    const panelName = searchParams.get('panel') || ''
+    if (panelName) setPanel(panelName)
+  }, [searchParams])
   useEffect(() => {
     if (!toast) return undefined
     const timer = window.setTimeout(() => setToast(''), 1400)
@@ -822,8 +845,8 @@ function FriendsPage() {
               <button type="button" className="ghost icon-button" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
               {menuOpen && (
                 <div className="dropdown-menu right">
-                  <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false) }}>친구추가</button>
-                  <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false) }}>친구요청목록</button>
+                  <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
+                  <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록</button>
                 </div>
               )}
             </div>
@@ -854,7 +877,7 @@ function FriendsPage() {
 
         {panel === 'add' && (
           <section className="friends-subpanel">
-            <div className="between"><strong>친구추가</strong><button type="button" className="ghost small" onClick={() => setPanel('')}>닫기</button></div>
+            <div className="between"><strong>친구추가</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
             <div className="friends-group-list">
               {candidateUsers.map(item => (
                 <FriendRow
@@ -877,7 +900,7 @@ function FriendsPage() {
 
         {panel === 'requests' && (
           <section className="friends-subpanel">
-            <div className="between"><strong>친구요청목록</strong><button type="button" className="ghost small" onClick={() => setPanel('')}>닫기</button></div>
+            <div className="between"><strong>친구요청목록</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
             <div className="friends-group-list">
               {receivedProfiles.map(req => (
                 <FriendRow
@@ -1361,7 +1384,10 @@ function ChatRoomPage({ roomType }) {
     <div className="stack-page chat-room-page">
       <section className="card chat-room-card">
         <div className="chat-room-header-actions">
-          <button type="button" className="small ghost" onClick={() => navigate('/chats')}>목록</button>
+          <div className="inline-actions">
+            <button type="button" className="small ghost" onClick={() => navigate('/chats')}>목록</button>
+            <button type="button" className="small ghost" onClick={() => setMemberPanelOpen(v => !v)}>인원</button>
+          </div>
           <strong className="chat-room-heading">{title}</strong>
           <div className="inline-actions">
             <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
@@ -1369,14 +1395,17 @@ function ChatRoomPage({ roomType }) {
           </div>
         </div>
         {menuOpen && <div className="inline-actions wrap room-menu-bar">{roomMenuActions.map(action => <button key={action.label} type="button" className={action.danger ? 'small ghost danger-text' : 'small ghost'} onClick={() => { action.onClick(); setMenuOpen(false) }}>{action.label}</button>)}</div>}
-        {memberPanelOpen && roomType === 'group' && data?.room?.can_manage && (
+        {memberPanelOpen && (
           <div className="group-member-panel">
-            <div className="between"><strong>참여자 관리</strong><button type="button" className="small ghost" onClick={() => setMemberPanelOpen(false)}>닫기</button></div>
-            <div className="group-member-list">
-              {(data?.members || []).map(member => (
-                <div key={member.id} className="group-member-row">
-                  <span>{member.nickname} <small className="muted">({member.grade_label || '회원'})</small></span>
-                  {member.id !== getStoredUser()?.id ? <button type="button" className="small ghost danger-text" onClick={() => kickMember(member).catch(err => alert(err.message))}>추방</button> : <span className="muted">본인</span>}
+            <div className="between"><strong>현재 채팅방 인원</strong><button type="button" className="small ghost" onClick={() => setMemberPanelOpen(false)}>닫기</button></div>
+            <div className="group-member-list profile-list">
+              {((roomType === 'group' ? (data?.members || []) : [getStoredUser(), data?.target_user].filter(Boolean))).map(member => (
+                <div key={member.id} className="group-member-row profile-row">
+                  <div className="profile-mini">
+                    <AvatarCircle src={member.photo_url} label={member.nickname} className="friend-avatar" size={40} />
+                    <strong>{member.nickname || '회원'}</strong>
+                  </div>
+                  {roomType === 'group' && data?.room?.can_manage && member.id !== getStoredUser()?.id ? <button type="button" className="small ghost danger-text" onClick={() => kickMember(member).catch(err => alert(err.message))}>추방</button> : <span className="muted">{member.grade_label || ''}</span>}
                 </div>
               ))}
             </div>
@@ -1888,15 +1917,27 @@ function CalendarPage() {
     return Number.isNaN(parsed.getTime()) ? startOfMonth(new Date()) : startOfMonth(parsed)
   })()
   const [items, setItems] = useState([])
+  const [workDays, setWorkDays] = useState([])
   const [monthCursor, setMonthCursor] = useState(initialMonth)
   const [selectedDate, setSelectedDate] = useState(initialDate)
   const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [] })
+  const [calendarStatusDate, setCalendarStatusDate] = useState('')
+  const [calendarStatusForm, setCalendarStatusForm] = useState(buildDayStatusForm(null))
 
   async function load() {
-    const data = await api('/api/calendar/events')
-    setItems(data)
+    const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
+    const [calendarData, workData] = await Promise.all([
+      api('/api/calendar/events'),
+      api(`/api/work-schedule?start_date=${firstDate}&days=42`),
+    ])
+    setItems(calendarData)
+    setWorkDays(workData.days || [])
   }
-  useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => { load().catch(() => {}) }, [monthCursor])
+  useEffect(() => {
+    const panelName = searchParams.get('panel') || ''
+    if (panelName) setPanel(panelName)
+  }, [searchParams])
   useEffect(() => {
     const preset = searchParams.get('date')
     if (preset) {
@@ -1928,6 +1969,7 @@ function CalendarPage() {
   }, [items])
   const detailItems = grouped.get(selectedDate) || []
   const visibleLaneCount = isMobile ? 2 : 5
+  const workDayMap = useMemo(() => new Map((workDays || []).map(day => [day.date, day])), [workDays])
 
   function openDateForm(date) {
     navigate(`/schedule/new?date=${fmtDate(date)}`)
@@ -1956,6 +1998,18 @@ function CalendarPage() {
     setOverflowPopup({ dateKey: '', items: [] })
   }
 
+  function openCalendarStatus(daySummary) {
+    setCalendarStatusForm(buildDayStatusForm(daySummary))
+    setCalendarStatusDate(daySummary.date)
+  }
+
+  async function submitCalendarStatus(e) {
+    e.preventDefault()
+    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(calendarStatusForm) })
+    setCalendarStatusDate('')
+    await load()
+  }
+
   return (
     <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
@@ -1979,6 +2033,7 @@ function CalendarPage() {
             const dayItems = date ? (grouped.get(fmtDate(date)) || []) : []
             const visibleItems = dayItems.slice(0, visibleLaneCount)
             const extraCount = Math.max(dayItems.length - visibleLaneCount, 0)
+            const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
             return (
               <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}` : 'calendar-cell empty'}>
                 {date && (
@@ -1987,11 +2042,11 @@ function CalendarPage() {
                       <span className="calendar-date">{date.getDate()}</span>
                     </button>
                     {!isMobile && (
-                      <div className="calendar-top-actions">
-                        <button type="button" className="calendar-entry-band secondary" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
+                      <div className="calendar-top-actions filled">
+                        <button type="button" className="calendar-entry-band secondary filled" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
                           <span className="calendar-entry-label">스케줄목록</span>
                         </button>
-                        <button type="button" className="calendar-entry-band" onClick={() => openDateForm(date)}>
+                        <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
                           <span className="calendar-entry-label">일정등록</span>
                         </button>
                       </div>
@@ -1999,54 +2054,79 @@ function CalendarPage() {
                   </div>
                 )}
                 {date && (
-                  <div
-                    className="calendar-lanes-stack"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectDate(date)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        selectDate(date)
-                      }
-                    }}
-                  >
-                    <div className="calendar-lanes">
-                      {visibleItems.map(item => (
+                  <>
+                    <button type="button" className="calendar-day-summary-button" onClick={() => openCalendarStatus(daySummary)} disabled={readOnly}>
+                      <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                      <span className="calendar-day-summary-status">A : {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}건 / B : {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}건 / C : {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}건</span>
+                    </button>
+                    <div
+                      className="calendar-lanes-stack"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => selectDate(date)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          selectDate(date)
+                        }
+                      }}
+                    >
+                      <div className="calendar-lanes">
+                        {visibleItems.map(item => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="calendar-lane filled clickable"
+                            style={{ background: item.color || '#2563eb', boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
+                            title={item.title}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              navigate(`/schedule/${item.id}`)
+                            }}
+                          >
+                            <span>{item.title}</span>
+                          </button>
+                        ))}
+                        {Array.from({ length: Math.max(visibleLaneCount - visibleItems.length, 0) }).map((_, laneIndex) => (
+                          <span key={`empty-${key}-${laneIndex}`} className="calendar-lane" />
+                        ))}
+                      </div>
+                      {extraCount > 0 && (
                         <button
-                          key={item.id}
                           type="button"
-                          className="calendar-lane filled clickable"
-                          style={{ background: item.color || '#2563eb', boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
-                          title={item.title}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            navigate(`/schedule/${item.id}`)
-                          }}
+                          className="calendar-more-indicator"
+                          onClick={(event) => openOverflowPopup(date, dayItems, event)}
                         >
-                          <span>{item.title}</span>
+                          +{extraCount}
                         </button>
-                      ))}
-                      {Array.from({ length: Math.max(visibleLaneCount - visibleItems.length, 0) }).map((_, laneIndex) => (
-                        <span key={`empty-${key}-${laneIndex}`} className="calendar-lane" />
-                      ))}
+                      )}
                     </div>
-                    {extraCount > 0 && (
-                      <button
-                        type="button"
-                        className="calendar-more-indicator"
-                        onClick={(event) => openOverflowPopup(date, dayItems, event)}
-                      >
-                        +{extraCount}
-                      </button>
-                    )}
-                  </div>
+                  </>
                 )}
               </div>
             )
           })}
         </div>
       </section>
+      {calendarStatusDate && !readOnly && (
+        <div className="schedule-popup-backdrop" onClick={() => setCalendarStatusDate('')}>
+          <section className="schedule-popup-card day-status-popup" onClick={event => event.stopPropagation()}>
+            <form onSubmit={submitCalendarStatus} className="work-day-status-editor popup">
+              <div className="between work-day-status-editor-head">
+                <button type="button" className="ghost small" onClick={() => setCalendarStatusDate('')}>뒤로가기</button>
+                <button type="submit" className="small">저장</button>
+              </div>
+              <div className="work-day-status-editor-grid">
+                <label>가용차량 숫자 입력칸<input type="number" min="0" value={calendarStatusForm.available_vehicle_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
+                <label>A : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_a_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_a_count: Number(e.target.value || 0) })} /></label>
+                <label>B : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_b_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_b_count: Number(e.target.value || 0) })} /></label>
+                <label>C : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_c_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_c_count: Number(e.target.value || 0) })} /></label>
+              </div>
+              <textarea value={calendarStatusForm.day_memo} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
+            </form>
+          </section>
+        </div>
+      )}
       {overflowPopup.items.length > 0 && (
         <div className="schedule-popup-backdrop" onClick={closeOverflowPopup}>
           <section className="schedule-popup-card" onClick={event => event.stopPropagation()}>
@@ -2161,6 +2241,8 @@ function filterAssignableUsers(users, query, selectedValues = [], predicate = nu
 
 function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3 }) {
   const [query, setQuery] = useState('')
+  const [portalStyle, setPortalStyle] = useState(null)
+  const shellRef = useRef(null)
   const selectedValues = useMemo(() => splitScheduleNames(value), [value])
   const suggestions = useMemo(() => filterAssignableUsers(users, query, selectedValues, predicate), [users, query, selectedValues, predicate])
 
@@ -2180,9 +2262,9 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   }
 
   function handleKeyDown(event) {
-    if (event.key === 'Enter' || event.key === ',') {
+    if (event.key === 'Enter' || event.key === ',' || event.key === '@') {
       event.preventDefault()
-      addByText(query)
+      addByText(query.replace(/@/g, ''))
     }
     if (event.key === 'Backspace' && !query && selectedValues.length > 0) {
       event.preventDefault()
@@ -2190,10 +2272,56 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
     }
   }
 
+  useLayoutEffect(() => {
+    if (!query.trim() || suggestions.length === 0 || !shellRef.current) {
+      setPortalStyle(null)
+      return
+    }
+    const updatePosition = () => {
+      const rect = shellRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setPortalStyle({
+        position: 'fixed',
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 5000,
+      })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [query, suggestions.length])
+
+  const suggestionLayer = query.trim() && suggestions.length > 0 && portalStyle ? createPortal(
+    <div className="assignee-suggestion-list portal" style={portalStyle}>
+      {suggestions.map(user => {
+        const tagValue = buildAssigneeTagValue(user)
+        return (
+          <button
+            key={`${label || 'assignee'}-${user.id}`}
+            type="button"
+            className="assignee-suggestion-item"
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => addByText(tagValue)}
+          >
+            <strong>{tagValue}</strong>
+            <span>{buildAssigneeOptionMeta(user)}</span>
+          </button>
+        )
+      })}
+    </div>,
+    document.body,
+  ) : null
+
   return (
     <div className="stack compact-gap assignee-field-wrap">
       {label && <label>{label}</label>}
-      <div className="assignee-input-shell">
+      <div className="assignee-input-shell" ref={shellRef}>
         <div className="assignee-chip-list">
           {selectedValues.map(item => (
             <span key={item} className="assignee-chip">
@@ -2207,30 +2335,12 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={() => {
-              if (query.trim()) addByText(query)
+              if (query.trim()) addByText(query.replace(/@/g, ''))
             }}
           />
         </div>
-        {query.trim() && suggestions.length > 0 && (
-          <div className="assignee-suggestion-list">
-            {suggestions.map(user => {
-              const tagValue = buildAssigneeTagValue(user)
-              return (
-                <button
-                  key={`${label || 'assignee'}-${user.id}`}
-                  type="button"
-                  className="assignee-suggestion-item"
-                  onMouseDown={event => event.preventDefault()}
-                  onClick={() => addByText(tagValue)}
-                >
-                  <strong>{tagValue}</strong>
-                  <span>{buildAssigneeOptionMeta(user)}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
+      {suggestionLayer}
     </div>
   )
 }
@@ -2249,6 +2359,19 @@ function workScheduleDateLine(dateText) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekdays[date.getDay()]})`
 }
 
+function buildDayStatusForm(day) {
+  return {
+    schedule_date: day?.date || fmtDate(new Date()),
+    excluded_business: day?.excluded_business || '',
+    excluded_staff: day?.excluded_staff || '',
+    available_vehicle_count: Number(day?.available_vehicle_count || 0),
+    status_a_count: Number(day?.status_a_count || 0),
+    status_b_count: Number(day?.status_b_count || 0),
+    status_c_count: Number(day?.status_c_count || 0),
+    day_memo: day?.day_memo || '',
+  }
+}
+
 function WorkSchedulePage() {
   const isMobile = useIsMobile()
   const currentUser = getStoredUser()
@@ -2264,6 +2387,8 @@ function WorkSchedulePage() {
   const [editingForm, setEditingForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [bulkEditDate, setBulkEditDate] = useState('')
   const [bulkForms, setBulkForms] = useState({})
+  const [activeStatusDate, setActiveStatusDate] = useState('')
+  const [statusForm, setStatusForm] = useState(buildDayStatusForm(null))
   const [assignableUsers, setAssignableUsers] = useState([])
 
   async function load() {
@@ -2425,6 +2550,19 @@ function WorkSchedulePage() {
     await load()
   }
 
+  function openStatusEditor(day) {
+    setStatusForm(buildDayStatusForm(day))
+    setActiveStatusDate(day.date)
+  }
+
+  async function submitStatusEditor(e) {
+    e.preventDefault()
+    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(statusForm) })
+    setMessage('일정현황 정보가 저장되었습니다.')
+    setActiveStatusDate('')
+    await load()
+  }
+
   return (
     <div className={`stack-page work-schedule-page${isMobile ? ' mobile' : ''}`}>
       {message && <div className="success">{message}</div>}
@@ -2448,11 +2586,11 @@ function WorkSchedulePage() {
               </div>
             </div>
 
-            <div className="work-schedule-vehicle-status">
-              <span>[가용차량 : <strong>{day.available_vehicle_count ?? 0}</strong>]</span>
-              <span>|</span>
-              <span>[열외차량 : <strong>{day.excluded_vehicle_count ?? 0}</strong>]</span>
-            </div>
+            <button type="button" className="work-day-status-button" onClick={() => openStatusEditor(day)} disabled={readOnly}>
+              <span className="work-day-status-vehicle">가용차량수 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+              <span className="work-day-status-divider" />
+              <span className="work-day-status-summary">A : {String(day.status_a_count ?? 0).padStart(2, '0')}건 / B : {String(day.status_b_count ?? 0).padStart(2, '0')}건 / C : {String(day.status_c_count ?? 0).padStart(2, '0')}건</span>
+            </button>
 
             {activeFormDate === day.date && !readOnly && (
               <form onSubmit={submitEntry} className="work-schedule-entry-form">
@@ -2481,7 +2619,7 @@ function WorkSchedulePage() {
                   <div key={key} className="work-schedule-line-item">
                     <div className="work-schedule-line-head">
                       <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
-                      {!readOnly && <button type="button" className="small ghost" onClick={() => openRowEdit(day.date, item)}>편집</button>}
+                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>편집</button>}
                     </div>
                     {isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
@@ -2524,6 +2662,22 @@ function WorkSchedulePage() {
 
               {day.entries.length === 0 && <div className="muted">등록된 스케줄이 없습니다.</div>}
             </div>
+
+            {activeStatusDate === day.date && !readOnly && (
+              <form onSubmit={submitStatusEditor} className="work-day-status-editor">
+                <div className="between work-day-status-editor-head">
+                  <button type="button" className="ghost small" onClick={() => setActiveStatusDate('')}>뒤로가기</button>
+                  <button type="submit" className="small">저장</button>
+                </div>
+                <div className="work-day-status-editor-grid">
+                  <label>가용차량 숫자 입력칸<input type="number" min="0" value={statusForm.available_vehicle_count} onChange={e => setStatusForm({ ...statusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
+                  <label>A : 숫자입력칸<input type="number" min="0" value={statusForm.status_a_count} onChange={e => setStatusForm({ ...statusForm, status_a_count: Number(e.target.value || 0) })} /></label>
+                  <label>B : 숫자입력칸<input type="number" min="0" value={statusForm.status_b_count} onChange={e => setStatusForm({ ...statusForm, status_b_count: Number(e.target.value || 0) })} /></label>
+                  <label>C : 숫자입력칸<input type="number" min="0" value={statusForm.status_c_count} onChange={e => setStatusForm({ ...statusForm, status_c_count: Number(e.target.value || 0) })} /></label>
+                </div>
+                <textarea value={statusForm.day_memo} onChange={e => setStatusForm({ ...statusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
+              </form>
+            )}
 
             {activeNoteDate === day.date && !readOnly && (
               <form onSubmit={submitNotes} className="work-notes-form">
@@ -3149,24 +3303,43 @@ function ScheduleDetailPage() {
 }
 
 function NotificationsPage() {
+  const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [likes, setLikes] = useState([])
+
+  async function load() {
+    const [n, l] = await Promise.all([api('/api/notifications'), api('/api/feed-like-notifications')])
+    setItems(n)
+    setLikes(l)
+  }
+
   useEffect(() => {
-    Promise.all([api('/api/notifications'), api('/api/feed-like-notifications')]).then(([n, l]) => {
-      setItems(n)
-      setLikes(l)
-    })
+    load().catch(() => {})
   }, [])
+
+  async function handleNotificationClick(item) {
+    try {
+      if (!item?.is_read) {
+        await api(`/api/notifications/${item.id}/read`, { method: 'POST' })
+      }
+    } catch (_) {}
+    if (item?.type === 'friend_request') {
+      navigate('/friends?panel=requests')
+      return
+    }
+    await load().catch(() => {})
+  }
+
   return (
-    <div className="grid2">
+    <div className="grid2 notifications-page-grid">
       <section className="card">
         <h2>일반 알림</h2>
         <div className="list">
           {items.map(item => (
-            <div key={item.id} className="list-item block">
+            <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
               <strong>{item.title}</strong>
               <div>{item.body}</div>
-            </div>
+            </button>
           ))}
           {items.length === 0 && <div className="muted">알림이 없습니다.</div>}
         </div>
@@ -3175,7 +3348,7 @@ function NotificationsPage() {
         <h2>추가 알림</h2>
         <div className="list">
           {likes.map(item => (
-            <div key={item.id} className="list-item block">
+            <div key={item.id} className="list-item block notification-item">
               <strong>{item.title}</strong>
               <div>{item.body}</div>
             </div>

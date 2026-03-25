@@ -13,22 +13,41 @@ export function getApiBase() {
   return API_BASE
 }
 
-export function getToken() {
-  return localStorage.getItem('icj_token') || ''
+const REMEMBER_KEY = 'icj_auto_login'
+
+export function getRememberedLogin() {
+  return localStorage.getItem(REMEMBER_KEY) === '1'
 }
 
-export function setSession(token, user) {
-  localStorage.setItem('icj_token', token)
-  localStorage.setItem('icj_user', JSON.stringify(user))
+export function getToken() {
+  return sessionStorage.getItem('icj_token') || localStorage.getItem('icj_token') || ''
+}
+
+export function setSession(token, user, remember = false) {
+  const serializedUser = JSON.stringify(user)
+  sessionStorage.setItem('icj_token', token)
+  sessionStorage.setItem('icj_user', serializedUser)
+  if (remember) {
+    localStorage.setItem('icj_token', token)
+    localStorage.setItem('icj_user', serializedUser)
+    localStorage.setItem(REMEMBER_KEY, '1')
+  } else {
+    localStorage.removeItem('icj_token')
+    localStorage.removeItem('icj_user')
+    localStorage.removeItem(REMEMBER_KEY)
+  }
 }
 
 export function clearSession() {
+  sessionStorage.removeItem('icj_token')
+  sessionStorage.removeItem('icj_user')
   localStorage.removeItem('icj_token')
   localStorage.removeItem('icj_user')
+  localStorage.removeItem(REMEMBER_KEY)
 }
 
 export function getStoredUser() {
-  const raw = localStorage.getItem('icj_user')
+  const raw = sessionStorage.getItem('icj_user') || localStorage.getItem('icj_user')
   try {
     return raw ? JSON.parse(raw) : null
   } catch {

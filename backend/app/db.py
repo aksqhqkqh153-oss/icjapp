@@ -567,6 +567,11 @@ CREATE TABLE IF NOT EXISTS work_schedule_day_notes (
     schedule_date TEXT NOT NULL,
     excluded_business TEXT NOT NULL DEFAULT '',
     excluded_staff TEXT NOT NULL DEFAULT '',
+    available_vehicle_count INTEGER NOT NULL DEFAULT 0,
+    status_a_count INTEGER NOT NULL DEFAULT 0,
+    status_b_count INTEGER NOT NULL DEFAULT 0,
+    status_c_count INTEGER NOT NULL DEFAULT 0,
+    day_memo TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(user_id, schedule_date),
@@ -1457,10 +1462,10 @@ def init_db() -> None:
                     )
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT OR IGNORE INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (owner_id, today.isoformat(), '사업자A', '직원7', utcnow(), utcnow()),
+                    (owner_id, today.isoformat(), '사업자A', '직원7', 8, 2, 1, 0, '당일 배차 메모 예시', utcnow(), utcnow()),
                 )
 
 def get_user_by_token(conn: sqlite3.Connection, token: str):
