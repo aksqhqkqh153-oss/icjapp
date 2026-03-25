@@ -1528,6 +1528,8 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
     entries_by_date = {key: [] for key in date_keys}
     for row in event_rows:
         item = row_to_dict(row)
+        representative_names = ' / '.join([name for name in [row['representative1'], row['representative2'], row['representative3']] if str(name or '').strip()])
+        staff_names = ' / '.join([name for name in [row['staff1'], row['staff2'], row['staff3']] if str(name or '').strip()])
         entries_by_date[row['event_date']].append({
             'id': f"calendar-{row['id']}",
             'entry_type': 'calendar',
@@ -1535,9 +1537,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'schedule_date': row['event_date'],
             'schedule_time': '' if row['start_time'] in ('', '미정') else row['start_time'],
             'customer_name': row['customer_name'] or '고객명',
-            'representative_names': '',
-            'staff_names': '',
-            'memo': row['location'] or row['content'] or '',
+            'representative_names': representative_names,
+            'staff_names': staff_names,
+            'memo': row['content'] or row['location'] or '',
             'title': row['title'],
             'color': row['color'] or '#2563eb',
             'platform': row['platform'] or '',

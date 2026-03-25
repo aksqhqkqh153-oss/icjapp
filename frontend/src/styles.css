@@ -1917,3 +1917,82 @@ label { font-size: 14px; color: #cbd5e1; }
     flex: 1 1 auto;
   }
 }
+
+/* work schedule unified list editor update */
+.work-schedule-list.unified-list {
+  gap: 0;
+  border: 1px solid rgba(51,65,85,0.88);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(15,23,42,0.58);
+}
+.work-schedule-line-item {
+  border-top: 1px solid rgba(148,163,184,0.14);
+}
+.work-schedule-line-item:first-child {
+  border-top: 0;
+}
+.work-schedule-line-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.work-schedule-line-text {
+  min-width: 0;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.work-schedule-inline-editor,
+.work-schedule-bulk-editor {
+  padding: 0 12px 12px;
+}
+.work-schedule-inline-grid {
+  display: grid;
+  grid-template-columns: 110px minmax(120px,1fr) minmax(160px,1fr) minmax(160px,1fr) minmax(180px,1.2fr);
+  gap: 8px;
+}
+.work-schedule-inline-grid .schedule-inline-memo {
+  min-width: 0;
+}
+.work-schedule-bulk-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.work-schedule-inline-editor.bulk-row {
+  padding: 10px 12px 0;
+}
+.work-schedule-inline-editor.bulk-row:first-child {
+  padding-top: 12px;
+}
+.inline-actions.end {
+  justify-content: flex-end;
+}
+@media (max-width: 860px) {
+  .work-schedule-line-head {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+  .work-schedule-line-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
+    font-size: 12px;
+  }
+  .work-schedule-inline-grid {
+    grid-template-columns: 1fr;
+  }
+  .work-schedule-inline-editor,
+  .work-schedule-bulk-editor {
+    padding: 0 10px 10px;
+  }
+  .work-schedule-inline-editor.bulk-row {
+    padding: 10px 10px 0;
+  }
+}

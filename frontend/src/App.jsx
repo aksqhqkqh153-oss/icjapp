@@ -1960,6 +1960,9 @@ function CalendarPage() {
 
 function emptyWorkScheduleForm(scheduleDate) {
   return {
+    id: '',
+    entry_type: 'manual',
+    event_id: null,
     schedule_date: scheduleDate,
     schedule_time: '',
     customer_name: '',
@@ -1967,6 +1970,28 @@ function emptyWorkScheduleForm(scheduleDate) {
     staff_names: '',
     memo: '',
   }
+}
+
+function buildWorkScheduleForm(item, scheduleDate = '') {
+  return {
+    id: item?.id ?? '',
+    entry_type: item?.entry_type || 'manual',
+    event_id: item?.event_id ?? null,
+    schedule_date: item?.schedule_date || scheduleDate || '',
+    schedule_time: item?.schedule_time || '',
+    customer_name: item?.customer_name || '',
+    representative_names: item?.representative_names || '',
+    staff_names: item?.staff_names || '',
+    memo: item?.memo || '',
+  }
+}
+
+function splitScheduleNames(value) {
+  return String(value || '')
+    .split(/[\n,/]+/)
+    .map(token => token.trim())
+    .filter(Boolean)
+    .slice(0, 3)
 }
 
 function workScheduleHeading(index) {
@@ -1994,20 +2019,10 @@ function WorkSchedulePage() {
   const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_staff: '' })
   const [activeNoteDate, setActiveNoteDate] = useState('')
   const [message, setMessage] = useState('')
-  const [expandedRows, setExpandedRows] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('icj_ws_expanded') || '{}') } catch { return {} }
-  })
-  const [alwaysExpanded, setAlwaysExpanded] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('icj_ws_always_expanded') || '{}') } catch { return {} }
-  })
-
-  useEffect(() => {
-    localStorage.setItem('icj_ws_expanded', JSON.stringify(expandedRows))
-  }, [expandedRows])
-
-  useEffect(() => {
-    localStorage.setItem('icj_ws_always_expanded', JSON.stringify(alwaysExpanded))
-  }, [alwaysExpanded])
+  const [editingKey, setEditingKey] = useState('')
+  const [editingForm, setEditingForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
+  const [bulkEditDate, setBulkEditDate] = useState('')
+  const [bulkForms, setBulkForms] = useState({})
 
   async function load() {
     setLoading(true)
@@ -2072,18 +2087,96 @@ function WorkSchedulePage() {
     return `${dayDate}-${item.id}`
   }
 
-  function toggleRow(dayDate, item) {
-    const key = rowKey(dayDate, item)
-    setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }))
+  function formatSummary(item) {
+    const timeText = item.schedule_time || '미정'
+    const customerText = item.customer_name || '(고객명)'
+    const repText = item.representative_names || '-'
+    const staffText = item.staff_names || '-'
+    const memoText = item.memo || '-'
+    return `(${timeText}) (${customerText}) (${repText}) (${staffText}) (${memoText})`
   }
 
-  function formatSummary(item) {
-    const timeText = item.schedule_time || '00:00'
-    const customerText = item.customer_name || '(성함)'
-    const repText = item.representative_names || '대표명 1 / 2 / 3'
-    const staffText = item.staff_names || '직원명 1 / 2 / 3'
-    const memoText = item.memo || '기타메모'
-    return `(${timeText}) (${customerText}) (${repText}) (${staffText}) (${memoText})`
+  function openRowEdit(dayDate, item) {
+    setEditingKey(rowKey(dayDate, item))
+    setEditingForm(buildWorkScheduleForm(item, dayDate))
+    setMessage('')
+  }
+
+  function closeRowEdit() {
+    setEditingKey('')
+  }
+
+  function openBulkEdit(day) {
+    if (bulkEditDate === day.date) {
+      setBulkEditDate('')
+      return
+    }
+    setBulkEditDate(day.date)
+    setBulkForms(prev => ({
+      ...prev,
+      [day.date]: day.entries.map(item => buildWorkScheduleForm(item, day.date)),
+    }))
+    setMessage('')
+  }
+
+  function updateBulkForm(dayDate, index, field, value) {
+    setBulkForms(prev => ({
+      ...prev,
+      [dayDate]: (prev[dayDate] || []).map((form, formIndex) => formIndex === index ? { ...form, [field]: value } : form),
+    }))
+  }
+
+  async function saveScheduleForm(form) {
+    const normalizedTime = normalizeScheduleTimeInput(form.schedule_time || '', form.schedule_time || '')
+    if (form.entry_type === 'calendar' && form.event_id) {
+      const existing = await api(`/api/calendar/events/${form.event_id}`)
+      const repNames = splitScheduleNames(form.representative_names)
+      const staffNames = splitScheduleNames(form.staff_names)
+      const payload = {
+        ...existing,
+        start_time: normalizedTime || '미정',
+        customer_name: form.customer_name || '',
+        content: form.memo || '',
+        representative1: repNames[0] || '',
+        representative2: repNames[1] || '',
+        representative3: repNames[2] || '',
+        staff1: staffNames[0] || '',
+        staff2: staffNames[1] || '',
+        staff3: staffNames[2] || '',
+      }
+      await api(`/api/calendar/events/${form.event_id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      return
+    }
+    const entryId = String(form.id || '').replace(/^manual-/, '')
+    await api(`/api/work-schedule/entries/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        schedule_date: form.schedule_date,
+        schedule_time: normalizedTime || '',
+        customer_name: form.customer_name || '',
+        representative_names: form.representative_names || '',
+        staff_names: form.staff_names || '',
+        memo: form.memo || '',
+      }),
+    })
+  }
+
+  async function submitRowEdit(e) {
+    e.preventDefault()
+    await saveScheduleForm(editingForm)
+    setMessage('스케줄이 수정되었습니다.')
+    closeRowEdit()
+    await load()
+  }
+
+  async function submitBulkEdit(dayDate) {
+    const forms = bulkForms[dayDate] || []
+    for (const form of forms) {
+      await saveScheduleForm(form)
+    }
+    setMessage('일자별 스케줄이 전체 수정되었습니다.')
+    setBulkEditDate('')
+    await load()
   }
 
   return (
@@ -2091,9 +2184,10 @@ function WorkSchedulePage() {
       {message && <div className="success">{message}</div>}
       {loading && <div className="card">불러오는 중...</div>}
       {!loading && daysData.map((day, index) => {
-        const dayAlwaysExpanded = !!alwaysExpanded[day.date]
         const businessCount = day.excluded_business_names?.length || 0
         const staffCount = day.excluded_staff_names?.length || 0
+        const isBulkEdit = bulkEditDate === day.date
+        const dayBulkForms = bulkForms[day.date] || []
         return (
           <section key={day.date} className="card work-schedule-day">
             <div className="between work-schedule-head">
@@ -2103,6 +2197,7 @@ function WorkSchedulePage() {
               </div>
               <div className="inline-actions wrap">
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
+                {!readOnly && <button type="button" className="small ghost" onClick={() => openBulkEdit(day)}>{isBulkEdit ? '전체편집닫기' : '일자별전체편집'}</button>}
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
               </div>
             </div>
@@ -2111,7 +2206,6 @@ function WorkSchedulePage() {
               <span>[가용차량 : <strong>{day.available_vehicle_count ?? 0}</strong>]</span>
               <span>|</span>
               <span>[열외차량 : <strong>{day.excluded_vehicle_count ?? 0}</strong>]</span>
-              <label className="check compact-check"><input type="checkbox" checked={dayAlwaysExpanded} onChange={e => setAlwaysExpanded(prev => ({ ...prev, [day.date]: e.target.checked }))} /> 항상펼치기</label>
             </div>
 
             {activeFormDate === day.date && !readOnly && (
@@ -2120,7 +2214,7 @@ function WorkSchedulePage() {
                   <div>시간</div><div>고객명</div><div>담당대표명1/2/3</div><div>직원명1/2/3</div><div>기타메모</div>
                 </div>
                 <div className="work-schedule-table">
-                  <input value={entryForm.schedule_time} placeholder="09:00" onChange={e => setEntryForm({ ...entryForm, schedule_time: e.target.value })} />
+                  <input value={entryForm.schedule_time} placeholder="09:00" onChange={e => setEntryForm({ ...entryForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                   <input value={entryForm.customer_name} placeholder="고객명" onChange={e => setEntryForm({ ...entryForm, customer_name: e.target.value })} />
                   <input value={entryForm.representative_names} placeholder="대표A / 대표B" onChange={e => setEntryForm({ ...entryForm, representative_names: e.target.value })} />
                   <input value={entryForm.staff_names} placeholder="직원1 / 직원2" onChange={e => setEntryForm({ ...entryForm, staff_names: e.target.value })} />
@@ -2133,30 +2227,55 @@ function WorkSchedulePage() {
               </form>
             )}
 
-            <div className="work-schedule-list collapsible-list">
-              {day.entries.map(item => {
+            <div className="work-schedule-list unified-list">
+              {day.entries.length > 0 && !isBulkEdit && day.entries.map(item => {
                 const key = rowKey(day.date, item)
-                const isExpanded = dayAlwaysExpanded || !!expandedRows[key]
+                const isEditing = editingKey === key
                 return (
-                  <div key={key} className="work-schedule-row collapsible">
-                    <button type="button" className="work-schedule-summary" onClick={() => toggleRow(day.date, item)}>
-                      <span>{formatSummary(item)}</span>
-                    </button>
-                    {isExpanded && (
-                      <div className="work-schedule-row-detail">
-                        <div><strong>시간</strong> {item.schedule_time || '00:00'}</div>
-                        <div><strong>고객명</strong> {item.customer_name || '(성함)'}</div>
-                        <div><strong>대표명</strong> {item.representative_names || '대표명 1 / 2 / 3'}</div>
-                        <div><strong>직원명</strong> {item.staff_names || '직원명 1 / 2 / 3'}</div>
-                        <div><strong>기타메모</strong> {item.memo || '기타메모 없음'}</div>
-                        {item.entry_type === 'calendar' && item.event_id && (
-                          <div><strong>원본일정</strong> {item.source_summary || item.title || '-'}</div>
-                        )}
-                      </div>
+                  <div key={key} className="work-schedule-line-item">
+                    <div className="work-schedule-line-head">
+                      <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
+                      {!readOnly && <button type="button" className="small ghost" onClick={() => openRowEdit(day.date, item)}>편집</button>}
+                    </div>
+                    {isEditing && !readOnly && (
+                      <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
+                        <div className="work-schedule-inline-grid">
+                          <input value={editingForm.schedule_time} placeholder="09:00" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
+                          <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
+                          <input value={editingForm.representative_names} placeholder="대표자" onChange={e => setEditingForm({ ...editingForm, representative_names: e.target.value })} />
+                          <input value={editingForm.staff_names} placeholder="직원" onChange={e => setEditingForm({ ...editingForm, staff_names: e.target.value })} />
+                          <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
+                        </div>
+                        <div className="inline-actions wrap end">
+                          <button type="submit">저장</button>
+                          <button type="button" className="ghost" onClick={closeRowEdit}>취소</button>
+                        </div>
+                      </form>
                     )}
                   </div>
                 )
               })}
+
+              {day.entries.length > 0 && isBulkEdit && (
+                <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
+                  {dayBulkForms.map((form, index) => (
+                    <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row">
+                      <div className="work-schedule-inline-grid">
+                        <input value={form.schedule_time} placeholder="09:00" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
+                        <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
+                        <input value={form.representative_names} placeholder="대표자" onChange={e => updateBulkForm(day.date, index, 'representative_names', e.target.value)} />
+                        <input value={form.staff_names} placeholder="직원" onChange={e => updateBulkForm(day.date, index, 'staff_names', e.target.value)} />
+                        <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="inline-actions wrap end">
+                    <button type="submit">전체 저장</button>
+                    <button type="button" className="ghost" onClick={() => setBulkEditDate('')}>닫기</button>
+                  </div>
+                </form>
+              )}
+
               {day.entries.length === 0 && <div className="muted">등록된 스케줄이 없습니다.</div>}
             </div>
 
