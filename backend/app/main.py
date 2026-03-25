@@ -503,6 +503,9 @@ def require_admin_or_subadmin(user=Depends(require_user)):
     if _grade_of(user) > 2:
         raise HTTPException(status_code=403, detail='관리자 또는 부관리자 권한이 필요합니다.')
     return user
+def can_manage_group_room(user: dict) -> bool:
+    return _grade_of(user) <= 2
+
 def is_blocked(conn, user_id: int, other_id: int) -> bool:
     row = conn.execute(
         """
@@ -1271,8 +1274,15 @@ def get_group_messages(room_id: int, user=Depends(require_user)):
             "SELECT * FROM chat_mentions WHERE user_id = ? AND room_type = 'group' AND room_ref = ? AND seen = 0 ORDER BY id",
             (user["id"], str(room_id)),
         ).fetchall()
+        member_rows = conn.execute("SELECT gm.user_id, gm.created_at FROM group_room_members gm WHERE gm.room_id = ? ORDER BY gm.created_at, gm.user_id", (room_id,)).fetchall()
+        members = []
+        for member_row in member_rows:
+            target = conn.execute("SELECT * FROM users WHERE id = ?", (member_row["user_id"],)).fetchone()
+            if target:
+                members.append(user_public_dict(target))
         return {
-            "room": {**row_to_dict(room), "creator": user_basic(conn, room["creator_id"])},
+            "room": {**row_to_dict(room), "creator": user_basic(conn, room["creator_id"]), "can_manage": can_manage_group_room(user)},
+            "members": members,
             "messages": [enrich_chat_message(conn, r, 'group_room_messages') for r in rows],
             "room_setting": get_room_setting(conn, user["id"], 'group', str(room_id)),
             "pending_mentions": [{**row_to_dict(r), "sender": user_basic(conn, r["sender_id"])} for r in pending_mentions],
@@ -1401,7 +1411,7 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
                 "pinned": bool(setting.get("pinned", 0)),
                 "favorite": bool(setting.get("favorite", 0)),
                 "muted": bool(setting.get("muted", 0)),
-                "room": {**row_to_dict(room), "creator": user_basic(conn, room["creator_id"])},
+                "room": {**row_to_dict(room), "creator": user_basic(conn, room["creator_id"]), "can_manage": can_manage_group_room(user)},
                 "unread_tag": bool(mention),
             })
         if category == 'general':
@@ -1445,12 +1455,45 @@ def invite_to_group_room(room_id: int, payload: ChatInviteIn, user=Depends(requi
         member = conn.execute("SELECT 1 FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, user['id'])).fetchone()
         if not member:
             raise HTTPException(status_code=403, detail='그룹방 참가자만 초대할 수 있습니다.')
+        if not can_manage_group_room(user):
+            raise HTTPException(status_code=403, detail='관리자 또는 부관리자만 초대할 수 있습니다.')
         invited = conn.execute("SELECT * FROM users WHERE id = ?", (payload.user_id,)).fetchone()
         if not invited:
             raise HTTPException(status_code=404, detail='초대할 사용자를 찾을 수 없습니다.')
         conn.execute("INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (?, ?, ?)", (room_id, payload.user_id, utcnow()))
         insert_notification(conn, payload.user_id, 'group_invite', '단체방 초대', f"{user['nickname']}님이 단체방에 초대했습니다.")
         return {"ok": True}
+
+@app.get("/api/group-rooms/{room_id}/members")
+def list_group_room_members(room_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        member = conn.execute("SELECT 1 FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, user['id'])).fetchone()
+        if not member:
+            raise HTTPException(status_code=403, detail='그룹방 참가자만 조회할 수 있습니다.')
+        rows = conn.execute("SELECT gm.user_id FROM group_room_members gm WHERE gm.room_id = ? ORDER BY gm.created_at, gm.user_id", (room_id,)).fetchall()
+        members = []
+        for row in rows:
+            target = conn.execute("SELECT * FROM users WHERE id = ?", (row['user_id'],)).fetchone()
+            if target:
+                members.append(user_public_dict(target))
+        return {"can_manage": can_manage_group_room(user), "members": members}
+
+@app.delete("/api/group-rooms/{room_id}/members/{member_user_id}")
+def remove_group_room_member(room_id: int, member_user_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        member = conn.execute("SELECT 1 FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, user['id'])).fetchone()
+        if not member:
+            raise HTTPException(status_code=403, detail='그룹방 참가자만 관리할 수 있습니다.')
+        if not can_manage_group_room(user):
+            raise HTTPException(status_code=403, detail='관리자 또는 부관리자만 추방할 수 있습니다.')
+        target = conn.execute("SELECT * FROM users WHERE id = ?", (member_user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail='사용자를 찾을 수 없습니다.')
+        conn.execute("DELETE FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, member_user_id))
+        save_room_setting(conn, member_user_id, 'group', str(room_id), {'hidden': True})
+        insert_notification(conn, member_user_id, 'group_kick', '단체방 추방', f"{user['nickname']}님이 단체방에서 내보냈습니다.")
+        return {"ok": True}
+
 @app.post("/api/group-rooms/{room_id}/leave")
 def leave_group_room(room_id: int, user=Depends(require_user)):
     with get_conn() as conn:

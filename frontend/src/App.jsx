@@ -741,6 +741,7 @@ function ProfilePage({ onUserUpdate }) {
 }
 
 function FriendsPage() {
+  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [users, setUsers] = useState([])
   const [data, setData] = useState({ friends: [], received_requests: [], sent_requests: [] })
@@ -793,6 +794,10 @@ function FriendsPage() {
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
   const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
 
+  function goDirectChat(targetId) {
+    navigate(`/chats/direct/${targetId}`)
+  }
+
   function FriendRow({ item, actions = null }) {
     return (
       <div className="friend-row-card">
@@ -839,12 +844,12 @@ function FriendsPage() {
 
         <div className="friends-section-label">즐겨찾기</div>
         <div className="friends-group-list">
-          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
+          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} actions={<button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>} />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
         </div>
 
         <div className="friends-section-label">전체친구</div>
         <div className="friends-group-list">
-          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} />) : <div className="muted">표시할 친구가 없습니다.</div>}
+          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} actions={<button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>} />) : <div className="muted">표시할 친구가 없습니다.</div>}
         </div>
 
         {panel === 'add' && (
@@ -1051,6 +1056,7 @@ function ChatsPage() {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -1104,6 +1110,17 @@ function ChatsPage() {
     await load()
   }
 
+  async function handleCreateGroupRoom() {
+    const title = window.prompt('새 단체 채팅방 이름을 입력하세요.')
+    if (!title || !title.trim()) return
+    const created = await api('/api/group-rooms', {
+      method: 'POST',
+      body: JSON.stringify({ title: title.trim(), description: '', region: '' }),
+    })
+    setMenuOpen(false)
+    navigate(`/chats/group/${created.id}`)
+  }
+
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return rooms
@@ -1133,7 +1150,15 @@ function ChatsPage() {
             ))}
           </div>
           <div className="chat-search-trigger">
-            <button type="button" className="small ghost search-icon-button" aria-label="채팅 검색" onClick={() => setSearchOpen(v => !v)}>⌕</button>
+            <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
+            <div className="dropdown-wrap">
+              <button type="button" className="small ghost" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
+              {menuOpen && (
+                <div className="dropdown-menu right">
+                  <button type="button" className="dropdown-item" onClick={handleCreateGroupRoom}>채팅개설</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {searchOpen && (
@@ -2110,6 +2135,106 @@ function splitScheduleNames(value) {
     .slice(0, 3)
 }
 
+function buildAssigneeTagValue(user) {
+  return String(user?.nickname || user?.email || '').trim()
+}
+
+function buildAssigneeOptionMeta(user) {
+  const parts = [String(user?.nickname || '').trim(), String(user?.email || '').trim(), String(user?.phone || '').trim()].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function filterAssignableUsers(users, query, selectedValues = [], predicate = null) {
+  const normalized = String(query || '').trim().toLowerCase()
+  const selectedSet = new Set((selectedValues || []).map(item => String(item || '').trim()).filter(Boolean))
+  return (users || [])
+    .filter(user => {
+      const value = buildAssigneeTagValue(user)
+      if (!value || selectedSet.has(value)) return false
+      if (predicate && !predicate(user)) return false
+      if (!normalized) return true
+      const haystack = [user?.nickname, user?.email, user?.phone, user?.vehicle_number, user?.branch_no].join(' ').toLowerCase()
+      return haystack.includes(normalized)
+    })
+    .slice(0, 8)
+}
+
+function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3 }) {
+  const [query, setQuery] = useState('')
+  const selectedValues = useMemo(() => splitScheduleNames(value), [value])
+  const suggestions = useMemo(() => filterAssignableUsers(users, query, selectedValues, predicate), [users, query, selectedValues, predicate])
+
+  function syncNext(values) {
+    onChange(values.slice(0, maxCount).join(' / '))
+  }
+
+  function addByText(raw) {
+    const token = String(raw || '').trim()
+    if (!token) return
+    if (selectedValues.includes(token)) {
+      setQuery('')
+      return
+    }
+    syncNext([...selectedValues, token])
+    setQuery('')
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      addByText(query)
+    }
+    if (event.key === 'Backspace' && !query && selectedValues.length > 0) {
+      event.preventDefault()
+      syncNext(selectedValues.slice(0, -1))
+    }
+  }
+
+  return (
+    <div className="stack compact-gap assignee-field-wrap">
+      {label && <label>{label}</label>}
+      <div className="assignee-input-shell">
+        <div className="assignee-chip-list">
+          {selectedValues.map(item => (
+            <span key={item} className="assignee-chip">
+              {item}
+              <button type="button" className="assignee-chip-remove" onClick={() => syncNext(selectedValues.filter(selected => selected !== item))}>×</button>
+            </span>
+          ))}
+          <input
+            value={query}
+            placeholder={placeholder}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (query.trim()) addByText(query)
+            }}
+          />
+        </div>
+        {query.trim() && suggestions.length > 0 && (
+          <div className="assignee-suggestion-list">
+            {suggestions.map(user => {
+              const tagValue = buildAssigneeTagValue(user)
+              return (
+                <button
+                  key={`${label || 'assignee'}-${user.id}`}
+                  type="button"
+                  className="assignee-suggestion-item"
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => addByText(tagValue)}
+                >
+                  <strong>{tagValue}</strong>
+                  <span>{buildAssigneeOptionMeta(user)}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function workScheduleHeading(index) {
   if (index === 0) return '당일일정'
   if (index === 1) return '내일일정'
@@ -2139,12 +2264,17 @@ function WorkSchedulePage() {
   const [editingForm, setEditingForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [bulkEditDate, setBulkEditDate] = useState('')
   const [bulkForms, setBulkForms] = useState({})
+  const [assignableUsers, setAssignableUsers] = useState([])
 
   async function load() {
     setLoading(true)
     try {
-      const data = await api('/api/work-schedule')
+      const [data, users] = await Promise.all([
+        api('/api/work-schedule'),
+        api('/api/users'),
+      ])
       setDaysData(data.days || [])
+      setAssignableUsers(users || [])
     } finally {
       setLoading(false)
     }
@@ -2329,11 +2459,11 @@ function WorkSchedulePage() {
                 <div className="work-schedule-table header">
                   <div>시간</div><div>고객명</div><div>담당대표명1/2/3</div><div>직원명1/2/3</div><div>기타메모</div>
                 </div>
-                <div className="work-schedule-table">
+                <div className="work-schedule-table work-schedule-assignee-table">
                   <input value={entryForm.schedule_time} placeholder="09:00" onChange={e => setEntryForm({ ...entryForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                   <input value={entryForm.customer_name} placeholder="고객명" onChange={e => setEntryForm({ ...entryForm, customer_name: e.target.value })} />
-                  <input value={entryForm.representative_names} placeholder="대표A / 대표B" onChange={e => setEntryForm({ ...entryForm, representative_names: e.target.value })} />
-                  <input value={entryForm.staff_names} placeholder="직원1 / 직원2" onChange={e => setEntryForm({ ...entryForm, staff_names: e.target.value })} />
+                  <AssigneeInput users={assignableUsers} value={entryForm.representative_names} onChange={value => setEntryForm({ ...entryForm, representative_names: value })} placeholder="대표자 이름/계정 입력 후 선택" />
+                  <AssigneeInput users={assignableUsers} value={entryForm.staff_names} onChange={value => setEntryForm({ ...entryForm, staff_names: value })} placeholder="직원 이름/계정 입력 후 선택" />
                   <input value={entryForm.memo} placeholder="기타 메모" onChange={e => setEntryForm({ ...entryForm, memo: e.target.value })} />
                 </div>
                 <div className="inline-actions wrap">
@@ -2355,11 +2485,11 @@ function WorkSchedulePage() {
                     </div>
                     {isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
-                        <div className="work-schedule-inline-grid">
+                        <div className="work-schedule-inline-grid work-schedule-assignee-grid">
                           <input value={editingForm.schedule_time} placeholder="09:00" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                           <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
-                          <input value={editingForm.representative_names} placeholder="대표자" onChange={e => setEditingForm({ ...editingForm, representative_names: e.target.value })} />
-                          <input value={editingForm.staff_names} placeholder="직원" onChange={e => setEditingForm({ ...editingForm, staff_names: e.target.value })} />
+                          <AssigneeInput users={assignableUsers} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="대표자 이름/계정 입력 후 선택" />
+                          <AssigneeInput users={assignableUsers} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="직원 이름/계정 입력 후 선택" />
                           <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
                         </div>
                         <div className="inline-actions wrap end">
@@ -2376,11 +2506,11 @@ function WorkSchedulePage() {
                 <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
                   {dayBulkForms.map((form, index) => (
                     <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row">
-                      <div className="work-schedule-inline-grid">
+                      <div className="work-schedule-inline-grid work-schedule-assignee-grid">
                         <input value={form.schedule_time} placeholder="09:00" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
                         <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
-                        <input value={form.representative_names} placeholder="대표자" onChange={e => updateBulkForm(day.date, index, 'representative_names', e.target.value)} />
-                        <input value={form.staff_names} placeholder="직원" onChange={e => updateBulkForm(day.date, index, 'staff_names', e.target.value)} />
+                        <AssigneeInput users={assignableUsers} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="대표자 이름/계정 입력 후 선택" />
+                        <AssigneeInput users={assignableUsers} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="직원 이름/계정 입력 후 선택" />
                         <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
                       </div>
                     </div>
@@ -2481,6 +2611,7 @@ function ScheduleFormPage({ mode }) {
   const [visitTimeText, setVisitTimeText] = useState('')
   const [startTimeText, setStartTimeText] = useState('')
   const [endTimeText, setEndTimeText] = useState('')
+  const [assignableUsers, setAssignableUsers] = useState([])
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -2520,13 +2651,18 @@ function ScheduleFormPage({ mode }) {
         move_end_date: prev.move_end_date || presetDate,
       }))
       setVisitTimeText(prev => prev || '')
+      api('/api/users').then(users => setAssignableUsers(users || [])).catch(() => {})
       return
     }
     async function loadDetail() {
       setLoading(true)
       setError('')
       try {
-        const data = await api(`/api/calendar/events/${eventId}`)
+        const [data, users] = await Promise.all([
+          api(`/api/calendar/events/${eventId}`),
+          api('/api/users'),
+        ])
+        setAssignableUsers(users || [])
         setForm({
           title: data.title || '',
           content: data.content || '',
@@ -2683,6 +2819,16 @@ function ScheduleFormPage({ mode }) {
   function changeTimeField(field, value) {
     const normalized = normalizeScheduleTimeInput(value, value)
     setForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  function updateRepresentativeNames(value) {
+    const [first, second, third] = splitScheduleNames(value)
+    setForm(prev => ({ ...prev, representative1: first || '', representative2: second || '', representative3: third || '' }))
+  }
+
+  function updateStaffNames(value) {
+    const [first, second, third] = splitScheduleNames(value)
+    setForm(prev => ({ ...prev, staff1: first || '', staff2: second || '', staff3: third || '' }))
   }
 
   async function submit(e) {
@@ -2904,33 +3050,9 @@ function ScheduleFormPage({ mode }) {
           <div className="stack compact-gap">
             <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
           </div>
-          <div className="schedule-form-grid-3">
-            <div className="stack compact-gap">
-              <label>담당대표1</label>
-              <input value={form.representative1} onChange={e => setForm({ ...form, representative1: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>담당대표2</label>
-              <input value={form.representative2} onChange={e => setForm({ ...form, representative2: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>담당대표3</label>
-              <input value={form.representative3} onChange={e => setForm({ ...form, representative3: e.target.value })} />
-            </div>
-          </div>
-          <div className="schedule-form-grid-3">
-            <div className="stack compact-gap">
-              <label>담당직원1</label>
-              <input value={form.staff1} onChange={e => setForm({ ...form, staff1: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>담당직원2</label>
-              <input value={form.staff2} onChange={e => setForm({ ...form, staff2: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>담당직원3</label>
-              <input value={form.staff3} onChange={e => setForm({ ...form, staff3: e.target.value })} />
-            </div>
+          <div className="schedule-form-grid-2 schedule-assignee-grid">
+            <AssigneeInput label="담당대표자" users={assignableUsers} value={[form.representative1, form.representative2, form.representative3].filter(Boolean).join(' / ')} onChange={updateRepresentativeNames} placeholder="이름/아이디 입력 후 태그 선택" />
+            <AssigneeInput label="담당직원" users={assignableUsers} value={[form.staff1, form.staff2, form.staff3].filter(Boolean).join(' / ')} onChange={updateStaffNames} placeholder="이름/아이디 입력 후 태그 선택" />
           </div>
           {error && <div className="error">{error}</div>}
           <div className="schedule-form-footer">

@@ -1264,6 +1264,56 @@ def seed_if_empty(conn: sqlite3.Connection) -> None:
     }, ensure_ascii=False)
     conn.execute("INSERT INTO region_boundaries(region, geojson) VALUES (?, ?)", ("서울", geojson))
 
+
+
+def _group_rule_matches(user: dict, rule: str) -> bool:
+    email = str(user.get("email") or "").strip()
+    nickname = str(user.get("nickname") or "").strip()
+    grade = int(user.get("grade") or 6)
+    gender = str(user.get("gender") or "").strip()
+    if rule == 'hq':
+        return email in {'이청잘A', '이청잘B', '이청잘C'} or nickname in {'심진수', '임채영', '박우민', '장준영'}
+    if rule == 'hq_consulting':
+        return email in {'이청잘A', '이청잘B', '이청잘C'}
+    if rule == 'hq_ops':
+        return grade in {1, 2, 4}
+    if rule == 'group_all_except_female':
+        return gender not in {'여성', '여'}
+    if rule == 'notice':
+        return grade in {1, 2, 4, 5}
+    if rule == 'payroll':
+        return grade in {1, 2, 4, 5} and nickname != '손지민'
+    if rule == 'cs':
+        return email in {'이청잘A', '이청잘B', '이청잘C'} or nickname == '심진수'
+    return False
+
+
+def ensure_default_group_rooms(conn) -> None:
+    room_specs = [
+        {'title': '본사방', 'description': '운영 기본 단체방', 'rule': 'hq'},
+        {'title': '본사 상담팀방', 'description': '본사 상담 인력용', 'rule': 'hq_consulting'},
+        {'title': '본사 업무방', 'description': '관리자/부관리자/사업자용', 'rule': 'hq_ops'},
+        {'title': '단톡방', 'description': '여성 계정 외 공용 단톡방', 'rule': 'group_all_except_female'},
+        {'title': '공지방', 'description': '관리자/부관리자/사업자/직원 공지', 'rule': 'notice'},
+        {'title': '근무정산방', 'description': '근무 정산용 단체방', 'rule': 'payroll'},
+        {'title': 'CS방', 'description': '상담/CS 운영방', 'rule': 'cs'},
+    ]
+    users = [row_to_dict(r) for r in conn.execute('SELECT * FROM users').fetchall()]
+    fallback_creator = next((u['id'] for u in users if int(u.get('grade') or 6) <= 2), users[0]['id'] if users else 1)
+    for spec in room_specs:
+        room = conn.execute('SELECT * FROM group_rooms WHERE title = ?', (spec['title'],)).fetchone()
+        if room:
+            room_id = room['id']
+        else:
+            conn.execute(
+                'INSERT INTO group_rooms(title, description, region, creator_id, created_at) VALUES (?, ?, ?, ?, ?)',
+                (spec['title'], spec['description'], '전국', fallback_creator, utcnow()),
+            )
+            room_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        matched_ids = [u['id'] for u in users if _group_rule_matches(u, spec['rule'])]
+        for user_id in matched_ids:
+            conn.execute('INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (?, ?, ?)', (room_id, user_id, utcnow()))
+
 def _ensure_columns(conn: Any, table: str, columns: dict[str, str]) -> None:
     if DB_ENGINE == 'postgresql':
         existing = {
@@ -1355,6 +1405,7 @@ def init_db() -> None:
             'reactions': "TEXT DEFAULT '[]'",
         })
         seed_imported_accounts(conn)
+        ensure_default_group_rooms(conn)
         if settings.seed_demo_data:
             seed_if_empty(conn)
             conn.execute("UPDATE users SET grade = 1, approved = 1 WHERE email = 'admin@example.com'")
