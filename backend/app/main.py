@@ -70,6 +70,7 @@ class PasswordResetConfirmIn(BaseModel):
 class ProfileIn(BaseModel):
     email: str
     nickname: str
+    position_title: str = ''
     region: str = "서울"
     bio: str = ""
     one_liner: str = ""
@@ -203,12 +204,14 @@ class AdminModeConfigIn(BaseModel):
 class AdminAccountUpdateIn(BaseModel):
     grade: int = 6
     approved: Optional[bool] = None
+    position_title: str = ''
     id: Optional[int] = None
 class AdminAccountsBulkUpdateIn(BaseModel):
     accounts: list[AdminAccountUpdateIn] = []
 class AdminUserDetailIn(BaseModel):
     id: int
     nickname: str = ''
+    position_title: str = ''
     phone: str = ''
     vehicle_number: str = ''
     branch_no: Optional[int] = None
@@ -230,6 +233,7 @@ class AdminUserDetailsBulkIn(BaseModel):
 class AdminCreateAccountIn(BaseModel):
     email: str
     password: str
+    position_title: str = ''
     nickname: str
     gender: str = ''
     birth_year: int = 1995
@@ -265,7 +269,7 @@ def _get_admin_setting(conn, key: str, default: str = '') -> str:
     return str(row['value'])
 def _get_permission_config(conn) -> dict:
     return {
-        'admin_mode_access_grade': int(_get_admin_setting(conn, 'admin_mode_access_grade', '1') or 1),
+        'admin_mode_access_grade': int(_get_admin_setting(conn, 'admin_mode_access_grade', '2') or 2),
         'role_assign_actor_max_grade': int(_get_admin_setting(conn, 'role_assign_actor_max_grade', '3') or 3),
         'role_assign_target_min_grade': int(_get_admin_setting(conn, 'role_assign_target_min_grade', '3') or 3),
         'account_suspend_actor_max_grade': int(_get_admin_setting(conn, 'account_suspend_actor_max_grade', '3') or 3),
@@ -2040,7 +2044,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, nickname, role, grade, approved, region, phone, vehicle_number, branch_no, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id
+                   bank_account, bank_name, mbti, google_email, resident_id, position_title
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
@@ -2065,7 +2069,7 @@ def save_admin_mode_config(payload: AdminModeConfigIn, admin=Depends(require_adm
     settings_to_save = {
         'total_vehicle_count': str(payload.total_vehicle_count or '').strip(),
         'branch_count_override': str(payload.branch_count_override or '').strip(),
-        'admin_mode_access_grade': str(payload.admin_mode_access_grade),
+        'admin_mode_access_grade': str(payload.admin_mode_access_grade or 2),
         'role_assign_actor_max_grade': str(payload.role_assign_actor_max_grade),
         'role_assign_target_min_grade': str(payload.role_assign_target_min_grade),
         'account_suspend_actor_max_grade': str(payload.account_suspend_actor_max_grade),
@@ -2093,7 +2097,8 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
         if int(admin.get('grade') or 6) != 1 and not _can_manage_grade(admin, target_grade, conn):
             raise HTTPException(status_code=403, detail='해당 권한을 수정할 수 없습니다.')
         approved = int(payload.approved) if payload.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
-        conn.execute("UPDATE users SET grade = ?, approved = ? WHERE id = ?", (target_grade, approved, user_id))
+        next_position_title = '호점대표' if existing['branch_no'] is not None else str(payload.position_title or existing['position_title'] if 'position_title' in existing.keys() else '')
+        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
 @app.post("/api/admin/accounts/bulk")
@@ -2109,7 +2114,8 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             if int(admin.get('grade') or 6) != 1 and not _can_manage_grade(admin, target_grade, conn):
                 continue
             approved = int(item.approved) if item.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
-            conn.execute("UPDATE users SET grade = ?, approved = ? WHERE id = ?", (target_grade, approved, user_id))
+            next_position_title = '호점대표' if existing['branch_no'] is not None else str(item.position_title or existing['position_title'] if 'position_title' in existing.keys() else '')
+            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
     return {'ok': True, 'accounts': updated}
@@ -2118,7 +2124,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
     editable_fields = [
         'nickname', 'phone', 'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'position_title',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -2134,6 +2140,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                     data['branch_no'] = int(branch_value)
                 except Exception:
                     data['branch_no'] = None
+            data['position_title'] = '호점대표' if data.get('branch_no') not in (None, '') else str(data.get('position_title') or '')
             assignments = ', '.join(f"{field} = ?" for field in editable_fields)
             values = [data.get(field) for field in editable_fields] + [item.id]
             conn.execute(f"UPDATE users SET {assignments} WHERE id = ?", values)
@@ -2148,10 +2155,10 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
         conn.execute(
             """
-            INSERT INTO users(email, password_hash, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, created_at)
-            VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users(email, password_hash, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, created_at)
+            VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, utcnow()),
+            (payload.email, hash_password(payload.password), payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, ('호점대표' if payload.branch_no is not None else payload.position_title), utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

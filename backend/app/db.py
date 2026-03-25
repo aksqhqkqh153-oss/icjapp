@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS users (
     mbti TEXT DEFAULT '',
     google_email TEXT DEFAULT '',
     resident_id TEXT DEFAULT '',
+    position_title TEXT DEFAULT '',
     created_at TEXT NOT NULL
 );
 
@@ -1382,11 +1383,12 @@ def init_db() -> None:
             'mbti': "TEXT DEFAULT ''",
             'google_email': "TEXT DEFAULT ''",
             'resident_id': "TEXT DEFAULT ''",
+            'position_title': "TEXT DEFAULT ''",
         })
         default_admin_settings = {
             'total_vehicle_count': '',
             'branch_count_override': '',
-            'admin_mode_access_grade': '1',
+            'admin_mode_access_grade': '2',
             'role_assign_actor_max_grade': '3',
             'role_assign_target_min_grade': '3',
             'account_suspend_actor_max_grade': '3',
@@ -1415,10 +1417,10 @@ def init_db() -> None:
             seed_if_empty(conn)
             conn.execute("UPDATE users SET grade = 1, approved = 1 WHERE email = 'admin@example.com'")
             conn.execute("UPDATE users SET grade = 4, approved = 1 WHERE email IN ('mina@example.com', 'juno@example.com', 'sora@example.com', 'haon@example.com')")
-            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('12가3456', 3, 'mina@example.com'))
-            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('34나7890', 8, 'juno@example.com'))
-            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('56다1234', 12, 'sora@example.com'))
-            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('78라4321', 15, 'haon@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ?, position_title = '호점대표' WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('12가3456', 3, 'mina@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ?, position_title = '호점대표' WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('34나7890', 8, 'juno@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ?, position_title = '호점대표' WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('56다1234', 12, 'sora@example.com'))
+            conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ?, position_title = '호점대표' WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('78라4321', 15, 'haon@example.com'))
             admin_row = conn.execute("SELECT id FROM users WHERE grade = 1 ORDER BY id LIMIT 1").fetchone()
             fallback_row = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
             owner_id = (admin_row[0] if admin_row else (fallback_row[0] if fallback_row else None))
@@ -1536,5 +1538,6 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'mbti': row['mbti'] if 'mbti' in row.keys() else '',
         'google_email': row['google_email'] if 'google_email' in row.keys() else '',
         'resident_id': row['resident_id'] if 'resident_id' in row.keys() else '',
+        'position_title': row['position_title'] if 'position_title' in row.keys() else ('호점대표' if row['branch_no'] is not None else ''),
         'created_at': row['created_at'],
     }

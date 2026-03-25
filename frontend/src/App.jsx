@@ -42,6 +42,8 @@ const ROLE_OPTIONS = [
   { value: 7, label: '기타' },
 ]
 
+const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원', '본부장', '상담실장', '상담팀장', '상담사원']
+
 function gradeLabel(grade) {
   return ROLE_OPTIONS.find(item => item.value === Number(grade))?.label || '일반'
 }
@@ -96,15 +98,14 @@ function serializeExcludedBusinessSlots(slots) {
 const QUICK_ACTION_LIBRARY = [
   { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
   { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
-  { id: 'point', label: '포인트', kind: 'placeholder' },
-  { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
-  { id: 'materials', label: '자재현황', kind: 'placeholder' },
+  { id: 'point', label: '포인트(직원용)', kind: 'placeholder' },
+  { id: 'warehouse', label: '창고현황(사업자용)', kind: 'placeholder' },
+  { id: 'materials', label: '자재현황(사업자용)', kind: 'placeholder' },
   { id: 'materialsBuy', label: '자재구매', kind: 'placeholder' },
-  { id: 'upcoming', label: '다가오는 일정', kind: 'metric', metricKey: 'upcomingCount', path: '/work-schedule' },
-  { id: 'chat', label: '채팅', kind: 'placeholderPath', path: '/chats' },
-  { id: 'schedule', label: '스케줄', kind: 'placeholderPath', path: '/work-schedule' },
+  { id: 'workShift', label: '근무스케줄', kind: 'placeholder' },
+  { id: 'storageStatus', label: '짐보관현황(본사용)', kind: 'placeholder' },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['friendCount', 'requestCount', 'point', 'warehouse', 'materials', 'materialsBuy', 'upcoming', 'chat', 'schedule']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus']
 
 function quickActionStorageKey(userId) {
   return `icj_quick_actions_${userId || 'guest'}`
@@ -159,6 +160,8 @@ function Layout({ children, user, onLogout }) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const menuRef = useRef(null)
+  const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
   const isScheduleView = location.pathname === '/schedule'
   const bottomLinks = [
@@ -174,16 +177,30 @@ function Layout({ children, user, onLogout }) {
     return location.pathname === to || location.pathname.startsWith(`${to}/`)
   }
   const topMenuLinks = [
-    ['/meetups', '모임'],
-    ['/boards', '게시판'],
-    ['/points', '포인트'],
-    ...(canAccessAdminMode(user) ? [['/reports', '신고관리']] : []),
+    { to: '/meetups', label: '모임' },
+    { to: '/boards', label: '게시판' },
+    { to: '/points', label: '포인트' },
+    ...QUICK_ACTION_LIBRARY.map(item => ({ to: item.path || '', label: item.label, item })),
+    ...(canAccessAdminMode(user) ? [{ to: '/reports', label: '신고관리' }] : []),
   ]
 
   useEffect(() => {
     setMenuOpen(false)
     setSettingsOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    function handleOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false)
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) setSettingsOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -217,15 +234,22 @@ function Layout({ children, user, onLogout }) {
     <div className={`app-shell${isScheduleView ? ' schedule-wide' : ''}`}>
       <header className="topbar topbar-fixed">
         <div className="topbar-left">
-          <div className="dropdown-wrap">
+          <div className="dropdown-wrap" ref={menuRef}>
             <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>
               메뉴
               {Number(badges.menu_count || 0) > 0 && <span className="notification-badge menu-badge">{badges.menu_count > 99 ? '99+' : badges.menu_count}</span>}
             </button>
             {menuOpen && (
               <div className="dropdown-menu left">
-                {topMenuLinks.map(([to, label]) => (
-                  <button key={to} type="button" className="dropdown-item" onClick={() => navigate(to)}>
+                {topMenuLinks.map(({ to, label, item }) => (
+                  <button key={`${to}-${label}`} type="button" className="dropdown-item" onClick={() => {
+                    if (item && !item.path) {
+                      window.alert(`${item.label} 기능은 다음 업데이트에서 연결할 예정입니다.`)
+                    } else if (to) {
+                      navigate(to)
+                    }
+                    setMenuOpen(false)
+                  }}>
                     {label}
                   </button>
                 ))}
@@ -239,7 +263,7 @@ function Layout({ children, user, onLogout }) {
             <span className="notification-bell">🔔</span>
             {Number(badges.notification_count || 0) > 0 && <span className="notification-badge">{badges.notification_count > 99 ? '99+' : badges.notification_count}</span>}
           </button>
-          <div className="dropdown-wrap">
+          <div className="dropdown-wrap" ref={settingsRef}>
             <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button active-icon' : 'ghost icon-button'} onClick={() => setSettingsOpen(v => !v)}>
               설정
             </button>
@@ -607,7 +631,7 @@ function HomePage() {
         <div className="quick-check-grid">
           {activeQuickItems.map(item => (
             <button key={item.id} type="button" className="quick-check-card" onClick={() => handleQuickActionClick(item)}>
-              <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '바로가기'}</strong>
+              <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '준비중'}</strong>
               <span>{item.label}</span>
             </button>
           ))}
@@ -775,6 +799,13 @@ function ProfilePage({ onUserUpdate }) {
               <input value={form.nickname || ''} onChange={e => updateField('nickname', e.target.value)} placeholder="이름" />
             </label>
             <label className="field-block">
+              <span>직급</span>
+              <select value={form.position_title || ''} disabled className="readonly-input">
+                <option value="">미지정</option>
+                {POSITION_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label className="field-block">
               <span>권한</span>
               <input value={form.grade_label || ''} readOnly className="readonly-input" />
             </label>
@@ -931,6 +962,7 @@ function FriendsPage() {
   const [toast, setToast] = useState('')
   const currentUser = getStoredUser()
   const [groupState, setGroupState] = useState(() => getFriendGroupState(currentUser?.id))
+  const [openFriendMenuId, setOpenFriendMenuId] = useState(null)
 
   async function load() {
     const [u, f, me, followList] = await Promise.all([
@@ -985,6 +1017,19 @@ function FriendsPage() {
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
   const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
   const groupedFriends = useMemo(() => (groupState.groups || []).map(group => ({ ...group, items: data.friends.filter(friend => String(groupState.assignments?.[friend.id] || '') === String(group.id)) })), [groupState, data.friends])
+
+  useEffect(() => {
+    function closeMenus(event) {
+      if (!event.target.closest('.dropdown-wrap.friend-inline-wrap')) setOpenFriendMenuId(null)
+      if (!event.target.closest('.dropdown-wrap.friends-main-menu')) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', closeMenus)
+    document.addEventListener('touchstart', closeMenus)
+    return () => {
+      document.removeEventListener('mousedown', closeMenus)
+      document.removeEventListener('touchstart', closeMenus)
+    }
+  }, [])
 
   function goDirectChat(targetId) {
     navigate(`/chats/direct/${targetId}`)
@@ -1089,12 +1134,9 @@ ${guide}`)
         <div className="friend-row-actions expanded">
           <button type="button" className={isFavorite ? 'small ghost active-icon favorite-friend-button' : 'small ghost favorite-friend-button'} onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '🌟' : '✨'}</button>
           <button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>
-          <div className="dropdown-wrap">
-            <button type="button" className="small ghost" onClick={(event) => {
-              const host = event.currentTarget.nextElementSibling
-              if (host) host.classList.toggle('open-inline-menu')
-            }}>메뉴</button>
-            <div className="dropdown-menu right inline-friend-menu">
+          <div className="dropdown-wrap friend-inline-wrap">
+            <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === item.id ? null : item.id)}>메뉴</button>
+            <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === item.id ? 'open-inline-menu' : ''}`}>
               <button type="button" className="dropdown-item" onClick={() => manageFriendGroup(item)}>그룹설정</button>
               <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>
               <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>친구차단</button>
@@ -1113,7 +1155,7 @@ ${guide}`)
           <div></div>
           <div className="friends-top-actions">
             <button type="button" className="ghost icon-button" onClick={() => setSearchOpen(v => !v)}>검색</button>
-            <div className="dropdown-wrap">
+            <div className="dropdown-wrap friends-main-menu">
               <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>메뉴{data.received_requests.length > 0 && <span className="notification-badge menu-badge">{data.received_requests.length}</span>}</button>
               {menuOpen && (
                 <div className="dropdown-menu right">
@@ -3742,7 +3784,7 @@ function AdminModePage() {
   const [error, setError] = useState('')
   const [accountCreateOpen, setAccountCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
-    email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, approved: true,
+    email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -3808,7 +3850,7 @@ function AdminModePage() {
   async function saveAccounts() {
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
-      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved }) => ({ id, grade: Number(grade), approved })) }),
+      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title }) => ({ id, grade: Number(grade), approved, position_title: position_title || '' })) }),
     })
     setMessage('계정 권한 정보가 저장되었습니다.')
     await load()
@@ -3840,6 +3882,7 @@ function AdminModePage() {
         email: row.email || '',
         google_email: row.google_email || '',
         resident_id: row.resident_id || '',
+        position_title: row.position_title || '',
       })) }),
     })
     setMessage('가맹현황 정보가 저장되었습니다.')
@@ -3869,6 +3912,7 @@ function AdminModePage() {
         email: row.email || '',
         google_email: row.google_email || '',
         resident_id: row.resident_id || '',
+        position_title: row.position_title || '',
       })) }),
     })
     setMessage('직원현황 정보가 저장되었습니다.')
@@ -3884,12 +3928,13 @@ function AdminModePage() {
         birth_year: Number(createForm.birth_year || 1995),
         branch_no: createForm.branch_no ? Number(createForm.branch_no) : null,
         grade: Number(createForm.grade || 6),
+        position_title: createForm.branch_no ? '호점대표' : (createForm.position_title || ''),
         approved: !!createForm.approved,
       }),
     })
     setMessage('계정이 생성되었습니다.')
     setAccountCreateOpen(false)
-    setCreateForm({ email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, approved: true })
+    setCreateForm({ email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true })
     await load()
   }
 
@@ -3946,8 +3991,25 @@ function AdminModePage() {
   function roleOptionsForTarget(target) {
     return ROLE_OPTIONS.map(option => ({
       ...option,
-      disabled: !canEditAccountGrade(target.id, target.grade, option.value),
+      disabled: !canEditAccountGrade(target.id, target.grade, option.value) || (actorGrade === 2 && option.value <= 2),
     }))
+  }
+
+  function defaultPositionForRow(row) {
+    if (Number(row?.branch_no || 0) > 0) return '호점대표'
+    return row?.position_title || ''
+  }
+
+  function canEditPosition(target) {
+    if (actorGrade === 1) return true
+    if (actorGrade !== 2) return false
+    return Number(target?.grade || 6) >= 4
+  }
+
+  function accountActionAllowed(section) {
+    if (actorGrade === 1) return true
+    if (actorGrade === 2) return ['가맹현황', '직원현황', '계정추가', '계정권한'].includes(section)
+    return false
   }
 
   function renderActionButton(top, bottom, onClick, extraClass = '') {
@@ -3972,7 +4034,7 @@ function AdminModePage() {
     <div className="admin-mode-page stack-page">
       {message && <div className="success">{message}</div>}
 
-      {Number(currentUser?.grade || 6) === 1 && (
+      {Number(currentUser?.grade || 6) <= 2 && (
         <section className="card admin-mode-card">
           <div className="between admin-mode-section-head">
             <h2>계정추가</h2>
@@ -4001,7 +4063,13 @@ function AdminModePage() {
                 </label>
                 <label>권한등급
                   <select value={Number(createForm.grade)} onChange={e => setCreateForm({ ...createForm, grade: Number(e.target.value) })}>
-                    {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                    {roleOptionsForTarget(createForm).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label>직급
+                  <select value={createForm.branch_no ? '호점대표' : (createForm.position_title || '')} onChange={e => setCreateForm({ ...createForm, position_title: e.target.value })} disabled={!!createForm.branch_no}>
+                    <option value="">미지정</option>
+                    {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
                 <label className="check"><input type="checkbox" checked={!!createForm.approved} onChange={e => setCreateForm({ ...createForm, approved: e.target.checked })} /> 승인됨</label>
@@ -4138,9 +4206,13 @@ function AdminModePage() {
         </div>
         <div className="admin-account-table">
           {pagedAccounts.map(item => (
-            <div key={item.id} className="admin-account-grid">
+            <div key={item.id} className="admin-account-grid compact">
               <div>{item.nickname}</div>
               <div>{item.email}</div>
+              <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
+                <option value="">미지정</option>
+                {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
               <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
                 {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
               </select>
@@ -4154,7 +4226,7 @@ function AdminModePage() {
         </div>
       </section>
 
-      <section className="card admin-mode-card">
+      {actorGrade === 1 && <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
           <h2>권한별 기능부여</h2>
           <div className="inline-actions wrap">{renderActionButton('기능부여', '정보저장', saveConfig)}</div>
@@ -4205,7 +4277,7 @@ function AdminModePage() {
             </div>
           </label>
         </div>
-      </section>
+      </section>}
 
       {searchOpen && (
         <div className="schedule-popup-backdrop" onClick={() => setSearchOpen(false)}>
@@ -4220,11 +4292,15 @@ function AdminModePage() {
             <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="닉네임 또는 아이디 검색" />
             <div className="admin-account-table admin-search-results">
               {searchResults.map(item => (
-                <div key={item.id} className="admin-account-grid">
+                <div key={item.id} className="admin-account-grid compact">
                   <div>{item.nickname}</div>
                   <div>{item.email}</div>
+                  <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
+                    <option value="">미지정</option>
+                    {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                  </select>
                   <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
-                    {ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
                   </select>
                 </div>
               ))}

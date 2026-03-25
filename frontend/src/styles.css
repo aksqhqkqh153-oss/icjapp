@@ -2388,3 +2388,57 @@ label { font-size: 14px; color: #4f6f8c; }
     padding: 10px 8px;
   }
 }
+
+
+/* 2026-03-25 UI refinements */
+.bottom-nav-item {
+  color: #1f2937;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 14px 8px 15px;
+}
+.bottom-nav-item.active {
+  color: #0b63ff;
+  border-top-color: rgba(11, 99, 255, 0.92);
+  background: rgba(125, 211, 252, 0.22);
+}
+.quick-check-card {
+  min-height: 94px;
+}
+.quick-check-card span {
+  white-space: normal;
+  word-break: keep-all;
+}
+.friend-inline-wrap .dropdown-menu,
+.friends-main-menu .dropdown-menu {
+  z-index: 90;
+}
+.admin-account-grid.compact {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr) minmax(130px, 0.9fr) minmax(120px, 0.8fr);
+  gap: 8px;
+  padding: 8px 10px;
+  align-items: center;
+}
+.admin-account-grid.compact > div {
+  font-size: 13px;
+  line-height: 1.25;
+}
+.admin-account-grid.compact select {
+  min-height: 34px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.admin-nested-item .admin-primary-row {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+@media (max-width: 900px) {
+  .admin-account-grid.compact {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 768px) {
+  .bottom-nav-item {
+    font-size: 13px;
+  }
+}
