@@ -206,7 +206,7 @@ function AuthPage({ onLogin }) {
         <h1>로그인</h1>
         <p className="muted">로그인 후 앱 메인 화면으로 이동합니다.</p>
         <form onSubmit={submit} className="stack">
-          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="이메일" />
+          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" />
           <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" />
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
           {error && <div className="error">{error}</div>}
@@ -216,7 +216,7 @@ function AuthPage({ onLogin }) {
           <Link to="/reset-password" className="ghost-link">비밀번호 재설정</Link>
         </div>
         <div className="demo-box">
-          <strong>데모 계정</strong>
+          <strong>등록 계정</strong>
           <div className="demo-list">
             {accounts.map(acc => (
               <button
@@ -410,6 +410,7 @@ function HomePage() {
   )
 }
 
+
 function ProfilePage({ onUserUpdate }) {
   const [form, setForm] = useState(null)
   const [message, setMessage] = useState('')
@@ -417,18 +418,26 @@ function ProfilePage({ onUserUpdate }) {
   const branchOptions = BRANCH_NUMBER_OPTIONS
 
   useEffect(() => {
-    api('/api/profile').then(data => setForm(data.user))
+    api('/api/profile').then(data => setForm({ ...data.user, new_password: '' }))
   }, [])
+
   if (!form) return <div className="card">불러오는 중...</div>
+
+  function updateField(key, value) {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
 
   async function save(e) {
     e.preventDefault()
     const payload = {
-      nickname: form.nickname,
+      email: form.email || '',
+      nickname: form.nickname || '',
       region: form.region || '서울',
       bio: form.bio || '',
       one_liner: form.one_liner || '',
-      interests: Array.isArray(form.interests) ? form.interests : String(form.interests || '').split(',').map(v => v.trim()).filter(Boolean),
+      interests: Array.isArray(form.interests)
+        ? form.interests
+        : String(form.interests || '').split(',').map(v => v.trim()).filter(Boolean),
       photo_url: form.photo_url || '',
       phone: form.phone || '',
       recovery_email: form.recovery_email || '',
@@ -436,9 +445,22 @@ function ProfilePage({ onUserUpdate }) {
       birth_year: Number(form.birth_year || 1990),
       vehicle_number: form.vehicle_number || '',
       branch_no: form.branch_no ? Number(form.branch_no) : null,
+      marital_status: form.marital_status || '',
+      resident_address: form.resident_address || '',
+      business_name: form.business_name || '',
+      business_number: form.business_number || '',
+      business_type: form.business_type || '',
+      business_item: form.business_item || '',
+      business_address: form.business_address || '',
+      bank_account: form.bank_account || '',
+      bank_name: form.bank_name || '',
+      mbti: form.mbti || '',
+      google_email: form.google_email || '',
+      resident_id: form.resident_id || '',
+      new_password: form.new_password || '',
     }
     const data = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
-    setForm(data.user)
+    setForm({ ...data.user, new_password: '' })
     onUserUpdate(data.user)
     setMessage('프로필이 저장되었습니다.')
   }
@@ -448,7 +470,7 @@ function ProfilePage({ onUserUpdate }) {
       method: 'POST',
       body: JSON.stringify({ latitude: Number(form.latitude), longitude: Number(form.longitude), region: form.region }),
     })
-    setForm(data.user)
+    setForm(prev => ({ ...data.user, new_password: prev.new_password || '' }))
     onUserUpdate(data.user)
     setMessage('위치가 저장되었습니다.')
   }
@@ -471,34 +493,168 @@ function ProfilePage({ onUserUpdate }) {
   }
 
   return (
-    <div className="card">
-      <h2>프로필 편집</h2>
-      <form onSubmit={save} className="stack">
-        <input value={form.nickname || ''} placeholder="닉네임" onChange={e => setForm({ ...form, nickname: e.target.value })} />
-        <input value={form.region || ''} placeholder="지역" onChange={e => setForm({ ...form, region: e.target.value })} />
-        <input value={form.gender || ''} placeholder="성별" onChange={e => setForm({ ...form, gender: e.target.value })} />
-        <input type="number" value={form.birth_year || 1990} placeholder="출생연도" onChange={e => setForm({ ...form, birth_year: Number(e.target.value) })} />
-        <input value={form.phone || ''} placeholder="연락처" onChange={e => setForm({ ...form, phone: e.target.value })} />
-        <input value={form.recovery_email || ''} placeholder="복구 이메일" onChange={e => setForm({ ...form, recovery_email: e.target.value })} />
-        <input value={form.vehicle_number || ''} placeholder="차량번호" onChange={e => setForm({ ...form, vehicle_number: e.target.value })} />
-        <select value={form.branch_no || ''} onChange={e => setForm({ ...form, branch_no: e.target.value })}>
-          <option value="">호점 선택</option>
-          {branchOptions.map(num => <option key={num} value={num}>{num}호점</option>)}
-        </select>
-        <textarea value={form.bio || ''} placeholder="소개" onChange={e => setForm({ ...form, bio: e.target.value })} />
-        <input value={form.one_liner || ''} placeholder="한줄 소개" onChange={e => setForm({ ...form, one_liner: e.target.value })} />
-        <input value={form.photo_url || ''} placeholder="프로필 이미지 URL" onChange={e => setForm({ ...form, photo_url: e.target.value })} />
-        <label className="stack compact-gap">
-          <span className="muted">프로필 이미지 파일 업로드 (Cloudflare R2 또는 로컬 개발 저장소)</span>
-          <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
-        </label>
-        <input value={Array.isArray(form.interests) ? form.interests.join(', ') : form.interests || ''} placeholder="관심사 (쉼표로 구분)" onChange={e => setForm({ ...form, interests: e.target.value })} />
-        <div className="grid2">
-          <input value={form.latitude || ''} placeholder="위도" onChange={e => setForm({ ...form, latitude: e.target.value })} />
-          <input value={form.longitude || ''} placeholder="경도" onChange={e => setForm({ ...form, longitude: e.target.value })} />
+    <div className="card profile-page-card">
+      <div className="profile-header">
+        <div>
+          <h2>프로필</h2>
+          <div className="muted">설정 &gt; 프로필에서 계정 정보를 수정할 수 있습니다.</div>
         </div>
-        <div className="inline-actions">
-          <button>프로필 저장</button>
+        <div className="profile-badges">
+          <span className="profile-badge">{form.grade_label || '일반'}</span>
+          <span className="profile-badge ghost">{form.branch_no ? `${form.branch_no}호점` : '본점/미지정'}</span>
+        </div>
+      </div>
+
+      <form onSubmit={save} className="profile-form-layout">
+        <section className="profile-section">
+          <h3>기본 계정 정보</h3>
+          <div className="profile-grid two">
+            <label className="field-block">
+              <span>아이디</span>
+              <input value={form.email || ''} onChange={e => updateField('email', e.target.value)} placeholder="아이디" />
+            </label>
+            <label className="field-block">
+              <span>새 비밀번호</span>
+              <input type="password" value={form.new_password || ''} onChange={e => updateField('new_password', e.target.value)} placeholder="변경 시에만 입력" />
+            </label>
+            <label className="field-block">
+              <span>이름</span>
+              <input value={form.nickname || ''} onChange={e => updateField('nickname', e.target.value)} placeholder="이름" />
+            </label>
+            <label className="field-block">
+              <span>권한</span>
+              <input value={form.grade_label || ''} readOnly className="readonly-input" />
+            </label>
+            <label className="field-block">
+              <span>호점</span>
+              <select value={form.branch_no || ''} onChange={e => updateField('branch_no', e.target.value)}>
+                <option value="">본점 또는 미지정</option>
+                {branchOptions.map(num => <option key={num} value={num}>{num}호점</option>)}
+              </select>
+            </label>
+            <label className="field-block">
+              <span>연락처</span>
+              <input value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="연락처" />
+            </label>
+            <label className="field-block">
+              <span>이메일</span>
+              <input value={form.recovery_email || ''} onChange={e => updateField('recovery_email', e.target.value)} placeholder="이메일" />
+            </label>
+            <label className="field-block">
+              <span>구글 아이디</span>
+              <input value={form.google_email || ''} onChange={e => updateField('google_email', e.target.value)} placeholder="구글 아이디" />
+            </label>
+          </div>
+        </section>
+
+        <section className="profile-section">
+          <h3>개인 정보</h3>
+          <div className="profile-grid three">
+            <label className="field-block">
+              <span>생년월일</span>
+              <input value={form.resident_id || ''} onChange={e => updateField('resident_id', e.target.value)} placeholder="예: 950109" />
+            </label>
+            <label className="field-block">
+              <span>출생연도</span>
+              <input type="number" value={form.birth_year || 1990} onChange={e => updateField('birth_year', Number(e.target.value))} placeholder="출생연도" />
+            </label>
+            <label className="field-block">
+              <span>결혼</span>
+              <input value={form.marital_status || ''} onChange={e => updateField('marital_status', e.target.value)} placeholder="결혼 여부" />
+            </label>
+            <label className="field-block">
+              <span>성별</span>
+              <input value={form.gender || ''} onChange={e => updateField('gender', e.target.value)} placeholder="성별" />
+            </label>
+            <label className="field-block">
+              <span>MBTI</span>
+              <input value={form.mbti || ''} onChange={e => updateField('mbti', e.target.value)} placeholder="MBTI" />
+            </label>
+            <label className="field-block">
+              <span>지역</span>
+              <input value={form.region || ''} onChange={e => updateField('region', e.target.value)} placeholder="지역" />
+            </label>
+          </div>
+          <label className="field-block">
+            <span>집주소</span>
+            <textarea rows={3} value={form.resident_address || ''} onChange={e => updateField('resident_address', e.target.value)} placeholder="집주소" />
+          </label>
+        </section>
+
+        <section className="profile-section">
+          <h3>사업자 정보</h3>
+          <div className="profile-grid two">
+            <label className="field-block">
+              <span>상호명</span>
+              <input value={form.business_name || ''} onChange={e => updateField('business_name', e.target.value)} placeholder="상호명" />
+            </label>
+            <label className="field-block">
+              <span>사업자 등록번호</span>
+              <input value={form.business_number || ''} onChange={e => updateField('business_number', e.target.value)} placeholder="사업자 등록번호" />
+            </label>
+            <label className="field-block">
+              <span>업태</span>
+              <textarea rows={3} value={form.business_type || ''} onChange={e => updateField('business_type', e.target.value)} placeholder="업태" />
+            </label>
+            <label className="field-block">
+              <span>종목</span>
+              <textarea rows={3} value={form.business_item || ''} onChange={e => updateField('business_item', e.target.value)} placeholder="종목" />
+            </label>
+            <label className="field-block">
+              <span>차량 번호</span>
+              <input value={form.vehicle_number || ''} onChange={e => updateField('vehicle_number', e.target.value)} placeholder="차량 번호" />
+            </label>
+            <label className="field-block">
+              <span>은행</span>
+              <input value={form.bank_name || ''} onChange={e => updateField('bank_name', e.target.value)} placeholder="은행" />
+            </label>
+            <label className="field-block">
+              <span>계좌번호</span>
+              <input value={form.bank_account || ''} onChange={e => updateField('bank_account', e.target.value)} placeholder="계좌번호" />
+            </label>
+            <label className="field-block">
+              <span>한줄 소개</span>
+              <input value={form.one_liner || ''} onChange={e => updateField('one_liner', e.target.value)} placeholder="한줄 소개" />
+            </label>
+          </div>
+          <label className="field-block">
+            <span>사업장 소재지</span>
+            <textarea rows={3} value={form.business_address || ''} onChange={e => updateField('business_address', e.target.value)} placeholder="사업장 소재지" />
+          </label>
+        </section>
+
+        <section className="profile-section">
+          <h3>프로필 표시 정보</h3>
+          <div className="profile-grid photo">
+            <label className="field-block">
+              <span>프로필 소개</span>
+              <textarea rows={4} value={form.bio || ''} onChange={e => updateField('bio', e.target.value)} placeholder="프로필 소개" />
+            </label>
+            <label className="field-block">
+              <span>관심사</span>
+              <input value={Array.isArray(form.interests) ? form.interests.join(', ') : form.interests || ''} onChange={e => updateField('interests', e.target.value)} placeholder="관심사 (쉼표로 구분)" />
+            </label>
+            <label className="field-block">
+              <span>프로필 이미지 URL</span>
+              <input value={form.photo_url || ''} onChange={e => updateField('photo_url', e.target.value)} placeholder="프로필 이미지 URL" />
+            </label>
+            <label className="field-block">
+              <span>프로필 이미지 업로드</span>
+              <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
+            </label>
+            <label className="field-block">
+              <span>위도</span>
+              <input value={form.latitude || ''} onChange={e => updateField('latitude', e.target.value)} placeholder="위도" />
+            </label>
+            <label className="field-block">
+              <span>경도</span>
+              <input value={form.longitude || ''} onChange={e => updateField('longitude', e.target.value)} placeholder="경도" />
+            </label>
+          </div>
+        </section>
+
+        <div className="profile-actions">
+          <button type="submit">프로필 저장</button>
           <button type="button" className="ghost" onClick={saveLocation}>위치 저장</button>
         </div>
         {message && <div className="success">{message}</div>}
@@ -1410,12 +1566,7 @@ function buildCostSummary(form) {
   const rangeAmount = formatRangeAmount(form.amount1)
   if (rangeAmount) return `금액미정 / ${rangeAmount}`
   const primary = formatMoneyDisplay(form.amount1)
-  const secondary = formatMoneyDisplay(form.amount2)
-  if (primary && secondary && form.amount_item) return `${primary}/${form.amount_item} ${secondary}`
-  if (primary && secondary) return `${primary}/${secondary}`
   if (primary) return primary
-  if (secondary && form.amount_item) return `${form.amount_item} ${secondary}`
-  if (secondary) return secondary
   return '금액미정'
 }
 
@@ -1426,7 +1577,7 @@ function buildCostTitlePart(form) {
 }
 
 function buildScheduleTitle(form) {
-  const startDisplay = resolveScheduleStartTime(form.start_time)
+  const startDisplay = resolveScheduleStartTime(form.visit_time || form.start_time)
   const platformDisplay = form.platform || '플랫폼미정'
   const customerDisplay = resolveScheduleCustomerName(form.customer_name)
   const costDisplay = buildCostTitlePart(form)
@@ -1454,9 +1605,20 @@ function normalizeShortDateInput(value) {
   return raw
 }
 
+function toIsoDateInputValue(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  if (/^\d{2}-\d{2}-\d{2}$/.test(raw)) return `20${raw}`
+  const digits = raw.replace(/[^\d]/g, '')
+  if (digits.length === 8) return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
+  if (digits.length === 6) return `20${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4, 6)}`
+  return ''
+}
+
 function displayShortDate(value) {
   if (!value) return ''
-  return normalizeShortDateInput(value)
+  return toIsoDateInputValue(value) || normalizeShortDateInput(value)
 }
 
 function formatSelectedDateLabel(value) {
@@ -1612,9 +1774,14 @@ function CalendarPage() {
                       <span className="calendar-date">{date.getDate()}</span>
                     </button>
                     {!isMobile && (
-                      <button type="button" className="calendar-entry-band" onClick={() => openDateForm(date)}>
-                        <span className="calendar-entry-label">일정등록</span>
-                      </button>
+                      <div className="calendar-top-actions">
+                        <button type="button" className="calendar-entry-band secondary" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
+                          <span className="calendar-entry-label">스케줄목록</span>
+                        </button>
+                        <button type="button" className="calendar-entry-band" onClick={() => openDateForm(date)}>
+                          <span className="calendar-entry-label">일정등록</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1963,6 +2130,29 @@ function WorkSchedulePage() {
   )
 }
 
+function normalizeScheduleTimeInput(rawValue, fallback = '') {
+  if (rawValue === '미정') return '미정'
+  const value = String(rawValue || '').trim()
+  if (!value) return ''
+  const digits = value.replace(/\D/g, '')
+  if (digits.length === 4) {
+    const hours = Number(digits.slice(0, 2))
+    const minutes = Number(digits.slice(2, 4))
+    if (hours >= 0 && hours <= 24 && minutes >= 0 && minutes <= 59 && !(hours === 24 && minutes > 0)) {
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    }
+  }
+  const match = value.match(/^(\d{1,2}):(\d{2})$/)
+  if (match) {
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (hours >= 0 && hours <= 24 && minutes >= 0 && minutes <= 59 && !(hours === 24 && minutes > 0)) {
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    }
+  }
+  return fallback || value
+}
+
 function ScheduleFormPage({ mode }) {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
@@ -1974,16 +2164,29 @@ function ScheduleFormPage({ mode }) {
   const [error, setError] = useState('')
   const [uploadingImage, setUploadingImage] = useState(false)
   const [preview, setPreview] = useState('')
+  const visitTimeInputRef = useRef(null)
+  const mobilePlatformSelectRef = useRef(null)
+  const desktopPlatformSelectRef = useRef(null)
+  const customerNameInputRef = useRef(null)
+  const amountInputRef = useRef(null)
+  const depositMethodSelectRef = useRef(null)
+  const depositAmountSelectRef = useRef(null)
+  const [visitTimeText, setVisitTimeText] = useState('')
+  const [startTimeText, setStartTimeText] = useState('')
+  const [endTimeText, setEndTimeText] = useState('')
   const [form, setForm] = useState({
     title: '',
     content: '',
     event_date: presetDate,
+    visit_time: '미정',
     start_time: '미정',
     end_time: '미정',
     location: '',
     color: '#2563eb',
-    move_start_date: displayShortDate(presetDate),
-    move_end_date: displayShortDate(presetDate),
+    move_start_date: presetDate,
+    move_end_date: presetDate,
+    start_address: '',
+    end_address: '',
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
     department_info: DEFAULT_DEPARTMENT_OPTIONS[0],
@@ -1992,6 +2195,12 @@ function ScheduleFormPage({ mode }) {
     amount_item: '',
     deposit_method: DEPOSIT_METHOD_OPTIONS[0],
     deposit_amount: DEPOSIT_AMOUNT_OPTIONS[0],
+    representative1: '',
+    representative2: '',
+    representative3: '',
+    staff1: '',
+    staff2: '',
+    staff3: '',
     image_data: '',
   })
 
@@ -2000,9 +2209,10 @@ function ScheduleFormPage({ mode }) {
       setForm(prev => ({
         ...prev,
         event_date: presetDate,
-        move_start_date: prev.move_start_date || displayShortDate(presetDate),
-        move_end_date: prev.move_end_date || displayShortDate(presetDate),
+        move_start_date: prev.move_start_date || presetDate,
+        move_end_date: prev.move_end_date || presetDate,
       }))
+      setVisitTimeText(prev => prev || '')
       return
     }
     async function loadDetail() {
@@ -2014,12 +2224,15 @@ function ScheduleFormPage({ mode }) {
           title: data.title || '',
           content: data.content || '',
           event_date: data.event_date || presetDate,
+          visit_time: data.visit_time || '미정',
           start_time: data.start_time || '미정',
           end_time: data.end_time || '미정',
           location: data.location || '',
           color: data.color || '#2563eb',
-          move_start_date: displayShortDate(data.move_start_date || data.event_date || presetDate),
-          move_end_date: displayShortDate(data.move_end_date || data.event_date || presetDate),
+          move_start_date: toIsoDateInputValue(data.move_start_date || data.event_date || presetDate) || presetDate,
+          move_end_date: toIsoDateInputValue(data.move_end_date || data.event_date || presetDate) || presetDate,
+          start_address: data.start_address || data.location || '',
+          end_address: data.end_address || '',
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
           department_info: data.department_info || DEFAULT_DEPARTMENT_OPTIONS[0],
@@ -2028,9 +2241,18 @@ function ScheduleFormPage({ mode }) {
           amount_item: data.amount_item || '',
           deposit_method: data.deposit_method || DEPOSIT_METHOD_OPTIONS[0],
           deposit_amount: data.deposit_amount || DEPOSIT_AMOUNT_OPTIONS[0],
+          representative1: data.representative1 || '',
+          representative2: data.representative2 || '',
+          representative3: data.representative3 || '',
+          staff1: data.staff1 || '',
+          staff2: data.staff2 || '',
+          staff3: data.staff3 || '',
           image_data: data.image_data || '',
         })
         setPreview(data.image_data || '')
+        setVisitTimeText(data.visit_time && data.visit_time !== '미정' ? data.visit_time : '')
+        setStartTimeText(data.start_time && data.start_time !== '미정' ? data.start_time : '')
+        setEndTimeText(data.end_time && data.end_time !== '미정' ? data.end_time : '')
       } catch (err) {
         setError(err.message)
       } finally {
@@ -2042,14 +2264,92 @@ function ScheduleFormPage({ mode }) {
 
   useEffect(() => {
     setForm(prev => ({ ...prev, title: buildScheduleTitle(prev) }))
-  }, [form.start_time, form.platform, form.customer_name, form.amount1, form.amount2, form.amount_item])
+  }, [form.visit_time, form.platform, form.customer_name, form.amount1])
 
-  function handleShortDateFieldChange(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
+  useEffect(() => {
+    if (form.visit_time === '미정') {
+      setVisitTimeText('')
+      return
+    }
+    setVisitTimeText(form.visit_time || '')
+  }, [form.visit_time])
+
+  useEffect(() => {
+    if (form.start_time === '미정') {
+      setStartTimeText('')
+      return
+    }
+    setStartTimeText(form.start_time || '')
+  }, [form.start_time])
+
+  useEffect(() => {
+    if (form.end_time === '미정') {
+      setEndTimeText('')
+      return
+    }
+    setEndTimeText(form.end_time || '')
+  }, [form.end_time])
+
+  function commitVisitTimeInput(rawValue) {
+    const normalized = normalizeScheduleTimeInput(rawValue, form.visit_time === '미정' ? '' : form.visit_time)
+    if (normalized === '미정') {
+      setForm(prev => ({ ...prev, visit_time: '미정' }))
+      setVisitTimeText('')
+      return normalized
+    }
+    if (!normalized) {
+      setForm(prev => ({ ...prev, visit_time: '미정' }))
+      setVisitTimeText('')
+      return ''
+    }
+    setForm(prev => ({ ...prev, visit_time: normalized }))
+    setVisitTimeText(normalized)
+    return normalized
   }
 
-  function handleShortDateFieldBlur(field) {
-    setForm(prev => ({ ...prev, [field]: normalizeShortDateInput(prev[field]) }))
+
+  function commitGenericTimeInput(field, rawValue, currentValue, setText) {
+    const normalized = normalizeScheduleTimeInput(rawValue, currentValue === '미정' ? '' : currentValue)
+    if (normalized === '미정') {
+      setForm(prev => ({ ...prev, [field]: '미정' }))
+      setText('')
+      return normalized
+    }
+    if (!normalized) {
+      setForm(prev => ({ ...prev, [field]: '미정' }))
+      setText('')
+      return ''
+    }
+    setForm(prev => ({ ...prev, [field]: normalized }))
+    setText(normalized)
+    return normalized
+  }
+
+  function focusNextField(ref) {
+    requestAnimationFrame(() => ref?.current?.focus())
+  }
+
+  function handleVisitTimeKeyDown(e) {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const normalized = commitVisitTimeInput(visitTimeText)
+      if (normalized) {
+        e.preventDefault()
+        focusNextField(desktopPlatformSelectRef)
+      }
+    }
+  }
+
+  function handleVisitTimeBlur() {
+    commitVisitTimeInput(visitTimeText)
+  }
+
+
+  function handleStartTimeBlur() {
+    commitGenericTimeInput('start_time', startTimeText, form.start_time, setStartTimeText)
+  }
+
+  function handleEndTimeBlur() {
+    commitGenericTimeInput('end_time', endTimeText, form.end_time, setEndTimeText)
   }
 
   async function handleImageChange(e) {
@@ -2074,7 +2374,8 @@ function ScheduleFormPage({ mode }) {
   }
 
   function changeTimeField(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
+    const normalized = normalizeScheduleTimeInput(value, value)
+    setForm(prev => ({ ...prev, [field]: normalized }))
   }
 
   async function submit(e) {
@@ -2083,8 +2384,12 @@ function ScheduleFormPage({ mode }) {
     const payload = {
       ...form,
       title: buildScheduleTitle(form),
-      move_start_date: normalizeShortDateInput(form.move_start_date),
-      move_end_date: normalizeShortDateInput(form.move_end_date),
+      event_date: form.move_start_date || presetDate,
+      move_start_date: form.move_start_date || presetDate,
+      move_end_date: form.move_end_date || form.move_start_date || presetDate,
+      location: form.start_address || '',
+      amount2: '',
+      amount_item: '',
     }
     try {
       if (mode === 'edit') {
@@ -2105,112 +2410,225 @@ function ScheduleFormPage({ mode }) {
 
   return (
     <div className="stack-page">
-      <section className="card">
-        <div className="between"><h2>{mode === 'edit' ? '일정수정' : '일정등록'}</h2><button type="button" className="ghost small" onClick={() => navigate(mode === 'edit' ? `/schedule/${eventId}` : '/schedule')}>{mode === 'edit' ? '상세로 돌아가기' : '달력으로 돌아가기'}</button></div>
-        <form onSubmit={submit} className="stack">
+      <section className="card schedule-editor-card">
+        <form onSubmit={submit} className="stack schedule-editor-form">
+          <div className="schedule-form-topbar">
+            <button
+              type="button"
+              className="ghost small icon-only"
+              aria-label={mode === 'edit' ? '상세로 돌아가기' : '달력으로 돌아가기'}
+              onClick={() => navigate(mode === 'edit' ? `/schedule/${eventId}` : '/schedule')}
+            >
+              ←
+            </button>
+            <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
+          </div>
           <div className="stack compact-gap">
             <label>일정 제목</label>
             <input value={titlePreview} placeholder="자동 생성 제목" readOnly className="readonly-input" />
-            <div className="muted">시작 시간·플랫폼·성함·금액 입력값을 조합해 자동 생성됩니다.</div>
           </div>
-          <div className="grid2">
+          <div className="schedule-form-grid-2 visit-platform-row">
             <div className="stack compact-gap">
-              <label>담당부서/인원</label>
-              <select value={form.department_info} onChange={e => setForm({ ...form, department_info: e.target.value })}>
-                {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-              </select>
+              <label>출발지 이사방문시각</label>
+              <div className="inline-actions visit-time-actions">
+                <input
+                  ref={visitTimeInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  value={visitTimeText}
+                  onChange={e => setVisitTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleVisitTimeBlur}
+                  onKeyDown={handleVisitTimeKeyDown}
+                />
+                <button type="button" tabIndex={-1} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
+              </div>
             </div>
-            <div className="stack compact-gap">
+            <div className="stack compact-gap platform-select-field">
               <label>플랫폼</label>
-              <select value={form.platform} onChange={e => setForm({ ...form, platform: e.target.value })}>
+              <select
+                ref={desktopPlatformSelectRef}
+                value={form.platform}
+                onChange={e => setForm({ ...form, platform: e.target.value })}
+                onKeyDown={e => {
+                  if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault()
+                    focusNextField(customerNameInputRef)
+                  }
+                }}
+              >
                 {PLATFORM_OPTIONS.map(platform => <option key={platform} value={platform}>{platform}</option>)}
               </select>
             </div>
           </div>
-          <div className="grid2">
+          <div className="schedule-form-grid-2">
             <div className="stack compact-gap">
-              <label>성함</label>
-              <input value={form.customer_name} placeholder="고객 성함" onChange={e => setForm({ ...form, customer_name: e.target.value })} />
+              <label>고객성함</label>
+              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객 성함" onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
             <div className="stack compact-gap">
-              <label>일정 날짜</label>
-              <input type="date" value={form.event_date} onChange={e => setForm({ ...form, event_date: e.target.value })} />
+              <label>이사금액</label>
+              <input ref={amountInputRef} inputMode="numeric" value={form.amount1} placeholder="예: 150000" onChange={e => setForm({ ...form, amount1: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositMethodSelectRef) } }} />
+            </div>
+          </div>
+          <div className="schedule-form-grid-2">
+            <div className="stack compact-gap">
+              <label>계약입금방법</label>
+              <select ref={depositMethodSelectRef} value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositAmountSelectRef) } }}>
+                {DEPOSIT_METHOD_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div className="stack compact-gap">
+              <label>계약입금금액</label>
+              <select ref={depositAmountSelectRef} value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
+                {DEPOSIT_AMOUNT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="memo-side-layout">
+            <div className="stack compact-gap memo-main-field">
+              <label>일정 메모</label>
+              <textarea value={form.content} placeholder="일정 메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box" />
+            </div>
+            <div className="memo-side-controls">
+              <div className="stack compact-gap memo-side-control upload-control-field">
+                <label>사진파일첨부</label>
+                <div className="schedule-upload-row compact-upload-row">
+                  <label className={`icon-upload-trigger${uploadingImage ? ' disabled' : ''}`}>
+                    <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploadingImage} className="visually-hidden" />
+                    <span className="icon-upload-symbol" aria-hidden="true">📎</span>
+                    <span className="sr-only">사진파일첨부</span>
+                  </label>
+                  {uploadingImage && <div className="muted upload-status-text">업로드 중...</div>}
+                  {preview && (
+                    <div className="image-preview-wrap compact-image-preview">
+                      <img src={preview} alt="일정 첨부 미리보기" className="image-preview" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="stack compact-gap memo-side-control">
+                <label>담당부서/인원</label>
+                <select value={form.department_info} onChange={e => setForm({ ...form, department_info: e.target.value })}>
+                  {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+              <div className="stack compact-gap memo-side-control form-field-inline color-control-field">
+                <label>표시색상</label>
+                <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
+              </div>
+            </div>
+          </div>
+          <div className="schedule-date-time-row">
+            <div className="stack compact-gap schedule-date-field">
+              <label>이사시작일</label>
+              <input type="date" value={form.move_start_date} onChange={e => setForm({ ...form, move_start_date: e.target.value, event_date: e.target.value })} />
+            </div>
+            <div className="schedule-date-time-fields">
+              <div className="stack compact-gap schedule-time-field">
+                <label>이사시작시각</label>
+                <div className="inline-actions schedule-time-actions">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={startTimeText}
+                    onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleStartTimeBlur}
+                  />
+                  <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
+                </div>
+              </div>
+              <div className="stack compact-gap schedule-time-field">
+                <label>이사종료예상시각</label>
+                <div className="inline-actions schedule-time-actions">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={endTimeText}
+                    onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleEndTimeBlur}
+                  />
+                  <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="schedule-date-time-row">
+            <div className="stack compact-gap schedule-date-field">
+              <label>이사종료일</label>
+              <input type="date" value={form.move_end_date} onChange={e => setForm({ ...form, move_end_date: e.target.value })} />
+            </div>
+            <div className="schedule-date-time-fields">
+              <div className="stack compact-gap schedule-time-field">
+                <label>이사시작시각</label>
+                <div className="inline-actions schedule-time-actions">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={startTimeText}
+                    onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleStartTimeBlur}
+                  />
+                  <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
+                </div>
+              </div>
+              <div className="stack compact-gap schedule-time-field">
+                <label>이사종료예상시각</label>
+                <div className="inline-actions schedule-time-actions">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    value={endTimeText}
+                    onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleEndTimeBlur}
+                  />
+                  <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
+                </div>
+              </div>
             </div>
           </div>
           <div className="stack compact-gap">
-            <label>장소</label>
-            <input value={form.location} placeholder="이사 장소" onChange={e => setForm({ ...form, location: e.target.value })} />
-          </div>
-          <div className="grid2">
-            <div className="stack compact-gap">
-              <label>시작시간</label>
-              <div className="inline-actions wrap">
-                <input type="time" value={form.start_time === '미정' ? '00:00' : form.start_time} disabled={form.start_time === '미정'} onChange={e => changeTimeField('start_time', e.target.value)} />
-                <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
-              </div>
-            </div>
-            <div className="stack compact-gap">
-              <label>종료예상시간</label>
-              <div className="inline-actions wrap">
-                <input type="time" value={form.end_time === '미정' ? '00:00' : form.end_time} disabled={form.end_time === '미정'} onChange={e => changeTimeField('end_time', e.target.value)} />
-                <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
-              </div>
-            </div>
-          </div>
-          <div className="grid2">
-            <div className="stack compact-gap">
-              <label>이사 시작일</label>
-              <input value={form.move_start_date} placeholder="예: 26-03-15" onChange={e => handleShortDateFieldChange('move_start_date', e.target.value)} onBlur={() => handleShortDateFieldBlur('move_start_date')} />
-            </div>
-            <div className="stack compact-gap">
-              <label>이사 종료일</label>
-              <input value={form.move_end_date} placeholder="예: 26-03-15" onChange={e => handleShortDateFieldChange('move_end_date', e.target.value)} onBlur={() => handleShortDateFieldBlur('move_end_date')} />
-            </div>
-          </div>
-          <div className="grid2">
-            <div className="stack compact-gap">
-              <label>금액1</label>
-              <input inputMode="numeric" value={form.amount1} placeholder="예: 150000" onChange={e => setForm({ ...form, amount1: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>금액2</label>
-              <input inputMode="numeric" value={form.amount2} placeholder="예: 50000" onChange={e => setForm({ ...form, amount2: e.target.value })} />
-            </div>
-          </div>
-          <div className="grid2">
-            <div className="stack compact-gap">
-              <label>항목</label>
-              <input value={form.amount_item} placeholder="예: 사다리차" onChange={e => setForm({ ...form, amount_item: e.target.value })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>계약금 입금방법 및 금액</label>
-              <div className="grid2 compact-grid">
-                <select value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })}>
-                  {DEPOSIT_METHOD_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-                <select value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
-                  {DEPOSIT_AMOUNT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </div>
-            </div>
+            <input value={form.start_address} placeholder="출발지 상세주소" onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
           </div>
           <div className="stack compact-gap">
-            <label>이미지 첨부</label>
-            <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploadingImage} />
-            {uploadingImage && <div className="muted">이미지 업로드 중...</div>}
-            {preview && (
-              <div className="image-preview-wrap">
-                <img src={preview} alt="일정 첨부 미리보기" className="image-preview" />
-              </div>
-            )}
+            <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
           </div>
-          <textarea value={form.content} placeholder="일정 메모" onChange={e => setForm({ ...form, content: e.target.value })} />
-          <div className="stack compact-gap form-field-inline">
-            <label>표시 색상</label>
-            <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
+          <div className="schedule-form-grid-3">
+            <div className="stack compact-gap">
+              <label>담당대표1</label>
+              <input value={form.representative1} onChange={e => setForm({ ...form, representative1: e.target.value })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>담당대표2</label>
+              <input value={form.representative2} onChange={e => setForm({ ...form, representative2: e.target.value })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>담당대표3</label>
+              <input value={form.representative3} onChange={e => setForm({ ...form, representative3: e.target.value })} />
+            </div>
+          </div>
+          <div className="schedule-form-grid-3">
+            <div className="stack compact-gap">
+              <label>담당직원1</label>
+              <input value={form.staff1} onChange={e => setForm({ ...form, staff1: e.target.value })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>담당직원2</label>
+              <input value={form.staff2} onChange={e => setForm({ ...form, staff2: e.target.value })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>담당직원3</label>
+              <input value={form.staff3} onChange={e => setForm({ ...form, staff3: e.target.value })} />
+            </div>
           </div>
           {error && <div className="error">{error}</div>}
-          <button>{mode === 'edit' ? '일정 수정 저장' : '일정 저장'}</button>
+          <div className="schedule-form-footer">
+            <button type="submit" className="small schedule-save-button">일정 저장</button>
+          </div>
         </form>
       </section>
     </div>
@@ -2260,23 +2678,35 @@ function ScheduleDetailPage() {
           </div>
           <div className="detail-meta-grid">
             <div className="stat"><span>플랫폼</span><strong>{item.platform || '-'}</strong></div>
-            <div className="stat"><span>성함</span><strong>{item.customer_name || '-'}</strong></div>
-            <div className="stat"><span>일정 날짜</span><strong>{item.event_date}</strong></div>
-            <div className="stat"><span>시간</span><strong>{eventTimeLine(item)}</strong></div>
+            <div className="stat"><span>고객성함</span><strong>{item.customer_name || '-'}</strong></div>
+            <div className="stat"><span>출발지 이사방문시각</span><strong>{item.visit_time || '-'}</strong></div>
+            <div className="stat"><span>이사시간</span><strong>{eventTimeLine(item)}</strong></div>
           </div>
           <div className="list-item block">
-            <div><strong>장소</strong></div>
-            <div>{item.location || '-'}</div>
+            <div><strong>이사시작일 상세주소</strong></div>
+            <div>{item.start_address || item.location || '-'}</div>
+          </div>
+          <div className="list-item block">
+            <div><strong>이사종료일 상세주소</strong></div>
+            <div>{item.end_address || '-'}</div>
           </div>
           <div className="detail-meta-grid">
             <div className="stat"><span>이사 시작일</span><strong>{item.move_start_date || '-'}</strong></div>
             <div className="stat"><span>이사 종료일</span><strong>{item.move_end_date || '-'}</strong></div>
-            <div className="stat"><span>비용</span><strong>{buildCostSummary(item)}</strong></div>
-            <div className="stat"><span>계약금</span><strong>{[item.deposit_method, item.deposit_amount].filter(Boolean).join(' / ') || '-'}</strong></div>
+            <div className="stat"><span>이사금액</span><strong>{formatMoneyDisplay(item.amount1) || '-'}</strong></div>
+            <div className="stat"><span>계약입금</span><strong>{[item.deposit_method, item.deposit_amount].filter(Boolean).join(' / ') || '-'}</strong></div>
           </div>
           <div className="list-item block">
             <div><strong>메모</strong></div>
             <div>{item.content || '등록된 메모가 없습니다.'}</div>
+          </div>
+          <div className="detail-meta-grid">
+            <div className="stat"><span>담당대표1</span><strong>{item.representative1 || '-'}</strong></div>
+            <div className="stat"><span>담당대표2</span><strong>{item.representative2 || '-'}</strong></div>
+            <div className="stat"><span>담당대표3</span><strong>{item.representative3 || '-'}</strong></div>
+            <div className="stat"><span>담당직원1</span><strong>{item.staff1 || '-'}</strong></div>
+            <div className="stat"><span>담당직원2</span><strong>{item.staff2 || '-'}</strong></div>
+            <div className="stat"><span>담당직원3</span><strong>{item.staff3 || '-'}</strong></div>
           </div>
           {item.image_data && (
             <div className="image-preview-wrap">

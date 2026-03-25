@@ -64,6 +64,7 @@ class PasswordResetConfirmIn(BaseModel):
     email: str
     new_password: str
 class ProfileIn(BaseModel):
+    email: str
     nickname: str
     region: str = "서울"
     bio: str = ""
@@ -76,6 +77,19 @@ class ProfileIn(BaseModel):
     birth_year: int = 1990
     vehicle_number: str = ""
     branch_no: Optional[int] = None
+    marital_status: str = ""
+    resident_address: str = ""
+    business_name: str = ""
+    business_number: str = ""
+    business_type: str = ""
+    business_item: str = ""
+    business_address: str = ""
+    bank_account: str = ""
+    bank_name: str = ""
+    mbti: str = ""
+    google_email: str = ""
+    resident_id: str = ""
+    new_password: str = ""
 class LocationIn(BaseModel):
     latitude: float
     longitude: float
@@ -134,8 +148,11 @@ class CalendarEventIn(BaseModel):
     end_time: str
     location: str = ""
     color: str = "#2563eb"
+    visit_time: str = ""
     move_start_date: str = ""
     move_end_date: str = ""
+    start_address: str = ""
+    end_address: str = ""
     platform: str = ""
     customer_name: str = ""
     department_info: str = ""
@@ -144,6 +161,12 @@ class CalendarEventIn(BaseModel):
     amount_item: str = ""
     deposit_method: str = ""
     deposit_amount: str = ""
+    representative1: str = ""
+    representative2: str = ""
+    representative3: str = ""
+    staff1: str = ""
+    staff2: str = ""
+    staff3: str = ""
     image_data: str = ""
 class WorkScheduleEntryIn(BaseModel):
     schedule_date: str
@@ -702,29 +725,41 @@ def get_profile(user=Depends(require_user)):
 @app.put("/api/profile")
 def update_profile(payload: ProfileIn, user=Depends(require_user)):
     with get_conn() as conn:
-        conn.execute(
-            """
-            UPDATE users SET
-                nickname = ?, region = ?, bio = ?, one_liner = ?, interests = ?,
-                photo_url = ?, phone = ?, recovery_email = ?, gender = ?, birth_year = ?, vehicle_number = ?, branch_no = ?
-            WHERE id = ?
-            """,
-            (
-                payload.nickname,
-                payload.region,
-                payload.bio,
-                payload.one_liner,
-                json.dumps(payload.interests, ensure_ascii=False),
-                payload.photo_url,
-                payload.phone,
-                payload.recovery_email,
-                payload.gender,
-                payload.birth_year,
-                payload.vehicle_number,
-                payload.branch_no,
-                user["id"],
-            ),
-        )
+        existing = conn.execute("SELECT id FROM users WHERE email = ? AND id != ?", (payload.email, user["id"])).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail="이미 사용 중인 아이디입니다.")
+        assignments = [
+            ("email", payload.email.strip()),
+            ("nickname", payload.nickname.strip()),
+            ("region", payload.region.strip() or "서울"),
+            ("bio", payload.bio.strip()),
+            ("one_liner", payload.one_liner.strip()),
+            ("interests", json.dumps(payload.interests, ensure_ascii=False)),
+            ("photo_url", payload.photo_url.strip()),
+            ("phone", payload.phone.strip()),
+            ("recovery_email", payload.recovery_email.strip()),
+            ("gender", payload.gender.strip()),
+            ("birth_year", int(payload.birth_year or 1990)),
+            ("vehicle_number", payload.vehicle_number.strip()),
+            ("branch_no", payload.branch_no),
+            ("marital_status", payload.marital_status.strip()),
+            ("resident_address", payload.resident_address.strip()),
+            ("business_name", payload.business_name.strip()),
+            ("business_number", payload.business_number.strip()),
+            ("business_type", payload.business_type.strip()),
+            ("business_item", payload.business_item.strip()),
+            ("business_address", payload.business_address.strip()),
+            ("bank_account", payload.bank_account.strip()),
+            ("bank_name", payload.bank_name.strip()),
+            ("mbti", payload.mbti.strip()),
+            ("google_email", payload.google_email.strip()),
+            ("resident_id", payload.resident_id.strip()),
+        ]
+        if payload.new_password.strip():
+            assignments.append(("password_hash", hash_password(payload.new_password.strip())))
+        set_sql = ", ".join(f"{col} = ?" for col, _ in assignments)
+        values = [value for _, value in assignments] + [user["id"]]
+        conn.execute(f"UPDATE users SET {set_sql} WHERE id = ?", values)
         updated = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
         return {"user": user_public_dict(updated)}
 @app.post("/api/profile/location")
@@ -1330,15 +1365,15 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
         conn.execute(
             """
             INSERT INTO calendar_events(
-                user_id, title, content, event_date, start_time, end_time, location, color, move_start_date, move_end_date,
-                platform, customer_name, department_info, amount1, amount2, amount_item, deposit_method, deposit_amount, image_data, created_at
+                user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address,
+                platform, customer_name, department_info, amount1, amount2, amount_item, deposit_method, deposit_amount, representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
-                payload.location, payload.color, payload.move_start_date, payload.move_end_date, payload.platform, payload.customer_name,
-                payload.department_info, payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.image_data, utcnow()
+                payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address, payload.platform, payload.customer_name,
+                payload.department_info, payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
             ),
         )
         return {"ok": True}
@@ -1352,14 +1387,14 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
         conn.execute(
             """
             UPDATE calendar_events
-            SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, move_start_date = ?, move_end_date = ?,
-                platform = ?, customer_name = ?, department_info = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, image_data = ?
+            SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?,
+                platform = ?, customer_name = ?, department_info = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
             WHERE id = ? AND user_id = ?
             """,
             (
                 payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time, payload.location,
-                payload.color, payload.move_start_date, payload.move_end_date, payload.platform, payload.customer_name, payload.department_info, payload.amount1,
-                payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.image_data, event_id, user["id"]
+                payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address, payload.platform, payload.customer_name, payload.department_info, payload.amount1,
+                payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
             ),
         )
         return {"ok": True}
@@ -1409,7 +1444,7 @@ def _get_admin_total_vehicle_count(conn):
     row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE branch_no IS NOT NULL").fetchone()
     return int(row['cnt']) if row else 0
 @app.get('/api/work-schedule')
-def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int = Query(default=7, ge=1, le=14), user=Depends(require_user)):
+def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int = Query(default=7, ge=1, le=62), user=Depends(require_user)):
     base_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else datetime.now().date()
     date_keys = [(base_date + timedelta(days=index)).isoformat() for index in range(days)]
     with get_conn() as conn:
