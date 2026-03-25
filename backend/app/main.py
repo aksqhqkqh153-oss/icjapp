@@ -98,6 +98,8 @@ class LocationIn(BaseModel):
     latitude: float
     longitude: float
     region: str = "서울"
+class LocationShareConsentIn(BaseModel):
+    enabled: bool
 class FeedPostIn(BaseModel):
     content: str
     image_url: str = ""
@@ -290,6 +292,189 @@ def _can_actor_apply(actor: dict, actor_key: str, target_key: str, target_grade:
     actor_grade = _grade_of(actor)
     cfg = _get_permission_config(conn)
     return actor_grade <= int(cfg.get(actor_key, 1)) and target_grade >= int(cfg.get(target_key, 7)) and actor_grade < target_grade
+
+
+def _split_names_for_match(*values: str) -> list[str]:
+    tokens: list[str] = []
+    for value in values:
+        for token in re.split(r'[\n,/|]+', str(value or '')):
+            cleaned = token.strip()
+            if cleaned:
+                tokens.append(cleaned)
+    return tokens
+
+
+def _user_assignment_tokens(user: dict) -> set[str]:
+    tokens = set()
+    for raw in [user.get('nickname'), user.get('email'), user.get('vehicle_number')]:
+        value = str(raw or '').strip()
+        if value:
+            tokens.add(value)
+    branch_no = user.get('branch_no')
+    if branch_no not in (None, ''):
+        tokens.add(f"{branch_no}호점")
+        tokens.add(str(branch_no))
+    return tokens
+
+
+def _row_assigned_to_user(user: dict, row: dict) -> bool:
+    tokens = _user_assignment_tokens(user)
+    if not tokens:
+        return False
+    row_values = []
+    for key in ['representative1', 'representative2', 'representative3', 'staff1', 'staff2', 'staff3', 'representative_names', 'staff_names']:
+        row_values.extend(_split_names_for_match(row.get(key, '')))
+    row_set = {str(item).strip() for item in row_values if str(item).strip()}
+    if row_set & tokens:
+        return True
+    merged = ' '.join(row_set)
+    return any(token and token in merged for token in tokens)
+
+
+def _parse_time_value(value: str | None):
+    text = str(value or '').strip()
+    if not text or text == '미정':
+        return None
+    match = re.match(r'^(\d{1,2}):(\d{2})$', text)
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    if hour == 24 and minute == 0:
+        hour = 23
+        minute = 59
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return datetime.strptime(f"{hour:02d}:{minute:02d}", '%H:%M').time()
+
+
+def _schedule_time_window(target_date: date, start_raw: str | None, end_raw: str | None):
+    start_t = _parse_time_value(start_raw)
+    end_t = _parse_time_value(end_raw)
+    if start_t is None and end_t is None:
+        return None, None
+    start_dt = datetime.combine(target_date, start_t or datetime.strptime('00:00', '%H:%M').time())
+    if end_t is None:
+        end_dt = start_dt + timedelta(hours=2)
+    else:
+        end_dt = datetime.combine(target_date, end_t)
+        if end_dt < start_dt:
+            end_dt = start_dt + timedelta(hours=2)
+    return start_dt, end_dt
+
+
+def _assignment_display_text(current_user: dict, value: str) -> str:
+    tokens = _user_assignment_tokens(current_user)
+    names = _split_names_for_match(value)
+    out = []
+    for name in names:
+        out.append(f"{name}(본인)" if name in tokens else name)
+    return ' / '.join(out) if out else '-'
+
+
+def _calendar_row_summary(user: dict, row: dict) -> dict:
+    rep_list = [str(row.get(key) or '').strip() for key in ['representative1', 'representative2', 'representative3'] if str(row.get(key) or '').strip()]
+    staff_list = [str(row.get(key) or '').strip() for key in ['staff1', 'staff2', 'staff3'] if str(row.get(key) or '').strip()]
+    target_date = datetime.strptime(row.get('event_date'), '%Y-%m-%d').date()
+    return {
+        'source': 'calendar',
+        'id': row.get('id'),
+        'schedule_date': row.get('event_date') or '',
+        'time_text': row.get('start_time') or row.get('visit_time') or '미정',
+        'customer_name': row.get('customer_name') or row.get('title') or '',
+        'representative_text': _assignment_display_text(user, ' / '.join(rep_list)),
+        'staff_text': _assignment_display_text(user, ' / '.join(staff_list)),
+        'start_address': row.get('start_address') or row.get('location') or '',
+        'window_start': _schedule_time_window(target_date, row.get('start_time') or row.get('visit_time'), row.get('end_time')),
+    }
+
+
+def _manual_row_summary(user: dict, row: dict) -> dict:
+    date_value = datetime.strptime(row.get('schedule_date'), '%Y-%m-%d').date()
+    return {
+        'source': 'manual',
+        'id': row.get('id'),
+        'schedule_date': row.get('schedule_date') or '',
+        'time_text': row.get('schedule_time') or '미정',
+        'customer_name': row.get('customer_name') or '',
+        'representative_text': _assignment_display_text(user, row.get('representative_names') or ''),
+        'staff_text': _assignment_display_text(user, row.get('staff_names') or ''),
+        'start_address': row.get('start_address') or row.get('location') or '',
+        'window_start': _schedule_time_window(date_value, row.get('schedule_time'), None),
+    }
+
+
+def _assigned_schedule_items(conn, user: dict, start_date: date, end_date: date) -> list[dict]:
+    start_key = start_date.isoformat()
+    end_key = end_date.isoformat()
+    items: list[dict] = []
+    calendar_rows = conn.execute(
+        """
+        SELECT * FROM calendar_events
+        WHERE event_date >= ? AND event_date <= ?
+        ORDER BY event_date, CASE WHEN COALESCE(start_time, '') IN ('', '미정') THEN '99:99' ELSE start_time END, id
+        """,
+        (start_key, end_key),
+    ).fetchall()
+    for row in calendar_rows:
+        data = row_to_dict(row)
+        if not _row_assigned_to_user(user, data):
+            continue
+        items.append(_calendar_row_summary(user, data))
+    manual_rows = conn.execute(
+        """
+        SELECT w.*, c.start_address AS linked_start_address, c.location AS linked_location
+        FROM work_schedule_entries w
+        LEFT JOIN calendar_events c
+          ON c.event_date = w.schedule_date
+         AND COALESCE(c.customer_name, '') = COALESCE(w.customer_name, '')
+        WHERE w.schedule_date >= ? AND w.schedule_date <= ?
+        ORDER BY w.schedule_date, CASE WHEN COALESCE(w.schedule_time, '') = '' THEN '99:99' ELSE w.schedule_time END, w.id
+        """,
+        (start_key, end_key),
+    ).fetchall()
+    for row in manual_rows:
+        data = row_to_dict(row)
+        if not _row_assigned_to_user(user, data):
+            continue
+        data['start_address'] = data.get('linked_start_address') or data.get('linked_location') or ''
+        items.append(_manual_row_summary(user, data))
+    items.sort(key=lambda item: (item['schedule_date'], '99:99' if item['time_text'] in ('', '미정') else item['time_text'], str(item['id'])))
+    return items
+
+
+def _location_share_status(conn, user: dict) -> dict:
+    eligible = bool(str(user.get('vehicle_number') or '').strip()) and user.get('branch_no') not in (None, '')
+    today = datetime.now().date()
+    now_dt = datetime.now()
+    assigned_today = [item for item in _assigned_schedule_items(conn, user, today, today) if item['schedule_date'] == today.isoformat()]
+    active_item = None
+    for item in assigned_today:
+        start_dt, end_dt = item.get('window_start') or (None, None)
+        if start_dt and end_dt and start_dt <= now_dt <= end_dt:
+            active_item = item
+            break
+    return {
+        'eligible': eligible,
+        'consent_granted': bool(user.get('location_share_consent')),
+        'sharing_enabled': bool(user.get('location_share_enabled')),
+        'active_now': active_item is not None,
+        'today_assignments': [
+            {
+                'schedule_date': item['schedule_date'],
+                'time_text': item['time_text'],
+                'customer_name': item['customer_name'],
+                'start_address': item['start_address'],
+            } for item in assigned_today
+        ],
+        'active_assignment': {
+            'schedule_date': active_item['schedule_date'],
+            'time_text': active_item['time_text'],
+            'customer_name': active_item['customer_name'],
+            'start_address': active_item['start_address'],
+        } if active_item else None,
+    }
+
 def _require_write_access(user: dict, area: str):
     grade = _grade_of(user)
     if grade >= 7:
@@ -821,6 +1006,25 @@ def update_location(payload: LocationIn, user=Depends(require_user)):
         )
         updated = conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
         return {"user": user_public_dict(updated)}
+
+@app.get("/api/location-sharing/status")
+def get_location_sharing_status(user=Depends(require_user)):
+    with get_conn() as conn:
+        fresh = conn.execute("SELECT * FROM users WHERE id = ?", (user['id'],)).fetchone()
+        status = _location_share_status(conn, user_public_dict(fresh))
+        return status
+
+@app.post("/api/location-sharing/consent")
+def set_location_sharing_consent(payload: LocationShareConsentIn, user=Depends(require_user)):
+    with get_conn() as conn:
+        now = utcnow()
+        conn.execute(
+            "UPDATE users SET location_share_consent = ?, location_share_enabled = ?, location_share_updated_at = ? WHERE id = ?",
+            (1 if payload.enabled else 0, 1 if payload.enabled else 0, now, user['id']),
+        )
+        updated = conn.execute("SELECT * FROM users WHERE id = ?", (user['id'],)).fetchone()
+        updated_user = user_public_dict(updated)
+        return {"user": updated_user, "status": _location_share_status(conn, updated_user)}
 @app.get("/api/users")
 def list_users(user=Depends(require_user)):
     with get_conn() as conn:
@@ -1284,11 +1488,42 @@ def react_group_message(message_id: int, payload: ReactionIn, user=Depends(requi
         toggle_reaction(conn, 'group_room_messages', message_id, user['id'], payload.emoji)
         row = conn.execute("SELECT * FROM group_room_messages WHERE id = ?", (message_id,)).fetchone()
         return enrich_chat_message(conn, row, 'group_room_messages')
+@app.get("/api/home/upcoming-schedules")
+def home_upcoming_schedules(days: int = Query(default=7, ge=1, le=31), user=Depends(require_user)):
+    start_date = datetime.now().date()
+    end_date = start_date + timedelta(days=days - 1)
+    with get_conn() as conn:
+        items = _assigned_schedule_items(conn, user, start_date, end_date)
+    grouped = []
+    for key in sorted({item['schedule_date'] for item in items}):
+        same_day = [item for item in items if item['schedule_date'] == key]
+        grouped.append({
+            'date': key,
+            'label': datetime.strptime(key, '%Y-%m-%d').strftime('%m월 %d일'),
+            'items': [
+                {
+                    'time_text': item['time_text'] or '미정',
+                    'customer_name': item['customer_name'] or '-',
+                    'representative_text': item['representative_text'] or '-',
+                    'staff_text': item['staff_text'] or '-',
+                    'start_address': item['start_address'] or '-',
+                    'source': item['source'],
+                } for item in same_day
+            ],
+        })
+    return {'days': grouped}
+
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM users WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND COALESCE(vehicle_number, '') != '' AND branch_no IS NOT NULL ORDER BY branch_no, id").fetchall()
-        return [user_public_dict(r) for r in rows]
+        rows = conn.execute("SELECT * FROM users WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND COALESCE(vehicle_number, '') != '' AND branch_no IS NOT NULL AND COALESCE(location_share_consent, 0) = 1 AND COALESCE(location_share_enabled, 0) = 1 ORDER BY branch_no, id").fetchall()
+        visible = []
+        for row in rows:
+            public = user_public_dict(row)
+            status = _location_share_status(conn, public)
+            if status['active_now']:
+                visible.append(public)
+        return visible
 @app.get("/api/map-region-boundaries")
 def map_region_boundaries(user=Depends(require_user)):
     with get_conn() as conn:

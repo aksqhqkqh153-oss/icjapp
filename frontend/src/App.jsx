@@ -439,16 +439,16 @@ function HomePage() {
   const [summary, setSummary] = useState(null)
   useEffect(() => {
     async function load() {
-      const [friends, notifications, calendar] = await Promise.all([
+      const [friends, notifications, upcoming] = await Promise.all([
         api('/api/friends'),
         api('/api/notifications'),
-        api('/api/calendar/events'),
+        api('/api/home/upcoming-schedules'),
       ])
       setSummary({
         friendCount: friends.friends.length,
         requestCount: friends.received_requests.length,
         notificationCount: notifications.length,
-        nextEvents: calendar.slice(0, 3),
+        upcomingDays: upcoming.days || [],
       })
     }
     load().catch(() => {})
@@ -465,16 +465,21 @@ function HomePage() {
         </div>
       </section>
       <section className="card">
-        <div className="between"><h2>다가오는 일정</h2><Link to="/schedule" className="ghost-link">일정으로 이동</Link></div>
-        <div className="list">
-          {(summary?.nextEvents || []).map(item => (
-            <div className="list-item block" key={item.id}>
-              <strong>{item.title}</strong>
-              <div className="muted">{item.event_date} {item.start_time}-{item.end_time}</div>
-              <div>{item.location}</div>
+        <div className="between"><h2>다가오는 일정</h2><Link to="/work-schedule" className="ghost-link">스케줄로 이동</Link></div>
+        <div className="list upcoming-schedule-list">
+          {(summary?.upcomingDays || []).map(day => (
+            <div className="list-item block upcoming-day-group" key={day.date}>
+              <strong>{day.label}</strong>
+              <div className="stack compact">
+                {day.items.map((item, index) => (
+                  <div key={`${day.date}-${index}`} className="upcoming-line">
+                    <div> - [{item.time_text}] [{item.customer_name}] [{item.representative_text}] [{item.staff_text}] [{item.start_address}]</div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
-          {summary && summary.nextEvents.length === 0 && <div className="muted">등록된 일정이 없습니다.</div>}
+          {summary && summary.upcomingDays.length === 0 && <div className="muted">내 계정에 배정된 다가오는 스케줄이 없습니다.</div>}
           {!summary && <div className="muted">불러오는 중...</div>}
         </div>
       </section>
@@ -1371,11 +1376,76 @@ function MapPage() {
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerLayerRef = useRef(null)
+  const watchIdRef = useRef(null)
+  const isMobile = useIsMobile()
   const [users, setUsers] = useState([])
+  const [shareNotice, setShareNotice] = useState('')
+
+  async function loadMapUsers() {
+    const data = await api('/api/map-users')
+    setUsers(data)
+  }
 
   useEffect(() => {
-    api('/api/map-users').then(setUsers).catch(() => setUsers([]))
+    loadMapUsers().catch(() => setUsers([]))
   }, [])
+
+  useEffect(() => {
+    if (!isMobile) return undefined
+    let cancelled = false
+    async function prepareMobileLocationShare() {
+      try {
+        const currentUser = getStoredUser()
+        const status = await api('/api/location-sharing/status')
+        if (!status.eligible) return
+        const assignmentLine = status.active_assignment
+          ? `현재 배정 일정: ${status.active_assignment.time_text} ${status.active_assignment.customer_name} / ${status.active_assignment.start_address || '-'}\n\n`
+          : ''
+        if (!status.consent_granted) {
+          const approved = window.confirm(`${assignmentLine}오늘 배정된 일정 시간대에만 내 위치를 공개하시겠습니까?\n허용하면 지도 화면에서 위치정보 동의 후 자동으로 진행됩니다.`)
+          if (!approved) return
+          const consentData = await api('/api/location-sharing/consent', {
+            method: 'POST',
+            body: JSON.stringify({ enabled: true }),
+          })
+          if (consentData?.user) {
+            localStorage.setItem('icj_user', JSON.stringify(consentData.user))
+          }
+        }
+        const refreshed = await api('/api/location-sharing/status')
+        if (!refreshed.active_now) {
+          setShareNotice('오늘 담당 일정 시간대가 되면 위치 공개가 자동 적용됩니다.')
+          return
+        }
+        if (!navigator.geolocation) {
+          setShareNotice('이 기기에서는 위치 기능을 사용할 수 없습니다.')
+          return
+        }
+        setShareNotice('현재 담당 일정 시간대라 내 위치가 지도에 공개됩니다.')
+        watchIdRef.current = navigator.geolocation.watchPosition(async pos => {
+          try {
+            await api('/api/profile/location', {
+              method: 'POST',
+              body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, region: currentUser?.region || '서울' }),
+            })
+            if (!cancelled) {
+              loadMapUsers().catch(() => {})
+            }
+          } catch (_) {}
+        }, () => {
+          setShareNotice('위치 권한이 거부되어 지도 공개를 진행할 수 없습니다.')
+        }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 })
+      } catch (_) {}
+    }
+    prepareMobileLocationShare()
+    return () => {
+      cancelled = true
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
+    }
+  }, [isMobile])
 
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
@@ -1412,6 +1482,7 @@ function MapPage() {
     <div className="stack-page">
       <section className="card map-card">
         <div className="map-legend muted">차량번호와 호점이 등록된 기사 위치가 지도 위에 표시됩니다. 표시는 각 호점 숫자 아이콘으로 보입니다.</div>
+        {shareNotice && <div className="info">{shareNotice}</div>}
         <div ref={mapRef} className="real-map-canvas" />
         <div className="map-driver-list">
           {users.map(item => (
