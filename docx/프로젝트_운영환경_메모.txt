@@ -76,3 +76,6 @@
 - PWA 아이콘 파일: icon-192.png, icon-512.png, apple-touch-icon.png, favicon-32.png
 - Capacitor 리소스: mobile_capacitor/resources/icon-1024.png 등
 - 앱 아이콘은 원본 로고가 잘리지 않도록 흰 배경 정사각형 캔버스로 최적화함
+
+- 기본 단체톡방 자동 생성 규칙 반영: 본사방/본사 상담팀방/본사 업무방/단톡방/공지방/근무정산방/CS방
+- 단체톡방 초대/추방 권한: 관리자, 부관리자만 가능

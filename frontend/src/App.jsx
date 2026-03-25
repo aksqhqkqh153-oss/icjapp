@@ -750,6 +750,7 @@ function FriendsPage() {
   const [searchText, setSearchText] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [panel, setPanel] = useState('')
+  const [toast, setToast] = useState('')
 
   async function load() {
     const [u, f, me, followList] = await Promise.all([
@@ -765,6 +766,11 @@ function FriendsPage() {
   }
 
   useEffect(() => { load().catch(() => {}) }, [])
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(''), 1400)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   async function doAction(fn, successText = '처리되었습니다.') {
     setMessage('')
@@ -785,6 +791,7 @@ function FriendsPage() {
     return users.filter(item => !friendIds.has(item.id) && (!normalizedQuery || [item.nickname, item.one_liner, item.region].join(' ').toLowerCase().includes(normalizedQuery)))
   }, [users, data.friends, normalizedQuery])
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
+  const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
 
   function FriendRow({ item, actions = null }) {
     return (
@@ -848,7 +855,14 @@ function FriendsPage() {
                 <FriendRow
                   key={`candidate-${item.id}`}
                   item={item}
-                  actions={<button className="small" onClick={() => doAction(() => api(`/api/friends/request/${item.id}`, { method: 'POST' }), '친구 요청을 보냈습니다.')}>요청</button>}
+                  actions={sentRequestIds.has(item.id) ? (
+                    <button className="small ghost" disabled>요청완료</button>
+                  ) : (
+                    <button className="small" onClick={() => doAction(async () => {
+                      await api(`/api/friends/request/${item.id}`, { method: 'POST' })
+                      setToast(`${item.nickname || '회원'}님에게 친구요청을 신청했습니다.`)
+                    }, `${item.nickname || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
+                  )}
                 />
               ))}
               {candidateUsers.length === 0 && <div className="muted">추가 가능한 친구가 없습니다.</div>}
@@ -878,6 +892,7 @@ function FriendsPage() {
         )}
 
         {message && <div className="success">{message}</div>}
+        {toast && <div className="mention-toast action-toast">{toast}</div>}
       </section>
     </div>
   )
@@ -1035,6 +1050,7 @@ function ChatsPage() {
   const [actionRoom, setActionRoom] = useState(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -1100,7 +1116,7 @@ function ChatsPage() {
       if (nextName === null) return
       await updateRoomSetting(actionRoom, { custom_name: nextName })
     } },
-    { label: '채팅방 초대', onClick: async () => { await handleInvite(actionRoom) } },
+    ...((actionRoom.room_type === 'group' && actionRoom.room?.can_manage) || actionRoom.room_type !== 'group' ? [{ label: '채팅방 초대', onClick: async () => { await handleInvite(actionRoom) } }] : []),
     { label: '채팅방 나가기', danger: true, onClick: async () => { await handleLeave(actionRoom) } },
     { label: actionRoom.pinned ? '채팅방 상단고정 해제' : '채팅방 상단고정', onClick: async () => { await updateRoomSetting(actionRoom, { pinned: !actionRoom.pinned }) } },
     { label: actionRoom.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가', onClick: async () => { await updateRoomSetting(actionRoom, { favorite: !actionRoom.favorite }) } },
@@ -1110,15 +1126,21 @@ function ChatsPage() {
   return (
     <div className="stack-page">
       <section className="card chat-list-card">
-        <div className="inline-actions wrap chat-category-row">
-          {CHAT_CATEGORIES.map(([value, label]) => (
-            <button key={value} type="button" className={category === value ? 'small' : 'small ghost'} onClick={() => setCategory(value)}>{label}</button>
-          ))}
+        <div className="chat-list-topbar">
+          <div className="chat-category-row">
+            {CHAT_CATEGORIES.map(([value, label]) => (
+              <button key={value} type="button" className={category === value ? 'small chat-tab active' : 'small ghost chat-tab'} onClick={() => setCategory(value)}>{label}</button>
+            ))}
+          </div>
+          <div className="chat-search-trigger">
+            <button type="button" className="small ghost search-icon-button" aria-label="채팅 검색" onClick={() => setSearchOpen(v => !v)}>⌕</button>
+          </div>
         </div>
-        <div className="chat-list-searchbar">
-          <button type="button" className="small ghost">검색</button>
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="선택한 카테고리에서 채팅 검색" />
-        </div>
+        {searchOpen && (
+          <div className="chat-list-searchbar">
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="선택한 카테고리에서 채팅 검색" />
+          </div>
+        )}
         <div className="chat-room-list">
           {filteredRooms.map(room => {
             const bind = useLongPress(() => setActionRoom(room))
@@ -1167,6 +1189,7 @@ function ChatRoomPage({ roomType }) {
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
   const messageRefs = useRef({})
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false)
 
   async function load() {
     const endpoint = roomType === 'group' ? `/api/group-rooms/${targetRef}/messages` : `/api/chat/${targetRef}`
@@ -1254,6 +1277,14 @@ function ChatRoomPage({ roomType }) {
     navigate('/chats')
   }
 
+  async function kickMember(member) {
+    if (!member?.id) return
+    const ok = window.confirm(`${member.nickname || '회원'}님을 이 단체톡방에서 내보내시겠습니까?`)
+    if (!ok) return
+    await api(`/api/group-rooms/${targetRef}/members/${member.id}`, { method: 'DELETE' })
+    await load()
+  }
+
   async function jumpToDate(dateText) {
     if (!dateText) return
     const found = data?.messages?.find(item => String(item.created_at || '').slice(0, 10) === dateText)
@@ -1291,6 +1322,7 @@ function ChatRoomPage({ roomType }) {
       const dateText = window.prompt('이동할 날짜를 입력하세요. 예: 2026-03-23')
       if (dateText) jumpToDate(dateText)
     } },
+    ...(roomType === 'group' && data?.room?.can_manage ? [{ label: '참여자 관리', onClick: () => setMemberPanelOpen(v => !v) }] : []),
     { label: data?.room_setting?.muted ? '알림켜기' : '알림끄기', onClick: toggleRoomMute },
     { label: '채팅방 나가기', danger: true, onClick: leaveRoom },
   ]
@@ -1312,6 +1344,19 @@ function ChatRoomPage({ roomType }) {
           </div>
         </div>
         {menuOpen && <div className="inline-actions wrap room-menu-bar">{roomMenuActions.map(action => <button key={action.label} type="button" className={action.danger ? 'small ghost danger-text' : 'small ghost'} onClick={() => { action.onClick(); setMenuOpen(false) }}>{action.label}</button>)}</div>}
+        {memberPanelOpen && roomType === 'group' && data?.room?.can_manage && (
+          <div className="group-member-panel">
+            <div className="between"><strong>참여자 관리</strong><button type="button" className="small ghost" onClick={() => setMemberPanelOpen(false)}>닫기</button></div>
+            <div className="group-member-list">
+              {(data?.members || []).map(member => (
+                <div key={member.id} className="group-member-row">
+                  <span>{member.nickname} <small className="muted">({member.grade_label || '회원'})</small></span>
+                  {member.id !== getStoredUser()?.id ? <button type="button" className="small ghost danger-text" onClick={() => kickMember(member).catch(err => alert(err.message))}>추방</button> : <span className="muted">본인</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {searchOpen && (
           <div className="chat-search-panel">
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="대화 내용 검색" />
@@ -3091,6 +3136,7 @@ function SettingsPage({ onLogout }) {
           <button>문의 등록</button>
         </form>
         {message && <div className="success">{message}</div>}
+        {toast && <div className="mention-toast action-toast">{toast}</div>}
       </section>
     </div>
   )
