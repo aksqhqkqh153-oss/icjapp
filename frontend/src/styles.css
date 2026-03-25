@@ -2279,3 +2279,112 @@ label { font-size: 14px; color: #4f6f8c; }
     grid-template-columns: 72px 1fr;
   }
 }
+
+.quick-check-head {
+  align-items: center;
+  margin-bottom: 12px;
+}
+.quick-check-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.quick-check-card {
+  min-height: 92px;
+  border: 1px solid #bfe3ff;
+  background: #f4fbff;
+  color: #15324d;
+  border-radius: 16px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+.quick-check-card strong {
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+.quick-check-card span {
+  display: block;
+}
+.quick-check-editor.inset-card {
+  margin-top: 14px;
+  background: #fbfdff;
+}
+.quick-edit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e4eef7;
+}
+.quick-edit-row:last-child {
+  border-bottom: 0;
+}
+.bottom-nav-label-wrap,
+.menu-button-with-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bottom-nav-badge,
+.menu-badge {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.friend-row-actions.expanded {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.inline-friend-menu {
+  display: none;
+}
+.inline-friend-menu.open-inline-menu {
+  display: block;
+}
+.grouped-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.group-card-block {
+  border: 1px solid #d8e8f5;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fbfdff;
+}
+.group-card-block .inner {
+  margin-top: 8px;
+}
+.favorite-friend-button {
+  min-width: 40px;
+}
+@media (max-width: 768px) {
+  .quick-check-grid {
+    gap: 10px;
+  }
+  .quick-check-card {
+    min-height: 86px;
+    font-size: 0.92rem;
+    padding: 10px 8px;
+  }
+}

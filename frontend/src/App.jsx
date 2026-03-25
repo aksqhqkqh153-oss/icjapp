@@ -93,13 +93,73 @@ function serializeExcludedBusinessSlots(slots) {
   return slots.filter(Boolean).map(value => `${value}호점`).join(', ')
 }
 
+const QUICK_ACTION_LIBRARY = [
+  { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
+  { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
+  { id: 'point', label: '포인트', kind: 'placeholder' },
+  { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
+  { id: 'materials', label: '자재현황', kind: 'placeholder' },
+  { id: 'materialsBuy', label: '자재구매', kind: 'placeholder' },
+  { id: 'upcoming', label: '다가오는 일정', kind: 'metric', metricKey: 'upcomingCount', path: '/work-schedule' },
+  { id: 'chat', label: '채팅', kind: 'placeholderPath', path: '/chats' },
+  { id: 'schedule', label: '스케줄', kind: 'placeholderPath', path: '/work-schedule' },
+]
+const DEFAULT_QUICK_ACTION_IDS = ['friendCount', 'requestCount', 'point', 'warehouse', 'materials', 'materialsBuy', 'upcoming', 'chat', 'schedule']
+
+function quickActionStorageKey(userId) {
+  return `icj_quick_actions_${userId || 'guest'}`
+}
+
+function friendGroupStorageKey(userId) {
+  return `icj_friend_groups_${userId || 'guest'}`
+}
+
+function getQuickActionState(userId) {
+  const fallback = { active: [...DEFAULT_QUICK_ACTION_IDS], archived: [] }
+  try {
+    const raw = localStorage.getItem(quickActionStorageKey(userId))
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    const known = new Set(QUICK_ACTION_LIBRARY.map(item => item.id))
+    const active = Array.isArray(parsed?.active) ? parsed.active.filter(id => known.has(id)) : fallback.active
+    const archived = Array.isArray(parsed?.archived) ? parsed.archived.filter(id => known.has(id) && !active.includes(id)) : []
+    const missing = QUICK_ACTION_LIBRARY.map(item => item.id).filter(id => !active.includes(id) && !archived.includes(id))
+    return { active: [...active, ...missing].slice(0, 9), archived }
+  } catch (_) {
+    return fallback
+  }
+}
+
+function saveQuickActionState(userId, nextState) {
+  localStorage.setItem(quickActionStorageKey(userId), JSON.stringify(nextState))
+}
+
+function getFriendGroupState(userId) {
+  const fallback = { groups: [], assignments: {} }
+  try {
+    const raw = localStorage.getItem(friendGroupStorageKey(userId))
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    return {
+      groups: Array.isArray(parsed?.groups) ? parsed.groups : [],
+      assignments: parsed?.assignments && typeof parsed.assignments === 'object' ? parsed.assignments : {},
+    }
+  } catch (_) {
+    return fallback
+  }
+}
+
+function saveFriendGroupState(userId, nextState) {
+  localStorage.setItem(friendGroupStorageKey(userId), JSON.stringify(nextState))
+}
+
 
 function Layout({ children, user, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [notificationCount, setNotificationCount] = useState(0)
+  const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
   const isScheduleView = location.pathname === '/schedule'
   const bottomLinks = [
     ['/', '홈'],
@@ -116,6 +176,7 @@ function Layout({ children, user, onLogout }) {
   const topMenuLinks = [
     ['/meetups', '모임'],
     ['/boards', '게시판'],
+    ['/points', '포인트'],
     ...(canAccessAdminMode(user) ? [['/reports', '신고관리']] : []),
   ]
 
@@ -126,24 +187,40 @@ function Layout({ children, user, onLogout }) {
 
   useEffect(() => {
     let ignore = false
-    async function loadNotificationCount() {
+    async function loadBadges() {
       try {
-        const result = await api('/api/notifications/unread-count')
-        if (!ignore) setNotificationCount(Number(result?.count || 0))
+        const result = await api('/api/badges-summary')
+        if (!ignore) setBadges(result || { notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
       } catch (_) {
-        if (!ignore) setNotificationCount(0)
+        if (!ignore) setBadges({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
       }
     }
-    loadNotificationCount()
+    loadBadges()
+    const timer = window.setInterval(loadBadges, 15000)
+    return () => {
+      ignore = true
+      window.clearInterval(timer)
+    }
   }, [location.pathname, user?.id])
+
+  function renderBottomLabel(to, label) {
+    const count = to === '/chats' ? Number(badges.chat_count || 0) : to === '/friends' ? Number(badges.friend_request_count || 0) : 0
+    return (
+      <span className="bottom-nav-label-wrap">
+        <span>{label}</span>
+        {count > 0 && <span className="bottom-nav-badge">{count > 99 ? '99+' : count}</span>}
+      </span>
+    )
+  }
 
   return (
     <div className={`app-shell${isScheduleView ? ' schedule-wide' : ''}`}>
       <header className="topbar topbar-fixed">
         <div className="topbar-left">
           <div className="dropdown-wrap">
-            <button type="button" className="ghost icon-button" onClick={() => setMenuOpen(v => !v)}>
+            <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>
               메뉴
+              {Number(badges.menu_count || 0) > 0 && <span className="notification-badge menu-badge">{badges.menu_count > 99 ? '99+' : badges.menu_count}</span>}
             </button>
             {menuOpen && (
               <div className="dropdown-menu left">
@@ -160,7 +237,7 @@ function Layout({ children, user, onLogout }) {
         <div className="topbar-right">
           <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button active-icon notification-icon-button' : 'ghost icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
             <span className="notification-bell">🔔</span>
-            {notificationCount > 0 && <span className="notification-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>}
+            {Number(badges.notification_count || 0) > 0 && <span className="notification-badge">{badges.notification_count > 99 ? '99+' : badges.notification_count}</span>}
           </button>
           <div className="dropdown-wrap">
             <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button active-icon' : 'ghost icon-button'} onClick={() => setSettingsOpen(v => !v)}>
@@ -181,7 +258,7 @@ function Layout({ children, user, onLogout }) {
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
           <Link key={to} className={isBottomActive(to) ? 'bottom-nav-item active' : 'bottom-nav-item'} to={to}>
-            {label}
+            {renderBottomLabel(to, label)}
           </Link>
         ))}
       </nav>
@@ -454,33 +531,115 @@ function ResetPasswordPage() {
 }
 
 function HomePage() {
+  const navigate = useNavigate()
+  const currentUser = getStoredUser()
   const [summary, setSummary] = useState(null)
+  const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
+  const [editingQuick, setEditingQuick] = useState(false)
+
   useEffect(() => {
     async function load() {
-      const [friends, notifications, upcoming] = await Promise.all([
+      const [friends, upcoming] = await Promise.all([
         api('/api/friends'),
-        api('/api/notifications'),
         api('/api/home/upcoming-schedules'),
       ])
       setSummary({
         friendCount: friends.friends.length,
         requestCount: friends.received_requests.length,
-        notificationCount: notifications.length,
+        upcomingCount: (upcoming.days || []).reduce((acc, day) => acc + (day.items?.length || 0), 0),
         upcomingDays: upcoming.days || [],
       })
     }
     load().catch(() => {})
   }, [])
 
+  useEffect(() => {
+    setQuickState(getQuickActionState(currentUser?.id))
+  }, [currentUser?.id])
+
+  function updateQuickState(nextState) {
+    setQuickState(nextState)
+    saveQuickActionState(currentUser?.id, nextState)
+  }
+
+  function moveQuickAction(index, direction) {
+    const next = [...quickState.active]
+    const target = index + direction
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    updateQuickState({ ...quickState, active: next })
+  }
+
+  function archiveQuickAction(id) {
+    updateQuickState({ active: quickState.active.filter(item => item !== id), archived: [...quickState.archived, id] })
+  }
+
+  function restoreQuickAction(id) {
+    if (quickState.active.length >= 9) {
+      window.alert('빠른 확인은 최대 9개까지 배치할 수 있습니다.')
+      return
+    }
+    updateQuickState({ active: [...quickState.active, id], archived: quickState.archived.filter(item => item !== id) })
+  }
+
+  function handleQuickActionClick(item) {
+    if (item.path?.includes('?')) {
+      navigate(item.path)
+      return
+    }
+    if (item.path) {
+      navigate(item.path)
+      return
+    }
+    window.alert(`${item.label} 기능은 다음 업데이트에서 연결할 예정입니다.`)
+  }
+
+  const activeQuickItems = quickState.active.map(id => QUICK_ACTION_LIBRARY.find(item => item.id === id)).filter(Boolean)
+  const archivedQuickItems = quickState.archived.map(id => QUICK_ACTION_LIBRARY.find(item => item.id === id)).filter(Boolean)
+
   return (
     <div className="stack-page">
       <section className="card">
-        <h2>빠른 확인</h2>
-        <div className="stats stats-3">
-          <div className="stat"><strong>{summary?.friendCount ?? '-'}</strong><span>친구 수</span></div>
-          <div className="stat"><strong>{summary?.requestCount ?? '-'}</strong><span>받은 친구 요청</span></div>
-          <div className="stat"><strong>{summary?.notificationCount ?? '-'}</strong><span>알림 수</span></div>
+        <div className="between quick-check-head">
+          <h2>빠른 확인</h2>
+          <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
         </div>
+        <div className="quick-check-grid">
+          {activeQuickItems.map(item => (
+            <button key={item.id} type="button" className="quick-check-card" onClick={() => handleQuickActionClick(item)}>
+              <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '바로가기'}</strong>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+        {editingQuick && (
+          <div className="quick-check-editor card inset-card">
+            <strong>빠른 확인 편집</strong>
+            <div className="stack compact">
+              {activeQuickItems.map((item, index) => (
+                <div key={`active-${item.id}`} className="quick-edit-row">
+                  <span>{item.label}</span>
+                  <div className="inline-actions wrap end">
+                    <button type="button" className="small ghost" onClick={() => moveQuickAction(index, -1)}>위로</button>
+                    <button type="button" className="small ghost" onClick={() => moveQuickAction(index, 1)}>아래로</button>
+                    <button type="button" className="small ghost" onClick={() => archiveQuickAction(item.id)}>보관</button>
+                  </div>
+                </div>
+              ))}
+              {activeQuickItems.length === 0 && <div className="muted">배치된 버튼이 없습니다.</div>}
+            </div>
+            <div className="friends-section-label">보관함</div>
+            <div className="stack compact">
+              {archivedQuickItems.map(item => (
+                <div key={`archived-${item.id}`} className="quick-edit-row">
+                  <span>{item.label}</span>
+                  <button type="button" className="small" onClick={() => restoreQuickAction(item.id)}>추가</button>
+                </div>
+              ))}
+              {archivedQuickItems.length === 0 && <div className="muted">보관된 버튼이 없습니다.</div>}
+            </div>
+          </div>
+        )}
       </section>
       <section className="card">
         <div className="between"><h2>다가오는 일정</h2><Link to="/work-schedule" className="ghost-link">스케줄로 이동</Link></div>
@@ -504,7 +663,6 @@ function HomePage() {
     </div>
   )
 }
-
 
 function ProfilePage({ onUserUpdate }) {
   const [form, setForm] = useState(null)
@@ -761,16 +919,18 @@ function ProfilePage({ onUserUpdate }) {
 function FriendsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [profile, setProfile] = useState(null)
   const [users, setUsers] = useState([])
   const [data, setData] = useState({ friends: [], received_requests: [], sent_requests: [] })
+  const [profile, setProfile] = useState(null)
   const [follows, setFollows] = useState([])
   const [message, setMessage] = useState('')
+  const [panel, setPanel] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [panel, setPanel] = useState('')
   const [toast, setToast] = useState('')
+  const currentUser = getStoredUser()
+  const [groupState, setGroupState] = useState(() => getFriendGroupState(currentUser?.id))
 
   async function load() {
     const [u, f, me, followList] = await Promise.all([
@@ -795,12 +955,20 @@ function FriendsPage() {
     const timer = window.setTimeout(() => setToast(''), 1400)
     return () => window.clearTimeout(timer)
   }, [toast])
+  useEffect(() => {
+    setGroupState(getFriendGroupState(currentUser?.id))
+  }, [currentUser?.id])
 
   async function doAction(fn, successText = '처리되었습니다.') {
     setMessage('')
     await fn()
     setMessage(successText)
     await load()
+  }
+
+  function saveGroupState(nextState) {
+    setGroupState(nextState)
+    saveFriendGroupState(currentUser?.id, nextState)
   }
 
   const followedIds = useMemo(() => new Set((follows || []).map(item => item.id)), [follows])
@@ -816,12 +984,101 @@ function FriendsPage() {
   }, [users, data.friends, normalizedQuery])
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
   const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
+  const groupedFriends = useMemo(() => (groupState.groups || []).map(group => ({ ...group, items: data.friends.filter(friend => String(groupState.assignments?.[friend.id] || '') === String(group.id)) })), [groupState, data.friends])
 
   function goDirectChat(targetId) {
     navigate(`/chats/direct/${targetId}`)
   }
 
+  async function toggleFavorite(item) {
+    const active = followedIds.has(item.id)
+    if (active) {
+      const ok = window.confirm('즐겨찾기를 해제하시겠습니까?')
+      if (!ok) return
+    }
+    await api(`/api/follows/${item.id}`, { method: 'POST' })
+    await load()
+  }
+
+  function manageFriendGroup(item) {
+    if (!(groupState.groups || []).length) {
+      window.alert('먼저 메뉴에서 그룹을 추가해 주세요.')
+      return
+    }
+    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
+    const picked = window.prompt(`배정할 그룹 번호를 입력하세요.
+${guide}
+0 입력 시 해제됩니다.`)
+    if (picked === null) return
+    const nextAssignments = { ...(groupState.assignments || {}) }
+    if (String(picked).trim() === '0' || !String(picked).trim()) {
+      delete nextAssignments[item.id]
+    } else {
+      nextAssignments[item.id] = String(picked).trim()
+    }
+    saveGroupState({ ...groupState, assignments: nextAssignments })
+  }
+
+  async function removeFriend(item) {
+    const ok = window.confirm(`${item.nickname || '회원'}님을 친구 목록에서 삭제하시겠습니까?`)
+    if (!ok) return
+    await api(`/api/friends/${item.id}`, { method: 'DELETE' })
+    await load()
+  }
+
+  async function blockFriend(item) {
+    const ok = window.confirm(`${item.nickname || '회원'}님을 차단하시겠습니까?`)
+    if (!ok) return
+    await api(`/api/block/${item.id}`, { method: 'POST', body: JSON.stringify({ reason: '친구 화면에서 차단' }) })
+    await api(`/api/friends/${item.id}`, { method: 'DELETE' })
+    await load()
+  }
+
+  function createGroup() {
+    const name = window.prompt('새 그룹명을 입력하세요.')
+    if (!name || !name.trim()) return
+    const nextGroup = { id: `g${Date.now()}`, name: name.trim() }
+    saveGroupState({ ...groupState, groups: [...(groupState.groups || []), nextGroup] })
+  }
+
+  function renameGroup() {
+    if (!(groupState.groups || []).length) {
+      window.alert('수정할 그룹이 없습니다.')
+      return
+    }
+    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
+    const picked = window.prompt(`이름을 바꿀 그룹 번호를 입력하세요.
+${guide}`)
+    if (!picked) return
+    const target = groupState.groups.find(group => String(group.id) === String(picked).trim())
+    if (!target) return
+    const nextName = window.prompt('새 그룹명을 입력하세요.', target.name)
+    if (!nextName || !nextName.trim()) return
+    saveGroupState({ ...groupState, groups: groupState.groups.map(group => group.id === target.id ? { ...group, name: nextName.trim() } : group) })
+  }
+
+  function deleteGroup() {
+    if (!(groupState.groups || []).length) {
+      window.alert('삭제할 그룹이 없습니다.')
+      return
+    }
+    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
+    const picked = window.prompt(`삭제할 그룹 번호를 입력하세요.
+${guide}`)
+    if (!picked) return
+    const target = groupState.groups.find(group => String(group.id) === String(picked).trim())
+    if (!target) return
+    const ok = window.confirm(`${target.name} 그룹을 삭제하시겠습니까?`)
+    if (!ok) return
+    const nextAssignments = { ...(groupState.assignments || {}) }
+    Object.keys(nextAssignments).forEach(friendId => {
+      if (String(nextAssignments[friendId]) === String(target.id)) delete nextAssignments[friendId]
+    })
+    saveGroupState({ groups: groupState.groups.filter(group => group.id !== target.id), assignments: nextAssignments })
+  }
+
   function FriendRow({ item, actions = null }) {
+    const isFavorite = followedIds.has(item.id)
     return (
       <div className="friend-row-card">
         <AvatarCircle src={item.photo_url} label={item.nickname} className="friend-avatar" />
@@ -829,7 +1086,22 @@ function FriendsPage() {
           <div className="friend-row-title">{item.nickname || '회원'}</div>
           <div className="friend-row-subtitle">{item.one_liner || item.bio || item.region || '한줄소개가 없습니다.'}</div>
         </div>
-        {actions && <div className="friend-row-actions">{actions}</div>}
+        <div className="friend-row-actions expanded">
+          <button type="button" className={isFavorite ? 'small ghost active-icon favorite-friend-button' : 'small ghost favorite-friend-button'} onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '🌟' : '✨'}</button>
+          <button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>
+          <div className="dropdown-wrap">
+            <button type="button" className="small ghost" onClick={(event) => {
+              const host = event.currentTarget.nextElementSibling
+              if (host) host.classList.toggle('open-inline-menu')
+            }}>메뉴</button>
+            <div className="dropdown-menu right inline-friend-menu">
+              <button type="button" className="dropdown-item" onClick={() => manageFriendGroup(item)}>그룹설정</button>
+              <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>
+              <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>친구차단</button>
+            </div>
+          </div>
+          {actions}
+        </div>
       </div>
     )
   }
@@ -842,11 +1114,14 @@ function FriendsPage() {
           <div className="friends-top-actions">
             <button type="button" className="ghost icon-button" onClick={() => setSearchOpen(v => !v)}>검색</button>
             <div className="dropdown-wrap">
-              <button type="button" className="ghost icon-button" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
+              <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>메뉴{data.received_requests.length > 0 && <span className="notification-badge menu-badge">{data.received_requests.length}</span>}</button>
               {menuOpen && (
                 <div className="dropdown-menu right">
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
-                  <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록</button>
+                  <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록 {data.received_requests.length > 0 ? `(${data.received_requests.length})` : ''}</button>
+                  <button type="button" className="dropdown-item" onClick={() => { createGroup(); setMenuOpen(false) }}>그룹추가</button>
+                  <button type="button" className="dropdown-item" onClick={() => { renameGroup(); setMenuOpen(false) }}>그룹명편집</button>
+                  <button type="button" className="dropdown-item" onClick={() => { deleteGroup(); setMenuOpen(false) }}>그룹삭제</button>
                 </div>
               )}
             </div>
@@ -867,12 +1142,24 @@ function FriendsPage() {
 
         <div className="friends-section-label">즐겨찾기</div>
         <div className="friends-group-list">
-          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} actions={<button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>} />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
+          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
+        </div>
+
+        <div className="friends-section-label">그룹</div>
+        <div className="friends-group-list grouped-stack">
+          {groupedFriends.length > 0 ? groupedFriends.map(group => (
+            <div key={group.id} className="group-card-block">
+              <strong>{group.name}</strong>
+              <div className="friends-group-list inner">
+                {group.items.length > 0 ? group.items.map(item => <FriendRow key={`group-${group.id}-${item.id}`} item={item} />) : <div className="muted">배정된 친구가 없습니다.</div>}
+              </div>
+            </div>
+          )) : <div className="muted">등록된 그룹이 없습니다.</div>}
         </div>
 
         <div className="friends-section-label">전체친구</div>
         <div className="friends-group-list">
-          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} actions={<button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>} />) : <div className="muted">표시할 친구가 없습니다.</div>}
+          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} />) : <div className="muted">표시할 친구가 없습니다.</div>}
         </div>
 
         {panel === 'add' && (
@@ -900,7 +1187,7 @@ function FriendsPage() {
 
         {panel === 'requests' && (
           <section className="friends-subpanel">
-            <div className="between"><strong>친구요청목록</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
+            <div className="between"><strong>친구요청목록 {data.received_requests.length > 0 ? `(${data.received_requests.length})` : ''}</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
             <div className="friends-group-list">
               {receivedProfiles.map(req => (
                 <FriendRow
@@ -925,7 +1212,6 @@ function FriendsPage() {
     </div>
   )
 }
-
 
 const CHAT_CATEGORIES = [
   ['all', '전체'],
@@ -3360,6 +3646,17 @@ function NotificationsPage() {
   )
 }
 
+function PointsPage() {
+  return (
+    <div className="stack-page">
+      <section className="card">
+        <h2>포인트</h2>
+        <div className="muted">포인트 기능은 다음 업데이트에서 연결할 예정입니다.</div>
+      </section>
+    </div>
+  )
+}
+
 function SettingsPage({ onLogout }) {
   const navigate = useNavigate()
   const [prefs, setPrefs] = useState({})
@@ -3973,6 +4270,50 @@ function ReportsPage() {
   )
 }
 
+function AppAssignmentNotificationWatcher({ user }) {
+  const navigate = useNavigate()
+  const shownRef = useRef(new Set())
+
+  useEffect(() => {
+    if (!user?.id || typeof window === 'undefined' || !('Notification' in window)) return undefined
+    let cancelled = false
+    async function requestPermission() {
+      if (Notification.permission === 'default') {
+        try { await Notification.requestPermission() } catch (_) {}
+      }
+    }
+    requestPermission()
+    async function poll() {
+      try {
+        const items = await api('/api/notifications')
+        ;(items || [])
+          .filter(item => item.type === 'work_schedule_assignment' && !item.is_read)
+          .forEach(item => {
+            if (shownRef.current.has(item.id) || Notification.permission !== 'granted') return
+            shownRef.current.add(item.id)
+            const notice = new Notification(item.title || '스케줄 배정', { body: item.body || '새 스케줄 배정이 도착했습니다.' })
+            notice.onclick = async () => {
+              window.focus()
+              navigate('/work-schedule')
+              try { await api(`/api/notifications/${item.id}/read`, { method: 'POST' }) } catch (_) {}
+              notice.close()
+            }
+          })
+      } catch (_) {
+        if (!cancelled) {}
+      }
+    }
+    poll()
+    const timer = window.setInterval(poll, 12000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [navigate, user?.id])
+
+  return null
+}
+
 export default function App() {
   const [user, setUser] = useState(getStoredUser())
   const navigate = useNavigate()
@@ -4009,7 +4350,9 @@ export default function App() {
   }
 
   return (
-    <Layout user={user} onLogout={logout}>
+    <>
+      <AppAssignmentNotificationWatcher user={user} />
+      <Layout user={user} onLogout={logout}>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/map" element={<MapPage />} />
@@ -4027,11 +4370,13 @@ export default function App() {
         <Route path="/meetups" element={<MeetupsPage />} />
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/points" element={<PointsPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Layout>
+          </Layout>
+    </>
   )
 }

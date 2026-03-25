@@ -1677,6 +1677,26 @@ def notifications_unread_count(user=Depends(require_user)):
         count = conn.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (user["id"],)).fetchone()[0]
         return {"count": int(count or 0)}
 
+
+@app.get("/api/badges-summary")
+def badges_summary(user=Depends(require_user)):
+    with get_conn() as conn:
+        notification_count = conn.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (user['id'],)).fetchone()[0] or 0
+        chat_count = conn.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND type IN ('direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention', 'work_schedule_assignment')",
+            (user['id'],),
+        ).fetchone()[0] or 0
+        friend_request_count = conn.execute(
+            "SELECT COUNT(*) FROM friend_requests WHERE target_user_id = ? AND status = 'pending'",
+            (user['id'],),
+        ).fetchone()[0] or 0
+        return {
+            'notification_count': int(notification_count),
+            'chat_count': int(chat_count),
+            'friend_request_count': int(friend_request_count),
+            'menu_count': int(friend_request_count),
+        }
+
 @app.post("/api/notifications/{notification_id}/read")
 def mark_notification_read(notification_id: int, user=Depends(require_user)):
     with get_conn() as conn:
@@ -1923,6 +1943,15 @@ def create_work_schedule_entry(payload: WorkScheduleEntryIn, user=Depends(requir
             "SELECT * FROM work_schedule_entries WHERE user_id = ? AND created_at = ? ORDER BY id DESC LIMIT 1",
             (user['id'], now),
         ).fetchone()
+        _notify_work_schedule_assignments(
+            conn,
+            actor=user,
+            schedule_date=payload.schedule_date,
+            schedule_time=payload.schedule_time,
+            customer_name=payload.customer_name,
+            representative_names=payload.representative_names,
+            staff_names=payload.staff_names,
+        )
         return row_to_dict(row)
 @app.put("/api/work-schedule/entries/{entry_id}")
 def update_work_schedule_entry(entry_id: int, payload: WorkScheduleEntryIn, user=Depends(require_user)):
@@ -1931,6 +1960,7 @@ def update_work_schedule_entry(entry_id: int, payload: WorkScheduleEntryIn, user
         existing = conn.execute("SELECT * FROM work_schedule_entries WHERE id = ? AND user_id = ?", (entry_id, user['id'])).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail='스케줄 항목을 찾을 수 없습니다.')
+        previous_ids = set(_work_assignment_target_ids(conn, existing['representative_names'], existing['staff_names'], user.get('id')))
         conn.execute(
             """
             UPDATE work_schedule_entries
@@ -1940,6 +1970,16 @@ def update_work_schedule_entry(entry_id: int, payload: WorkScheduleEntryIn, user
             (payload.schedule_date, payload.schedule_time, payload.customer_name, payload.representative_names, payload.staff_names, payload.memo, utcnow(), entry_id, user['id']),
         )
         row = conn.execute("SELECT * FROM work_schedule_entries WHERE id = ?", (entry_id,)).fetchone()
+        _notify_work_schedule_assignments(
+            conn,
+            actor=user,
+            schedule_date=payload.schedule_date,
+            schedule_time=payload.schedule_time,
+            customer_name=payload.customer_name,
+            representative_names=payload.representative_names,
+            staff_names=payload.staff_names,
+            previous_ids=previous_ids,
+        )
         return row_to_dict(row)
 @app.delete("/api/work-schedule/entries/{entry_id}")
 def delete_work_schedule_entry(entry_id: int, user=Depends(require_user)):
