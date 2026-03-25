@@ -206,13 +206,14 @@ function AuthPage({ onLogin }) {
         <h1>로그인</h1>
         <p className="muted">로그인 후 앱 메인 화면으로 이동합니다.</p>
         <form onSubmit={submit} className="stack">
-          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" />
-          <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" />
+          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" autoComplete="username" />
+          <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" autoComplete="current-password" />
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
           {error && <div className="error">{error}</div>}
         </form>
-        <div className="inline-actions">
+        <div className="inline-actions auth-link-row auth-link-row-three">
           <Link to="/signup" className="ghost-link">회원가입</Link>
+          <Link to="/find-account" className="ghost-link">계정찾기</Link>
           <Link to="/reset-password" className="ghost-link">비밀번호 재설정</Link>
         </div>
         <div className="demo-box">
@@ -241,8 +242,8 @@ function SignupPage({ onLogin }) {
     password: '',
     nickname: '',
     gender: '',
-    birth_year: 1995,
-    region: '서울',
+    birth_year: '',
+    region: '',
     phone: '',
     recovery_email: '',
     vehicle_number: '',
@@ -254,9 +255,33 @@ function SignupPage({ onLogin }) {
   async function submit(e) {
     e.preventDefault()
     setError('')
+    const requiredFields = [
+      ['아이디', form.email],
+      ['비밀번호', form.password],
+      ['닉네임', form.nickname],
+      ['성별', form.gender],
+      ['생년', form.birth_year],
+      ['지역', form.region],
+      ['연락처', form.phone],
+      ['복구 이메일', form.recovery_email],
+    ]
+    const missing = requiredFields.filter(([, value]) => !String(value || '').trim()).map(([label]) => label)
+    if (missing.length) {
+      setError(`다음 필수 항목을 입력해 주세요: ${missing.join(', ')}`)
+      return
+    }
     try {
       const payload = {
         ...form,
+        email: form.email.trim(),
+        password: form.password.trim(),
+        nickname: form.nickname.trim(),
+        gender: form.gender.trim(),
+        birth_year: Number(form.birth_year),
+        region: form.region.trim(),
+        phone: form.phone.trim(),
+        recovery_email: form.recovery_email.trim(),
+        vehicle_number: form.vehicle_number.trim(),
         branch_no: form.branch_no ? Number(form.branch_no) : null,
       }
       const data = await api('/api/auth/signup', {
@@ -276,22 +301,69 @@ function SignupPage({ onLogin }) {
       <section className="auth-card">
         <h1>회원가입</h1>
         <form onSubmit={submit} className="stack">
-          <input type="email" placeholder="이메일" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          <input type="password" placeholder="비밀번호" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-          <input placeholder="닉네임" value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} />
-          <input placeholder="성별" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} />
-          <input type="number" placeholder="출생연도" value={form.birth_year} onChange={e => setForm({ ...form, birth_year: Number(e.target.value) })} />
-          <input placeholder="지역" value={form.region} onChange={e => setForm({ ...form, region: e.target.value })} />
-          <input placeholder="연락처" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-          <input placeholder="복구 이메일" value={form.recovery_email} onChange={e => setForm({ ...form, recovery_email: e.target.value })} />
-          <input placeholder="차량번호" value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value })} />
+          <input type="text" placeholder="아이디 *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
+          <input type="password" placeholder="비밀번호 *" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+          <input placeholder="닉네임 *" value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} required />
+          <input placeholder="성별 *" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} required />
+          <input type="number" placeholder="생년 *" value={form.birth_year} onChange={e => setForm({ ...form, birth_year: e.target.value })} required />
+          <input placeholder="지역 *" value={form.region} onChange={e => setForm({ ...form, region: e.target.value })} required />
+          <input placeholder="연락처 *" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
+          <input type="email" placeholder="복구 이메일 *" value={form.recovery_email} onChange={e => setForm({ ...form, recovery_email: e.target.value })} required />
+          <input placeholder="차량번호 (선택)" value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value })} />
           <select value={form.branch_no} onChange={e => setForm({ ...form, branch_no: e.target.value })}>
-            <option value="">호점 선택</option>
+            <option value="">호점 선택 (선택)</option>
             {branchOptions.map(num => <option key={num} value={num}>{num}호점</option>)}
           </select>
           <button>가입 후 로그인</button>
           {error && <div className="error">{error}</div>}
         </form>
+        <Link to="/login" className="ghost-link">로그인으로 돌아가기</Link>
+      </section>
+    </div>
+  )
+}
+
+function FindAccountPage() {
+  const [form, setForm] = useState({ nickname: '', phone: '', recovery_email: '' })
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setResult(null)
+    try {
+      const data = await api('/api/auth/find-account', {
+        method: 'POST',
+        body: JSON.stringify({
+          nickname: form.nickname.trim(),
+          phone: form.phone.trim(),
+          recovery_email: form.recovery_email.trim(),
+        }),
+      })
+      setResult(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="auth-shell">
+      <section className="auth-card">
+        <h1>계정찾기</h1>
+        <p className="muted">닉네임, 연락처, 복구 이메일이 모두 일치하면 등록된 아이디를 확인할 수 있습니다.</p>
+        <form onSubmit={submit} className="stack">
+          <input placeholder="닉네임" value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} required />
+          <input placeholder="연락처" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
+          <input type="email" placeholder="복구 이메일" value={form.recovery_email} onChange={e => setForm({ ...form, recovery_email: e.target.value })} required />
+          <button disabled={loading}>{loading ? '조회 중...' : '계정 찾기'}</button>
+        </form>
+        {result && <div className="success">확인된 아이디: <strong>{result.account_id}</strong></div>}
+        {error && <div className="error">{error}</div>}
         <Link to="/login" className="ghost-link">로그인으로 돌아가기</Link>
       </section>
     </div>
@@ -349,7 +421,7 @@ function ResetPasswordPage() {
             <h3>2. 코드 확인 후 비밀번호 변경</h3>
             <input placeholder="복구 이메일" value={confirmForm.recovery_email} onChange={e => setConfirmForm({ ...confirmForm, recovery_email: e.target.value })} />
             <input placeholder="인증 코드" value={confirmForm.code} onChange={e => setConfirmForm({ ...confirmForm, code: e.target.value })} />
-            <input placeholder="로그인 이메일" value={confirmForm.email} onChange={e => setConfirmForm({ ...confirmForm, email: e.target.value })} />
+            <input placeholder="로그인 아이디" value={confirmForm.email} onChange={e => setConfirmForm({ ...confirmForm, email: e.target.value })} />
             <input type="password" placeholder="새 비밀번호" value={confirmForm.new_password} onChange={e => setConfirmForm({ ...confirmForm, new_password: e.target.value })} />
             <button>비밀번호 변경</button>
           </form>
@@ -537,8 +609,8 @@ function ProfilePage({ onUserUpdate }) {
               <input value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="연락처" />
             </label>
             <label className="field-block">
-              <span>이메일</span>
-              <input value={form.recovery_email || ''} onChange={e => updateField('recovery_email', e.target.value)} placeholder="이메일" />
+              <span>복구 이메일</span>
+              <input value={form.recovery_email || ''} onChange={e => updateField('recovery_email', e.target.value)} placeholder="복구 이메일" />
             </label>
             <label className="field-block">
               <span>구글 아이디</span>
@@ -3398,6 +3470,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<AuthPage onLogin={setUser} />} />
         <Route path="/signup" element={<SignupPage onLogin={setUser} />} />
+        <Route path="/find-account" element={<FindAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

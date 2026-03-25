@@ -1028,7 +1028,7 @@ IMPORTED_ACCOUNTS = [
         "phone": "010-9441-6704",
         "recovery_email": "someaddon@naver.com",
         "vehicle_number": "세종86바1097",
-        "branch_no": null,
+        "branch_no": None,
         "marital_status": "예정",
         "resident_address": "",
         "business_name": "이청잘 이집청년 이사잘하네 본점(원룸/소형이사)",
@@ -1062,7 +1062,7 @@ IMPORTED_ACCOUNTS = [
         "phone": "010-5610-5855",
         "recovery_email": "aksqhqkqh3@naver.com",
         "vehicle_number": "없음",
-        "branch_no": null,
+        "branch_no": None,
         "marital_status": "미혼",
         "resident_address": "민증상 주소 : 서울특별시 도봉구 노해로 41나길 41-10, 지하층 2호(현대빌라)\n실주소(전입신고불가) : 경기 구리시 갈매순환로 154, 현대테라타워 B동 라이브오피스 1027호",
         "business_name": "이청잘 이집청년 폐기잘하네",
@@ -1357,20 +1357,38 @@ def init_db() -> None:
             conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('34나7890', 8, 'juno@example.com'))
             conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('56다1234', 12, 'sora@example.com'))
             conn.execute("UPDATE users SET vehicle_number = ?, branch_no = ? WHERE email = ? AND COALESCE(vehicle_number, '') = ''", ('78라4321', 15, 'haon@example.com'))
-            has_admin_dm = conn.execute("SELECT 1 FROM dm_messages WHERE room_key = ? LIMIT 1", ('1:2',)).fetchone()
-            if not has_admin_dm:
-                conn.execute("INSERT INTO dm_messages(room_key, sender_id, message, created_at) VALUES (?, ?, ?, ?)", ('1:2', 2, '관리자님, 금일 기사 배정 문의드립니다.', utcnow()))
-            room_exists = conn.execute("SELECT 1 FROM group_rooms WHERE id = 1").fetchone()
-            if room_exists:
-                conn.execute("INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (1, 1, ?)", (utcnow(),))
+            admin_row = conn.execute("SELECT id FROM users WHERE grade = 1 ORDER BY id LIMIT 1").fetchone()
+            fallback_row = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+            owner_id = (admin_row[0] if admin_row else (fallback_row[0] if fallback_row else None))
+            peer_row = None
+            if owner_id is not None:
+                peer_row = conn.execute(
+                    "SELECT id FROM users WHERE id <> ? ORDER BY CASE WHEN grade = 4 THEN 0 ELSE 1 END, id LIMIT 1",
+                    (owner_id,),
+                ).fetchone()
+            if owner_id is not None and peer_row is not None:
+                peer_id = peer_row[0]
+                dm_room_key = ':'.join(str(v) for v in sorted((int(owner_id), int(peer_id))))
+                has_admin_dm = conn.execute("SELECT 1 FROM dm_messages WHERE room_key = ? LIMIT 1", (dm_room_key,)).fetchone()
+                if not has_admin_dm:
+                    conn.execute(
+                        "INSERT INTO dm_messages(room_key, sender_id, message, created_at) VALUES (?, ?, ?, ?)",
+                        (dm_room_key, peer_id, '관리자님, 금일 기사 배정 문의드립니다.', utcnow()),
+                    )
+            room_exists = conn.execute("SELECT id FROM group_rooms ORDER BY id LIMIT 1").fetchone()
+            if room_exists and owner_id is not None:
+                conn.execute(
+                    "INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (?, ?, ?)",
+                    (room_exists[0], owner_id, utcnow()),
+                )
 
             work_entry_exists = conn.execute("SELECT 1 FROM work_schedule_entries LIMIT 1").fetchone()
-            if not work_entry_exists:
+            if not work_entry_exists and owner_id is not None:
                 today = datetime.utcnow().date()
                 demo_entries = [
-                    (1, today.isoformat(), '09:00', '김민수', '대표A/대표B', '직원1/직원2', '엘리베이터 예약 확인 필요'),
-                    (1, (today + timedelta(days=1)).isoformat(), '10:30', '박서연', '대표C', '직원3/직원4', '사다리차 가능 여부 확인'),
-                    (1, (today + timedelta(days=2)).isoformat(), '08:00', '이준호', '대표A/대표D', '직원2/직원5', '장거리 이동 건'),
+                    (owner_id, today.isoformat(), '09:00', '김민수', '대표A/대표B', '직원1/직원2', '엘리베이터 예약 확인 필요'),
+                    (owner_id, (today + timedelta(days=1)).isoformat(), '10:30', '박서연', '대표C', '직원3/직원4', '사다리차 가능 여부 확인'),
+                    (owner_id, (today + timedelta(days=2)).isoformat(), '08:00', '이준호', '대표A/대표D', '직원2/직원5', '장거리 이동 건'),
                 ]
                 for user_id, schedule_date, schedule_time, customer_name, representative_names, staff_names, memo in demo_entries:
                     conn.execute(
@@ -1385,7 +1403,7 @@ def init_db() -> None:
                     INSERT OR IGNORE INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (1, today.isoformat(), '사업자A', '직원7', utcnow(), utcnow()),
+                    (owner_id, today.isoformat(), '사업자A', '직원7', utcnow(), utcnow()),
                 )
 
 def get_user_by_token(conn: sqlite3.Connection, token: str):

@@ -4,6 +4,7 @@ const API_BASE = isLocalHost ? '' : ENV_API_BASE
 const PUBLIC_AUTH_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/signup',
+  '/api/auth/find-account',
   '/api/auth/password-reset/request',
   '/api/auth/password-reset/confirm',
 ])

@@ -56,6 +56,10 @@ class SignupIn(BaseModel):
 class LoginIn(BaseModel):
     email: str
     password: str
+class AccountFindIn(BaseModel):
+    nickname: str
+    phone: str
+    recovery_email: str
 class PasswordResetRequestIn(BaseModel):
     recovery_email: str
 class PasswordResetConfirmIn(BaseModel):
@@ -531,25 +535,51 @@ def demo_accounts():
         return [{"email": r["email"], "nickname": r["nickname"], "role": r["role"], "grade": r["grade"], "grade_label": grade_label(r["grade"])} for r in rows]
 @app.post("/api/auth/signup")
 def signup(payload: SignupIn):
+    account_id = payload.email.strip()
+    password = payload.password.strip()
+    nickname = payload.nickname.strip()
+    gender = payload.gender.strip()
+    region = payload.region.strip()
+    phone = payload.phone.strip()
+    recovery_email = payload.recovery_email.strip()
+    vehicle_number = payload.vehicle_number.strip()
+
+    required_fields = [
+        ('아이디', account_id),
+        ('비밀번호', password),
+        ('닉네임', nickname),
+        ('성별', gender),
+        ('생년', str(payload.birth_year or '').strip()),
+        ('지역', region),
+        ('연락처', phone),
+        ('복구 이메일', recovery_email),
+    ]
+    missing = [label for label, value in required_fields if not value]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"다음 필수 항목을 입력해 주세요: {', '.join(missing)}")
+    if payload.birth_year < 1900 or payload.birth_year > 2100:
+        raise HTTPException(status_code=400, detail='생년 값이 올바르지 않습니다.')
+    if len(account_id) < 3:
+        raise HTTPException(status_code=400, detail='아이디는 3자 이상 입력해 주세요.')
     with get_conn() as conn:
-        exists = conn.execute("SELECT id FROM users WHERE email = ?", (payload.email,)).fetchone()
+        exists = conn.execute("SELECT id FROM users WHERE email = ?", (account_id,)).fetchone()
         if exists:
-            raise HTTPException(status_code=400, detail="이미 존재하는 이메일입니다.")
+            raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
         conn.execute(
             """
             INSERT INTO users(email, password_hash, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, created_at)
             VALUES (?, ?, ?, 'user', 6, 1, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                payload.email,
-                hash_password(payload.password),
-                payload.nickname,
-                payload.gender,
+                account_id,
+                hash_password(password),
+                nickname,
+                gender,
                 payload.birth_year,
-                payload.region,
-                payload.phone,
-                payload.recovery_email,
-                payload.vehicle_number,
+                region,
+                phone,
+                recovery_email,
+                vehicle_number,
                 payload.branch_no,
                 utcnow(),
             ),
@@ -565,22 +595,42 @@ def signup(payload: SignupIn):
         user_payload = user_public_dict(user)
         user_payload['permission_config'] = _get_permission_config(conn)
         return {'access_token': token, 'user': user_payload}
-@app.post("/api/auth/login")
-def login(payload: LoginIn):
+
+@app.post('/api/auth/find-account')
+def find_account(payload: AccountFindIn):
+    nickname = payload.nickname.strip()
+    phone = payload.phone.strip()
+    recovery_email = payload.recovery_email.strip()
+    if not nickname or not phone or not recovery_email:
+        raise HTTPException(status_code=400, detail='닉네임, 연락처, 복구 이메일을 모두 입력해 주세요.')
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM users WHERE email = ? AND password_hash = ?",
-            (payload.email, hash_password(payload.password)),
+            "SELECT email, nickname FROM users WHERE nickname = ? AND phone = ? AND recovery_email = ? ORDER BY id DESC LIMIT 1",
+            (nickname, phone, recovery_email),
         ).fetchone()
         if not row:
-            raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
-        grade = int(row['grade'] or 6)
-        approved = int(row['approved'] if row['approved'] is not None else 1)
+            raise HTTPException(status_code=404, detail='일치하는 계정을 찾을 수 없습니다.')
+        return {'ok': True, 'account_id': row['email'], 'nickname': row['nickname'], 'message': '계정을 찾았습니다.'}
+
+@app.post("/api/auth/login")
+def login(payload: LoginIn):
+    account_id = payload.email.strip()
+    with get_conn() as conn:
+        account = conn.execute(
+            "SELECT * FROM users WHERE email = ?",
+            (account_id,),
+        ).fetchone()
+        if not account:
+            raise HTTPException(status_code=404, detail='등록되지 않은 계정입니다.')
+        if account['password_hash'] != hash_password(payload.password):
+            raise HTTPException(status_code=401, detail='해당 계정의 비밀번호가 틀렸습니다.')
+        grade = int(account['grade'] or 6)
+        approved = int(account['approved'] if account['approved'] is not None else 1)
         if grade == 7 and not approved:
             raise HTTPException(status_code=403, detail="관리자 승인 후 로그인할 수 있습니다.")
         token = make_token()
-        conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, row["id"], utcnow()))
-        user_payload = user_public_dict(row)
+        conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, account["id"], utcnow()))
+        user_payload = user_public_dict(account)
         user_payload['permission_config'] = _get_permission_config(conn)
         return {'access_token': token, 'user': user_payload}
 @app.post("/api/auth/logout")
