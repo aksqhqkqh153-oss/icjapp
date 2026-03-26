@@ -27,7 +27,7 @@ from .db import (
     user_public_dict,
     utcnow,
 )
-from .settings import settings
+from .settings import settings, get_settings
 from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service
 
@@ -736,25 +736,27 @@ def startup():
     settings.settlement_runtime_dir.mkdir(parents=True, exist_ok=True)
     init_db()
     settlement_sync_service.start()
-    logger.info("startup complete env=%s db_engine=%s policy=%s", settings.app_env, DB_ENGINE, settings.policy_url)
+    runtime = get_settings()
+    logger.info("startup complete env=%s db_engine=%s policy=%s soomgo_email_env=%s soomgo_password_env=%s configured=%s", runtime.app_env, DB_ENGINE, runtime.policy_url, runtime.soomgo_email_env_name or "없음", runtime.soomgo_password_env_name or "없음", runtime.soomgo_credentials_configured)
 
 
 @app.get("/api/health")
 def health():
+    runtime = get_settings()
     safe_db_label = "postgresql" if DB_ENGINE == "postgresql" else "sqlite"
     return {
         "ok": True,
-        "app_env": settings.app_env,
+        "app_env": runtime.app_env,
         "db_engine": DB_ENGINE,
         "db_label": safe_db_label,
-        "site_url": settings.app_public_url,
-        "api_url": settings.api_public_url,
-        "policy_url": settings.policy_url,
-        "r2_enabled": settings.r2_enabled,
-        "r2_public_base_url": settings.r2_public_base_url,
-        "soomgo_credentials_configured": settings.soomgo_credentials_configured,
-        "soomgo_email_env": settings.soomgo_email_env_name,
-        "soomgo_password_env": settings.soomgo_password_env_name,
+        "site_url": runtime.app_public_url,
+        "api_url": runtime.api_public_url,
+        "policy_url": runtime.policy_url,
+        "r2_enabled": runtime.r2_enabled,
+        "r2_public_base_url": runtime.r2_public_base_url,
+        "soomgo_credentials_configured": runtime.soomgo_credentials_configured,
+        "soomgo_email_env": runtime.soomgo_email_env_name,
+        "soomgo_password_env": runtime.soomgo_password_env_name,
     }
 
 

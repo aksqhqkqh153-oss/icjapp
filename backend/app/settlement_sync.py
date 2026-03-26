@@ -13,10 +13,18 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .db import get_conn, utcnow
-from .settings import settings
+from .settings import settings, get_settings
 
 logger = logging.getLogger('icj24app.settlement_sync')
-KST = ZoneInfo(settings.schedule_timezone or 'Asia/Seoul')
+
+
+def _runtime_settings():
+    return get_settings()
+
+
+def _kst():
+    cfg = _runtime_settings()
+    return ZoneInfo(cfg.schedule_timezone or 'Asia/Seoul')
 
 
 @dataclass
@@ -51,7 +59,8 @@ class SettlementSyncService:
         self._last_final_sync_date = ''
 
     def start(self):
-        if not settings.settlement_sync_enabled:
+        cfg = _runtime_settings()
+        if not cfg.settlement_sync_enabled:
             logger.info('settlement sync disabled by environment')
             return
         if self._thread and self._thread.is_alive():
@@ -68,7 +77,7 @@ class SettlementSyncService:
     def status(self) -> dict[str, Any]:
         with self._state_lock:
             base = {
-                'enabled': settings.settlement_sync_enabled,
+                'enabled': _runtime_settings().settlement_sync_enabled,
                 'is_running': self._is_running,
                 'last_started_at': self._last_started_at,
                 'last_finished_at': self._last_finished_at,
@@ -76,14 +85,14 @@ class SettlementSyncService:
                 'last_ok': self._last_ok,
                 'next_run_at': self._next_run_at,
                 'window': {
-                    'timezone': settings.schedule_timezone,
+                    'timezone': _runtime_settings().schedule_timezone,
                     'weekdays': ['월', '화', '수', '목', '금'],
-                    'start_hour': settings.settlement_sync_start_hour,
-                    'end_hour': settings.settlement_sync_end_hour,
-                    'random_min_minutes': settings.settlement_sync_random_min_minutes,
-                    'random_max_minutes': settings.settlement_sync_random_max_minutes,
+                    'start_hour': _runtime_settings().settlement_sync_start_hour,
+                    'end_hour': _runtime_settings().settlement_sync_end_hour,
+                    'random_min_minutes': _runtime_settings().settlement_sync_random_min_minutes,
+                    'random_max_minutes': _runtime_settings().settlement_sync_random_max_minutes,
                 },
-                'config': settings.soomgo_credentials_summary,
+                'config': _runtime_settings().soomgo_credentials_summary,
             }
         base['platforms'] = self.fetch_latest_metrics()
         return base
@@ -127,7 +136,8 @@ class SettlementSyncService:
         return items
 
     def run_once(self, trigger: str = 'manual') -> dict[str, Any]:
-        if not settings.settlement_sync_enabled:
+        cfg = _runtime_settings()
+        if not cfg.settlement_sync_enabled:
             raise RuntimeError('결산 자동 연동 기능이 비활성화되어 있습니다.')
         acquired = self._run_lock.acquire(blocking=False)
         if not acquired:
@@ -212,21 +222,24 @@ class SettlementSyncService:
             self._stop_event.wait(30)
 
     def _now(self) -> datetime:
-        return datetime.now(KST)
+        return datetime.now(_kst())
 
     def _is_business_day(self, current: datetime) -> bool:
         return current.weekday() < 5
 
     def _window_open_dt(self, current: datetime) -> datetime:
-        return current.replace(hour=settings.settlement_sync_start_hour, minute=0, second=0, microsecond=0)
+        cfg = _runtime_settings()
+        return current.replace(hour=cfg.settlement_sync_start_hour, minute=0, second=0, microsecond=0)
 
     def _window_final_dt(self, current: datetime) -> datetime:
-        return current.replace(hour=settings.settlement_sync_end_hour, minute=0, second=0, microsecond=0)
+        cfg = _runtime_settings()
+        return current.replace(hour=cfg.settlement_sync_end_hour, minute=0, second=0, microsecond=0)
 
     def _next_business_start(self, current: datetime) -> datetime:
         probe = current
         while True:
-            probe = (probe + timedelta(days=1)).replace(hour=settings.settlement_sync_start_hour, minute=0, second=0, microsecond=0)
+            cfg = _runtime_settings()
+            probe = (probe + timedelta(days=1)).replace(hour=cfg.settlement_sync_start_hour, minute=0, second=0, microsecond=0)
             if self._is_business_day(probe):
                 return probe
 
@@ -243,7 +256,8 @@ class SettlementSyncService:
                 elif now >= final_dt:
                     next_dt = self._next_business_start(now)
                 else:
-                    delta = timedelta(minutes=random.randint(settings.settlement_sync_random_min_minutes, settings.settlement_sync_random_max_minutes))
+                    cfg = _runtime_settings()
+                    delta = timedelta(minutes=random.randint(cfg.settlement_sync_random_min_minutes, cfg.settlement_sync_random_max_minutes))
                     candidate = now + delta
                     if candidate >= final_dt:
                         next_dt = final_dt
@@ -253,7 +267,7 @@ class SettlementSyncService:
             logger.info('settlement next run planned reason=%s at=%s', reason, self._next_run_at)
 
     def _should_run_now(self) -> bool:
-        if not settings.settlement_sync_enabled:
+        if not _runtime_settings().settlement_sync_enabled:
             return False
         now = self._now()
         if not self._is_business_day(now):
@@ -280,13 +294,14 @@ class SettlementSyncService:
         return now >= next_dt
 
     def _ensure_login(self, page, context):
-        email = settings.soomgo_email.strip()
-        password = settings.soomgo_password.strip()
+        cfg = _runtime_settings()
+        email = cfg.soomgo_email.strip()
+        password = cfg.soomgo_password.strip()
         if not email or not password:
-            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={settings.soomgo_email_env_name or "없음"}, password={settings.soomgo_password_env_name or "없음"}. Railway에서는 백엔드 서비스 Variables에 SOOMGO_EMAIL/SOOMGO_PASSWORD 를 저장한 뒤 재배포해야 합니다.')
+            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={cfg.soomgo_email_env_name or "없음"}, password={cfg.soomgo_password_env_name or "없음"}. Railway에서는 백엔드 서비스 Variables에 SOOMGO_EMAIL/SOOMGO_PASSWORD 를 저장한 뒤 재배포해야 합니다.')
 
-        login_url = settings.soomgo_login_url.strip() or 'https://soomgo.com/login'
-        page.goto(login_url, wait_until='domcontentloaded', timeout=settings.settlement_playwright_timeout_ms)
+        login_url = cfg.soomgo_login_url.strip() or 'https://soomgo.com/login'
+        page.goto(login_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
         page.wait_for_timeout(1500)
 
         email_selectors = [
@@ -350,7 +365,7 @@ class SettlementSyncService:
         page.wait_for_timeout(3000)
         if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
             raise RuntimeError('숨고 로그인 이후에도 로그인 화면이 유지됩니다. 추가 인증/캡차 여부를 확인해 주세요.')
-        auth_state_path = Path(settings.settlement_auth_state_path)
+        auth_state_path = Path(cfg.settlement_auth_state_path)
         auth_state_path.parent.mkdir(parents=True, exist_ok=True)
         context.storage_state(path=str(auth_state_path))
 
@@ -360,31 +375,32 @@ class SettlementSyncService:
         except Exception as exc:
             raise RuntimeError('playwright 가 설치되지 않았습니다. backend requirements 설치 후 playwright install chromium 을 실행해 주세요.') from exc
 
-        urls = [u.strip() for u in settings.soomgo_target_urls if str(u).strip()]
+        cfg = _runtime_settings()
+        urls = [u.strip() for u in cfg.soomgo_target_urls if str(u).strip()]
         if not urls:
             raise RuntimeError('숨고 대상 URL이 설정되지 않았습니다.')
 
-        auth_state_path = Path(settings.settlement_auth_state_path)
-        screenshot_dir = Path(settings.settlement_runtime_dir) / 'settlement_sync'
+        auth_state_path = Path(cfg.settlement_auth_state_path)
+        screenshot_dir = Path(cfg.settlement_runtime_dir) / 'settlement_sync'
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         total = 0
         detail: list[dict[str, Any]] = []
         now_iso = utcnow()
-        xpath = settings.soomgo_value_xpath.strip() or '//*[@id="__next"]/main/div/div[2]/div[2]/div[1]/p[1]'
+        xpath = cfg.soomgo_value_xpath.strip() or '//*[@id="__next"]/main/div/div[2]/div[2]/div[1]/p[1]'
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=settings.settlement_playwright_headless)
+            browser = p.chromium.launch(headless=cfg.settlement_playwright_headless)
             context_kwargs: dict[str, Any] = {}
             if auth_state_path.exists():
                 context_kwargs['storage_state'] = str(auth_state_path)
             context = browser.new_context(**context_kwargs)
             page = context.new_page()
-            page.set_default_timeout(settings.settlement_playwright_timeout_ms)
+            page.set_default_timeout(cfg.settlement_playwright_timeout_ms)
             for index, url in enumerate(urls):
-                page.goto(url, wait_until='domcontentloaded', timeout=settings.settlement_playwright_timeout_ms)
+                page.goto(url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
                 page.wait_for_timeout(1500)
                 if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
                     self._ensure_login(page, context)
-                    page.goto(url, wait_until='domcontentloaded', timeout=settings.settlement_playwright_timeout_ms)
+                    page.goto(url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
                     page.wait_for_timeout(1500)
                 locator = page.locator(f'xpath={xpath}')
                 text = locator.first.inner_text().strip()

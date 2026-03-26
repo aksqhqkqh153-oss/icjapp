@@ -62,6 +62,8 @@ def _bootstrap_local_env() -> None:
 
 
 _bootstrap_local_env()
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
@@ -153,4 +155,9 @@ class Settings:
         }
 
 
-settings = Settings()
+def get_settings() -> Settings:
+    _bootstrap_local_env()
+    return Settings()
+
+
+settings = get_settings()
