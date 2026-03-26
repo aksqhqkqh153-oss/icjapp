@@ -3049,10 +3049,10 @@ function CalendarPage() {
                       {!isMobile && (
                         <div className="calendar-top-actions filled">
                           <button type="button" className="calendar-entry-band secondary filled" onClick={() => setOverflowPopup({ dateKey: fmtDate(date), items: daySummary?.entries || [], title: '스케줄목록' })}>
-                            <span className="calendar-entry-label">스케줄목록</span>
+                            <span className="calendar-entry-label two-line">스케줄<br />목록</span>
                           </button>
                           <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
-                            <span className="calendar-entry-label">일정등록</span>
+                            <span className="calendar-entry-label two-line">일정<br />등록</span>
                           </button>
                         </div>
                       )}
