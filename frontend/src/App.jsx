@@ -1901,6 +1901,7 @@ function ChatRoomPage({ roomType }) {
   const [chatActionSheet, setChatActionSheet] = useState(null)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [memberProfilePreview, setMemberProfilePreview] = useState(null)
   const [hiddenMessageIds, setHiddenMessageIds] = useState(() => new Set())
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState(() => new Set())
   const imageInputRef = useRef(null)
@@ -2154,6 +2155,26 @@ function ChatRoomPage({ roomType }) {
   const roomMemberCount = roomMembers.length
   const messages = (roomData?.messages || []).filter(item => !hiddenMessageIds.has(item.id))
 
+  function isGroupedMessage(currentItem, previousItem) {
+    if (!currentItem || !previousItem) return false
+    if (String(currentItem.sender_id || '') !== String(previousItem.sender_id || '')) return false
+    const currentTime = new Date(currentItem.created_at || '').getTime()
+    const previousTime = new Date(previousItem.created_at || '').getTime()
+    if (Number.isNaN(currentTime) || Number.isNaN(previousTime)) return false
+    return currentTime - previousTime <= 60 * 1000
+  }
+
+  function openMemberProfile(member) {
+    setMemberProfilePreview({ ...member, cover_url: loadProfileCover(member?.id) })
+  }
+
+  function goDirectChatWithUser(targetId) {
+    if (!targetId) return
+    setMembersOpen(false)
+    setMemberProfilePreview(null)
+    navigate(`/chats/${targetId}`)
+  }
+
   return (
     <div className="stack-page chat-room-page-shell">
       <section className="card chat-room-card segmented-chat-layout">
@@ -2177,27 +2198,30 @@ function ChatRoomPage({ roomType }) {
           <div className="chat-room-messages">
             {loading && <div className="muted">대화 내용을 불러오는 중...</div>}
             {!loading && messages.length === 0 && <div className="muted">아직 메시지가 없습니다. 첫 메시지를 보내보세요.</div>}
-            {!loading && messages.map(item => {
+            {!loading && messages.map((item, index) => {
               const mine = String(item.sender_id) === String(currentUser?.id)
+              const previousItem = index > 0 ? messages[index - 1] : null
+              const groupedWithPrevious = isGroupedMessage(item, previousItem)
               const longPressHandlers = isMobile ? useLongPress(() => openMessageActions(item), 500) : {}
               return (
-                <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}`} {...longPressHandlers}>
-                  {!mine && <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />}
-                  <div className={`chat-message-content${mine ? ' mine' : ''}`}>
-                    {!mine && (
+                <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`} {...longPressHandlers}>
+                  {!mine && !groupedWithPrevious && <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />}
+                  {!mine && groupedWithPrevious && <div className="chat-message-avatar-spacer" aria-hidden="true" />}
+                  <div className={`chat-message-content${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`}>
+                    {!mine && !groupedWithPrevious && (
                       <div className="chat-message-headerline">
                         <strong>{item.sender?.nickname || '회원'}</strong>
                         <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
                       </div>
                     )}
-                    <div className={`chat-message-bubble-row${mine ? ' mine' : ''}`}>
+                    <div className={`chat-message-bubble-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`}>
                       {!isMobile && mine && (
                         <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
                         </div>
                       )}
-                      {mine && <span className="chat-message-inline-time muted">{formatChatUpdatedAt(item.created_at || '')}</span>}
+                      {mine && !groupedWithPrevious && <span className="chat-message-inline-time muted">{formatChatUpdatedAt(item.created_at || '')}</span>}
                       <div className={`chat-bubble${mine ? ' mine' : ''}`}>
                         {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
                         {item.message && <div className="chat-bubble-text">{item.message}</div>}
@@ -2303,14 +2327,35 @@ function ChatRoomPage({ roomType }) {
       {membersOpen && (
         <div className="profile-preview-backdrop" onClick={() => setMembersOpen(false)}>
           <div className="chat-popup-menu member-list-popup" onClick={e => e.stopPropagation()}>
-            <div className="sheet-title">참여 인원 {roomMemberCount}명</div>
+            <div className="member-list-popup-header">
+              <button type="button" className="small ghost member-list-back-button" onClick={() => setMembersOpen(false)}>뒤로</button>
+              <div className="sheet-title member-list-title">참여 인원 {roomMemberCount}명</div>
+              <span className="member-list-header-spacer" aria-hidden="true" />
+            </div>
             <div className="chat-member-list">
               {roomMembers.map(member => (
-                <div key={`member-${member.id || member.nickname}`} className="chat-member-list-item">
+                <button key={`member-${member.id || member.nickname}`} type="button" className="chat-member-list-item clickable" onClick={() => openMemberProfile(member)}>
                   <AvatarCircle src={member.photo_url} label={member.nickname || '회원'} size={40} />
                   <span>{member.nickname || '회원'}</span>
-                </div>
+                </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {memberProfilePreview && (
+        <div className="profile-preview-backdrop" onClick={() => setMemberProfilePreview(null)}>
+          <div className="profile-preview-card" onClick={e => e.stopPropagation()}>
+            <div className="profile-preview-cover" style={memberProfilePreview.cover_url ? { backgroundImage: `url(${memberProfilePreview.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} />
+            <div className="profile-preview-main">
+              <AvatarCircle src={memberProfilePreview.photo_url} label={memberProfilePreview.nickname} size={88} className="profile-preview-avatar" />
+              <div className="profile-preview-name">{memberProfilePreview.nickname || '회원'}</div>
+              <div className="profile-preview-oneliner">{memberProfilePreview.one_liner || memberProfilePreview.bio || memberProfilePreview.region || '한줄소개가 없습니다.'}</div>
+              <div className="inline-actions wrap center profile-preview-actions">
+                <button type="button" onClick={() => goDirectChatWithUser(memberProfilePreview.id)}>채팅</button>
+                {String(memberProfilePreview.id) !== String(currentUser?.id) && <button type="button" className="ghost" onClick={() => window.alert('음성 기능은 다음 단계에서 연결됩니다.')}>음성</button>}
+              </div>
             </div>
           </div>
         </div>
@@ -3029,7 +3074,7 @@ function CalendarPage() {
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack">
                           <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반일정'}</span>
+                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없음' : '일반'}</span>
                         </div>
                       ) : (
                         <>
@@ -3119,7 +3164,7 @@ function CalendarPage() {
               </div>
               <div className="work-day-status-summary-top detailed">
                 <div className="work-day-status-line">가용차량 {String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')} / A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')} / B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')} / C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}</div>
-                <div className={`calendar-handless-pill ${calendarStatusForm.is_handless_day ? 'active' : ''}`}>{calendarStatusForm.is_handless_day ? '손없는날' : '일반일정'}</div>
+                <div className={`calendar-handless-pill ${calendarStatusForm.is_handless_day ? 'active' : ''}`}>{calendarStatusForm.is_handless_day ? '손없음' : '일반'}</div>
               </div>
 
               {!calendarStatusEditMode && (
@@ -3704,9 +3749,8 @@ function WorkSchedulePage() {
                 <strong>{workScheduleHeading(index)}</strong>
                 <span className="muted">{workScheduleDateLine(day.date)}</span>
               </div>
-              <div className="inline-actions wrap">
+              <div className={`inline-actions wrap work-schedule-action-stack${isMobile ? ' mobile' : ''}`}>
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
-                {!readOnly && <button type="button" className="small ghost" onClick={() => openBulkEdit(day)}>{isBulkEdit ? '전체편집닫기' : '일자별전체편집'}</button>}
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
               </div>
             </div>

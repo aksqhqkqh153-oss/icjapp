@@ -292,7 +292,7 @@ def _get_admin_total_vehicle_count(conn) -> int:
     raw = _get_admin_setting(conn, 'total_vehicle_count', '')
     if raw.isdigit():
         return int(raw)
-    row = conn.execute("SELECT COUNT(*) FROM users WHERE branch_no IS NOT NULL").fetchone()
+    row = conn.execute("SELECT COUNT(*) FROM users WHERE grade = 4 AND approved = 1").fetchone()
     return int(row[0] or 0)
 def _get_branch_count_override(conn) -> int:
     raw = _get_admin_setting(conn, 'branch_count_override', '')
@@ -1912,7 +1912,7 @@ def _get_admin_total_vehicle_count(conn):
             return max(int(str(row['value']).strip()), 0)
         except ValueError:
             pass
-    row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE branch_no IS NOT NULL").fetchone()
+    row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE grade = 4 AND approved = 1").fetchone()
     return int(row['cnt']) if row else 0
 
 def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
