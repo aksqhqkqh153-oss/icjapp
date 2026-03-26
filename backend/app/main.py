@@ -384,6 +384,45 @@ def _assignment_display_text(current_user: dict, value: str) -> str:
         out.append(f"{name}(본인)" if name in tokens else name)
     return ' / '.join(out) if out else '-'
 
+def _work_assignment_target_ids(conn, representative_names: str, staff_names: str, actor_id: int | None = None) -> list[int]:
+    target_tokens = {token for token in _split_names_for_match(representative_names, staff_names) if token}
+    if not target_tokens:
+        return []
+    rows = conn.execute("SELECT id, email, nickname, vehicle_number, branch_no FROM users ORDER BY id").fetchall()
+    matched_ids: list[int] = []
+    for row in rows:
+        data = row_to_dict(row)
+        user_id = int(data.get('id') or 0)
+        tokens = _user_assignment_tokens(data)
+        if target_tokens & tokens or any(token and token in ' '.join(tokens) for token in target_tokens):
+            if actor_id is not None and user_id == int(actor_id):
+                matched_ids.append(user_id)
+            elif user_id not in matched_ids:
+                matched_ids.append(user_id)
+    return matched_ids
+
+
+def _notify_work_schedule_assignments(conn, actor: dict, schedule_date: str, schedule_time: str, customer_name: str, representative_names: str, staff_names: str, previous_ids: set[int] | None = None):
+    previous_ids = previous_ids or set()
+    target_ids = set(_work_assignment_target_ids(conn, representative_names, staff_names, actor.get('id')))
+    if not target_ids:
+        return
+    date_text = ''
+    time_text = str(schedule_time or '미정').strip() or '미정'
+    try:
+        dt = datetime.strptime(str(schedule_date), '%Y-%m-%d')
+        date_text = f"{dt.month:02d}월 {dt.day:02d}일"
+    except Exception:
+        date_text = str(schedule_date or '')
+    reps = ' / '.join(_split_names_for_match(representative_names)) or '-'
+    staffs = ' / '.join(_split_names_for_match(staff_names)) or '-'
+    customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    body = f"{date_text} {time_text}에 {customer}고객님 일정으로 {reps} 사업자와 {staffs} 직원이 배정되었습니다. 일정 확인을 해주세요"
+    for user_id in target_ids:
+        if user_id in previous_ids:
+            continue
+        insert_notification(conn, user_id, 'work_schedule_assignment', '스케줄 배정', body)
+
 
 def _calendar_row_summary(user: dict, row: dict) -> dict:
     rep_list = [str(row.get(key) or '').strip() for key in ['representative1', 'representative2', 'representative3'] if str(row.get(key) or '').strip()]

@@ -116,6 +116,25 @@ function friendGroupStorageKey(userId) {
   return `icj_friend_groups_${userId || 'guest'}`
 }
 
+function friendMenuKey(section, itemId) {
+  return `${section || 'friend'}-${itemId}`
+}
+
+function profileCoverStorageKey(userId) {
+  return `icj_profile_cover_${userId || 'guest'}`
+}
+
+function loadProfileCover(userId) {
+  try { return localStorage.getItem(profileCoverStorageKey(userId)) || '' } catch { return '' }
+}
+
+function saveProfileCover(userId, value) {
+  try {
+    if (!value) localStorage.removeItem(profileCoverStorageKey(userId))
+    else localStorage.setItem(profileCoverStorageKey(userId), value)
+  } catch {}
+}
+
 function getQuickActionState(userId) {
   const fallback = { active: [...DEFAULT_QUICK_ACTION_IDS], archived: [] }
   try {
@@ -968,7 +987,9 @@ function FriendsPage() {
   const [groupRenamePicker, setGroupRenamePicker] = useState({ open: false, mode: 'rename' })
   const [editingGroupName, setEditingGroupName] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState('')
-  const [profilePreview, setProfilePreview] = useState({ mode: '', friend: null })
+  const [profilePreview, setProfilePreview] = useState({ mode: '', friend: null, section: '' })
+  const [profileEditForm, setProfileEditForm] = useState(null)
+  const [myCoverUrl, setMyCoverUrl] = useState(() => loadProfileCover(getStoredUser()?.id))
 
   async function load() {
     const [u, f, me, followList] = await Promise.all([
@@ -1126,21 +1147,115 @@ function FriendsPage() {
     setEditingGroupName('')
   }
 
-  function FriendRow({ item, actions = null }) {
+  async function openMyProfileCard() {
+    try {
+      const data = await api('/api/profile')
+      const me = data?.user || profile
+      setProfilePreview({ mode: 'card', friend: { ...me, cover_url: loadProfileCover(me?.id) }, section: 'me' })
+    } catch (error) {
+      window.alert(error.message)
+    }
+  }
+
+  function openMyProfileEditor() {
+    const me = profilePreview.friend || profile
+    if (!me) return
+    setProfileEditForm({
+      email: me.email || profile?.email || '',
+      nickname: me.nickname || '',
+      position_title: me.position_title || '',
+      region: me.region || '서울',
+      bio: me.bio || '',
+      one_liner: me.one_liner || '',
+      interests: Array.isArray(me.interests) ? me.interests : [],
+      photo_url: me.photo_url || '',
+      cover_url: loadProfileCover(me.id || profile?.id),
+      phone: me.phone || '',
+      recovery_email: me.recovery_email || '',
+      gender: me.gender || '',
+      birth_year: Number(me.birth_year || 1990),
+      vehicle_number: me.vehicle_number || '',
+      branch_no: me.branch_no ?? null,
+      marital_status: me.marital_status || '',
+      resident_address: me.resident_address || '',
+      business_name: me.business_name || '',
+      business_number: me.business_number || '',
+      business_type: me.business_type || '',
+      business_item: me.business_item || '',
+      business_address: me.business_address || '',
+      bank_account: me.bank_account || '',
+      bank_name: me.bank_name || '',
+      mbti: me.mbti || '',
+      google_email: me.google_email || '',
+      resident_id: me.resident_id || '',
+      new_password: '',
+    })
+    setProfilePreview(prev => ({ ...prev, mode: 'edit' }))
+  }
+
+  async function updateMyProfileField(patch = {}) {
+    const latest = await api('/api/profile')
+    const base = latest?.user || profile
+    const payload = {
+      email: base?.email || '', nickname: base?.nickname || '', position_title: base?.position_title || '', region: base?.region || '서울',
+      bio: base?.bio || '', one_liner: base?.one_liner || '', interests: Array.isArray(base?.interests) ? base.interests : [], photo_url: base?.photo_url || '',
+      phone: base?.phone || '', recovery_email: base?.recovery_email || '', gender: base?.gender || '', birth_year: Number(base?.birth_year || 1990),
+      vehicle_number: base?.vehicle_number || '', branch_no: base?.branch_no ?? null, marital_status: base?.marital_status || '', resident_address: base?.resident_address || '',
+      business_name: base?.business_name || '', business_number: base?.business_number || '', business_type: base?.business_type || '', business_item: base?.business_item || '', business_address: base?.business_address || '',
+      bank_account: base?.bank_account || '', bank_name: base?.bank_name || '', mbti: base?.mbti || '', google_email: base?.google_email || '', resident_id: base?.resident_id || '', new_password: '',
+      ...patch,
+    }
+    const result = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
+    return result?.user
+  }
+
+  async function handleProfileImageUpload(kind, file) {
+    if (!file) return
+    const uploaded = await uploadFile(file, kind === 'cover' ? 'profile-cover' : 'profile-photo')
+    const url = uploaded?.url || ''
+    if (kind === 'cover') {
+      saveProfileCover(profile?.id, url)
+      setMyCoverUrl(url)
+      setProfileEditForm(prev => prev ? { ...prev, cover_url: url } : prev)
+      setProfilePreview(prev => prev?.friend ? { ...prev, friend: { ...prev.friend, cover_url: url } } : prev)
+      return
+    }
+    const updatedUser = await updateMyProfileField({ photo_url: url, one_liner: profileEditForm?.one_liner ?? profile?.one_liner ?? '' })
+    if (updatedUser) {
+      setProfile(updatedUser)
+      setProfileEditForm(prev => prev ? { ...prev, photo_url: updatedUser.photo_url || '' } : prev)
+      setProfilePreview(prev => prev?.friend ? { ...prev, friend: { ...updatedUser, cover_url: loadProfileCover(updatedUser.id) } } : prev)
+    }
+  }
+
+  async function saveMyProfileEditor() {
+    if (!profileEditForm) return
+    const { cover_url, ...payload } = profileEditForm
+    const result = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
+    saveProfileCover(profile?.id, cover_url || '')
+    setMyCoverUrl(cover_url || '')
+    if (result?.user) {
+      setProfile(result.user)
+      setProfilePreview({ mode: 'card', friend: { ...result.user, cover_url: cover_url || '' }, section: 'me' })
+      setProfileEditForm(null)
+    }
+  }
+
+  function FriendRow({ item, actions = null, section = 'friends' }) {
     const isFavorite = followedIds.has(item.id)
     return (
       <div className="friend-row-card upgraded">
-        <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item })}>
+        <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item, section })}>
           <AvatarCircle src={item.photo_url} label={item.nickname} className="friend-avatar" />
         </button>
-        <button type="button" className="friend-row-body clickable-profile" onClick={() => setProfilePreview({ mode: 'card', friend: item })}>
+        <button type="button" className="friend-row-body clickable-profile" onClick={() => setProfilePreview({ mode: 'card', friend: item, section })}>
           <div className="friend-row-title">{item.nickname || '회원'}</div>
           <div className="friend-row-subtitle">{item.one_liner || item.bio || item.region || '한줄소개가 없습니다.'}</div>
         </button>
         <div className="friend-row-actions vertical-edge">
           <div className="dropdown-wrap friend-inline-wrap top-menu">
-            <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === item.id ? null : item.id)}>메뉴</button>
-            <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === item.id ? 'open-inline-menu' : ''}`}>
+            <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === friendMenuKey(section, item.id) ? null : friendMenuKey(section, item.id))}>메뉴</button>
+            <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === friendMenuKey(section, item.id) ? 'open-inline-menu' : ''}`}>
               <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>
               <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>
               <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>친구차단</button>
@@ -1180,18 +1295,18 @@ function FriendsPage() {
 
         <div className="friends-section-label">내 정보</div>
         {profile && (
-          <div className="my-profile-card">
+          <button type="button" className="my-profile-card clickable-profile" onClick={() => openMyProfileCard().catch(err => window.alert(err.message))}>
             <AvatarCircle src={profile.photo_url} label={profile.nickname} className="friend-avatar large" size={56} />
             <div className="friend-row-body">
               <div className="friend-row-title">{profile.nickname}</div>
               <div className="friend-row-subtitle">{profile.one_liner || profile.bio || '한줄소개를 입력해 주세요.'}</div>
             </div>
-          </div>
+          </button>
         )}
 
         <div className="friends-section-label">즐겨찾기</div>
         <div className="friends-group-list">
-          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
+          {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} section="favorite" />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
         </div>
 
         <div className="friends-section-label">그룹</div>
@@ -1200,7 +1315,7 @@ function FriendsPage() {
             <div key={group.id} className="group-card-block">
               <strong>{group.name}</strong>
               <div className="friends-group-list inner">
-                {group.items.length > 0 ? group.items.map(item => <FriendRow key={`group-${group.id}-${item.id}`} item={item} />) : <div className="muted">배정된 친구가 없습니다.</div>}
+                {group.items.length > 0 ? group.items.map(item => <FriendRow key={`group-${group.id}-${item.id}`} item={item} section={`group-${group.id}`} />) : <div className="muted">배정된 친구가 없습니다.</div>}
               </div>
             </div>
           )) : <div className="muted">등록된 그룹이 없습니다.</div>}
@@ -1208,7 +1323,7 @@ function FriendsPage() {
 
         <div className="friends-section-label">전체친구</div>
         <div className="friends-group-list">
-          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} />) : <div className="muted">표시할 친구가 없습니다.</div>}
+          {filteredFriends.length > 0 ? filteredFriends.map(item => <FriendRow key={`friend-${item.id}`} item={item} section="all" />) : <div className="muted">표시할 친구가 없습니다.</div>}
         </div>
 
         {panel === 'add' && (
@@ -1219,6 +1334,7 @@ function FriendsPage() {
                 <FriendRow
                   key={`candidate-${item.id}`}
                   item={item}
+                  section="candidate"
                   actions={sentRequestIds.has(item.id) ? (
                     <button className="small ghost" disabled>요청완료</button>
                   ) : (
@@ -1242,6 +1358,7 @@ function FriendsPage() {
                 <FriendRow
                   key={`req-${req.id}`}
                   item={{ ...req.profile, nickname: req.profile.nickname || req.requester_nickname, one_liner: req.profile.one_liner || req.profile.region || '친구 요청을 보냈습니다.' }}
+                  section="requests"
                   actions={
                     <div className="inline-actions wrap">
                       <button className="small" onClick={() => doAction(() => api(`/api/friends/respond/${req.id}`, { method: 'POST', body: JSON.stringify({ action: 'accepted' }) }), '친구 요청을 수락했습니다.')}>수락</button>
@@ -1310,16 +1427,54 @@ function FriendsPage() {
       )}
 
       {previewFriend && profilePreview.mode === 'card' && (
-        <div className="profile-preview-backdrop" onClick={() => setProfilePreview({ mode: '', friend: null })}>
+        <div className="profile-preview-backdrop" onClick={() => setProfilePreview({ mode: '', friend: null, section: '' })}>
           <div className="profile-preview-card" onClick={e => e.stopPropagation()}>
-            <div className="profile-preview-cover" />
+            <div className="profile-preview-cover" style={previewFriend.cover_url ? { backgroundImage: `url(${previewFriend.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+              {profilePreview.section === 'me' && (
+                <div className="dropdown-wrap profile-preview-menu">
+                  <button type="button" className="small ghost" onClick={e => { e.stopPropagation(); setOpenFriendMenuId(prev => prev === 'my-profile-preview' ? null : 'my-profile-preview') }}>메뉴</button>
+                  <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === 'my-profile-preview' ? 'open-inline-menu' : ''}`}>
+                    <button type="button" className="dropdown-item" onClick={() => { setOpenFriendMenuId(null); openMyProfileEditor() }}>상세 프로필 편집</button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="profile-preview-main">
               <AvatarCircle src={previewFriend.photo_url} label={previewFriend.nickname} size={88} className="profile-preview-avatar" />
               <div className="profile-preview-name">{previewFriend.nickname || '회원'}</div>
               <div className="profile-preview-oneliner">{previewFriend.one_liner || previewFriend.bio || previewFriend.region || '한줄소개가 없습니다.'}</div>
-              <div className="inline-actions wrap center">
+              <div className="inline-actions wrap center profile-preview-actions">
                 <button type="button" onClick={() => goDirectChat(previewFriend.id)}>채팅</button>
                 <button type="button" className="ghost" onClick={() => window.alert('음성 기능은 다음 단계에서 연결됩니다.')}>음성</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profilePreview.mode === 'edit' && profileEditForm && (
+        <div className="profile-preview-backdrop" onClick={() => { setProfilePreview(prev => ({ ...prev, mode: 'card' })); setProfileEditForm(null) }}>
+          <div className="profile-preview-card profile-edit-card" onClick={e => e.stopPropagation()}>
+            <div className="profile-preview-cover editable" style={profileEditForm.cover_url ? { backgroundImage: `url(${profileEditForm.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+              <div className="inline-actions wrap center profile-media-actions">
+                <button type="button" className="ghost small" onClick={() => setProfileEditForm(prev => ({ ...prev, cover_url: '' }))}>배경화면 삭제(기본그림)</button>
+                <label className="small profile-upload-label">배경화면 추가 및 변경<input type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('cover', e.target.files?.[0]).catch(err => window.alert(err.message))} /></label>
+              </div>
+            </div>
+            <div className="profile-preview-main">
+              <button type="button" className="ghost profile-avatar-edit-button" onClick={() => document.getElementById('profile-photo-input')?.click()}>
+                <AvatarCircle src={profileEditForm.photo_url} label={profileEditForm.nickname} size={88} className="profile-preview-avatar" />
+              </button>
+              <input id="profile-photo-input" type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('photo', e.target.files?.[0]).catch(err => window.alert(err.message))} />
+              <div className="inline-actions wrap center profile-media-actions">
+                <button type="button" className="ghost small" onClick={async () => { const updated = await updateMyProfileField({ photo_url: '', one_liner: profileEditForm.one_liner }); setProfile(updated); setProfileEditForm(prev => ({ ...prev, photo_url: '' })) }}>프로필 삭제(기본그림)</button>
+                <label className="small profile-upload-label">프로필 추가 및 변경<input type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('photo', e.target.files?.[0]).catch(err => window.alert(err.message))} /></label>
+              </div>
+              <input value={profileEditForm.nickname} onChange={e => setProfileEditForm(prev => ({ ...prev, nickname: e.target.value }))} placeholder="닉네임" />
+              <textarea value={profileEditForm.one_liner} onChange={e => setProfileEditForm(prev => ({ ...prev, one_liner: e.target.value }))} placeholder="한줄소개" className="profile-edit-oneliner" />
+              <div className="inline-actions wrap center profile-preview-actions">
+                <button type="button" className="ghost" onClick={() => { setProfilePreview(prev => ({ ...prev, mode: 'card' })); setProfileEditForm(null) }}>취소</button>
+                <button type="button" onClick={() => saveMyProfileEditor().catch(err => window.alert(err.message))}>저장</button>
               </div>
             </div>
           </div>
@@ -1449,22 +1604,12 @@ function AttachmentPreview({ message }) {
 function ChatActionSheet({ title, actions, onClose }) {
   if (!actions) return null
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+    <div className="profile-preview-backdrop" onClick={onClose}>
+      <div className="chat-popup-menu" onClick={e => e.stopPropagation()}>
         {title && <div className="sheet-title">{title}</div>}
         <div className="sheet-actions">
           {actions.map(action => (
-            <button
-              key={action.label}
-              type="button"
-              className={action.danger ? 'sheet-action danger-text' : 'sheet-action'}
-              onClick={() => {
-                action.onClick?.()
-                onClose?.()
-              }}
-            >
-              {action.label}
-            </button>
+            <button key={action.label} type="button" className={action.danger ? 'sheet-action danger-text' : 'sheet-action'} onClick={() => { action.onClick?.(); onClose?.() }}>{action.label}</button>
           ))}
         </div>
       </div>
@@ -1585,7 +1730,7 @@ ${guide}`)
               </div>
             </div>
           </div>
-          <div className="chat-category-row evenly-spaced">
+          <div className="chat-category-row evenly-spaced chat-category-row-spaced">
             {CHAT_CATEGORIES.map(([value, label]) => (
               <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
             ))}
@@ -1601,14 +1746,18 @@ ${guide}`)
             {filteredRooms.map(room => (
               <button key={`${room.room_type}-${room.room_ref}`} type="button" className="chat-room-row" onClick={() => navigate(buildRoomPath(room))}>
                 <RoomAvatar room={room} />
-                <div className="chat-room-text">
-                  <div className="chat-room-title-line">
-                    <strong>{room.title}</strong>
-                    <span className="muted">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
+                <div className="chat-room-text structured">
+                  <div className="chat-room-primary-row">
+                    <strong className="chat-room-name-block">{room.title}</strong>
+                    <div className="chat-room-message-block">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
+                    <button type="button" className="small ghost chat-room-menu-button" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>메뉴</button>
                   </div>
-                  <div className="chat-room-subtitle">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
+                  <div className="chat-room-secondary-row">
+                    <span className="chat-room-name-inline">{room.title}</span>
+                    <span className="chat-room-message-inline">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</span>
+                    <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
+                  </div>
                 </div>
-                <button type="button" className="small ghost" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>메뉴</button>
               </button>
             ))}
             {filteredRooms.length === 0 && <div className="muted">표시할 채팅방이 없습니다.</div>}
@@ -2301,7 +2450,7 @@ function normalizeBusinessExclusionDetails(items = [], fallback = []) {
         const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
         return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
       })
-  while (seeded.length < 6) seeded.append({ name: '', reason: '' })
+  while (seeded.length < 6) seeded.push({ name: '', reason: '' })
   return seeded.slice(0, 6)
 }
 
@@ -2313,7 +2462,7 @@ function normalizeStaffExclusionDetails(items = [], fallback = []) {
         const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
         return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
       })
-  while (seeded.length < 6) seeded.append({ name: '', reason: '' })
+  while (seeded.length < 6) seeded.push({ name: '', reason: '' })
   return seeded.slice(0, 6)
 }
 
@@ -3009,7 +3158,7 @@ function WorkSchedulePage() {
         api('/api/users'),
       ])
       setDaysData(data.days || [])
-      setAssignableUsers(users || [])
+      const me = getStoredUser(); setAssignableUsers(me ? [me, ...(users || [])] : (users || []))
     } finally {
       setLoading(false)
     }
@@ -3426,7 +3575,7 @@ function ScheduleFormPage({ mode }) {
           api(`/api/calendar/events/${eventId}`),
           api('/api/users'),
         ])
-        setAssignableUsers(users || [])
+        const me = getStoredUser(); setAssignableUsers(me ? [me, ...(users || [])] : (users || []))
         setForm({
           title: data.title || '',
           content: data.content || '',
@@ -3919,7 +4068,7 @@ function NotificationsPage() {
 
   async function load() {
     const [n, l] = await Promise.all([api('/api/notifications'), api('/api/feed-like-notifications')])
-    setItems(n)
+    setItems((n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || ''))))
     setLikes(l)
   }
 

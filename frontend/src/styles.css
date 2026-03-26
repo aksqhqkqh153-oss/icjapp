@@ -2464,3 +2464,24 @@ label { font-size: 14px; color: #4f6f8c; }
   .status-exclusion-row { grid-template-columns: 1fr; }
   .day-status-detail-row { flex-direction: column; align-items: flex-start; }
 }
+
+.chat-category-row-spaced{margin-bottom:6px}
+.chat-room-row{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:12px}
+.chat-room-text.structured{display:flex;flex-direction:column;gap:6px;min-width:0}
+.chat-room-primary-row,.chat-room-secondary-row{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;min-width:0}
+.chat-room-name-block,.chat-room-name-inline{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-room-message-block,.chat-room-message-inline{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-room-menu-button{justify-self:end}
+.chat-room-datetime{white-space:nowrap}
+.chat-popup-menu{background:#fff;border-radius:16px;min-width:260px;max-width:320px;width:100%;padding:14px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.profile-preview-actions{justify-content:center;gap:12px;width:100%}
+.profile-preview-actions > button,.profile-preview-actions > .profile-upload-label{min-width:112px}
+.profile-preview-menu{position:absolute;top:10px;right:10px}
+.profile-preview-cover{position:relative}
+.profile-edit-card input,.profile-edit-card textarea{width:100%;margin-top:10px}
+.profile-edit-oneliner{min-height:90px;resize:vertical}
+.profile-media-actions{margin-top:12px}
+.profile-upload-label{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);cursor:pointer}
+.profile-avatar-edit-button{padding:0;border:none;background:transparent}
+.my-profile-card.clickable-profile{width:100%;display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:left}
+@media (max-width:767px){.chat-room-primary-row,.chat-room-secondary-row{grid-template-columns:74px 1fr auto}.chat-room-datetime{font-size:12px}.chat-room-menu-button{padding-left:8px;padding-right:8px}}
