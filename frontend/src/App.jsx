@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
+import { AUTH_EXPIRED_EVENT, api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
@@ -12,6 +12,7 @@ const PAGE_TITLES = {
   '/chats': '채팅',
   '/schedule': '일정',
   '/schedule/new': '일정등록',
+  '/schedule/handless': '손없는날등록',
   '/work-schedule': '스케줄',
   '/profile': '프로필',
   '/meetups': '모임',
@@ -98,12 +99,12 @@ function serializeExcludedBusinessSlots(slots) {
 const QUICK_ACTION_LIBRARY = [
   { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
   { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
-  { id: 'point', label: '포인트(직원용)', kind: 'placeholder' },
-  { id: 'warehouse', label: '창고현황(사업자용)', kind: 'placeholder' },
-  { id: 'materials', label: '자재현황(사업자용)', kind: 'placeholder' },
+  { id: 'point', label: '포인트', kind: 'placeholder' },
+  { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
+  { id: 'materials', label: '자재현황', kind: 'placeholder' },
   { id: 'materialsBuy', label: '자재구매', kind: 'placeholder' },
   { id: 'workShift', label: '근무스케줄', kind: 'placeholder' },
-  { id: 'storageStatus', label: '짐보관현황(본사용)', kind: 'placeholder' },
+  { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
 ]
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus']
 
@@ -963,6 +964,11 @@ function FriendsPage() {
   const currentUser = getStoredUser()
   const [groupState, setGroupState] = useState(() => getFriendGroupState(currentUser?.id))
   const [openFriendMenuId, setOpenFriendMenuId] = useState(null)
+  const [groupPicker, setGroupPicker] = useState({ open: false, friend: null })
+  const [groupRenamePicker, setGroupRenamePicker] = useState({ open: false, mode: 'rename' })
+  const [editingGroupName, setEditingGroupName] = useState('')
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [profilePreview, setProfilePreview] = useState({ mode: '', friend: null })
 
   async function load() {
     const [u, f, me, followList] = await Promise.all([
@@ -1045,23 +1051,23 @@ function FriendsPage() {
     await load()
   }
 
-  function manageFriendGroup(item) {
+  function openGroupPicker(item) {
     if (!(groupState.groups || []).length) {
       window.alert('먼저 메뉴에서 그룹을 추가해 주세요.')
       return
     }
-    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
-    const picked = window.prompt(`배정할 그룹 번호를 입력하세요.
-${guide}
-0 입력 시 해제됩니다.`)
-    if (picked === null) return
+    setSelectedGroupId(String(groupState.assignments?.[item.id] || ''))
+    setGroupPicker({ open: true, friend: item })
+    setOpenFriendMenuId(null)
+  }
+
+  function applyFriendGroup() {
+    if (!groupPicker.friend) return
     const nextAssignments = { ...(groupState.assignments || {}) }
-    if (String(picked).trim() === '0' || !String(picked).trim()) {
-      delete nextAssignments[item.id]
-    } else {
-      nextAssignments[item.id] = String(picked).trim()
-    }
+    if (!selectedGroupId) delete nextAssignments[groupPicker.friend.id]
+    else nextAssignments[groupPicker.friend.id] = selectedGroupId
     saveGroupState({ ...groupState, assignments: nextAssignments })
+    setGroupPicker({ open: false, friend: null })
   }
 
   async function removeFriend(item) {
@@ -1086,67 +1092,68 @@ ${guide}
     saveGroupState({ ...groupState, groups: [...(groupState.groups || []), nextGroup] })
   }
 
-  function renameGroup() {
+  function openGroupEditor(mode) {
     if (!(groupState.groups || []).length) {
-      window.alert('수정할 그룹이 없습니다.')
+      window.alert(mode === 'rename' ? '수정할 그룹이 없습니다.' : '삭제할 그룹이 없습니다.')
       return
     }
-    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
-    const picked = window.prompt(`이름을 바꿀 그룹 번호를 입력하세요.
-${guide}`)
-    if (!picked) return
-    const target = groupState.groups.find(group => String(group.id) === String(picked).trim())
-    if (!target) return
-    const nextName = window.prompt('새 그룹명을 입력하세요.', target.name)
-    if (!nextName || !nextName.trim()) return
-    saveGroupState({ ...groupState, groups: groupState.groups.map(group => group.id === target.id ? { ...group, name: nextName.trim() } : group) })
+    const first = groupState.groups[0]
+    setGroupRenamePicker({ open: true, mode })
+    setSelectedGroupId(first?.id || '')
+    setEditingGroupName(first?.name || '')
+    setMenuOpen(false)
   }
 
-  function deleteGroup() {
-    if (!(groupState.groups || []).length) {
-      window.alert('삭제할 그룹이 없습니다.')
-      return
-    }
-    const guide = groupState.groups.map(group => `${group.id}: ${group.name}`).join('\n')
-    const picked = window.prompt(`삭제할 그룹 번호를 입력하세요.
-${guide}`)
-    if (!picked) return
-    const target = groupState.groups.find(group => String(group.id) === String(picked).trim())
+  function submitGroupEditor() {
+    const target = groupState.groups.find(group => String(group.id) === String(selectedGroupId))
     if (!target) return
-    const ok = window.confirm(`${target.name} 그룹을 삭제하시겠습니까?`)
-    if (!ok) return
-    const nextAssignments = { ...(groupState.assignments || {}) }
-    Object.keys(nextAssignments).forEach(friendId => {
-      if (String(nextAssignments[friendId]) === String(target.id)) delete nextAssignments[friendId]
-    })
-    saveGroupState({ groups: groupState.groups.filter(group => group.id !== target.id), assignments: nextAssignments })
+    if (groupRenamePicker.mode === 'rename') {
+      const nextName = editingGroupName.trim()
+      if (!nextName) {
+        window.alert('그룹명을 입력해 주세요.')
+        return
+      }
+      saveGroupState({ ...groupState, groups: groupState.groups.map(group => group.id === target.id ? { ...group, name: nextName } : group) })
+    } else {
+      const nextAssignments = { ...(groupState.assignments || {}) }
+      Object.keys(nextAssignments).forEach(friendId => {
+        if (String(nextAssignments[friendId]) === String(target.id)) delete nextAssignments[friendId]
+      })
+      saveGroupState({ groups: groupState.groups.filter(group => group.id !== target.id), assignments: nextAssignments })
+    }
+    setGroupRenamePicker({ open: false, mode: 'rename' })
+    setSelectedGroupId('')
+    setEditingGroupName('')
   }
 
   function FriendRow({ item, actions = null }) {
     const isFavorite = followedIds.has(item.id)
     return (
-      <div className="friend-row-card">
-        <AvatarCircle src={item.photo_url} label={item.nickname} className="friend-avatar" />
-        <div className="friend-row-body">
+      <div className="friend-row-card upgraded">
+        <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item })}>
+          <AvatarCircle src={item.photo_url} label={item.nickname} className="friend-avatar" />
+        </button>
+        <button type="button" className="friend-row-body clickable-profile" onClick={() => setProfilePreview({ mode: 'card', friend: item })}>
           <div className="friend-row-title">{item.nickname || '회원'}</div>
           <div className="friend-row-subtitle">{item.one_liner || item.bio || item.region || '한줄소개가 없습니다.'}</div>
-        </div>
-        <div className="friend-row-actions expanded">
-          <button type="button" className={isFavorite ? 'small ghost active-icon favorite-friend-button' : 'small ghost favorite-friend-button'} onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '🌟' : '✨'}</button>
-          <button type="button" className="small ghost" onClick={() => goDirectChat(item.id)}>채팅</button>
-          <div className="dropdown-wrap friend-inline-wrap">
+        </button>
+        <div className="friend-row-actions vertical-edge">
+          <div className="dropdown-wrap friend-inline-wrap top-menu">
             <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === item.id ? null : item.id)}>메뉴</button>
             <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === item.id ? 'open-inline-menu' : ''}`}>
-              <button type="button" className="dropdown-item" onClick={() => manageFriendGroup(item)}>그룹설정</button>
+              <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>
               <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>
               <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>친구차단</button>
             </div>
           </div>
+          <button type="button" className={isFavorite ? 'small ghost active-icon favorite-friend-button bottom-favorite' : 'small ghost favorite-friend-button bottom-favorite'} onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '🌟' : '✨'}</button>
           {actions}
         </div>
       </div>
     )
   }
+
+  const previewFriend = profilePreview.friend
 
   return (
     <div className="stack-page friends-page">
@@ -1162,8 +1169,8 @@ ${guide}`)
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록 {data.received_requests.length > 0 ? `(${data.received_requests.length})` : ''}</button>
                   <button type="button" className="dropdown-item" onClick={() => { createGroup(); setMenuOpen(false) }}>그룹추가</button>
-                  <button type="button" className="dropdown-item" onClick={() => { renameGroup(); setMenuOpen(false) }}>그룹명편집</button>
-                  <button type="button" className="dropdown-item" onClick={() => { deleteGroup(); setMenuOpen(false) }}>그룹삭제</button>
+                  <button type="button" className="dropdown-item" onClick={() => openGroupEditor('rename')}>그룹명편집</button>
+                  <button type="button" className="dropdown-item" onClick={() => openGroupEditor('delete')}>그룹삭제</button>
                 </div>
               )}
             </div>
@@ -1251,6 +1258,73 @@ ${guide}`)
         {message && <div className="success">{message}</div>}
         {toast && <div className="mention-toast action-toast">{toast}</div>}
       </section>
+
+      {groupPicker.open && (
+        <div className="sheet-backdrop" onClick={() => setGroupPicker({ open: false, friend: null })}>
+          <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">그룹설정</div>
+            <div className="stack">
+              <div className="muted">{groupPicker.friend?.nickname} 님을 배정할 그룹을 선택하세요.</div>
+              <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>
+                <option value="">그룹 해제</option>
+                {(groupState.groups || []).map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+              </select>
+              <div className="inline-actions wrap end">
+                <button type="button" className="ghost" onClick={() => setGroupPicker({ open: false, friend: null })}>닫기</button>
+                <button type="button" onClick={applyFriendGroup}>적용</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {groupRenamePicker.open && (
+        <div className="sheet-backdrop" onClick={() => setGroupRenamePicker({ open: false, mode: 'rename' })}>
+          <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">{groupRenamePicker.mode === 'rename' ? '그룹명편집' : '그룹삭제'}</div>
+            <div className="stack">
+              <select value={selectedGroupId} onChange={e => {
+                const group = (groupState.groups || []).find(item => String(item.id) === e.target.value)
+                setSelectedGroupId(e.target.value)
+                setEditingGroupName(group?.name || '')
+              }}>
+                {(groupState.groups || []).map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+              </select>
+              {groupRenamePicker.mode === 'rename' && <input value={editingGroupName} onChange={e => setEditingGroupName(e.target.value)} placeholder="새 그룹명" />}
+              {groupRenamePicker.mode === 'delete' && <div className="muted">선택한 그룹을 삭제하면 해당 그룹 배정만 해제되고 전체 친구 목록은 유지됩니다.</div>}
+              <div className="inline-actions wrap end">
+                <button type="button" className="ghost" onClick={() => setGroupRenamePicker({ open: false, mode: 'rename' })}>닫기</button>
+                <button type="button" className={groupRenamePicker.mode === 'delete' ? 'danger-text' : ''} onClick={submitGroupEditor}>{groupRenamePicker.mode === 'rename' ? '저장' : '삭제'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewFriend && profilePreview.mode === 'image' && (
+        <div className="profile-preview-backdrop" onClick={() => setProfilePreview({ mode: '', friend: null })}>
+          <div className="profile-image-viewer" onClick={e => e.stopPropagation()}>
+            <AvatarCircle src={previewFriend.photo_url} label={previewFriend.nickname} size={220} className="friend-avatar-preview" />
+          </div>
+        </div>
+      )}
+
+      {previewFriend && profilePreview.mode === 'card' && (
+        <div className="profile-preview-backdrop" onClick={() => setProfilePreview({ mode: '', friend: null })}>
+          <div className="profile-preview-card" onClick={e => e.stopPropagation()}>
+            <div className="profile-preview-cover" />
+            <div className="profile-preview-main">
+              <AvatarCircle src={previewFriend.photo_url} label={previewFriend.nickname} size={88} className="profile-preview-avatar" />
+              <div className="profile-preview-name">{previewFriend.nickname || '회원'}</div>
+              <div className="profile-preview-oneliner">{previewFriend.one_liner || previewFriend.bio || previewFriend.region || '한줄소개가 없습니다.'}</div>
+              <div className="inline-actions wrap center">
+                <button type="button" onClick={() => goDirectChat(previewFriend.id)}>채팅</button>
+                <button type="button" className="ghost" onClick={() => window.alert('음성 기능은 다음 단계에서 연결됩니다.')}>음성</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1398,6 +1472,7 @@ function ChatActionSheet({ title, actions, onClose }) {
   )
 }
 
+
 function ChatsPage() {
   const navigate = useNavigate()
   const [category, setCategory] = useState('all')
@@ -1437,8 +1512,9 @@ function ChatsPage() {
 
   async function handleInvite(room) {
     const selectable = users.filter(item => String(item.id) !== String(room.room_ref))
-    const guide = selectable.map(item => `${item.id}: ${item.nickname}`).join('\n')
-    const picked = window.prompt(`초대할 회원 번호를 입력하세요.\n${guide}`)
+    const guide = selectable.map(item => `${item.id}: ${item.nickname}`).join('\\n')
+    const picked = window.prompt(`초대할 회원 번호를 입력하세요.
+${guide}`)
     if (!picked) return
     if (room.room_type === 'group') {
       await api(`/api/group-rooms/${room.room_ref}/invite`, { method: 'POST', body: JSON.stringify({ user_id: Number(picked) }) })
@@ -1494,385 +1570,158 @@ function ChatsPage() {
   return (
     <div className="stack-page">
       <section className="card chat-list-card">
-        <div className="chat-list-topbar">
-          <div className="chat-category-row">
-            {CHAT_CATEGORIES.map(([value, label]) => (
-              <button key={value} type="button" className={category === value ? 'small chat-tab active' : 'small ghost chat-tab'} onClick={() => setCategory(value)}>{label}</button>
-            ))}
-          </div>
-          <div className="chat-search-trigger">
-            <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
-            <div className="dropdown-wrap">
-              <button type="button" className="small ghost" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
-              {menuOpen && (
-                <div className="dropdown-menu right">
-                  <button type="button" className="dropdown-item" onClick={handleCreateGroupRoom}>채팅개설</button>
-                </div>
-              )}
+        <div className="chat-list-toolbar">
+          <div className="chat-list-toolbar-top">
+            <div className="chat-toolbar-spacer" />
+            <div className="chat-search-trigger">
+              <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
+              <div className="dropdown-wrap">
+                <button type="button" className="small ghost" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
+                {menuOpen && (
+                  <div className="dropdown-menu right">
+                    <button type="button" className="dropdown-item" onClick={handleCreateGroupRoom}>채팅개설</button>
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+          <div className="chat-category-row evenly-spaced">
+            {CHAT_CATEGORIES.map(([value, label]) => (
+              <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
+            ))}
           </div>
         </div>
         {searchOpen && (
           <div className="chat-list-searchbar">
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="선택한 카테고리에서 채팅 검색" />
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="채팅방 검색" />
           </div>
         )}
-        <div className="chat-room-list">
-          {filteredRooms.map(room => {
-            const bind = useLongPress(() => setActionRoom(room))
-            return (
-              <button
-                key={room.id}
-                type="button"
-                className={`chat-room-row structured ${room.unread_tag ? 'tagged' : ''}`}
-                onClick={() => navigate(buildRoomPath(room))}
-                {...bind}
-              >
+        {loading ? <div className="muted">불러오는 중...</div> : (
+          <div className="chat-room-list">
+            {filteredRooms.map(room => (
+              <button key={`${room.room_type}-${room.room_ref}`} type="button" className="chat-room-row" onClick={() => navigate(buildRoomPath(room))}>
                 <RoomAvatar room={room} />
-                <div className="chat-room-main">
+                <div className="chat-room-text">
                   <div className="chat-room-title-line">
-                    <strong className="chat-room-title-text">{room.title}</strong>
-                    <span className="chat-room-time">{formatChatUpdatedAt(room.updated_at)}</span>
+                    <strong>{room.title}</strong>
+                    <span className="muted">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
                   </div>
-                  <div className={room.unread_tag ? 'chat-room-subtitle alert' : 'chat-room-subtitle'}>{room.subtitle || '최근 채팅이 없습니다.'}</div>
+                  <div className="chat-room-subtitle">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
                 </div>
+                <button type="button" className="small ghost" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>메뉴</button>
               </button>
-            )
-          })}
-          {!loading && filteredRooms.length === 0 && <div className="muted">표시할 채팅방이 없습니다.</div>}
-          {loading && <div className="muted">채팅 목록을 불러오는 중...</div>}
-        </div>
+            ))}
+            {filteredRooms.length === 0 && <div className="muted">표시할 채팅방이 없습니다.</div>}
+          </div>
+        )}
       </section>
-      <ChatActionSheet title={actionRoom ? actionRoom.title : ''} actions={roomActions} onClose={() => setActionRoom(null)} />
+      <ChatActionSheet title={actionRoom?.title} actions={roomActions} onClose={() => setActionRoom(null)} />
     </div>
   )
 }
 
-
-function ChatRoomPage({ roomType }) {
-  const params = useParams()
-  const navigate = useNavigate()
-  const targetRef = roomType === 'group' ? params.roomId : params.targetUserId
-  const [data, setData] = useState(null)
-  const [message, setMessage] = useState('')
-  const [replyTo, setReplyTo] = useState(null)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [plusOpen, setPlusOpen] = useState(false)
-  const [messageAction, setMessageAction] = useState(null)
-  const [mentionQueue, setMentionQueue] = useState([])
-  const fileInputRef = useRef(null)
-  const imageInputRef = useRef(null)
-  const messageRefs = useRef({})
-  const [memberPanelOpen, setMemberPanelOpen] = useState(false)
-
-  async function load() {
-    const endpoint = roomType === 'group' ? `/api/group-rooms/${targetRef}/messages` : `/api/chat/${targetRef}`
-    const result = await api(endpoint)
-    setData(result)
-    setMentionQueue(result.pending_mentions || [])
-  }
-
-  useEffect(() => {
-    load().catch(() => {})
-  }, [roomType, targetRef])
-
-  useEffect(() => {
-    if (!data?.messages?.length) return
-    const node = messageRefs.current[data.messages[data.messages.length - 1].id]
-    node?.scrollIntoView({ block: 'end' })
-  }, [data?.messages?.length])
-
-  const title = useMemo(() => {
-    if (!data) return ''
-    if (roomType === 'group') return data.room_setting?.custom_name || data.room?.title || '단체 채팅방'
-    return data.room_setting?.custom_name || data.target_user?.nickname || '채팅방'
-  }, [data, roomType])
-
-  async function send(payload = {}) {
-    const endpoint = roomType === 'group' ? `/api/group-rooms/${targetRef}/messages` : `/api/chat/${targetRef}`
-    const body = {
-      message,
-      reply_to_id: replyTo?.id || null,
-      mention_user_id: replyTo?.sender?.id && replyTo.sender.id !== getStoredUser()?.id ? replyTo.sender.id : null,
-      ...payload,
-    }
-    await api(endpoint, { method: 'POST', body: JSON.stringify(body) })
-    setMessage('')
-    setReplyTo(null)
-    setPlusOpen(false)
-    await load()
-  }
-
-  async function sendAttachment(file, attachmentType) {
-    if (!file) return
-    const uploaded = await uploadFile(file, attachmentType === 'image' ? 'chat-image' : 'chat-file')
-    await send({
-      message: attachmentType === 'image' ? '사진을 보냈습니다.' : '파일을 보냈습니다.',
-      attachment_name: uploaded.name || file.name,
-      attachment_url: uploaded.url,
-      attachment_type: attachmentType,
-    })
-  }
-
-  async function shareLocation() {
-    if (!navigator.geolocation) {
-      alert('브라우저 위치 기능을 사용할 수 없습니다.')
-      return
-    }
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const { latitude, longitude } = pos.coords
-      await send({
-        message: '내 위치를 공유했습니다.',
-        attachment_name: '위치',
-        attachment_url: `https://maps.google.com/?q=${latitude},${longitude}`,
-        attachment_type: 'location',
-      })
-    })
-  }
-
-  async function startCall() {
-    const endpoint = roomType === 'group' ? `/api/voice/group/${targetRef}` : `/api/voice/direct/${targetRef}`
-    const result = await api(endpoint, { method: 'POST' })
-    alert(`통화방이 생성되었습니다. room_id: ${result.room_id}`)
-  }
-
-  async function toggleRoomMute() {
-    const endpoint = roomType === 'group' ? `/api/chat-rooms/group/${targetRef}/settings` : `/api/chat-rooms/direct/${targetRef}/settings`
-    await api(endpoint, { method: 'PUT', body: JSON.stringify({ muted: !data?.room_setting?.muted }) })
-    await load()
-  }
-
-  async function leaveRoom() {
-    if (roomType === 'group') {
-      await api(`/api/group-rooms/${targetRef}/leave`, { method: 'POST' })
-    } else {
-      await api(`/api/chat-rooms/direct/${targetRef}/settings`, { method: 'PUT', body: JSON.stringify({ hidden: true }) })
-    }
-    navigate('/chats')
-  }
-
-  async function kickMember(member) {
-    if (!member?.id) return
-    const ok = window.confirm(`${member.nickname || '회원'}님을 이 단체톡방에서 내보내시겠습니까?`)
-    if (!ok) return
-    await api(`/api/group-rooms/${targetRef}/members/${member.id}`, { method: 'DELETE' })
-    await load()
-  }
-
-  async function jumpToDate(dateText) {
-    if (!dateText) return
-    const found = data?.messages?.find(item => String(item.created_at || '').slice(0, 10) === dateText)
-    if (found) {
-      messageRefs.current[found.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    } else {
-      alert('해당 날짜의 대화기록이 없습니다.')
-    }
-    setMenuOpen(false)
-  }
-
-  async function handleReaction(messageItem, emoji) {
-    const endpoint = roomType === 'group' ? `/api/group-messages/${messageItem.id}/reactions` : `/api/dm-messages/${messageItem.id}/reactions`
-    const updated = await api(endpoint, { method: 'POST', body: JSON.stringify({ emoji }) })
-    setData(prev => ({
-      ...prev,
-      messages: prev.messages.map(item => item.id === updated.id ? updated : item),
-    }))
-  }
-
-  async function openMentionTarget(mention) {
-    messageRefs.current[mention.message_id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    await api(`/api/chat-mentions/${mention.id}/seen`, { method: 'POST' })
-    setMentionQueue(prev => prev.filter(item => item.id !== mention.id))
-  }
-
-  const filteredMessages = useMemo(() => {
-    if (!query.trim()) return data?.messages || []
-    const q = query.trim()
-    return (data?.messages || []).filter(item => item.message?.includes(q) || item.sender?.nickname?.includes(q) || item.attachment_name?.includes(q))
-  }, [data?.messages, query])
-
-  const roomMenuActions = [
-    { label: '대화기록', onClick: () => {
-      const dateText = window.prompt('이동할 날짜를 입력하세요. 예: 2026-03-23')
-      if (dateText) jumpToDate(dateText)
-    } },
-    ...(roomType === 'group' && data?.room?.can_manage ? [{ label: '참여자 관리', onClick: () => setMemberPanelOpen(v => !v) }] : []),
-    { label: data?.room_setting?.muted ? '알림켜기' : '알림끄기', onClick: toggleRoomMute },
-    { label: '채팅방 나가기', danger: true, onClick: leaveRoom },
-  ]
-
-  const messageActions = messageAction ? [
-    { label: '답글', onClick: () => setReplyTo(messageAction) },
-    ...QUICK_REACTIONS.map(emoji => ({ label: `감정표현 ${emoji}`, onClick: () => handleReaction(messageAction, emoji) })),
-  ] : null
-
-  return (
-    <div className="stack-page chat-room-page">
-      <section className="card chat-room-card">
-        <div className="chat-room-header-actions">
-          <div className="inline-actions">
-            <button type="button" className="small ghost" onClick={() => navigate('/chats')}>목록</button>
-            <button type="button" className="small ghost" onClick={() => setMemberPanelOpen(v => !v)}>인원</button>
-          </div>
-          <strong className="chat-room-heading">{title}</strong>
-          <div className="inline-actions">
-            <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
-            <button type="button" className="small ghost" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
-          </div>
-        </div>
-        {menuOpen && <div className="inline-actions wrap room-menu-bar">{roomMenuActions.map(action => <button key={action.label} type="button" className={action.danger ? 'small ghost danger-text' : 'small ghost'} onClick={() => { action.onClick(); setMenuOpen(false) }}>{action.label}</button>)}</div>}
-        {memberPanelOpen && (
-          <div className="group-member-panel">
-            <div className="between"><strong>현재 채팅방 인원</strong><button type="button" className="small ghost" onClick={() => setMemberPanelOpen(false)}>닫기</button></div>
-            <div className="group-member-list profile-list">
-              {((roomType === 'group' ? (data?.members || []) : [getStoredUser(), data?.target_user].filter(Boolean))).map(member => (
-                <div key={member.id} className="group-member-row profile-row">
-                  <div className="profile-mini">
-                    <AvatarCircle src={member.photo_url} label={member.nickname} className="friend-avatar" size={40} />
-                    <strong>{member.nickname || '회원'}</strong>
-                  </div>
-                  {roomType === 'group' && data?.room?.can_manage && member.id !== getStoredUser()?.id ? <button type="button" className="small ghost danger-text" onClick={() => kickMember(member).catch(err => alert(err.message))}>추방</button> : <span className="muted">{member.grade_label || ''}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {searchOpen && (
-          <div className="chat-search-panel">
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="대화 내용 검색" />
-            <div className="chat-search-results">
-              {filteredMessages.slice(-20).map(item => (
-                <button key={item.id} type="button" className="search-result-row" onClick={() => messageRefs.current[item.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-                  <strong>{item.sender?.nickname}</strong>
-                  <span>{item.message || item.attachment_name || '첨부'}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="chat-log room-log">
-          {(data?.messages || []).map(item => {
-            const bind = useLongPress(() => setMessageAction(item))
-            const isMine = item.sender?.id === getStoredUser()?.id
-            return (
-              <div key={item.id} ref={el => { messageRefs.current[item.id] = el }} className={isMine ? 'chat-msg bubble mine' : 'chat-msg bubble other'} {...bind}>
-                <div className="chat-msg-meta"><strong>{item.sender?.nickname}</strong><span>{String(item.created_at || '').slice(0, 16).replace('T', ' ')}</span></div>
-                {item.reply_to && <div className="reply-preview">↳ {item.reply_to.sender?.nickname}: {item.reply_to.message}</div>}
-                {item.message && <div>{item.message}</div>}
-                <AttachmentPreview message={item} />
-                {item.reaction_summary?.length > 0 && <div className="reaction-row">{item.reaction_summary.map(entry => <span key={entry.emoji} className="reaction-chip">{entry.emoji} {entry.count}</span>)}</div>}
-              </div>
-            )
-          })}
-        </div>
-        {replyTo && (
-          <div className="replying-banner">
-            <div>답글 대상: {replyTo.sender?.nickname} / {replyTo.message}</div>
-            <button type="button" className="small ghost" onClick={() => setReplyTo(null)}>취소</button>
-          </div>
-        )}
-        <div className="comment-box chat-input-bar">
-          <button type="button" className="small ghost plus-button" onClick={() => setPlusOpen(v => !v)}>+</button>
-          <input value={message} onChange={e => setMessage(e.target.value)} placeholder="메시지 입력" />
-          <button type="button" className="small" onClick={() => send().catch(err => alert(err.message))}>전송</button>
-        </div>
-        {plusOpen && (
-          <div className="plus-actions">
-            <button type="button" className="small ghost" onClick={() => imageInputRef.current?.click()}>사진첨부</button>
-            <button type="button" className="small ghost" onClick={startCall}>통화하기</button>
-            <button type="button" className="small ghost" onClick={shareLocation}>내위치공유</button>
-            <button type="button" className="small ghost" onClick={() => fileInputRef.current?.click()}>파일첨부</button>
-          </div>
-        )}
-        <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={e => sendAttachment(e.target.files?.[0], 'image').catch(err => alert(err.message))} />
-        <input ref={fileInputRef} type="file" hidden onChange={e => sendAttachment(e.target.files?.[0], 'file').catch(err => alert(err.message))} />
-      </section>
-      {mentionQueue.length > 0 && (
-        <button type="button" className="mention-toast" onClick={() => openMentionTarget(mentionQueue[0])}>
-          {mentionQueue[0].sender?.nickname}님이 나를 태그한 글을 보시겠습니까?
-        </button>
-      )}
-      <ChatActionSheet title={messageAction ? '메시지 메뉴' : ''} actions={messageActions} onClose={() => setMessageAction(null)} />
-    </div>
-  )
-}
 
 function MapPage() {
+  const isMobile = useIsMobile()
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerLayerRef = useRef(null)
   const watchIdRef = useRef(null)
-  const isMobile = useIsMobile()
   const [users, setUsers] = useState([])
   const [shareNotice, setShareNotice] = useState('')
+  const [shareStatus, setShareStatus] = useState({ eligible: false, consent_granted: false, sharing_enabled: false, active_now: false, active_assignment: null })
 
   async function loadMapUsers() {
-    const data = await api('/api/map-users')
-    setUsers(data)
+    try {
+      const list = await api('/api/map-users')
+      setUsers(list || [])
+    } catch (_) {
+      setUsers([])
+    }
+  }
+
+  async function refreshStatus() {
+    try {
+      const status = await api('/api/location-sharing/status')
+      setShareStatus(status || {})
+      if (status?.active_now) {
+        setShareNotice('현재 담당 일정 시간대라 내 위치가 공유 중입니다.')
+      } else if (status?.sharing_enabled) {
+        setShareNotice('내위치 공유가 켜져 있습니다. 배정 시간대에 자동 공유됩니다.')
+      } else {
+        setShareNotice('내위치 공유가 꺼져 있습니다.')
+      }
+    } catch (_) {}
   }
 
   useEffect(() => {
-    loadMapUsers().catch(() => setUsers([]))
+    loadMapUsers().catch(() => {})
+    refreshStatus().catch(() => {})
   }, [])
 
+  async function handleToggleShare(nextEnabled) {
+    if (!nextEnabled) {
+      await api('/api/location-sharing/consent', { method: 'POST', body: JSON.stringify({ enabled: false }) })
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
+      setShareNotice('내위치 공유가 꺼졌습니다.')
+      refreshStatus().catch(() => {})
+      return
+    }
+    const status = await api('/api/location-sharing/status')
+    if (!status?.eligible) {
+      window.alert('차량번호와 호점이 등록된 계정에서만 사용할 수 있습니다.')
+      return
+    }
+    const approved = window.confirm('배정된 일정 시간대(시작 1시간 전 ~ 종료 30분 후)에만 위치를 공유합니다. 계속하시겠습니까?')
+    if (!approved) return
+    await api('/api/location-sharing/consent', { method: 'POST', body: JSON.stringify({ enabled: true }) })
+    await refreshStatus()
+  }
+
   useEffect(() => {
-    if (!isMobile) return undefined
     let cancelled = false
-    async function prepareMobileLocationShare() {
+    async function syncWatcher() {
       try {
-        const currentUser = getStoredUser()
         const status = await api('/api/location-sharing/status')
-        if (!status.eligible) return
-        const assignmentLine = status.active_assignment
-          ? `현재 배정 일정: ${status.active_assignment.time_text} ${status.active_assignment.customer_name} / ${status.active_assignment.start_address || '-'}\n\n`
-          : ''
-        if (!status.consent_granted) {
-          const approved = window.confirm(`${assignmentLine}오늘 배정된 일정 시간대에만 내 위치를 공개하시겠습니까?\n허용하면 지도 화면에서 위치정보 동의 후 자동으로 진행됩니다.`)
-          if (!approved) return
-          const consentData = await api('/api/location-sharing/consent', {
-            method: 'POST',
-            body: JSON.stringify({ enabled: true }),
-          })
-          if (consentData?.user) {
-            localStorage.setItem('icj_user', JSON.stringify(consentData.user))
+        if (cancelled) return
+        setShareStatus(status || {})
+        const shouldWatch = Boolean(status?.sharing_enabled && status?.active_now)
+        if (!shouldWatch) {
+          if (watchIdRef.current !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchIdRef.current)
+            watchIdRef.current = null
           }
-        }
-        const refreshed = await api('/api/location-sharing/status')
-        if (!refreshed.active_now) {
-          setShareNotice('오늘 담당 일정 시간대가 되면 위치 공개가 자동 적용됩니다.')
           return
         }
-        if (!navigator.geolocation) {
-          setShareNotice('이 기기에서는 위치 기능을 사용할 수 없습니다.')
-          return
-        }
-        setShareNotice('현재 담당 일정 시간대라 내 위치가 지도에 공개됩니다.')
+        if (!navigator.geolocation || watchIdRef.current !== null) return
         watchIdRef.current = navigator.geolocation.watchPosition(async pos => {
           try {
+            const currentUser = getStoredUser()
             await api('/api/profile/location', {
               method: 'POST',
               body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, region: currentUser?.region || '서울' }),
             })
-            if (!cancelled) {
-              loadMapUsers().catch(() => {})
-            }
+            if (!cancelled) loadMapUsers().catch(() => {})
           } catch (_) {}
         }, () => {
           setShareNotice('위치 권한이 거부되어 지도 공개를 진행할 수 없습니다.')
         }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 })
       } catch (_) {}
     }
-    prepareMobileLocationShare()
+    syncWatcher()
+    const timer = window.setInterval(syncWatcher, 45000)
     return () => {
       cancelled = true
+      window.clearInterval(timer)
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
     }
-  }, [isMobile])
+  }, [])
 
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
@@ -1908,7 +1757,14 @@ function MapPage() {
   return (
     <div className="stack-page">
       <section className="card map-card">
-        <div className="map-legend muted">차량번호와 호점이 등록된 기사 위치가 지도 위에 표시됩니다. 표시는 각 호점 숫자 아이콘으로 보입니다.</div>
+        <div className="map-card-head">
+          <div className="map-legend muted">차량번호와 호점이 등록된 기사 위치가 지도 위에 표시됩니다. 표시는 각 호점 숫자 아이콘으로 보입니다.</div>
+          <label className="share-toggle">
+            <span>내위치 공유</span>
+            <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
+            <span className="share-toggle-slider" />
+          </label>
+        </div>
         {shareNotice && <div className="info">{shareNotice}</div>}
         <div ref={mapRef} className="real-map-canvas" />
         <div className="map-driver-list">
@@ -1927,6 +1783,7 @@ function MapPage() {
 }
 
 function MeetupsPage() {
+
   const [meetups, setMeetups] = useState([])
   const [reviews, setReviews] = useState([])
   const [form, setForm] = useState({ title: '', place: '', meetup_date: '', start_time: '', end_time: '', content: '', cautions: '', notes: '' })
@@ -2233,6 +2090,47 @@ function ScheduleCardLine({ item, mobileCompact = false, colorized = false }) {
 }
 
 
+function normalizeBusinessExclusionDetails(items = [], fallback = []) {
+  const seeded = Array.isArray(items) && items.length > 0
+    ? items.map(item => ({ name: String(item?.name || item?.label || '').trim(), reason: String(item?.reason || '').trim() }))
+    : (fallback || []).map(item => {
+        const raw = String(item || '').trim()
+        const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
+        return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
+      })
+  while (seeded.length < 6) seeded.append({ name: '', reason: '' })
+  return seeded.slice(0, 6)
+}
+
+function normalizeStaffExclusionDetails(items = [], fallback = []) {
+  const seeded = Array.isArray(items) && items.length > 0
+    ? items.map(item => ({ name: String(item?.name || '').trim(), reason: String(item?.reason || '').trim() }))
+    : (fallback || []).map(item => {
+        const raw = String(item || '').trim()
+        const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
+        return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
+      })
+  while (seeded.length < 6) seeded.append({ name: '', reason: '' })
+  return seeded.slice(0, 6)
+}
+
+function compactExclusionDetails(items = []) {
+  return (items || []).map(item => ({
+    name: String(item?.name || '').trim(),
+    reason: String(item?.reason || '').trim(),
+  })).filter(item => item.name)
+}
+
+function exclusionCount(items = []) {
+  return compactExclusionDetails(items).length
+}
+
+function renderExclusionText(items = [], emptyLabel = '-') {
+  const normalized = compactExclusionDetails(items)
+  if (normalized.length === 0) return emptyLabel
+  return normalized.map(item => `${item.name}(${item.reason || '-'})`).join(' / ')
+}
+
 function CalendarPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -2251,6 +2149,10 @@ function CalendarPage() {
   const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [] })
   const [calendarStatusDate, setCalendarStatusDate] = useState('')
   const [calendarStatusForm, setCalendarStatusForm] = useState(buildDayStatusForm(null))
+  const [mobileStatusPopup, setMobileStatusPopup] = useState(null)
+  const [calendarStatusEditMode, setCalendarStatusEditMode] = useState(false)
+  const [businessExclusionDraft, setBusinessExclusionDraft] = useState(() => normalizeBusinessExclusionDetails())
+  const [staffExclusionDraft, setStaffExclusionDraft] = useState(() => normalizeStaffExclusionDetails())
 
   async function load() {
     const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
@@ -2262,10 +2164,6 @@ function CalendarPage() {
     setWorkDays(workData.days || [])
   }
   useEffect(() => { load().catch(() => {}) }, [monthCursor])
-  useEffect(() => {
-    const panelName = searchParams.get('panel') || ''
-    if (panelName) setPanel(panelName)
-  }, [searchParams])
   useEffect(() => {
     const preset = searchParams.get('date')
     if (preset) {
@@ -2295,9 +2193,10 @@ function CalendarPage() {
     }
     return map
   }, [items])
-  const detailItems = grouped.get(selectedDate) || []
-  const visibleLaneCount = isMobile ? 2 : 5
+  const visibleLaneCount = isMobile ? 3 : 5
   const workDayMap = useMemo(() => new Map((workDays || []).map(day => [day.date, day])), [workDays])
+  const detailItems = grouped.get(selectedDate) || []
+  const selectedDaySummary = workDayMap.get(selectedDate) || buildDayStatusForm({ date: selectedDate })
 
   function openDateForm(date) {
     navigate(`/schedule/new?date=${fmtDate(date)}`)
@@ -2327,32 +2226,61 @@ function CalendarPage() {
   }
 
   function openCalendarStatus(daySummary) {
-    setCalendarStatusForm(buildDayStatusForm(daySummary))
+    const nextForm = buildDayStatusForm(daySummary)
+    setCalendarStatusForm(nextForm)
     setCalendarStatusDate(daySummary.date)
+    setMobileStatusPopup(daySummary)
+    setCalendarStatusEditMode(false)
+    setBusinessExclusionDraft(normalizeBusinessExclusionDetails(nextForm.excluded_business_details, daySummary?.excluded_business_names || []))
+    setStaffExclusionDraft(normalizeStaffExclusionDetails(nextForm.excluded_staff_details, daySummary?.excluded_staff_names || []))
+  }
+
+  function closeCalendarStatusPopup() {
+    setCalendarStatusDate('')
+    setMobileStatusPopup(null)
+    setCalendarStatusEditMode(false)
+  }
+
+  function updateBusinessExclusion(index, field, value) {
+    setBusinessExclusionDraft(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item))
+  }
+
+  function updateStaffExclusion(index, field, value) {
+    setStaffExclusionDraft(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item))
   }
 
   async function submitCalendarStatus(e) {
     e.preventDefault()
-    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(calendarStatusForm) })
-    setCalendarStatusDate('')
+    const normalizedBusiness = compactExclusionDetails(businessExclusionDraft)
+    const normalizedStaff = compactExclusionDetails(staffExclusionDraft)
+    const payload = {
+      ...calendarStatusForm,
+      excluded_business_details: normalizedBusiness,
+      excluded_staff_details: normalizedStaff,
+      excluded_business: normalizedBusiness.map(item => item.name).join(', '),
+      excluded_staff: normalizedStaff.map(item => item.name).join(', '),
+    }
+    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(payload) })
+    closeCalendarStatusPopup()
     await load()
   }
 
   return (
     <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
-        <div className="calendar-toolbar">
+        <div className="calendar-toolbar upgraded">
           <div className="inline-actions">
-            <button type="button" className="ghost small" onClick={() => moveMonth(-1)}>이전달</button>
+            <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(-1)}>◀</button>
             <strong>{monthLabel}</strong>
-            <button type="button" className="ghost small" onClick={() => moveMonth(1)}>다음달</button>
+            <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)}>▶</button>
           </div>
-          {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
+          <div className="inline-actions wrap">
+            {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
+            {!readOnly && <button type="button" className="small ghost" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손없는날등록</button>}
+          </div>
         </div>
-        <div className="calendar-weekdays">
-          {['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}
-        </div>
-        <div className="calendar-grid schedule-grid detail-mode">
+        {!isMobile && <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>}
+        <div className={`calendar-grid schedule-grid detail-mode ${isMobile ? 'mobile-simplified' : ''}`}>
           {days.map((date, idx) => {
             const key = date ? fmtDate(date) : `blank-${idx}`
             const today = date && fmtDate(date) === fmtDate(new Date())
@@ -2363,98 +2291,181 @@ function CalendarPage() {
             const extraCount = Math.max(dayItems.length - visibleLaneCount, 0)
             const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
             return (
-              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}` : 'calendar-cell empty'}>
-                {date && (
-                  <div className="calendar-cell-topline">
-                    <button type="button" className={isMobile ? 'calendar-date-select mobile-only-select' : 'calendar-date-select'} onClick={() => selectDate(date)}>
-                      <span className="calendar-date">{date.getDate()}</span>
-                    </button>
-                    {!isMobile && (
-                      <div className="calendar-top-actions filled">
-                        <button type="button" className="calendar-entry-band secondary filled" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
-                          <span className="calendar-entry-label">스케줄목록</span>
-                        </button>
-                        <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
-                          <span className="calendar-entry-label">일정등록</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}` : 'calendar-cell empty'}>
                 {date && (
                   <>
-                    <button type="button" className="calendar-day-summary-button" onClick={() => openCalendarStatus(daySummary)} disabled={readOnly}>
-                      <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                      <span className="calendar-day-summary-status">A : {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}건 / B : {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}건 / C : {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}건</span>
-                    </button>
-                    <div
-                      className="calendar-lanes-stack"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => selectDate(date)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          selectDate(date)
-                        }
-                      }}
-                    >
-                      <div className="calendar-lanes">
-                        {visibleItems.map(item => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className="calendar-lane filled clickable"
-                            style={{ background: item.color || '#2563eb', boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
-                            title={item.title}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              navigate(`/schedule/${item.id}`)
-                            }}
-                          >
-                            <span>{item.title}</span>
+                    <div className="calendar-cell-topline schedule-header-line">
+                      <button type="button" className="calendar-date-select" onClick={() => selectDate(date)}>
+                        <span className="calendar-date">{isMobile ? `${date.getDate()}일` : date.getDate()}</span>
+                      </button>
+                      {!isMobile && (
+                        <div className="calendar-top-actions filled">
+                          <button type="button" className="calendar-entry-band secondary filled" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
+                            <span className="calendar-entry-label">스케줄목록</span>
                           </button>
-                        ))}
-                        {Array.from({ length: Math.max(visibleLaneCount - visibleItems.length, 0) }).map((_, laneIndex) => (
-                          <span key={`empty-${key}-${laneIndex}`} className="calendar-lane" />
-                        ))}
-                      </div>
-                      {extraCount > 0 && (
-                        <button
-                          type="button"
-                          className="calendar-more-indicator"
-                          onClick={(event) => openOverflowPopup(date, dayItems, event)}
-                        >
-                          +{extraCount}
-                        </button>
+                          <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
+                            <span className="calendar-entry-label">일정등록</span>
+                          </button>
+                        </div>
                       )}
                     </div>
+
+                    <button type="button" className="calendar-day-summary-button redesigned" onClick={() => openCalendarStatus(daySummary)}>
+                      {isMobile ? (
+                        <>
+                          <span className="calendar-mobile-vehicle-line">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className={`calendar-handless-pill ${daySummary?.is_handless_day ? 'active' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반일정'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="calendar-day-summary-vehicle">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-chip">A: {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}건</span>
+                          <span className="calendar-day-summary-chip">B: {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}건</span>
+                          <span className="calendar-day-summary-chip">C: {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}건</span>
+                        </>
+                      )}
+                    </button>
+                    {!isMobile && daySummary?.is_handless_day && <div className="calendar-handless-banner">손없는날</div>}
+
+                    {!isMobile && (
+                      <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
+                        <div className="calendar-lanes">
+                          {visibleItems.map(item => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className="calendar-lane filled clickable"
+                              style={{ background: item.color || '#2563eb', boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
+                              title={item.title}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                navigate(`/schedule/${item.id}`)
+                              }}
+                            >
+                              <span>{item.title}</span>
+                            </button>
+                          ))}
+                          {Array.from({ length: Math.max(visibleLaneCount - visibleItems.length, 0) }).map((_, laneIndex) => (
+                            <span key={`empty-${key}-${laneIndex}`} className="calendar-lane" />
+                          ))}
+                        </div>
+                        <div className="calendar-plus-row">
+                          {extraCount > 0 ? <button type="button" className="calendar-more-indicator single-plus" onClick={(event) => openOverflowPopup(date, dayItems, event)}>+</button> : <span />}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
             )
           })}
         </div>
+
+        {isMobile && (
+          <div className="mobile-schedule-detail-panel">
+            <div className="between">
+              <strong>{formatSelectedDateLabel(selectedDate)}</strong>
+              {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate}`)}>일정등록</button>}
+            </div>
+            {selectedDaySummary?.is_handless_day && <div className="calendar-handless-banner">손없는날</div>}
+            <div className="schedule-popup-list embedded">
+              {detailItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="detail-schedule-item popup-item colorized"
+                  style={{ background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') }}
+                  onClick={() => navigate(`/schedule/${item.id}`)}
+                >
+                  <ScheduleCardLine item={item} colorized={false} />
+                </button>
+              ))}
+              {detailItems.length === 0 && <div className="muted">등록된 일정이 없습니다.</div>}
+            </div>
+          </div>
+        )}
       </section>
-      {calendarStatusDate && !readOnly && (
-        <div className="schedule-popup-backdrop" onClick={() => setCalendarStatusDate('')}>
-          <section className="schedule-popup-card day-status-popup" onClick={event => event.stopPropagation()}>
-            <form onSubmit={submitCalendarStatus} className="work-day-status-editor popup">
+
+      {calendarStatusDate && (
+        <div className="schedule-popup-backdrop" onClick={closeCalendarStatusPopup}>
+          <section className="schedule-popup-card day-status-popup expanded" onClick={event => event.stopPropagation()}>
+            <form onSubmit={submitCalendarStatus} className="work-day-status-editor popup detailed">
               <div className="between work-day-status-editor-head">
-                <button type="button" className="ghost small" onClick={() => setCalendarStatusDate('')}>뒤로가기</button>
-                <button type="submit" className="small">저장</button>
+                <button type="button" className="ghost small" onClick={closeCalendarStatusPopup}>닫기</button>
+                {!readOnly && (
+                  <div className="inline-actions wrap">
+                    {!calendarStatusEditMode ? (
+                      <button type="button" className="small ghost" onClick={() => setCalendarStatusEditMode(true)}>편집</button>
+                    ) : (
+                      <button type="submit" className="small">저장</button>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="work-day-status-editor-grid">
-                <label>가용차량 숫자 입력칸<input type="number" min="0" value={calendarStatusForm.available_vehicle_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
-                <label>A : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_a_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_a_count: Number(e.target.value || 0) })} /></label>
-                <label>B : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_b_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_b_count: Number(e.target.value || 0) })} /></label>
-                <label>C : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_c_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_c_count: Number(e.target.value || 0) })} /></label>
+              <div className="work-day-status-summary-top detailed">
+                <div className="work-day-status-line">가용차량 {String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')} / A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')} / B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')} / C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}</div>
+                <div className={`calendar-handless-pill ${calendarStatusForm.is_handless_day ? 'active' : ''}`}>{calendarStatusForm.is_handless_day ? '손없는날' : '일반일정'}</div>
               </div>
-              <textarea value={calendarStatusForm.day_memo} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
+
+              {!calendarStatusEditMode && (
+                <div className="day-status-detail-view stack">
+                  <div className="day-status-detail-row">
+                    <strong>가용차량</strong>
+                    <span>{String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')}대</span>
+                  </div>
+                  <div className="day-status-detail-row">
+                    <strong>A/B/C</strong>
+                    <span>A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')}건 · B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')}건 · C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}건</span>
+                  </div>
+                  <div className="day-status-detail-row block">
+                    <strong>* 열외자 : {exclusionCount(businessExclusionDraft) + exclusionCount(staffExclusionDraft)}건</strong>
+                    <div className="muted">- 사업자 : {renderExclusionText(businessExclusionDraft)}</div>
+                    <div className="muted">- 직원 : {renderExclusionText(staffExclusionDraft)}</div>
+                  </div>
+                  {calendarStatusForm.day_memo ? (
+                    <div className="day-status-detail-row block">
+                      <strong>상세 메모</strong>
+                      <div className="muted">{calendarStatusForm.day_memo}</div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {calendarStatusEditMode && !readOnly && (
+                <>
+                  <div className="work-day-status-editor-grid">
+                    <label>가용차량 숫자 입력칸<input type="number" min="0" value={calendarStatusForm.available_vehicle_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
+                    <label>A : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_a_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_a_count: Number(e.target.value || 0) })} /></label>
+                    <label>B : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_b_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_b_count: Number(e.target.value || 0) })} /></label>
+                    <label>C : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_c_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_c_count: Number(e.target.value || 0) })} /></label>
+                  </div>
+                  <label className="checkbox-line"><input type="checkbox" checked={Boolean(calendarStatusForm.is_handless_day)} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, is_handless_day: e.target.checked })} /> 손없는날 지정</label>
+                  <div className="status-exclusion-editor stack">
+                    <div className="status-exclusion-title">사업자 열외 편집</div>
+                    {businessExclusionDraft.map((item, index) => (
+                      <div key={`business-exclusion-${index}`} className="status-exclusion-row">
+                        <input value={item.name} onChange={e => updateBusinessExclusion(index, 'name', e.target.value)} placeholder="대표자 입력칸" />
+                        <input value={item.reason} onChange={e => updateBusinessExclusion(index, 'reason', e.target.value)} placeholder="사유 입력칸" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="status-exclusion-editor stack">
+                    <div className="status-exclusion-title">직원 열외 편집</div>
+                    {staffExclusionDraft.map((item, index) => (
+                      <div key={`staff-exclusion-${index}`} className="status-exclusion-row">
+                        <input value={item.name} onChange={e => updateStaffExclusion(index, 'name', e.target.value)} placeholder="직원 입력칸" />
+                        <input value={item.reason} onChange={e => updateStaffExclusion(index, 'reason', e.target.value)} placeholder="사유 입력칸" />
+                      </div>
+                    ))}
+                  </div>
+                  <textarea value={calendarStatusForm.day_memo} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
+                </>
+              )}
             </form>
           </section>
         </div>
       )}
+
       {overflowPopup.items.length > 0 && (
         <div className="schedule-popup-backdrop" onClick={closeOverflowPopup}>
           <section className="schedule-popup-card" onClick={event => event.stopPropagation()}>
@@ -2477,32 +2488,13 @@ function CalendarPage() {
                     navigate(`/schedule/${item.id}`)
                   }}
                 >
-                                    <ScheduleCardLine item={item} colorized={false} />
+                  <ScheduleCardLine item={item} colorized={false} />
                 </button>
               ))}
             </div>
           </section>
         </div>
       )}
-      <section className="card schedule-detail-card">
-        <div className="detail-header-wrap no-title">
-          <div className="muted">{formatSelectedDateLabel(selectedDate)}</div>
-        </div>
-        <div className="schedule-detail-list">
-          {detailItems.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              className="detail-schedule-item"
-              style={isMobile ? { background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') } : undefined}
-              onClick={() => navigate(`/schedule/${item.id}`)}
-            >
-              <ScheduleCardLine item={item} mobileCompact={isMobile} colorized={false} />
-            </button>
-          ))}
-          {detailItems.length === 0 && <div className="muted">선택한 날짜에 등록된 일정이 없습니다.</div>}
-        </div>
-      </section>
     </div>
   )
 }
@@ -2692,12 +2684,99 @@ function buildDayStatusForm(day) {
     schedule_date: day?.date || fmtDate(new Date()),
     excluded_business: day?.excluded_business || '',
     excluded_staff: day?.excluded_staff || '',
+    excluded_business_details: day?.excluded_business_details || [],
+    excluded_staff_details: day?.excluded_staff_details || [],
     available_vehicle_count: Number(day?.available_vehicle_count || 0),
     status_a_count: Number(day?.status_a_count || 0),
     status_b_count: Number(day?.status_b_count || 0),
     status_c_count: Number(day?.status_c_count || 0),
     day_memo: day?.day_memo || '',
+    is_handless_day: Boolean(day?.is_handless_day),
   }
+}
+
+
+function HandlessDaysPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const monthParam = searchParams.get('month')
+  const baseDate = monthParam ? new Date(`${monthParam}-01T00:00:00`) : startOfMonth(new Date())
+  const [monthCursor, setMonthCursor] = useState(Number.isNaN(baseDate.getTime()) ? startOfMonth(new Date()) : startOfMonth(baseDate))
+  const [workDays, setWorkDays] = useState([])
+  const [selectedDates, setSelectedDates] = useState(new Set())
+
+  async function load() {
+    const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
+    const data = await api(`/api/work-schedule?start_date=${firstDate}&days=42`)
+    setWorkDays(data.days || [])
+    setSelectedDates(new Set((data.days || []).filter(item => item.is_handless_day).map(item => item.date)))
+  }
+
+  useEffect(() => { load().catch(() => {}) }, [monthCursor])
+
+  const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
+  const dayMap = useMemo(() => new Map(workDays.map(item => [item.date, item])), [workDays])
+  const monthLabel = `${monthCursor.getFullYear()}년 ${monthCursor.getMonth() + 1}월`
+
+  async function saveSelected() {
+    for (const day of workDays) {
+      await api('/api/work-schedule/day-note', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...buildDayStatusForm(day),
+          is_handless_day: selectedDates.has(day.date),
+          excluded_business_details: day.excluded_business_details || [],
+          excluded_staff_details: day.excluded_staff_details || [],
+        }),
+      })
+    }
+    window.alert('손없는날 설정이 저장되었습니다.')
+    navigate(`/schedule?date=${fmtDate(monthCursor)}`)
+  }
+
+  function toggleDate(key) {
+    setSelectedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  return (
+    <div className="stack-page">
+      <section className="card schedule-card handless-page">
+        <div className="calendar-toolbar upgraded">
+          <div className="inline-actions">
+            <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))}>◀</button>
+            <strong>{monthLabel}</strong>
+            <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}>▶</button>
+          </div>
+          <div className="inline-actions wrap">
+            <button type="button" className="ghost small" onClick={() => navigate('/schedule')}>닫기</button>
+            <button type="button" className="small" onClick={() => saveSelected().catch(err => window.alert(err.message))}>편집저장</button>
+          </div>
+        </div>
+        <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
+        <div className="calendar-grid handless-grid">
+          {days.map((date, idx) => {
+            const key = date ? fmtDate(date) : `blank-${idx}`
+            const active = date && selectedDates.has(fmtDate(date))
+            return (
+              <div key={key} className={date ? `calendar-cell handless-picker-cell${active ? ' selected handless-day-cell' : ''}` : 'calendar-cell empty'}>
+                {date && (
+                  <button type="button" className="handless-date-button" onClick={() => toggleDate(fmtDate(date))}>
+                    <span>{date.getDate()}일</span>
+                    <span className={`calendar-handless-pill ${active ? 'active' : ''}`}>{active ? '손없는날' : '선택가능'}</span>
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+    </div>
+  )
 }
 
 function WorkSchedulePage() {
@@ -4346,6 +4425,53 @@ function ReportsPage() {
   )
 }
 
+
+function LocationSharingAgent({ user }) {
+  const watchIdRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function syncLocationSharing() {
+      try {
+        const status = await api('/api/location-sharing/status')
+        if (cancelled) return
+        const shouldWatch = Boolean(status?.sharing_enabled && status?.active_now)
+        if (!shouldWatch) {
+          if (watchIdRef.current !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchIdRef.current)
+            watchIdRef.current = null
+          }
+          return
+        }
+        if (!navigator.geolocation || watchIdRef.current !== null) return
+        watchIdRef.current = navigator.geolocation.watchPosition(async pos => {
+          try {
+            const currentUser = getStoredUser()
+            await api('/api/profile/location', {
+              method: 'POST',
+              body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, region: currentUser?.region || '서울' }),
+            })
+          } catch (_) {}
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 })
+      } catch (_) {}
+    }
+
+    syncLocationSharing()
+    const timer = window.setInterval(syncLocationSharing, 45000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
+    }
+  }, [user?.id])
+
+  return null
+}
+
 function AppAssignmentNotificationWatcher({ user }) {
   const navigate = useNavigate()
   const shownRef = useRef(new Set())
@@ -4399,10 +4525,23 @@ export default function App() {
     api('/api/me').then((res) => {
       if (res?.user) {
         setUser(res.user)
-        localStorage.setItem('icj_user', JSON.stringify(res.user))
+        sessionStorage.setItem('icj_user', JSON.stringify(res.user))
+        if (getRememberedLogin()) {
+          localStorage.setItem('icj_user', JSON.stringify(res.user))
+        }
       }
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    function handleAuthExpired() {
+      clearSession({ preserveRemember: true })
+      setUser(null)
+      navigate('/login', { replace: true, state: { notice: '로그인 세션이 만료되어 다시 로그인해 주세요.' } })
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired)
+  }, [navigate])
 
   async function logout() {
     try {
@@ -4427,6 +4566,7 @@ export default function App() {
 
   return (
     <>
+      <LocationSharingAgent user={user} />
       <AppAssignmentNotificationWatcher user={user} />
       <Layout user={user} onLogout={logout}>
       <Routes>
@@ -4439,6 +4579,7 @@ export default function App() {
         <Route path="/calendar" element={<Navigate to="/schedule" replace />} />
         <Route path="/schedule" element={<CalendarPage />} />
         <Route path="/schedule/new" element={<ScheduleFormPage mode="create" />} />
+        <Route path="/schedule/handless" element={<HandlessDaysPage />} />
         <Route path="/work-schedule" element={<WorkSchedulePage />} />
         <Route path="/schedule/:eventId" element={<ScheduleDetailPage />} />
         <Route path="/schedule/:eventId/edit" element={<ScheduleFormPage mode="edit" />} />

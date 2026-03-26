@@ -14,6 +14,7 @@ export function getApiBase() {
 }
 
 const REMEMBER_KEY = 'icj_auto_login'
+const AUTH_EXPIRED_EVENT = 'icj-auth-expired'
 
 export function getRememberedLogin() {
   return localStorage.getItem(REMEMBER_KEY) === '1'
@@ -38,12 +39,14 @@ export function setSession(token, user, remember = false) {
   }
 }
 
-export function clearSession() {
+export function clearSession({ preserveRemember = false } = {}) {
   sessionStorage.removeItem('icj_token')
   sessionStorage.removeItem('icj_user')
   localStorage.removeItem('icj_token')
   localStorage.removeItem('icj_user')
-  localStorage.removeItem(REMEMBER_KEY)
+  if (!preserveRemember) {
+    localStorage.removeItem(REMEMBER_KEY)
+  }
 }
 
 export function getStoredUser() {
@@ -63,20 +66,35 @@ function shouldAttachAuthHeader(path, options = {}) {
   return method !== 'OPTIONS'
 }
 
+function buildHeaders(options = {}) {
+  const headers = { ...(options.headers || {}) }
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+  return headers
+}
+
+function notifyAuthExpired(detail = {}) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail }))
+}
+
 export async function api(path, options = {}) {
   const token = getToken()
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  }
+  const headers = buildHeaders(options)
   if (token && shouldAttachAuthHeader(path, options)) {
     headers.Authorization = `Bearer ${token}`
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
+    credentials: 'include',
   })
   const data = await res.json().catch(() => ({}))
+  if (res.status === 401 && !PUBLIC_AUTH_PATHS.has(path)) {
+    clearSession({ preserveRemember: true })
+    notifyAuthExpired({ path, status: res.status, detail: data.detail || '' })
+  }
   if (!res.ok) {
     throw new Error(data.detail || `요청 처리 중 오류가 발생했습니다. (${res.status})`)
   }
@@ -91,6 +109,7 @@ export async function uploadFile(file, category = 'general') {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body,
+    credentials: 'include',
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -98,3 +117,5 @@ export async function uploadFile(file, category = 'general') {
   }
   return data
 }
+
+export { AUTH_EXPIRED_EVENT }

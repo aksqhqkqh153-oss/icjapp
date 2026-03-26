@@ -568,11 +568,14 @@ CREATE TABLE IF NOT EXISTS work_schedule_day_notes (
     schedule_date TEXT NOT NULL,
     excluded_business TEXT NOT NULL DEFAULT '',
     excluded_staff TEXT NOT NULL DEFAULT '',
+    excluded_business_details TEXT NOT NULL DEFAULT '[]',
+    excluded_staff_details TEXT NOT NULL DEFAULT '[]',
     available_vehicle_count INTEGER NOT NULL DEFAULT 0,
     status_a_count INTEGER NOT NULL DEFAULT 0,
     status_b_count INTEGER NOT NULL DEFAULT 0,
     status_c_count INTEGER NOT NULL DEFAULT 0,
     day_memo TEXT NOT NULL DEFAULT '',
+    is_handless_day INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(user_id, schedule_date),
@@ -1398,6 +1401,11 @@ def init_db() -> None:
         }
         for setting_key, setting_value in default_admin_settings.items():
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
+        _ensure_columns(conn, 'work_schedule_day_notes', {
+            'excluded_business_details': "TEXT NOT NULL DEFAULT '[]'",
+            'excluded_staff_details': "TEXT NOT NULL DEFAULT '[]'",
+            'is_handless_day': 'INTEGER NOT NULL DEFAULT 0',
+        })
         _ensure_columns(conn, 'dm_messages', {
             'reply_to_id': 'INTEGER',
             'mention_user_id': 'INTEGER',

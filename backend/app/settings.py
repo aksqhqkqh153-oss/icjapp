@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
@@ -15,6 +16,10 @@ def _split_csv(value: str | None, fallback: list[str]) -> list[str]:
     if not value:
         return fallback
     return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def _pages_preview_origin_regex() -> str:
+    return r"https://([a-z0-9-]+\.)*pages\.dev$"
 
 
 @dataclass(frozen=True)
@@ -33,12 +38,15 @@ class Settings:
         os.getenv("ALLOWED_ORIGINS"),
         [
             "http://127.0.0.1:5173",
+            "http://localhost:5173",
             "http://127.0.0.1:8000",
+            "http://localhost:8000",
             "https://www.icj2424app.com",
             "https://icj2424app.com",
             "https://api.icj2424app.com",
         ],
     ))
+    allowed_origin_regex: str = field(default_factory=lambda: os.getenv("ALLOWED_ORIGIN_REGEX", _pages_preview_origin_regex()).strip())
     r2_account_id: str = field(default_factory=lambda: os.getenv("R2_ACCOUNT_ID", "").strip())
     r2_access_key_id: str = field(default_factory=lambda: os.getenv("R2_ACCESS_KEY_ID", "").strip())
     r2_secret_access_key: str = field(default_factory=lambda: os.getenv("R2_SECRET_ACCESS_KEY", "").strip())

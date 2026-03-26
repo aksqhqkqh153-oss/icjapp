@@ -38,6 +38,7 @@ app = FastAPI(title="이청잘 앱 API", version="1.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
+    allow_origin_regex=settings.allowed_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -186,11 +187,14 @@ class WorkScheduleDayNoteIn(BaseModel):
     schedule_date: str
     excluded_business: str = ""
     excluded_staff: str = ""
+    excluded_business_details: list[dict] = []
+    excluded_staff_details: list[dict] = []
     available_vehicle_count: int = 0
     status_a_count: int = 0
     status_b_count: int = 0
     status_c_count: int = 0
     day_memo: str = ""
+    is_handless_day: bool = False
 class AdminModeConfigIn(BaseModel):
     total_vehicle_count: str = ""
     branch_count_override: str = ""
@@ -362,14 +366,14 @@ def _schedule_time_window(target_date: date, start_raw: str | None, end_raw: str
     end_t = _parse_time_value(end_raw)
     if start_t is None and end_t is None:
         return None, None
-    start_dt = datetime.combine(target_date, start_t or datetime.strptime('00:00', '%H:%M').time())
+    base_start_dt = datetime.combine(target_date, start_t or datetime.strptime('00:00', '%H:%M').time())
     if end_t is None:
-        end_dt = start_dt + timedelta(hours=2)
+        base_end_dt = base_start_dt + timedelta(hours=2)
     else:
-        end_dt = datetime.combine(target_date, end_t)
-        if end_dt < start_dt:
-            end_dt = start_dt + timedelta(hours=2)
-    return start_dt, end_dt
+        base_end_dt = datetime.combine(target_date, end_t)
+        if base_end_dt < base_start_dt:
+            base_end_dt = base_start_dt + timedelta(hours=2)
+    return base_start_dt - timedelta(hours=1), base_end_dt + timedelta(minutes=30)
 
 
 def _assignment_display_text(current_user: dict, value: str) -> str:
@@ -1895,14 +1899,25 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         note = notes_by_date.get(key, {})
         excluded_business = note.get('excluded_business', '')
         excluded_staff = note.get('excluded_staff', '')
+        excluded_business_details = json.loads(note.get('excluded_business_details') or '[]')
+        excluded_staff_details = json.loads(note.get('excluded_staff_details') or '[]')
         branch_ids = _parse_branch_exclusions(excluded_business)
         excluded_vehicle_count = len(branch_ids)
         excluded_business_names = []
-        for branch_no in branch_ids:
-            display_name = branch_name_map.get(branch_no, f'{branch_no}호점')
-            excluded_business_names.append(f'{display_name}-열외')
-        staff_tokens = [token.strip() for token in re.split(r'[\n,/]+', excluded_staff or '') if token.strip()]
-        staff_display = [token if '-' in token else f'{token}-열외' for token in staff_tokens]
+        if excluded_business_details:
+            for entry in excluded_business_details:
+                name = str(entry.get('name') or entry.get('label') or '').strip() or '사업자'
+                reason = str(entry.get('reason') or '').strip()
+                excluded_business_names.append(f'{name} (사유 : {reason or "-"})')
+        else:
+            for branch_no in branch_ids:
+                display_name = branch_name_map.get(branch_no, f'{branch_no}호점')
+                excluded_business_names.append(f'{display_name}-열외')
+        if excluded_staff_details:
+            staff_display = [f"{str(entry.get('name') or '직원').strip()} (사유 : {str(entry.get('reason') or '-').strip() or '-'})" for entry in excluded_staff_details]
+        else:
+            staff_tokens = [token.strip() for token in re.split(r'[\n,/]+', excluded_staff or '') if token.strip()]
+            staff_display = [token if '-' in token else f'{token}-열외' for token in staff_tokens]
         day_entries = sorted(entries_by_date[key], key=lambda item: ((item.get('schedule_time') or '99:99') if (item.get('schedule_time') or '') not in ('', '미정') else '99:99', str(item.get('customer_name') or item.get('title') or ''), str(item.get('id'))))
         note_available_count = note.get('available_vehicle_count')
         computed_available = max(total_vehicle_count - excluded_vehicle_count, 0)
@@ -1929,6 +1944,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'status_b_count': _safe_count(note.get('status_b_count')),
             'status_c_count': _safe_count(note.get('status_c_count')),
             'day_memo': note.get('day_memo', '') or '',
+            'excluded_business_details': excluded_business_details,
+            'excluded_staff_details': excluded_staff_details,
+            'is_handless_day': bool(note.get('is_handless_day')),
         })
     return {'days': output}
 @app.post("/api/work-schedule/entries")
@@ -2001,18 +2019,18 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
             conn.execute(
                 """
                 UPDATE work_schedule_day_notes
-                SET excluded_business = ?, excluded_staff = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, updated_at = ?
+                SET excluded_business = ?, excluded_staff = ?, excluded_business_details = ?, excluded_staff_details = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, is_handless_day = ?, updated_at = ?
                 WHERE user_id = ? AND schedule_date = ?
                 """,
-                (payload.excluded_business, payload.excluded_staff, payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, now, user['id'], payload.schedule_date),
+                (payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, user['id'], payload.schedule_date),
             )
         else:
             conn.execute(
                 """
-                INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, now, now),
+                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, now),
             )
         row = conn.execute("SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
         return row_to_dict(row)
