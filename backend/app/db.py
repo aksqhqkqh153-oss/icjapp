@@ -531,6 +531,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     platform TEXT DEFAULT '',
     customer_name TEXT DEFAULT '',
     department_info TEXT DEFAULT '',
+    status_a_count INTEGER NOT NULL DEFAULT 0,
+    status_b_count INTEGER NOT NULL DEFAULT 0,
+    status_c_count INTEGER NOT NULL DEFAULT 0,
     amount1 TEXT DEFAULT '',
     amount2 TEXT DEFAULT '',
     amount_item TEXT DEFAULT '',
@@ -1352,6 +1355,9 @@ def init_db() -> None:
             'platform': "TEXT DEFAULT ''",
             'customer_name': "TEXT DEFAULT ''",
             'department_info': "TEXT DEFAULT ''",
+            'status_a_count': 'INTEGER NOT NULL DEFAULT 0',
+            'status_b_count': 'INTEGER NOT NULL DEFAULT 0',
+            'status_c_count': 'INTEGER NOT NULL DEFAULT 0',
             'amount1': "TEXT DEFAULT ''",
             'amount2': "TEXT DEFAULT ''",
             'amount_item': "TEXT DEFAULT ''",
@@ -1404,6 +1410,11 @@ def init_db() -> None:
         _ensure_columns(conn, 'work_schedule_day_notes', {
             'excluded_business_details': "TEXT NOT NULL DEFAULT '[]'",
             'excluded_staff_details': "TEXT NOT NULL DEFAULT '[]'",
+            'available_vehicle_count': 'INTEGER NOT NULL DEFAULT 0',
+            'status_a_count': 'INTEGER NOT NULL DEFAULT 0',
+            'status_b_count': 'INTEGER NOT NULL DEFAULT 0',
+            'status_c_count': 'INTEGER NOT NULL DEFAULT 0',
+            'day_memo': "TEXT NOT NULL DEFAULT ''",
             'is_handless_day': 'INTEGER NOT NULL DEFAULT 0',
         })
         _ensure_columns(conn, 'dm_messages', {

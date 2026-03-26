@@ -164,6 +164,9 @@ class CalendarEventIn(BaseModel):
     platform: str = ""
     customer_name: str = ""
     department_info: str = ""
+    status_a_count: int = 0
+    status_b_count: int = 0
+    status_c_count: int = 0
     amount1: str = ""
     amount2: str = ""
     amount_item: str = ""
@@ -1797,6 +1800,9 @@ def feed_like_notifications(user=Depends(require_user)):
 def _calendar_event_out(conn, row):
     item = row_to_dict(row)
     item["created_by_nickname"] = user_basic(conn, row["user_id"])["nickname"]
+    item["status_a_count"] = int(item.get("status_a_count") or 0)
+    item["status_b_count"] = int(item.get("status_b_count") or 0)
+    item["status_c_count"] = int(item.get("status_c_count") or 0)
     return item
 @app.get("/api/calendar/events")
 def get_calendar_events(user=Depends(require_user)):
@@ -1818,16 +1824,20 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             """
             INSERT INTO calendar_events(
                 user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address,
-                platform, customer_name, department_info, amount1, amount2, amount_item, deposit_method, deposit_amount, representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
+                platform, customer_name, department_info, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount,
+                representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
-                payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address, payload.platform, payload.customer_name,
-                payload.department_info, payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
+                payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
+                payload.platform, payload.customer_name, payload.department_info, payload.status_a_count, payload.status_b_count, payload.status_c_count,
+                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount,
+                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
             ),
         )
+        _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
         return {"ok": True}
 @app.put("/api/calendar/events/{event_id}")
 def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(require_user)):
@@ -1836,25 +1846,34 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
         row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        previous_event_date = row["event_date"]
         conn.execute(
             """
             UPDATE calendar_events
             SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?,
-                platform = ?, customer_name = ?, department_info = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
+                platform = ?, customer_name = ?, department_info = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?,
+                representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
             WHERE id = ? AND user_id = ?
             """,
             (
                 payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time, payload.location,
-                payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address, payload.platform, payload.customer_name, payload.department_info, payload.amount1,
-                payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
+                payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
+                payload.platform, payload.customer_name, payload.department_info, payload.status_a_count, payload.status_b_count, payload.status_c_count,
+                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount,
+                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
             ),
         )
+        _sync_work_schedule_day_note_counts(conn, user["id"], previous_event_date)
+        _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
         return {"ok": True}
 @app.delete("/api/calendar/events/{event_id}")
 def delete_calendar_event(event_id: int, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
     with get_conn() as conn:
+        row = conn.execute("SELECT event_date FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
         conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
+        if row:
+            _sync_work_schedule_day_note_counts(conn, user["id"], row["event_date"])
         return {"ok": True}
 def _schedule_day_title(base_date: date, target_date: date) -> str:
     delta = (target_date - base_date).days
@@ -1895,6 +1914,48 @@ def _get_admin_total_vehicle_count(conn):
             pass
     row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE branch_no IS NOT NULL").fetchone()
     return int(row['cnt']) if row else 0
+
+def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
+    event_rows = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(COALESCE(status_a_count, 0)), 0) AS status_a_count,
+            COALESCE(SUM(COALESCE(status_b_count, 0)), 0) AS status_b_count,
+            COALESCE(SUM(COALESCE(status_c_count, 0)), 0) AS status_c_count
+        FROM calendar_events
+        WHERE user_id = ? AND event_date = ?
+        """,
+        (user_id, schedule_date),
+    ).fetchone()
+    now = utcnow()
+    total_a = int(event_rows['status_a_count'] or 0) if event_rows else 0
+    total_b = int(event_rows['status_b_count'] or 0) if event_rows else 0
+    total_c = int(event_rows['status_c_count'] or 0) if event_rows else 0
+    existing = conn.execute(
+        "SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?",
+        (user_id, schedule_date),
+    ).fetchone()
+    if existing:
+        conn.execute(
+            """
+            UPDATE work_schedule_day_notes
+            SET status_a_count = ?, status_b_count = ?, status_c_count = ?, updated_at = ?
+            WHERE user_id = ? AND schedule_date = ?
+            """,
+            (total_a, total_b, total_c, now, user_id, schedule_date),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO work_schedule_day_notes(
+                user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details,
+                available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at
+            )
+            VALUES (?, ?, '', '', '[]', '[]', 0, ?, ?, ?, '', 0, ?, ?)
+            """,
+            (user_id, schedule_date, total_a, total_b, total_c, now, now),
+        )
+
 @app.get('/api/work-schedule')
 def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int = Query(default=7, ge=1, le=62), user=Depends(require_user)):
     base_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else datetime.now().date()
@@ -1952,6 +2013,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'deposit_amount': row['deposit_amount'] or '',
             'source_summary': row['title'],
             'created_by': user.get('nickname') or '',
+            'status_a_count': int(row['status_a_count'] or 0),
+            'status_b_count': int(row['status_b_count'] or 0),
+            'status_c_count': int(row['status_c_count'] or 0),
         })
     for row in work_rows:
         item = row_to_dict(row)
@@ -2006,6 +2070,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
                 return max(int(value or 0), 0)
             except (TypeError, ValueError):
                 return 0
+        event_status_a_count = sum(_safe_count(item.get('status_a_count')) for item in day_entries if item.get('entry_type') == 'calendar')
+        event_status_b_count = sum(_safe_count(item.get('status_b_count')) for item in day_entries if item.get('entry_type') == 'calendar')
+        event_status_c_count = sum(_safe_count(item.get('status_c_count')) for item in day_entries if item.get('entry_type') == 'calendar')
         output.append({
             'date': key,
             'title': _schedule_day_title(base_date, target),
@@ -2016,9 +2083,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'excluded_staff_names': staff_display,
             'excluded_vehicle_count': excluded_vehicle_count,
             'available_vehicle_count': available_vehicle_count,
-            'status_a_count': _safe_count(note.get('status_a_count')),
-            'status_b_count': _safe_count(note.get('status_b_count')),
-            'status_c_count': _safe_count(note.get('status_c_count')),
+            'status_a_count': event_status_a_count if event_status_a_count else _safe_count(note.get('status_a_count')),
+            'status_b_count': event_status_b_count if event_status_b_count else _safe_count(note.get('status_b_count')),
+            'status_c_count': event_status_c_count if event_status_c_count else _safe_count(note.get('status_c_count')),
             'day_memo': note.get('day_memo', '') or '',
             'excluded_business_details': excluded_business_details,
             'excluded_staff_details': excluded_staff_details,

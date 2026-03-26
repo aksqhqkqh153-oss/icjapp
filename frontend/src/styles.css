@@ -2595,3 +2595,34 @@ label { font-size: 14px; color: #4f6f8c; }
   .chat-room-topbar-section { padding: 12px; }
   .chat-room-compose-section { padding: 10px; }
 }
+
+/* 2026-03-26 schedule/chat follow-up updates */
+.chat-message-bubble-row { display: flex; align-items: flex-end; gap: 8px; }
+.chat-message-bubble-row.mine { justify-content: flex-end; }
+.chat-message-inline-time { font-size: 12px; white-space: nowrap; }
+.chat-message-tools.inline { align-items: center; flex-wrap: nowrap; gap: 6px; }
+.chat-message-tools.inline.mine { order: -1; }
+.work-schedule-line-subtext { margin-top: 4px; font-size: 12px; color: #64748b; }
+.schedule-form-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.abc-count-row input { text-align: center; }
+.calendar-day-summary-button.mobile-compact { display: flex; justify-content: flex-start; width: 100%; padding: 2px 4px; margin-top: 0; background: transparent; border: none; }
+.calendar-mobile-summary-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }
+.calendar-handless-pill.mobile-compact { font-size: 10px; padding: 1px 4px; border-radius: 999px; }
+.calendar-handless-pill.mobile-compact.inactive { background: #e2e8f0; color: #64748b; visibility: visible; height: auto; }
+.calendar-mobile-vehicle-line { font-size: 10px; line-height: 1.05; font-weight: 800; }
+.schedule-page.mobile .calendar-cell.schedule-cell.detail-cell { min-height: 82px; padding: 4px 4px 6px; }
+.schedule-page.mobile .calendar-cell-topline.schedule-header-line { align-items: flex-start; margin-bottom: 0; }
+.schedule-page.mobile .calendar-date-select { width: 100%; justify-content: center; padding: 0; }
+.schedule-page.mobile .calendar-date { font-size: 14px; line-height: 1.1; }
+.schedule-page.mobile .calendar-handless-pill.active { font-size: 10px; padding: 1px 4px; }
+.schedule-page.mobile .mobile-schedule-detail-panel { margin-top: 10px; padding-top: 10px; }
+@media (min-width: 769px) {
+  .chat-message-content.mine .chat-message-headerline { display: none; }
+}
+@media (max-width: 768px) {
+  .schedule-form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .abc-count-row input { min-width: 0; }
+  .chat-message-bubble-row { gap: 6px; }
+  .chat-message-inline-time { display: none; }
+  .chat-message-tools.inline { display: none; }
+}

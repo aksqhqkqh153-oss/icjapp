@@ -339,6 +339,13 @@ function AuthPage({ onLogin }) {
   useEffect(() => {
     api('/api/demo-accounts').then(setAccounts).catch(() => {})
   }, [])
+  function handleScheduleEditorKeyDown(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
+      e.preventDefault()
+      scheduleEditorFormRef.current?.requestSubmit?.()
+    }
+  }
+
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
@@ -2090,29 +2097,51 @@ function ChatRoomPage({ roomType }) {
                 <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}`} {...longPressHandlers}>
                   {!mine && <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />}
                   <div className={`chat-message-content${mine ? ' mine' : ''}`}>
-                    <div className="chat-message-headerline">
-                      <strong>{item.sender?.nickname || '회원'}</strong>
-                      <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
+                    {!mine && (
+                      <div className="chat-message-headerline">
+                        <strong>{item.sender?.nickname || '회원'}</strong>
+                        <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
+                      </div>
+                    )}
+                    <div className={`chat-message-bubble-row${mine ? ' mine' : ''}`}>
+                      {mine && <span className="chat-message-inline-time muted">{formatChatUpdatedAt(item.created_at || '')}</span>}
+                      <div className={`chat-bubble${mine ? ' mine' : ''}`}>
+                        {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
+                        {item.message && <div className="chat-bubble-text">{item.message}</div>}
+                        <AttachmentPreview message={item} />
+                      </div>
+                      {!isMobile && (
+                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
+                          <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
+                          <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
+                          {(item.reaction_summary || []).map(reaction => (
+                            <button
+                              key={`${item.id}-${reaction.emoji}`}
+                              type="button"
+                              className="reaction-pill"
+                              onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
+                            >
+                              {reaction.emoji} {reaction.count}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className={`chat-bubble${mine ? ' mine' : ''}`}>
-                      {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
-                      {item.message && <div className="chat-bubble-text">{item.message}</div>}
-                      <AttachmentPreview message={item} />
-                    </div>
-                    <div className={`chat-message-tools${mine ? ' mine' : ''}`}>
-                      {!isMobile && <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>}
-                      {(item.reaction_summary || []).map(reaction => (
-                        <button
-                          key={`${item.id}-${reaction.emoji}`}
-                          type="button"
-                          className="reaction-pill"
-                          onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
-                        >
-                          {reaction.emoji} {reaction.count}
-                        </button>
-                      ))}
-                      <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
-                    </div>
+                    {isMobile && (
+                      <div className={`chat-message-tools${mine ? ' mine' : ''}`}>
+                        {(item.reaction_summary || []).map(reaction => (
+                          <button
+                            key={`${item.id}-${reaction.emoji}`}
+                            type="button"
+                            className="reaction-pill"
+                            onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
+                          >
+                            {reaction.emoji} {reaction.count}
+                          </button>
+                        ))}
+                        <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
+                      </div>
+                    )}
                     {pickerOpenFor === item.id && (
                       <div className="emoji-picker-row">
                         {['👍', '❤️', '😂', '👏', '🔥'].map(emoji => (
@@ -2912,12 +2941,12 @@ function CalendarPage() {
                       )}
                     </div>
 
-                    <button type="button" className="calendar-day-summary-button redesigned" onClick={() => openCalendarStatus(daySummary)}>
+                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} onClick={() => openCalendarStatus(daySummary)}>
                       {isMobile ? (
-                        <>
-                          <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          {daySummary?.is_handless_day ? <span className="calendar-handless-pill active">손없는날</span> : <span className="calendar-handless-pill subtle">&nbsp;</span>}
-                        </>
+                        <div className="calendar-mobile-summary-stack">
+                          <span className="calendar-mobile-vehicle-line">가용차량 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반일정'}</span>
+                        </div>
                       ) : (
                         <>
                           <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
@@ -3129,6 +3158,13 @@ function buildWorkScheduleForm(item, scheduleDate = '') {
     staff_names: item?.staff_names || '',
     memo: item?.memo || '',
   }
+}
+
+function buildAbcInlineText(item) {
+  const a = Number(item?.status_a_count || 0)
+  const b = Number(item?.status_b_count || 0)
+  const c = Number(item?.status_c_count || 0)
+  return `A: ${String(a).padStart(2, '0')} / B: ${String(b).padStart(2, '0')} / C: ${String(c).padStart(2, '0')}`
 }
 
 function splitScheduleNames(value) {
@@ -3592,9 +3628,9 @@ function WorkSchedulePage() {
             </div>
 
             <button type="button" className="work-day-status-button" onClick={() => openStatusEditor(day)} disabled={readOnly}>
-              <span className="work-day-status-vehicle">가용차량수 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+              <span className="work-day-status-vehicle">가용차량 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
               <span className="work-day-status-divider" />
-              <span className="work-day-status-summary">A : {String(day.status_a_count ?? 0).padStart(2, '0')}건 / B : {String(day.status_b_count ?? 0).padStart(2, '0')}건 / C : {String(day.status_c_count ?? 0).padStart(2, '0')}건</span>
+              <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
             </button>
 
             {activeFormDate === day.date && !readOnly && (
@@ -3623,7 +3659,10 @@ function WorkSchedulePage() {
                 return (
                   <div key={key} className="work-schedule-line-item">
                     <div className="work-schedule-line-head">
-                      <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
+                      <div>
+                        <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
+                        {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
+                      </div>
                       {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>편집</button>}
                     </div>
                     {isEditing && !readOnly && (
@@ -3767,6 +3806,7 @@ function ScheduleFormPage({ mode }) {
   const amountInputRef = useRef(null)
   const depositMethodSelectRef = useRef(null)
   const depositAmountSelectRef = useRef(null)
+  const scheduleEditorFormRef = useRef(null)
   const [visitTimeText, setVisitTimeText] = useState('')
   const [startTimeText, setStartTimeText] = useState('')
   const [endTimeText, setEndTimeText] = useState('')
@@ -3787,6 +3827,9 @@ function ScheduleFormPage({ mode }) {
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
     department_info: DEFAULT_DEPARTMENT_OPTIONS[0],
+    status_a_count: 0,
+    status_b_count: 0,
+    status_c_count: 0,
     amount1: '',
     amount2: '',
     amount_item: '',
@@ -3838,6 +3881,9 @@ function ScheduleFormPage({ mode }) {
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
           department_info: data.department_info || DEFAULT_DEPARTMENT_OPTIONS[0],
+          status_a_count: Number(data.status_a_count || 0),
+          status_b_count: Number(data.status_b_count || 0),
+          status_c_count: Number(data.status_c_count || 0),
           amount1: data.amount1 || '',
           amount2: data.amount2 || '',
           amount_item: data.amount_item || '',
@@ -3883,6 +3929,14 @@ function ScheduleFormPage({ mode }) {
     }
     setStartTimeText(form.start_time || '')
   }, [form.start_time])
+
+  useEffect(() => {
+    if (loading) return
+    requestAnimationFrame(() => {
+      visitTimeInputRef.current?.focus()
+      visitTimeInputRef.current?.select?.()
+    })
+  }, [loading, mode, eventId, presetDate])
 
   useEffect(() => {
     if (form.end_time === '미정') {
@@ -4023,7 +4077,7 @@ function ScheduleFormPage({ mode }) {
   return (
     <div className="stack-page">
       <section className="card schedule-editor-card">
-        <form onSubmit={submit} className="stack schedule-editor-form">
+        <form ref={scheduleEditorFormRef} onSubmit={submit} onKeyDown={handleScheduleEditorKeyDown} className="stack schedule-editor-form">
           <div className="schedule-form-topbar">
             <button
               type="button"
@@ -4034,6 +4088,20 @@ function ScheduleFormPage({ mode }) {
               ←
             </button>
             <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
+          </div>
+          <div className="schedule-form-grid-3 abc-count-row">
+            <div className="stack compact-gap">
+              <label>A건</label>
+              <input type="number" min="0" value={form.status_a_count} onChange={e => setForm({ ...form, status_a_count: Number(e.target.value || 0) })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>B건</label>
+              <input type="number" min="0" value={form.status_b_count} onChange={e => setForm({ ...form, status_b_count: Number(e.target.value || 0) })} />
+            </div>
+            <div className="stack compact-gap">
+              <label>C건</label>
+              <input type="number" min="0" value={form.status_c_count} onChange={e => setForm({ ...form, status_c_count: Number(e.target.value || 0) })} />
+            </div>
           </div>
           <div className="stack compact-gap">
             <label>일정 제목</label>
