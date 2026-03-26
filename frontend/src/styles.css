@@ -2474,6 +2474,8 @@ label { font-size: 14px; color: #4f6f8c; }
 .chat-room-menu-button{justify-self:end}
 .chat-room-datetime{white-space:nowrap}
 .chat-popup-menu{background:#fff;border-radius:16px;min-width:260px;max-width:320px;width:100%;padding:14px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.chat-action-reaction-bar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #e5e7eb}
+.chat-action-emoji-button{border:none;background:#f8fafc;border-radius:12px;padding:10px 0;font-size:22px;line-height:1;cursor:pointer}
 .profile-preview-actions{justify-content:center;gap:12px;width:100%}
 .profile-preview-actions > button,.profile-preview-actions > .profile-upload-label{min-width:112px}
 .profile-preview-menu{position:absolute;top:10px;right:10px}
@@ -2514,7 +2516,7 @@ label { font-size: 14px; color: #4f6f8c; }
 .schedule-page.mobile .schedule-header-line{display:grid;grid-template-columns:1fr auto;align-items:flex-start}
 .schedule-page.mobile .calendar-date-select{justify-self:start}
 .schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:62px;padding:8px 6px;flex-direction:column;justify-content:center;align-items:center;gap:4px}
-.schedule-page.mobile .calendar-mobile-vehicle-line{font-size:18px;font-weight:800;line-height:1}
+.schedule-page.mobile .calendar-mobile-vehicle-line{font-size:clamp(12px,3.6vw,16px);font-weight:800;line-height:1;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .schedule-page.mobile .calendar-handless-pill.active{font-size:11px;padding:2px 6px}
 .schedule-page.mobile .mobile-schedule-detail-panel{margin-top:12px}
 @media (max-width:767px){
@@ -2601,7 +2603,7 @@ label { font-size: 14px; color: #4f6f8c; }
 .chat-message-bubble-row.mine { justify-content: flex-end; }
 .chat-message-inline-time { font-size: 12px; white-space: nowrap; }
 .chat-message-tools.inline { align-items: center; flex-wrap: nowrap; gap: 6px; }
-.chat-message-tools.inline.mine { order: -1; }
+.chat-message-tools.inline.mine { order: 0; }
 .work-schedule-line-subtext { margin-top: 4px; font-size: 12px; color: #64748b; }
 .schedule-form-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .abc-count-row input { text-align: center; }
@@ -2609,7 +2611,7 @@ label { font-size: 14px; color: #4f6f8c; }
 .calendar-mobile-summary-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }
 .calendar-handless-pill.mobile-compact { font-size: 10px; padding: 1px 4px; border-radius: 999px; }
 .calendar-handless-pill.mobile-compact.inactive { background: #e2e8f0; color: #64748b; visibility: visible; height: auto; }
-.calendar-mobile-vehicle-line { font-size: 10px; line-height: 1.05; font-weight: 800; }
+.calendar-mobile-vehicle-line { font-size: clamp(11px, 3vw, 15px); line-height: 1.05; font-weight: 800; display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell { min-height: 82px; padding: 4px 4px 6px; }
 .schedule-page.mobile .calendar-cell-topline.schedule-header-line { align-items: flex-start; margin-bottom: 0; }
 .schedule-page.mobile .calendar-date-select { width: 100%; justify-content: center; padding: 0; }
@@ -2625,4 +2627,22 @@ label { font-size: 14px; color: #4f6f8c; }
   .chat-message-bubble-row { gap: 6px; }
   .chat-message-inline-time { display: none; }
   .chat-message-tools.inline { display: none; }
+}
+
+.chat-message-reaction-summary{display:flex;gap:6px;flex-wrap:wrap}
+.chat-message-reaction-summary.mine{justify-content:flex-end}
+@media (min-width: 769px) {
+  .chat-message-bubble-row{align-items:flex-end}
+  .chat-message-row.mine .chat-message-content{align-items:flex-end}
+  .chat-message-row:not(.mine) .chat-message-content{align-items:flex-start}
+  .chat-message-tools.inline{align-self:flex-end}
+}
+@media (max-width: 768px) {
+  .chat-action-reaction-bar{grid-template-columns:repeat(5,minmax(44px,1fr));gap:6px}
+  .chat-action-emoji-button{font-size:20px;padding:9px 0}
+  .schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:48px;padding:2px 2px 4px;gap:2px;align-items:center}
+  .schedule-page.mobile .calendar-mobile-summary-stack{align-items:center;gap:2px}
+  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell{min-height:58px;padding:2px 2px 4px}
+  .schedule-page.mobile .calendar-date{font-size:12px}
+  .schedule-page.mobile .calendar-handless-pill.mobile-compact{font-size:9px;padding:1px 3px}
 }

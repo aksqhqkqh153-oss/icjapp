@@ -1470,8 +1470,14 @@ function FriendsPage() {
               <div className="profile-preview-name">{previewFriend.nickname || '회원'}</div>
               <div className="profile-preview-oneliner">{previewFriend.one_liner || previewFriend.bio || previewFriend.region || '한줄소개가 없습니다.'}</div>
               <div className="inline-actions wrap center profile-preview-actions">
-                <button type="button" onClick={() => goDirectChat(previewFriend.id)}>채팅</button>
-                <button type="button" className="ghost" onClick={() => window.alert('음성 기능은 다음 단계에서 연결됩니다.')}>음성</button>
+                {profilePreview.section === 'me' ? (
+                  <button type="button" onClick={() => goDirectChat(previewFriend.id)}>나에게 채팅</button>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => goDirectChat(previewFriend.id)}>채팅</button>
+                    <button type="button" className="ghost" onClick={() => window.alert('음성 기능은 다음 단계에서 연결됩니다.')}>음성</button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1639,12 +1645,19 @@ function AttachmentPreview({ message }) {
   return null
 }
 
-function ChatActionSheet({ title, actions, onClose }) {
+function ChatActionSheet({ title, actions, reactions, onReact, onClose }) {
   if (!actions) return null
   return (
     <div className="profile-preview-backdrop" onClick={onClose}>
       <div className="chat-popup-menu" onClick={e => e.stopPropagation()}>
         {title && <div className="sheet-title">{title}</div>}
+        {!!reactions?.length && (
+          <div className="chat-action-reaction-bar">
+            {reactions.map(emoji => (
+              <button key={emoji} type="button" className="chat-action-emoji-button" onClick={() => { onReact?.(emoji); onClose?.() }}>{emoji}</button>
+            ))}
+          </div>
+        )}
         <div className="sheet-actions">
           {actions.map(action => (
             <button key={action.label} type="button" className={action.danger ? 'sheet-action danger-text' : 'sheet-action'} onClick={() => { action.onClick?.(); onClose?.() }}>{action.label}</button>
@@ -1888,6 +1901,8 @@ function ChatRoomPage({ roomType }) {
   const [chatActionSheet, setChatActionSheet] = useState(null)
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [hiddenMessageIds, setHiddenMessageIds] = useState(() => new Set())
+  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState(() => new Set())
   const imageInputRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -2012,6 +2027,68 @@ function ChatRoomPage({ roomType }) {
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 })
   }
 
+
+  function toggleHiddenMessage(messageId) {
+    setHiddenMessageIds(prev => {
+      const next = new Set(prev)
+      if (next.has(messageId)) next.delete(messageId)
+      else next.add(messageId)
+      return next
+    })
+  }
+
+  function toggleBookmarkMessage(messageId) {
+    setBookmarkedMessageIds(prev => {
+      const next = new Set(prev)
+      if (next.has(messageId)) next.delete(messageId)
+      else next.add(messageId)
+      return next
+    })
+  }
+
+  async function shareMessage(item) {
+    const text = item.message || item.attachment_name || '메시지'
+    try {
+      if (navigator.share) {
+        await navigator.share({ text })
+        return
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') return
+    }
+    await navigator.clipboard?.writeText(text)
+    window.alert('메시지 내용을 클립보드에 복사했습니다.')
+  }
+
+  async function sendMessageToSelf(item) {
+    const currentUser = getStoredUser()
+    if (!currentUser?.id) {
+      window.alert('로그인이 필요합니다.')
+      return
+    }
+    const text = item.message || item.attachment_name || '공유 메시지'
+    try {
+      await api(`/api/chat/${currentUser.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ message: `[나에게] ${text}`, reply_to_id: null, mention_user_id: null }),
+      })
+      window.alert('나와의 채팅방으로 메시지를 보냈습니다.')
+    } catch (error) {
+      window.alert(error.message)
+    }
+  }
+
+  async function captureMessageText(item) {
+    const text = item.message || item.attachment_name || '메시지'
+    await navigator.clipboard?.writeText(text)
+    window.alert('메시지 내용을 복사했습니다. 필요한 경우 화면 캡처를 진행해 주세요.')
+  }
+
+  function deleteMessageLocal(item) {
+    if (!window.confirm('이 메시지를 현재 화면에서 숨기시겠습니까?')) return
+    toggleHiddenMessage(item.id)
+  }
+
   function openReplyComposer(item) {
     setReplyTarget(item)
     setChatActionSheet(null)
@@ -2021,9 +2098,19 @@ function ChatRoomPage({ roomType }) {
   function openMessageActions(item) {
     setChatActionSheet({
       title: '메시지 메뉴',
+      reactions: ['👍', '❤️', '😂', '👏', '🔥'],
+      onReact: emoji => {
+        setPickerOpenFor(null)
+        handleReaction(item.id, emoji).catch(err => window.alert(err.message))
+      },
       actions: [
+        { label: hiddenMessageIds.has(item.id) ? '가리기 해제' : '가리기', onClick: () => toggleHiddenMessage(item.id) },
         { label: '답장', onClick: () => openReplyComposer(item) },
-        { label: '반응 추가', onClick: () => setPickerOpenFor(item.id) },
+        { label: '공유', onClick: () => { shareMessage(item).catch(err => window.alert(err.message)) } },
+        { label: '나에게', onClick: () => { sendMessageToSelf(item).catch(err => window.alert(err.message)) } },
+        { label: bookmarkedMessageIds.has(item.id) ? '책갈피 해제' : '책갈피', onClick: () => toggleBookmarkMessage(item.id) },
+        { label: '캡쳐', onClick: () => { captureMessageText(item).catch?.(err => window.alert(err.message)) } },
+        ...(String(item.sender_id) === String(getStoredUser()?.id) ? [{ label: '삭제', danger: true, onClick: () => deleteMessageLocal(item) }] : []),
       ],
     })
   }
@@ -2065,7 +2152,7 @@ function ChatRoomPage({ roomType }) {
     : [currentUser, roomData?.target_user].filter(Boolean)
 
   const roomMemberCount = roomMembers.length
-  const messages = roomData?.messages || []
+  const messages = (roomData?.messages || []).filter(item => !hiddenMessageIds.has(item.id))
 
   return (
     <div className="stack-page chat-room-page-shell">
@@ -2104,31 +2191,27 @@ function ChatRoomPage({ roomType }) {
                       </div>
                     )}
                     <div className={`chat-message-bubble-row${mine ? ' mine' : ''}`}>
+                      {!isMobile && mine && (
+                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
+                          <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
+                          <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
+                        </div>
+                      )}
                       {mine && <span className="chat-message-inline-time muted">{formatChatUpdatedAt(item.created_at || '')}</span>}
                       <div className={`chat-bubble${mine ? ' mine' : ''}`}>
                         {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
                         {item.message && <div className="chat-bubble-text">{item.message}</div>}
                         <AttachmentPreview message={item} />
                       </div>
-                      {!isMobile && (
+                      {!isMobile && !mine && (
                         <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
-                          {(item.reaction_summary || []).map(reaction => (
-                            <button
-                              key={`${item.id}-${reaction.emoji}`}
-                              type="button"
-                              className="reaction-pill"
-                              onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
-                            >
-                              {reaction.emoji} {reaction.count}
-                            </button>
-                          ))}
                         </div>
                       )}
                     </div>
-                    {isMobile && (
-                      <div className={`chat-message-tools${mine ? ' mine' : ''}`}>
+                    {(item.reaction_summary || []).length > 0 && (
+                      <div className={`chat-message-reaction-summary${mine ? ' mine' : ''}`}>
                         {(item.reaction_summary || []).map(reaction => (
                           <button
                             key={`${item.id}-${reaction.emoji}`}
@@ -2139,7 +2222,6 @@ function ChatRoomPage({ roomType }) {
                             {reaction.emoji} {reaction.count}
                           </button>
                         ))}
-                        <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
                       </div>
                     )}
                     {pickerOpenFor === item.id && (
@@ -2200,6 +2282,8 @@ function ChatRoomPage({ roomType }) {
       <ChatActionSheet
         title={chatActionSheet?.title}
         actions={chatActionSheet?.actions}
+        reactions={chatActionSheet?.reactions}
+        onReact={chatActionSheet?.onReact}
         onClose={() => setChatActionSheet(null)}
       />
 
@@ -2944,7 +3028,7 @@ function CalendarPage() {
                     <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} onClick={() => openCalendarStatus(daySummary)}>
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack">
-                          <span className="calendar-mobile-vehicle-line">가용차량 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                           <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반일정'}</span>
                         </div>
                       ) : (
