@@ -1474,10 +1474,11 @@ function FriendsPage() {
       {profilePreview.mode === 'edit' && profileEditForm && (
         <div className="profile-preview-backdrop" onClick={() => { setProfilePreview(prev => ({ ...prev, mode: 'card' })); setProfileEditForm(null) }}>
           <div className="profile-preview-card profile-edit-card" onClick={e => e.stopPropagation()}>
-            <div className="profile-preview-cover editable" style={profileEditForm.cover_url ? { backgroundImage: `url(${profileEditForm.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+            <div className="profile-preview-cover editable profile-cover-button" style={profileEditForm.cover_url ? { backgroundImage: `url(${profileEditForm.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} onClick={() => document.getElementById('profile-cover-input')?.click()} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') document.getElementById('profile-cover-input')?.click() }}>
+              <input id="profile-cover-input" type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('cover', e.target.files?.[0]).catch(err => window.alert(err.message))} />
               <div className="inline-actions wrap center profile-media-actions">
-                <button type="button" className="ghost small" onClick={() => setProfileEditForm(prev => ({ ...prev, cover_url: '' }))}>배경화면 삭제(기본그림)</button>
-                <label className="small profile-upload-label">배경화면 추가 및 변경<input type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('cover', e.target.files?.[0]).catch(err => window.alert(err.message))} /></label>
+                <span className="small ghost profile-cover-hint">배경화면을 눌러 변경</span>
+                <button type="button" className="ghost small" onClick={e => { e.stopPropagation(); setProfileEditForm(prev => ({ ...prev, cover_url: '' })) }}>배경화면 삭제(기본그림)</button>
               </div>
             </div>
             <div className="profile-preview-main">
@@ -1490,7 +1491,9 @@ function FriendsPage() {
                 <label className="small profile-upload-label">프로필 추가 및 변경<input type="file" accept="image/*" hidden onChange={e => handleProfileImageUpload('photo', e.target.files?.[0]).catch(err => window.alert(err.message))} /></label>
               </div>
               <input value={profileEditForm.nickname} onChange={e => setProfileEditForm(prev => ({ ...prev, nickname: e.target.value }))} placeholder="닉네임" />
-              <textarea value={profileEditForm.one_liner} onChange={e => setProfileEditForm(prev => ({ ...prev, one_liner: e.target.value }))} placeholder="한줄소개" className="profile-edit-oneliner" />
+              <button type="button" className="profile-edit-oneliner clickable" onClick={() => { const next = window.prompt('한줄소개를 입력하세요.', profileEditForm.one_liner || ''); if (next !== null) setProfileEditForm(prev => ({ ...prev, one_liner: next })) }}>
+                {profileEditForm.one_liner || '한줄소개를 눌러 입력해 주세요.'}
+              </button>
               <div className="inline-actions wrap center profile-preview-actions">
                 <button type="button" className="ghost" onClick={() => { setProfilePreview(prev => ({ ...prev, mode: 'card' })); setProfileEditForm(null) }}>취소</button>
                 <button type="button" onClick={() => saveMyProfileEditor().catch(err => window.alert(err.message))}>저장</button>
@@ -1511,6 +1514,15 @@ const CHAT_CATEGORIES = [
 ]
 
 const QUICK_REACTIONS = ['👍', '❤️', '👏', '🔥', '✅']
+
+const CHAT_PLUS_ACTIONS = [
+  ['image', '이미지첨부'],
+  ['file', '파일첨부'],
+  ['voiceRoom', '음성방개설'],
+  ['voiceMessage', '음성메세지'],
+  ['shareLocation', '내위치공유'],
+  ['schedule', '카톡방일정'],
+]
 
 const ENCLOSED_NUMBERS = {
   1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤', 6: '⑥', 7: '⑦', 8: '⑧', 9: '⑨', 10: '⑩',
@@ -1858,12 +1870,19 @@ ${guide}`)
 function ChatRoomPage({ roomType }) {
   const navigate = useNavigate()
   const params = useParams()
+  const isMobile = useIsMobile()
   const [roomData, setRoomData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [pickerOpenFor, setPickerOpenFor] = useState(null)
+  const [replyTarget, setReplyTarget] = useState(null)
+  const [chatActionSheet, setChatActionSheet] = useState(null)
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
+  const imageInputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const roomId = roomType === 'group' ? params.roomId : params.targetUserId
 
@@ -1909,7 +1928,7 @@ function ChatRoomPage({ roomType }) {
       }
       const payload = {
         message: trimmed,
-        reply_to_id: null,
+        reply_to_id: replyTarget?.id || null,
         mention_user_id: null,
         ...attachmentPayload,
       }
@@ -1920,6 +1939,7 @@ function ChatRoomPage({ roomType }) {
       }
       setMessage('')
       setSelectedFile(null)
+      setReplyTarget(null)
       await loadRoom()
     } finally {
       setSending(false)
@@ -1952,107 +1972,236 @@ function ChatRoomPage({ roomType }) {
     }
   }
 
+  async function handleSendSharedLocation() {
+    if (!navigator.geolocation) {
+      window.alert('현재 브라우저에서는 위치 공유를 지원하지 않습니다.')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(async position => {
+      try {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+        const payload = {
+          message: '내 위치를 공유했습니다.',
+          reply_to_id: replyTarget?.id || null,
+          mention_user_id: null,
+          attachment_name: '공유 위치',
+          attachment_url: `https://maps.google.com/?q=${lat},${lng}`,
+          attachment_type: 'location',
+        }
+        if (roomType === 'group') {
+          await api(`/api/group-rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(payload) })
+        } else {
+          await api(`/api/chat/${roomId}`, { method: 'POST', body: JSON.stringify(payload) })
+        }
+        setPlusMenuOpen(false)
+        setReplyTarget(null)
+        await loadRoom()
+      } catch (error) {
+        window.alert(error.message)
+      }
+    }, () => {
+      window.alert('위치 권한이 허용되지 않아 현재 위치를 공유할 수 없습니다.')
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 })
+  }
+
+  function openReplyComposer(item) {
+    setReplyTarget(item)
+    setChatActionSheet(null)
+    setMessage(prev => prev || '')
+  }
+
+  function openMessageActions(item) {
+    setChatActionSheet({
+      title: '메시지 메뉴',
+      actions: [
+        { label: '답장', onClick: () => openReplyComposer(item) },
+        { label: '반응 추가', onClick: () => setPickerOpenFor(item.id) },
+      ],
+    })
+  }
+
+  function handlePlusAction(action) {
+    setPlusMenuOpen(false)
+    if (action === 'image') {
+      imageInputRef.current?.click()
+      return
+    }
+    if (action === 'file') {
+      fileInputRef.current?.click()
+      return
+    }
+    if (action === 'voiceRoom') {
+      handleStartVoice().catch(err => window.alert(err.message))
+      return
+    }
+    if (action === 'shareLocation') {
+      handleSendSharedLocation().catch?.(() => {})
+      return
+    }
+    if (action === 'voiceMessage') {
+      window.alert('음성메세지 기능은 다음 단계에서 연결됩니다.')
+      return
+    }
+    if (action === 'schedule') {
+      window.alert('카톡방일정 기능은 다음 단계에서 연결됩니다.')
+    }
+  }
+
   const roomTitle = roomType === 'group'
     ? roomData?.room?.title || '단체 채팅방'
     : roomData?.target_user?.nickname || '1:1 채팅'
 
-  const roomSubtitle = roomType === 'group'
-    ? `${roomData?.members?.length || 0}명 참여중`
-    : roomData?.target_user?.region || roomData?.target_user?.bio || ''
-
-  const messages = roomData?.messages || []
   const currentUser = getStoredUser()
+  const roomMembers = roomType === 'group'
+    ? (roomData?.members || [])
+    : [currentUser, roomData?.target_user].filter(Boolean)
+
+  const roomMemberCount = roomMembers.length
+  const messages = roomData?.messages || []
 
   return (
-    <div className="stack-page">
-      <section className="card chat-room-card">
-        <div className="chat-room-header">
-          <div className="chat-room-header-left">
-            <button type="button" className="small ghost" onClick={() => navigate('/chats')}>목록</button>
-            <div className="chat-room-heading">
-              <strong>{roomTitle}</strong>
-              {roomSubtitle && <div className="muted">{roomSubtitle}</div>}
+    <div className="stack-page chat-room-page-shell">
+      <section className="card chat-room-card segmented-chat-layout">
+        <header className="chat-room-topbar-section">
+          <div className="chat-room-topbar-grid">
+            <div className="chat-room-topbar-left">
+              <button type="button" className="small ghost icon-button" onClick={() => navigate('/chats')}>뒤로</button>
+              <div className="chat-room-heading compact">
+                <strong>{roomTitle}</strong>
+                <button type="button" className="chat-member-count-button" onClick={() => setMembersOpen(true)}>{roomMemberCount}명</button>
+              </div>
+            </div>
+            <div className="chat-room-topbar-actions">
+              <button type="button" className="small ghost icon-button" onClick={() => window.alert('채팅방 검색 기능은 다음 단계에서 연결됩니다.')}>검색</button>
+              <button type="button" className="small ghost icon-button" onClick={() => setChatActionSheet({ title: roomTitle, actions: [{ label: '참여자 보기', onClick: () => setMembersOpen(true) }] })}>메뉴</button>
             </div>
           </div>
-          <div className="chat-room-header-actions">
-            <button type="button" className="small ghost" onClick={handleStartVoice}>음성</button>
-          </div>
-        </div>
+        </header>
 
-        <div className="chat-room-messages">
-          {loading && <div className="muted">대화 내용을 불러오는 중...</div>}
-          {!loading && messages.length === 0 && <div className="muted">아직 메시지가 없습니다. 첫 메시지를 보내보세요.</div>}
-          {!loading && messages.map(item => {
-            const mine = String(item.sender_id) === String(currentUser?.id)
-            return (
-              <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}`}>
-                <div className={`chat-bubble${mine ? ' mine' : ''}`}>
-                  <div className="chat-bubble-meta">
-                    <strong>{item.sender?.nickname || '회원'}</strong>
-                    <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
-                  </div>
-                  {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
-                  {item.message && <div className="chat-bubble-text">{item.message}</div>}
-                  <AttachmentPreview message={item} />
-                  <div className="chat-reaction-row">
-                    {(item.reaction_summary || []).map(reaction => (
-                      <button
-                        key={`${item.id}-${reaction.emoji}`}
-                        type="button"
-                        className="reaction-pill"
-                        onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
-                      >
-                        {reaction.emoji} {reaction.count}
-                      </button>
-                    ))}
-                    <button type="button" className="small ghost" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
-                  </div>
-                  {pickerOpenFor === item.id && (
-                    <div className="emoji-picker-row">
-                      {['👍', '❤️', '😂', '👏', '🔥'].map(emoji => (
+        <div className="chat-room-messages-section">
+          <div className="chat-room-messages">
+            {loading && <div className="muted">대화 내용을 불러오는 중...</div>}
+            {!loading && messages.length === 0 && <div className="muted">아직 메시지가 없습니다. 첫 메시지를 보내보세요.</div>}
+            {!loading && messages.map(item => {
+              const mine = String(item.sender_id) === String(currentUser?.id)
+              const longPressHandlers = isMobile ? useLongPress(() => openMessageActions(item), 500) : {}
+              return (
+                <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}`} {...longPressHandlers}>
+                  {!mine && <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />}
+                  <div className={`chat-message-content${mine ? ' mine' : ''}`}>
+                    <div className="chat-message-headerline">
+                      <strong>{item.sender?.nickname || '회원'}</strong>
+                      <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
+                    </div>
+                    <div className={`chat-bubble${mine ? ' mine' : ''}`}>
+                      {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
+                      {item.message && <div className="chat-bubble-text">{item.message}</div>}
+                      <AttachmentPreview message={item} />
+                    </div>
+                    <div className={`chat-message-tools${mine ? ' mine' : ''}`}>
+                      {!isMobile && <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>}
+                      {(item.reaction_summary || []).map(reaction => (
                         <button
-                          key={`${item.id}-${emoji}`}
+                          key={`${item.id}-${reaction.emoji}`}
                           type="button"
-                          className="emoji-button"
-                          onClick={() => {
-                            setPickerOpenFor(null)
-                            handleReaction(item.id, emoji).catch(err => window.alert(err.message))
-                          }}
+                          className="reaction-pill"
+                          onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
                         >
-                          {emoji}
+                          {reaction.emoji} {reaction.count}
                         </button>
                       ))}
+                      <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
                     </div>
-                  )}
+                    {pickerOpenFor === item.id && (
+                      <div className="emoji-picker-row">
+                        {['👍', '❤️', '😂', '👏', '🔥'].map(emoji => (
+                          <button
+                            key={`${item.id}-${emoji}`}
+                            type="button"
+                            className="emoji-button"
+                            onClick={() => {
+                              setPickerOpenFor(null)
+                              handleReaction(item.id, emoji).catch(err => window.alert(err.message))
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
 
-        <form className="chat-compose-box" onSubmit={handleSend}>
-          <div className="chat-compose-attachment">
-            <label className="small ghost upload-trigger">
-              파일
-              <input
-                type="file"
-                hidden
-                onChange={event => setSelectedFile(event.target.files?.[0] || null)}
-              />
-            </label>
-            {selectedFile && <span className="muted">{selectedFile.name}</span>}
-          </div>
-          <textarea
-            value={message}
-            onChange={event => setMessage(event.target.value)}
-            placeholder="메시지를 입력하세요"
-            rows={3}
-          />
-          <div className="chat-compose-actions">
-            <button type="submit" disabled={sending}>{sending ? '전송 중...' : '전송'}</button>
-          </div>
-        </form>
+        <div className="chat-room-compose-section">
+          {replyTarget && (
+            <div className="chat-reply-draft-bar">
+              <div className="chat-reply-draft-text">
+                <strong>{replyTarget.sender?.nickname || '회원'}에게 답장</strong>
+                <div>{replyTarget.message || replyTarget.attachment_name || '첨부 메시지'}</div>
+              </div>
+              <button type="button" className="small ghost" onClick={() => setReplyTarget(null)}>취소</button>
+            </div>
+          )}
+          {selectedFile && (
+            <div className="chat-selected-file-bar">
+              <span>{selectedFile.name}</span>
+              <button type="button" className="small ghost" onClick={() => setSelectedFile(null)}>제거</button>
+            </div>
+          )}
+          <form className="chat-compose-box compact" onSubmit={handleSend}>
+            <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
+            <input ref={fileInputRef} type="file" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
+            <button type="button" className="chat-plus-button" onClick={() => setPlusMenuOpen(true)}>＋</button>
+            <input
+              value={message}
+              onChange={event => setMessage(event.target.value)}
+              placeholder="메시지를 입력하세요"
+              className="chat-message-input"
+            />
+            <button type="submit" className="chat-send-button" disabled={sending}>{sending ? '전송중' : '전송'}</button>
+          </form>
+        </div>
       </section>
+
+      <ChatActionSheet
+        title={chatActionSheet?.title}
+        actions={chatActionSheet?.actions}
+        onClose={() => setChatActionSheet(null)}
+      />
+
+      {plusMenuOpen && (
+        <div className="sheet-backdrop sheet-backdrop-bottom" onClick={() => setPlusMenuOpen(false)}>
+          <div className="chat-bottom-sheet" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">채팅 부가 기능</div>
+            <div className="chat-plus-grid">
+              {CHAT_PLUS_ACTIONS.map(([value, label]) => (
+                <button key={value} type="button" className="chat-plus-action" onClick={() => handlePlusAction(value)}>{label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {membersOpen && (
+        <div className="profile-preview-backdrop" onClick={() => setMembersOpen(false)}>
+          <div className="chat-popup-menu member-list-popup" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">참여 인원 {roomMemberCount}명</div>
+            <div className="chat-member-list">
+              {roomMembers.map(member => (
+                <div key={`member-${member.id || member.nickname}`} className="chat-member-list-item">
+                  <AvatarCircle src={member.photo_url} label={member.nickname || '회원'} size={40} />
+                  <span>{member.nickname || '회원'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2064,9 +2213,16 @@ function MapPage() {
   const leafletRef = useRef(null)
   const markerLayerRef = useRef(null)
   const watchIdRef = useRef(null)
+  const shareToastTimerRef = useRef(null)
   const [users, setUsers] = useState([])
   const [shareNotice, setShareNotice] = useState('')
   const [shareStatus, setShareStatus] = useState({ eligible: false, consent_granted: false, sharing_enabled: false, active_now: false, active_assignment: null })
+
+  function showShareNotice(message) {
+    setShareNotice(message)
+    if (shareToastTimerRef.current) window.clearTimeout(shareToastTimerRef.current)
+    shareToastTimerRef.current = window.setTimeout(() => setShareNotice(''), 2600)
+  }
 
   async function loadMapUsers() {
     try {
@@ -2081,19 +2237,15 @@ function MapPage() {
     try {
       const status = await api('/api/location-sharing/status')
       setShareStatus(status || {})
-      if (status?.active_now) {
-        setShareNotice('현재 담당 일정 시간대라 내 위치가 공유 중입니다.')
-      } else if (status?.sharing_enabled) {
-        setShareNotice('내위치 공유가 켜져 있습니다. 배정 시간대에 자동 공유됩니다.')
-      } else {
-        setShareNotice('내위치 공유가 꺼져 있습니다.')
-      }
     } catch (_) {}
   }
 
   useEffect(() => {
     loadMapUsers().catch(() => {})
     refreshStatus().catch(() => {})
+    return () => {
+      if (shareToastTimerRef.current) window.clearTimeout(shareToastTimerRef.current)
+    }
   }, [])
 
   async function handleToggleShare(nextEnabled) {
@@ -2103,8 +2255,7 @@ function MapPage() {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
-      setShareNotice('내위치 공유가 꺼졌습니다.')
-      refreshStatus().catch(() => {})
+      await refreshStatus()
       return
     }
     const status = await api('/api/location-sharing/status')
@@ -2116,6 +2267,7 @@ function MapPage() {
     if (!approved) return
     await api('/api/location-sharing/consent', { method: 'POST', body: JSON.stringify({ enabled: true }) })
     await refreshStatus()
+    showShareNotice('내위치 공유가 켜져 있습니다. 배정 시간대에 자동 공유됩니다.')
   }
 
   useEffect(() => {
@@ -2125,15 +2277,14 @@ function MapPage() {
         const status = await api('/api/location-sharing/status')
         if (cancelled) return
         setShareStatus(status || {})
-        const shouldWatch = Boolean(status?.sharing_enabled && status?.active_now)
-        if (!shouldWatch) {
+        if (!status?.sharing_enabled || !navigator.geolocation) {
           if (watchIdRef.current !== null && navigator.geolocation) {
             navigator.geolocation.clearWatch(watchIdRef.current)
             watchIdRef.current = null
           }
           return
         }
-        if (!navigator.geolocation || watchIdRef.current !== null) return
+        if (watchIdRef.current !== null) return
         watchIdRef.current = navigator.geolocation.watchPosition(async pos => {
           try {
             const currentUser = getStoredUser()
@@ -2144,7 +2295,7 @@ function MapPage() {
             if (!cancelled) loadMapUsers().catch(() => {})
           } catch (_) {}
         }, () => {
-          setShareNotice('위치 권한이 거부되어 지도 공개를 진행할 수 없습니다.')
+          showShareNotice('위치 권한이 거부되어 지도 공개를 진행할 수 없습니다.')
         }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 })
       } catch (_) {}
     }
@@ -2193,31 +2344,45 @@ function MapPage() {
 
   return (
     <div className="stack-page">
-      <section className="card map-card">
-        <div className="map-card-head">
-          <div className="map-legend muted">차량번호와 호점이 등록된 기사 위치가 지도 위에 표시됩니다. 표시는 각 호점 숫자 아이콘으로 보입니다.</div>
-          <label className="share-toggle">
+      <section className="card map-card enhanced-map-card">
+        <div className={`map-card-head ${isMobile ? 'mobile' : ''}`}>
+          <div className="map-head-spacer" />
+          <label className="share-toggle map-share-toggle">
             <span>내위치 공유</span>
             <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
             <span className="share-toggle-slider" />
           </label>
         </div>
-        {shareNotice && <div className="info">{shareNotice}</div>}
+        {shareNotice && <div className="map-toast-notice">{shareNotice}</div>}
         <div ref={mapRef} className="real-map-canvas" />
-        <div className="map-driver-list">
-          {users.map(item => (
-            <div key={item.id} className="map-driver-item">
-              <strong>{ENCLOSED_NUMBERS[item.branch_no] || item.branch_no} {item.branch_no}호점</strong>
-              <span>{item.nickname} / {item.vehicle_number}</span>
-              <span>{item.region}</span>
-            </div>
-          ))}
-          {users.length === 0 && <div className="muted">지도에 표시할 차량 위치가 없습니다.</div>}
+        <div className="vehicle-list-panel">
+          <div className="vehicle-list-title">차량 목록</div>
+          <div className="vehicle-list-items">
+            {users.map(item => {
+              const statusText = item.map_status?.status_text || `현위치 ${item.map_status?.current_location || item.region || '-'}에 있고 정차 중`
+              return (
+                <div key={item.id} className="vehicle-list-item">
+                  <div className="vehicle-list-line primary">
+                    <strong>[{item.branch_no}호점]</strong>
+                    <span>[{statusText}]</span>
+                  </div>
+                  {item.map_status?.is_moving && (
+                    <>
+                      <div className="vehicle-list-line sub">* {item.branch_no}호점 이동소요시간 카카오맵 API 연동 후 표시 예정</div>
+                      <div className="vehicle-list-line sub">* {item.branch_no}호점 예상도착시간 카카오맵 API 연동 후 표시 예정</div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            {users.length === 0 && <div className="muted">지도에 표시할 차량 위치가 없습니다.</div>}
+          </div>
         </div>
       </section>
     </div>
   )
 }
+
 
 function MeetupsPage() {
 

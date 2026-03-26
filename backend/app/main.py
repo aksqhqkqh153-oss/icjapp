@@ -441,6 +441,7 @@ def _calendar_row_summary(user: dict, row: dict) -> dict:
         'representative_text': _assignment_display_text(user, ' / '.join(rep_list)),
         'staff_text': _assignment_display_text(user, ' / '.join(staff_list)),
         'start_address': row.get('start_address') or row.get('location') or '',
+        'end_address': row.get('end_address') or '',
         'window_start': _schedule_time_window(target_date, row.get('start_time') or row.get('visit_time'), row.get('end_time')),
     }
 
@@ -456,6 +457,7 @@ def _manual_row_summary(user: dict, row: dict) -> dict:
         'representative_text': _assignment_display_text(user, row.get('representative_names') or ''),
         'staff_text': _assignment_display_text(user, row.get('staff_names') or ''),
         'start_address': row.get('start_address') or row.get('location') or '',
+        'end_address': row.get('end_address') or '',
         'window_start': _schedule_time_window(date_value, row.get('schedule_time'), None),
     }
 
@@ -479,7 +481,7 @@ def _assigned_schedule_items(conn, user: dict, start_date: date, end_date: date)
         items.append(_calendar_row_summary(user, data))
     manual_rows = conn.execute(
         """
-        SELECT w.*, c.start_address AS linked_start_address, c.location AS linked_location
+        SELECT w.*, c.start_address AS linked_start_address, c.location AS linked_location, c.end_address AS linked_end_address
         FROM work_schedule_entries w
         LEFT JOIN calendar_events c
           ON c.event_date = w.schedule_date
@@ -494,6 +496,7 @@ def _assigned_schedule_items(conn, user: dict, start_date: date, end_date: date)
         if not _row_assigned_to_user(user, data):
             continue
         data['start_address'] = data.get('linked_start_address') or data.get('linked_location') or ''
+        data['end_address'] = data.get('linked_end_address') or ''
         items.append(_manual_row_summary(user, data))
     items.sort(key=lambda item: (item['schedule_date'], '99:99' if item['time_text'] in ('', '미정') else item['time_text'], str(item['id'])))
     return items
@@ -1617,11 +1620,41 @@ def map_users(user=Depends(require_user)):
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM users WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND COALESCE(vehicle_number, '') != '' AND branch_no IS NOT NULL AND COALESCE(location_share_consent, 0) = 1 AND COALESCE(location_share_enabled, 0) = 1 ORDER BY branch_no, id").fetchall()
         visible = []
+        today = datetime.now().date()
+        now_dt = datetime.now()
         for row in rows:
             public = user_public_dict(row)
             status = _location_share_status(conn, public)
-            if status['active_now']:
-                visible.append(public)
+            if not status['active_now']:
+                continue
+            assignments = _assigned_schedule_items(conn, public, today, today)
+            active_item = None
+            upcoming_item = None
+            for item in assignments:
+                start_dt, end_dt = item.get('window_start') or (None, None)
+                if start_dt and end_dt and start_dt <= now_dt <= end_dt:
+                    active_item = item
+                    break
+                if start_dt and start_dt > now_dt and upcoming_item is None:
+                    upcoming_item = item
+            display_item = active_item or upcoming_item
+            current_location = str(public.get('region') or public.get('resident_address') or '위치 확인중').strip()
+            destination_address = str((display_item or {}).get('end_address') or '').strip()
+            is_moving = bool(destination_address)
+            status_text = f"현위치 {current_location}에 있고 정차 중"
+            if is_moving:
+                status_text = f"현위치 {current_location}에 있고, {destination_address}로 이동중"
+            public['map_status'] = {
+                'current_location': current_location,
+                'destination_address': destination_address,
+                'is_moving': is_moving,
+                'status_text': status_text,
+                'assignment_time': (display_item or {}).get('time_text') or '',
+                'customer_name': (display_item or {}).get('customer_name') or '',
+                'travel_eta_text': '',
+                'estimated_arrival_text': '',
+            }
+            visible.append(public)
         return visible
 @app.get("/api/map-region-boundaries")
 def map_region_boundaries(user=Depends(require_user)):
