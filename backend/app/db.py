@@ -1366,6 +1366,12 @@ def _ensure_columns(conn: Any, table: str, columns: dict[str, str]) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {_transform_column_ddl(ddl, DB_ENGINE)}")
 
 
+
+
+def _ensure_unique_index(conn: Any, table: str, index_name: str, columns: list[str]) -> None:
+    cols = ', '.join(columns)
+    conn.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table} ({cols})")
+
 def init_db() -> None:
     schema_sql = _sqlite_schema_to_postgres(SCHEMA_SQL) if DB_ENGINE == 'postgresql' else SCHEMA_SQL
     with get_conn() as conn:
@@ -1460,6 +1466,7 @@ def init_db() -> None:
             'sync_message': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
+        _ensure_unique_index(conn, 'settlement_platform_metrics', 'uq_settlement_platform_metrics_platform_metric_key', ['platform', 'metric_key'])
         _ensure_columns(conn, 'settlement_sync_history', {
             'trigger_type': "TEXT NOT NULL DEFAULT 'manual'",
             'sync_status': "TEXT NOT NULL DEFAULT 'idle'",
