@@ -1621,6 +1621,209 @@ ${guide}`)
 }
 
 
+function ChatRoomPage({ roomType }) {
+  const navigate = useNavigate()
+  const params = useParams()
+  const [roomData, setRoomData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [message, setMessage] = useState('')
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [pickerOpenFor, setPickerOpenFor] = useState(null)
+
+  const roomId = roomType === 'group' ? params.roomId : params.targetUserId
+
+  async function loadRoom() {
+    setLoading(true)
+    try {
+      const data = roomType === 'group'
+        ? await api(`/api/group-rooms/${roomId}/messages`)
+        : await api(`/api/chat/${roomId}`)
+      setRoomData(data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadRoom().catch(() => setLoading(false))
+  }, [roomType, roomId])
+
+  useEffect(() => {
+    if (!roomData?.pending_mentions?.length) return
+    roomData.pending_mentions.forEach(item => {
+      api(`/api/chat-mentions/${item.id}/seen`, { method: 'POST' }).catch(() => {})
+    })
+  }, [roomData?.pending_mentions])
+
+  async function handleSend(event) {
+    event?.preventDefault?.()
+    if (sending) return
+    const trimmed = message.trim()
+    if (!trimmed && !selectedFile) return
+    setSending(true)
+    try {
+      let attachmentPayload = {}
+      if (selectedFile) {
+        const uploaded = await uploadFile(selectedFile, 'chat')
+        const isImage = String(selectedFile.type || '').startsWith('image/')
+        attachmentPayload = {
+          attachment_name: uploaded.original_name || selectedFile.name,
+          attachment_url: uploaded.url,
+          attachment_type: isImage ? 'image' : 'file',
+        }
+      }
+      const payload = {
+        message: trimmed,
+        reply_to_id: null,
+        mention_user_id: null,
+        ...attachmentPayload,
+      }
+      if (roomType === 'group') {
+        await api(`/api/group-rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(payload) })
+      } else {
+        await api(`/api/chat/${roomId}`, { method: 'POST', body: JSON.stringify(payload) })
+      }
+      setMessage('')
+      setSelectedFile(null)
+      await loadRoom()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleReaction(messageId, emoji) {
+    const endpoint = roomType === 'group'
+      ? `/api/group-messages/${messageId}/reactions`
+      : `/api/dm-messages/${messageId}/reactions`
+    await api(endpoint, { method: 'POST', body: JSON.stringify({ emoji }) })
+    await loadRoom()
+  }
+
+  async function handleStartVoice() {
+    try {
+      if (roomType === 'group') {
+        window.alert('단체 음성통화 기능은 다음 단계에서 연동 예정입니다.')
+        return
+      }
+      const existing = await api(`/api/chat/${roomId}/voice-room`)
+      if (existing?.id || existing?.room?.id || existing?.room_id) {
+        window.alert('이미 진행 중인 음성통화 방이 있습니다.')
+        return
+      }
+      await api(`/api/chat/${roomId}/voice-room`, { method: 'POST' })
+      window.alert('음성통화 요청을 보냈습니다.')
+    } catch (error) {
+      window.alert(error.message)
+    }
+  }
+
+  const roomTitle = roomType === 'group'
+    ? roomData?.room?.title || '단체 채팅방'
+    : roomData?.target_user?.nickname || '1:1 채팅'
+
+  const roomSubtitle = roomType === 'group'
+    ? `${roomData?.members?.length || 0}명 참여중`
+    : roomData?.target_user?.region || roomData?.target_user?.bio || ''
+
+  const messages = roomData?.messages || []
+  const currentUser = getStoredUser()
+
+  return (
+    <div className="stack-page">
+      <section className="card chat-room-card">
+        <div className="chat-room-header">
+          <div className="chat-room-header-left">
+            <button type="button" className="small ghost" onClick={() => navigate('/chats')}>목록</button>
+            <div className="chat-room-heading">
+              <strong>{roomTitle}</strong>
+              {roomSubtitle && <div className="muted">{roomSubtitle}</div>}
+            </div>
+          </div>
+          <div className="chat-room-header-actions">
+            <button type="button" className="small ghost" onClick={handleStartVoice}>음성</button>
+          </div>
+        </div>
+
+        <div className="chat-room-messages">
+          {loading && <div className="muted">대화 내용을 불러오는 중...</div>}
+          {!loading && messages.length === 0 && <div className="muted">아직 메시지가 없습니다. 첫 메시지를 보내보세요.</div>}
+          {!loading && messages.map(item => {
+            const mine = String(item.sender_id) === String(currentUser?.id)
+            return (
+              <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}`}>
+                <div className={`chat-bubble${mine ? ' mine' : ''}`}>
+                  <div className="chat-bubble-meta">
+                    <strong>{item.sender?.nickname || '회원'}</strong>
+                    <span className="muted">{formatChatUpdatedAt(item.created_at || '')}</span>
+                  </div>
+                  {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
+                  {item.message && <div className="chat-bubble-text">{item.message}</div>}
+                  <AttachmentPreview message={item} />
+                  <div className="chat-reaction-row">
+                    {(item.reaction_summary || []).map(reaction => (
+                      <button
+                        key={`${item.id}-${reaction.emoji}`}
+                        type="button"
+                        className="reaction-pill"
+                        onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
+                      >
+                        {reaction.emoji} {reaction.count}
+                      </button>
+                    ))}
+                    <button type="button" className="small ghost" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
+                  </div>
+                  {pickerOpenFor === item.id && (
+                    <div className="emoji-picker-row">
+                      {['👍', '❤️', '😂', '👏', '🔥'].map(emoji => (
+                        <button
+                          key={`${item.id}-${emoji}`}
+                          type="button"
+                          className="emoji-button"
+                          onClick={() => {
+                            setPickerOpenFor(null)
+                            handleReaction(item.id, emoji).catch(err => window.alert(err.message))
+                          }}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <form className="chat-compose-box" onSubmit={handleSend}>
+          <div className="chat-compose-attachment">
+            <label className="small ghost upload-trigger">
+              파일
+              <input
+                type="file"
+                hidden
+                onChange={event => setSelectedFile(event.target.files?.[0] || null)}
+              />
+            </label>
+            {selectedFile && <span className="muted">{selectedFile.name}</span>}
+          </div>
+          <textarea
+            value={message}
+            onChange={event => setMessage(event.target.value)}
+            placeholder="메시지를 입력하세요"
+            rows={3}
+          />
+          <div className="chat-compose-actions">
+            <button type="submit" disabled={sending}>{sending ? '전송 중...' : '전송'}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+
 function MapPage() {
   const isMobile = useIsMobile()
   const mapRef = useRef(null)
