@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
+import logging
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
@@ -20,6 +21,23 @@ def _split_csv(value: str | None, fallback: list[str]) -> list[str]:
 
 def _pages_preview_origin_regex() -> str:
     return r"https://([a-z0-9-]+\.)*pages\.dev$"
+
+
+logger = logging.getLogger("icj24app.settings")
+
+
+def _clean_secret(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.strip().strip('"').strip("'").strip()
+
+
+def _first_env(*keys: str) -> tuple[str, str]:
+    for key in keys:
+        cleaned = _clean_secret(os.getenv(key))
+        if cleaned:
+            return cleaned, key
+    return "", ""
 
 
 
@@ -89,8 +107,8 @@ class Settings:
     settlement_runtime_dir: Path = field(default_factory=lambda: Path(os.getenv("SETTLEMENT_RUNTIME_DIR", str(Path(__file__).resolve().parents[1] / "runtime"))))
     settlement_auth_state_path: str = field(default_factory=lambda: os.getenv("SETTLEMENT_AUTH_STATE_PATH", str(Path(__file__).resolve().parents[1] / "playwright" / ".auth" / "soomgo-state.json")).strip())
     soomgo_login_url: str = field(default_factory=lambda: os.getenv("SOOMGO_LOGIN_URL", "https://soomgo.com/login").strip())
-    soomgo_email: str = field(default_factory=lambda: os.getenv("SOOMGO_EMAIL", "").strip())
-    soomgo_password: str = field(default_factory=lambda: os.getenv("SOOMGO_PASSWORD", "").strip())
+    soomgo_email: str = field(default_factory=lambda: _first_env("SOOMGO_EMAIL", "SETTLEMENT_SOOMGO_EMAIL", "SOOMGO_ID", "SOOMGO_LOGIN_ID")[0])
+    soomgo_password: str = field(default_factory=lambda: _first_env("SOOMGO_PASSWORD", "SETTLEMENT_SOOMGO_PASSWORD", "SOOMGO_PW", "SOOMGO_LOGIN_PASSWORD")[0])
     soomgo_value_xpath: str = field(default_factory=lambda: os.getenv("SOOMGO_VALUE_XPATH", '//*[@id="__next"]/main/div/div[2]/div[2]/div[1]/p[1]').strip())
     soomgo_target_urls: list[str] = field(default_factory=lambda: _split_csv(os.getenv("SOOMGO_TARGET_URLS"), ["https://soomgo.com/instant-match/65839", "https://soomgo.com/instant-match/57259", "https://soomgo.com/instant-match/229276"]))
 
@@ -112,6 +130,27 @@ class Settings:
         if not self.r2_account_id:
             return ""
         return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
+
+
+    @property
+    def soomgo_email_env_name(self) -> str:
+        return _first_env("SOOMGO_EMAIL", "SETTLEMENT_SOOMGO_EMAIL", "SOOMGO_ID", "SOOMGO_LOGIN_ID")[1]
+
+    @property
+    def soomgo_password_env_name(self) -> str:
+        return _first_env("SOOMGO_PASSWORD", "SETTLEMENT_SOOMGO_PASSWORD", "SOOMGO_PW", "SOOMGO_LOGIN_PASSWORD")[1]
+
+    @property
+    def soomgo_credentials_configured(self) -> bool:
+        return bool(self.soomgo_email and self.soomgo_password)
+
+    @property
+    def soomgo_credentials_summary(self) -> dict[str, str | bool]:
+        return {
+            "configured": self.soomgo_credentials_configured,
+            "email_env": self.soomgo_email_env_name,
+            "password_env": self.soomgo_password_env_name,
+        }
 
 
 settings = Settings()

@@ -5386,6 +5386,7 @@ function SettlementPage() {
 
   const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
+  const syncConfig = syncStatus.config || {}
 
   return (
     <div className="stack-page settlement-page">
@@ -5396,6 +5397,12 @@ function SettlementPage() {
             <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
             <div className="muted settlement-sync-summary">숨고 최신 합계: <strong>{soomgoMetric.value ?? 0}</strong>건 {soomgoMetric.updated_at ? `· 최근 연동 ${String(soomgoMetric.updated_at).replace('T', ' ')}` : ''}</div>
             <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
+            {!syncConfig.configured && (
+              <div className="muted settlement-sync-warning">숨고 계정 변수가 아직 감지되지 않았습니다. Railway 백엔드 서비스 Variables에 <strong>SOOMGO_EMAIL</strong>, <strong>SOOMGO_PASSWORD</strong> 를 저장하고 재배포하세요.</div>
+            )}
+            {syncConfig.configured && (
+              <div className="muted settlement-sync-warning">연동 변수 감지 완료 · email 변수: <strong>{syncConfig.email_env || '없음'}</strong> · password 변수: <strong>{syncConfig.password_env || '없음'}</strong></div>
+            )}
           </div>
           <div className="settlement-sync-actions">
             <button type="button" className="small" onClick={handleRefreshSync} disabled={syncLoading || syncStatus.is_running}>

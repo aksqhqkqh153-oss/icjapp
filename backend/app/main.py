@@ -752,6 +752,9 @@ def health():
         "policy_url": settings.policy_url,
         "r2_enabled": settings.r2_enabled,
         "r2_public_base_url": settings.r2_public_base_url,
+        "soomgo_credentials_configured": settings.soomgo_credentials_configured,
+        "soomgo_email_env": settings.soomgo_email_env_name,
+        "soomgo_password_env": settings.soomgo_password_env_name,
     }
 
 

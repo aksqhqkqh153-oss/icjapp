@@ -62,3 +62,12 @@ ADD CONSTRAINT settlement_platform_metrics_pkey PRIMARY KEY (platform, metric_ke
 2. `https://api.icj2424app.com/api/health` 확인
 3. 앱에서 `결산자료 > 데이터 연동` 클릭
 4. 서버 로그에서 500 / Playwright 오류가 사라졌는지 확인
+
+
+## SOOMGO 변수 미감지(409 Conflict) 추가 점검
+- Railway 로그에 `숨고 계정 정보가 설정되지 않았습니다`가 나오면, 현재 컨테이너가 숨고 변수를 못 읽는 상태입니다.
+- 변수는 반드시 **백엔드 서비스 > Variables > Production** 에 넣어야 합니다. 프로젝트 전체나 다른 서비스에 넣으면 이 컨테이너가 못 읽을 수 있습니다.
+- 저장 후에는 **Redeploy** 또는 **Restart** 를 해야 새 컨테이너가 값을 읽습니다.
+- 앱 `결산자료` 화면에 이제 감지된 변수 이름이 표시됩니다.
+- 기본 키: `SOOMGO_EMAIL`, `SOOMGO_PASSWORD`
+- 호환 키: `SETTLEMENT_SOOMGO_EMAIL`, `SETTLEMENT_SOOMGO_PASSWORD`, `SOOMGO_ID`, `SOOMGO_LOGIN_ID`, `SOOMGO_PW`, `SOOMGO_LOGIN_PASSWORD`

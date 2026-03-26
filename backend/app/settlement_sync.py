@@ -83,6 +83,7 @@ class SettlementSyncService:
                     'random_min_minutes': settings.settlement_sync_random_min_minutes,
                     'random_max_minutes': settings.settlement_sync_random_max_minutes,
                 },
+                'config': settings.soomgo_credentials_summary,
             }
         base['platforms'] = self.fetch_latest_metrics()
         return base
@@ -282,7 +283,7 @@ class SettlementSyncService:
         email = settings.soomgo_email.strip()
         password = settings.soomgo_password.strip()
         if not email or not password:
-            raise RuntimeError('숨고 계정 정보가 설정되지 않았습니다. backend/.env 또는 비밀 파일에 SOOMGO_EMAIL/SOOMGO_PASSWORD 를 설정해 주세요.')
+            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={settings.soomgo_email_env_name or "없음"}, password={settings.soomgo_password_env_name or "없음"}. Railway에서는 백엔드 서비스 Variables에 SOOMGO_EMAIL/SOOMGO_PASSWORD 를 저장한 뒤 재배포해야 합니다.')
 
         login_url = settings.soomgo_login_url.strip() or 'https://soomgo.com/login'
         page.goto(login_url, wait_until='domcontentloaded', timeout=settings.settlement_playwright_timeout_ms)
