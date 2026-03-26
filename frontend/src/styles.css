@@ -3156,3 +3156,115 @@ label { font-size: 14px; color: #4f6f8c; }
     background: #f3f6fa;
   }
 }
+
+.settlement-page {
+  gap: 14px;
+}
+.settlement-hero {
+  border-radius: 14px;
+}
+.settlement-hero h2 {
+  margin: 0 0 6px;
+}
+.settlement-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+button.settlement-tab {
+  min-width: 110px;
+  border-radius: 10px;
+  box-shadow: none;
+  background: #fff;
+}
+button.settlement-tab.active {
+  background: #eef6ff;
+  border-color: #8db6d8;
+}
+.settlement-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+.settlement-sheet {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.settlement-sheet-title,
+.settlement-sheet-date,
+.settlement-grid-row,
+.settlement-grid-head {
+  display: grid;
+  align-items: stretch;
+}
+.settlement-sheet-title {
+  padding: 10px 12px;
+  font-weight: 700;
+  background: #f3f8fd;
+  border-bottom: 1px solid #c7d7e5;
+}
+.settlement-sheet-date {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #5d7489;
+  border-bottom: 1px solid #d7e3ee;
+}
+.settlement-grid-row-4 {
+  grid-template-columns: 1.1fr 0.8fr 1.4fr 0.9fr;
+}
+.settlement-grid-row-6 {
+  grid-template-columns: 0.95fr 0.7fr 1.7fr 0.8fr 0.8fr 0.8fr;
+}
+.settlement-grid-head > div,
+.settlement-grid-row > div {
+  min-width: 0;
+  padding: 8px 10px;
+  border-right: 1px solid #d7e3ee;
+  border-bottom: 1px solid #d7e3ee;
+  font-size: 13px;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+.settlement-grid-head > div:last-child,
+.settlement-grid-row > div:last-child {
+  border-right: 0;
+}
+.settlement-grid-head {
+  background: #f8fbfe;
+  font-weight: 700;
+}
+.settlement-grid-head-summary {
+  grid-template-columns: 1.9fr 2.3fr;
+}
+.settlement-grid-head-summary > div {
+  padding: 8px 10px;
+}
+.settlement-summary-table,
+.settlement-detail-table {
+  border-bottom: 1px solid #d7e3ee;
+}
+.settlement-summary-table .settlement-grid-row > div:nth-child(2),
+.settlement-summary-table .settlement-grid-row > div:nth-child(4),
+.settlement-detail-table .settlement-grid-row > div:nth-child(2),
+.settlement-detail-table .settlement-grid-row > div:nth-child(4),
+.settlement-detail-table .settlement-grid-row > div:nth-child(5),
+.settlement-detail-table .settlement-grid-row > div:nth-child(6) {
+  text-align: right;
+}
+.settlement-total-row {
+  background: #f7fbff;
+  font-weight: 700;
+}
+@media (max-width: 760px) {
+  .settlement-sheet-grid {
+    grid-template-columns: 1fr;
+  }
+  .settlement-grid-head > div,
+  .settlement-grid-row > div {
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+}

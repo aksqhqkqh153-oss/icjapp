@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AUTH_EXPIRED_EVENT, api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
+import { SETTLEMENT_DATA } from './settlementData'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
@@ -21,6 +22,7 @@ const PAGE_TITLES = {
   '/settings': '설정',
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
+  '/settlements': '결산자료',
 }
 
 function pageTitle(pathname) {
@@ -105,8 +107,9 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'materialsBuy', label: '자재구매', kind: 'placeholder' },
   { id: 'workShift', label: '근무스케줄', kind: 'placeholder' },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
+  { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus', 'settlements']
 
 function quickActionStorageKey(userId) {
   return `icj_quick_actions_${userId || 'guest'}`
@@ -5264,6 +5267,112 @@ function LocationSharingAgent({ user }) {
   return null
 }
 
+
+function formatSettlementValue(label, value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '-'
+  if (raw === '#DIV/0!') return '0.0%'
+  const numeric = Number(raw)
+  if (!Number.isNaN(numeric) && /계약률/.test(String(label || ''))) {
+    return `${(numeric * 100).toFixed(1)}%`
+  }
+  return raw
+}
+
+function SettlementSheetCard({ block }) {
+  return (
+    <section className="settlement-sheet card">
+      <div className="settlement-sheet-title">{block.title}</div>
+      <div className="settlement-sheet-date">{block.date}</div>
+
+      <div className="settlement-grid-head settlement-grid-head-summary">
+        <div>{block.summaryHeaders[0]}</div>
+        <div>{block.summaryHeaders[1]}</div>
+      </div>
+      <div className="settlement-summary-table">
+        {block.summaryRows.map((row, index) => (
+          <div key={`${block.title}-summary-${index}`} className="settlement-grid-row settlement-grid-row-4">
+            <div>{row.source || '-'}</div>
+            <div className="number">{formatSettlementValue(row.label, row.count)}</div>
+            <div>{row.label || '-'}</div>
+            <div className="number">{formatSettlementValue(row.label, row.value)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="settlement-grid-head settlement-grid-row-6">
+        <div>{block.reviewHeaders[0]}</div>
+        <div></div>
+        <div>{block.reviewHeaders[1]}</div>
+        <div></div>
+        <div>{block.reviewHeaders[2]}</div>
+        <div>{block.reviewHeaders[3]}</div>
+      </div>
+      <div className="settlement-detail-table">
+        {block.branchRows.map((row, index) => (
+          <div key={`${block.title}-branch-${index}`} className="settlement-grid-row settlement-grid-row-6">
+            <div>{row.platform || ''}</div>
+            <div className="number">{formatSettlementValue('', row.platformCount)}</div>
+            <div>{row.branch || '-'}</div>
+            <div className="number">{formatSettlementValue('', row.branchCount)}</div>
+            <div className="number">{formatSettlementValue('', row.issues)}</div>
+            <div className="number">{formatSettlementValue('', row.score)}</div>
+          </div>
+        ))}
+        {block.total && (
+          <div className="settlement-grid-row settlement-grid-row-6 settlement-total-row">
+            <div>{block.total.label || '총 계'}</div>
+            <div className="number">{formatSettlementValue('', block.total.platformReview)}</div>
+            <div></div>
+            <div className="number">{formatSettlementValue('', block.total.branchReview)}</div>
+            <div className="number">{formatSettlementValue('', block.total.issues)}</div>
+            <div className="number">{formatSettlementValue('', block.total.score)}</div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function SettlementPage() {
+  const categories = [
+    { id: 'daily', label: '일일결산' },
+    { id: 'weekly', label: '주간결산' },
+    { id: 'monthly', label: '월간결산' },
+  ]
+  const [activeCategory, setActiveCategory] = useState('daily')
+  const blocks = SETTLEMENT_DATA[activeCategory] || []
+
+  return (
+    <div className="stack-page settlement-page">
+      <section className="card settlement-hero">
+        <div className="between settlement-hero-head">
+          <div>
+            <h2>결산자료</h2>
+            <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
+          </div>
+        </div>
+        <div className="settlement-tabs" role="tablist" aria-label="결산자료 카테고리">
+          {categories.map(category => (
+            <button
+              key={category.id}
+              type="button"
+              className={activeCategory === category.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'}
+              onClick={() => setActiveCategory(category.id)}
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="settlement-sheet-grid">
+        {blocks.map(block => <SettlementSheetCard key={`${activeCategory}-${block.title}-${block.date}`} block={block} />)}
+      </section>
+    </div>
+  )
+}
+
 function AppAssignmentNotificationWatcher({ user }) {
   const navigate = useNavigate()
   const shownRef = useRef(new Set())
@@ -5380,6 +5489,7 @@ export default function App() {
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/points" element={<PointsPage />} />
+        <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
