@@ -802,6 +802,19 @@ def settlement_platform_credentials_save(payload: SettlementCredentialIn, user=D
     return settlement_platform_credentials(user)
 
 
+@app.post("/api/settlement/platform-sync/refresh")
+def settlement_platform_sync_refresh(user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    try:
+        return settlement_sync_service.run_once(trigger='manual')
+    except RuntimeError as exc:
+        message = str(exc)
+        status_code = 409 if '이미 데이터 연동이 진행 중' in message else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f'데이터 연동 중 오류가 발생했습니다: {exc}') from exc
+
+
 @app.get("/api/deployment/meta")
 def deployment_meta():
     return {
