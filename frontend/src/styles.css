@@ -3353,3 +3353,7 @@ button.settlement-tab.active {
     grid-template-columns: 1fr;
   }
 }
+
+
+.settlement-auth-state-textarea{width:100%;min-height:140px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;resize:vertical;font:inherit;}
+.settlement-sync-actions-inline{justify-content:flex-start;margin-top:8px;}

@@ -57,6 +57,63 @@ def _load_saved_credentials() -> tuple[str, str]:
     return values.get('soomgo_email', ''), values.get('soomgo_password', '')
 
 
+
+
+def _load_saved_auth_state() -> str:
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT secret_value FROM app_secrets WHERE secret_key = 'soomgo_storage_state'"
+            ).fetchone()
+    except Exception:
+        logger.exception('failed to load saved settlement auth state')
+        return ''
+    return (row['secret_value'] or '').strip() if row else ''
+
+
+def save_auth_state_json(raw_text: str) -> dict[str, Any]:
+    text = (raw_text or '').strip()
+    if not text:
+        raise RuntimeError('인증 세션 JSON이 비어 있습니다.')
+    try:
+        data = json.loads(text)
+    except Exception as exc:
+        raise RuntimeError('인증 세션 JSON 형식이 올바르지 않습니다.') from exc
+    if not isinstance(data, dict):
+        raise RuntimeError('인증 세션 JSON 루트는 객체여야 합니다.')
+    cookies = data.get('cookies') or []
+    origins = data.get('origins') or []
+    if not isinstance(cookies, list) or not isinstance(origins, list):
+        raise RuntimeError('인증 세션 JSON 형식이 올바르지 않습니다.')
+    compact = json.dumps({'cookies': cookies, 'origins': origins}, ensure_ascii=False)
+    now_iso = utcnow()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
+            ('soomgo_storage_state', compact, now_iso),
+        )
+    cfg = _runtime_settings()
+    auth_state_path = Path(cfg.settlement_auth_state_path)
+    auth_state_path.parent.mkdir(parents=True, exist_ok=True)
+    auth_state_path.write_text(compact, encoding='utf-8')
+    return {
+        'saved': True,
+        'updated_at': now_iso,
+        'cookie_count': len(cookies),
+        'origin_count': len(origins),
+    }
+
+
+def _restore_auth_state_file() -> bool:
+    cfg = _runtime_settings()
+    auth_state_path = Path(cfg.settlement_auth_state_path)
+    raw = _load_saved_auth_state()
+    if not raw:
+        return auth_state_path.exists()
+    auth_state_path.parent.mkdir(parents=True, exist_ok=True)
+    auth_state_path.write_text(raw, encoding='utf-8')
+    return True
+
 def _credential_summary() -> dict[str, str | bool]:
     cfg = _runtime_settings()
     email = (cfg.soomgo_email or '').strip()
@@ -71,12 +128,14 @@ def _credential_summary() -> dict[str, str | bool]:
         if saved_password:
             password = saved_password
             password_source = 'db_saved'
+    auth_state_present = bool(_load_saved_auth_state())
     return {
         'configured': bool(email and password),
         'email_env': email_source,
         'password_env': password_source,
         'email_present': bool(email),
         'password_present': bool(password),
+        'auth_state_present': auth_state_present,
     }
 
 
@@ -369,7 +428,14 @@ class SettlementSyncService:
             loc = page.locator(selector)
             if loc.count() > 0:
                 try:
-                    loc.first.fill(email, timeout=2000)
+                    target = loc.first
+                    target.click(timeout=2000)
+                    try:
+                        target.press('Control+A', timeout=1000)
+                        target.press('Delete', timeout=1000)
+                    except Exception:
+                        pass
+                    target.type(email, delay=random.randint(45, 110), timeout=4000)
                     email_filled = True
                     break
                 except Exception:
@@ -382,7 +448,14 @@ class SettlementSyncService:
             loc = page.locator(selector)
             if loc.count() > 0:
                 try:
-                    loc.first.fill(password, timeout=2000)
+                    target = loc.first
+                    target.click(timeout=2000)
+                    try:
+                        target.press('Control+A', timeout=1000)
+                        target.press('Delete', timeout=1000)
+                    except Exception:
+                        pass
+                    target.type(password, delay=random.randint(45, 110), timeout=4000)
                     password_filled = True
                     break
                 except Exception:
@@ -407,8 +480,13 @@ class SettlementSyncService:
         if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
             raise RuntimeError('숨고 로그인 이후에도 로그인 화면이 유지됩니다. 추가 인증/캡차 여부를 확인해 주세요.')
         auth_state_path = Path(cfg.settlement_auth_state_path)
+        _restore_auth_state_file()
         auth_state_path.parent.mkdir(parents=True, exist_ok=True)
         context.storage_state(path=str(auth_state_path))
+        try:
+            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
+        except Exception:
+            logger.exception('failed to persist auth state into db after login')
 
     def _sync_soomgo_platform_count(self, trigger: str) -> SyncResult:
         try:
@@ -422,6 +500,7 @@ class SettlementSyncService:
             raise RuntimeError('숨고 대상 URL이 설정되지 않았습니다.')
 
         auth_state_path = Path(cfg.settlement_auth_state_path)
+        _restore_auth_state_file()
         screenshot_dir = Path(cfg.settlement_runtime_dir) / 'settlement_sync'
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         total = 0
@@ -454,6 +533,14 @@ class SettlementSyncService:
                     pass
                 detail.append({'url': url, 'raw_text': text, 'value': value})
             context.storage_state(path=str(auth_state_path))
+            try:
+                save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
+            except Exception:
+                logger.exception('failed to persist auth state into db after sync')
+        try:
+            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
+        except Exception:
+            logger.exception('failed to persist auth state into db after login')
             context.close()
             browser.close()
         message = f'숨고 발송 건수 합계 {total}건 동기화 완료'

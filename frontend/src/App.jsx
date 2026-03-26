@@ -5358,6 +5358,8 @@ function SettlementPage() {
   const [credentialLoading, setCredentialLoading] = useState(false)
   const [soomgoEmail, setSoomgoEmail] = useState('')
   const [soomgoPassword, setSoomgoPassword] = useState('')
+  const [authStateText, setAuthStateText] = useState('')
+  const [authStateLoading, setAuthStateLoading] = useState(false)
 
   async function loadSyncStatus() {
     try {
@@ -5384,6 +5386,27 @@ function SettlementPage() {
       window.alert(error.message || '데이터 연동 중 오류가 발생했습니다.')
     } finally {
       setSyncLoading(false)
+    }
+  }
+
+  async function handleAuthStateUpload() {
+    if (!authStateText.trim()) {
+      window.alert('로컬에서 만든 인증 세션 JSON 내용을 붙여 넣어 주세요.')
+      return
+    }
+    setAuthStateLoading(true)
+    try {
+      await api('/api/settlement/platform-auth-state', {
+        method: 'POST',
+        body: JSON.stringify({ storage_state: authStateText.trim() }),
+      })
+      setAuthStateText('')
+      await loadSyncStatus()
+      window.alert('인증 세션이 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.')
+    } catch (error) {
+      window.alert(error.message || '인증 세션 저장 중 오류가 발생했습니다.')
+    } finally {
+      setAuthStateLoading(false)
     }
   }
 
@@ -5432,8 +5455,15 @@ function SettlementPage() {
               </div>
             )}
             {syncConfig.configured && (
-              <div className="muted settlement-sync-warning">연동 자격 증명 감지 완료 · email 소스: <strong>{syncConfig.email_env || '없음'}</strong> · password 소스: <strong>{syncConfig.password_env || '없음'}</strong></div>
+              <div className="muted settlement-sync-warning">연동 자격 증명 감지 완료 · email 소스: <strong>{syncConfig.email_env || '없음'}</strong> · password 소스: <strong>{syncConfig.password_env || '없음'}</strong> · 인증세션: <strong>{syncConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
             )}
+            <div className="settlement-credential-panel">
+              <div className="muted settlement-sync-warning">Railway 서버에서는 숨고 캡차/추가 인증을 직접 해결하기 어렵습니다. Windows PC에서 보이는 브라우저로 한 번 로그인한 뒤, storage_state JSON을 아래에 붙여 넣어 저장하면 서버가 그 세션 쿠키를 재사용할 수 있습니다.</div>
+              <textarea className="settlement-auth-state-textarea" value={authStateText} onChange={e => setAuthStateText(e.target.value)} placeholder="로컬 helper 스크립트가 만든 soomgo_storage_state.json 내용을 여기에 붙여 넣으세요." />
+              <div className="settlement-sync-actions settlement-sync-actions-inline">
+                <button type="button" className="small" onClick={handleAuthStateUpload} disabled={authStateLoading}>{authStateLoading ? '저장중...' : '인증세션 저장'}</button>
+              </div>
+            </div>
           </div>
           <div className="settlement-sync-actions">
             <button type="button" className="small" onClick={handleRefreshSync} disabled={syncLoading || syncStatus.is_running}>

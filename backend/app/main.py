@@ -29,7 +29,7 @@ from .db import (
 )
 from .settings import settings, get_settings
 from .storage import StorageError, save_upload
-from .settlement_sync import settlement_sync_service, _credential_summary
+from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -149,6 +149,10 @@ class BoardPostIn(BaseModel):
     title: str
     content: str
     image_url: str = ""
+
+class SettlementAuthStateIn(BaseModel):
+    storage_state: str
+
 class SettlementCredentialIn(BaseModel):
     email: str = ''
     password: str = ''
@@ -800,6 +804,15 @@ def settlement_platform_credentials_save(payload: SettlementCredentialIn, user=D
             ('soomgo_password', password, now_iso),
         )
     return settlement_platform_credentials(user)
+
+
+@app.post("/api/settlement/platform-auth-state")
+def settlement_platform_auth_state_save(payload: SettlementAuthStateIn, user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    try:
+        return save_auth_state_json(payload.storage_state)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/settlement/platform-sync/refresh")
