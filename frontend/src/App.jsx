@@ -174,6 +174,25 @@ function saveFriendGroupState(userId, nextState) {
   localStorage.setItem(friendGroupStorageKey(userId), JSON.stringify(nextState))
 }
 
+function chatPinnedOrderStorageKey(userId) {
+  return `icj_chat_pinned_order_${userId || 'guest'}`
+}
+
+function loadChatPinnedOrder(userId) {
+  try {
+    const raw = localStorage.getItem(chatPinnedOrderStorageKey(userId))
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveChatPinnedOrder(userId, order) {
+  try {
+    localStorage.setItem(chatPinnedOrderStorageKey(userId), JSON.stringify(Array.from(new Set(order.filter(Boolean)))))
+  } catch {}
+}
 
 function Layout({ children, user, onLogout }) {
   const location = useLocation()
@@ -1620,6 +1639,7 @@ function ChatActionSheet({ title, actions, onClose }) {
 
 function ChatsPage() {
   const navigate = useNavigate()
+  const currentUser = getStoredUser()
   const [category, setCategory] = useState('all')
   const [rooms, setRooms] = useState([])
   const [users, setUsers] = useState([])
@@ -1628,6 +1648,20 @@ function ChatsPage() {
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pinArrangeOpen, setPinArrangeOpen] = useState(false)
+  const [pinOrder, setPinOrder] = useState(() => loadChatPinnedOrder(currentUser?.id))
+
+  useEffect(() => {
+    setPinOrder(loadChatPinnedOrder(currentUser?.id))
+  }, [currentUser?.id])
+
+  function updatePinOrder(updater) {
+    setPinOrder(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveChatPinnedOrder(currentUser?.id, next)
+      return next
+    })
+  }
 
   async function load() {
     setLoading(true)
@@ -1652,12 +1686,18 @@ function ChatsPage() {
       ? `/api/chat-rooms/group/${room.room_ref}/settings`
       : `/api/chat-rooms/direct/${room.room_ref}/settings`
     await api(endpoint, { method: 'PUT', body: JSON.stringify(patch) })
+    if (Object.prototype.hasOwnProperty.call(patch, 'pinned')) {
+      updatePinOrder(prev => {
+        const filtered = prev.filter(id => id !== room.id)
+        return patch.pinned ? [room.id, ...filtered] : filtered
+      })
+    }
     await load()
   }
 
   async function handleInvite(room) {
     const selectable = users.filter(item => String(item.id) !== String(room.room_ref))
-    const guide = selectable.map(item => `${item.id}: ${item.nickname}`).join('\\n')
+    const guide = selectable.map(item => `${item.id}: ${item.nickname}`).join('\n')
     const picked = window.prompt(`초대할 회원 번호를 입력하세요.
 ${guide}`)
     if (!picked) return
@@ -1695,9 +1735,37 @@ ${guide}`)
 
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return rooms
-    return rooms.filter(room => [room.title, room.subtitle, room.target_user?.nickname].join(' ').toLowerCase().includes(q))
-  }, [rooms, query])
+    const pinRankMap = new Map(pinOrder.map((id, index) => [id, index]))
+    const ordered = [...rooms].sort((a, b) => {
+      const aPinned = Boolean(a.pinned)
+      const bPinned = Boolean(b.pinned)
+      if (aPinned !== bPinned) return aPinned ? -1 : 1
+      if (aPinned && bPinned) {
+        const aRank = pinRankMap.has(a.id) ? pinRankMap.get(a.id) : Number.MAX_SAFE_INTEGER
+        const bRank = pinRankMap.has(b.id) ? pinRankMap.get(b.id) : Number.MAX_SAFE_INTEGER
+        if (aRank !== bRank) return aRank - bRank
+      }
+      return String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+    })
+    if (!q) return ordered
+    return ordered.filter(room => [room.title, room.subtitle, room.target_user?.nickname].join(' ').toLowerCase().includes(q))
+  }, [rooms, query, pinOrder])
+
+  const pinnedRooms = useMemo(() => filteredRooms.filter(room => room.pinned), [filteredRooms])
+
+  function movePinnedRoom(roomId, direction) {
+    updatePinOrder(prev => {
+      const next = prev.filter(id => pinnedRooms.some(room => room.id === id))
+      const currentIndex = next.indexOf(roomId)
+      if (currentIndex < 0) return next
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+      if (targetIndex < 0 || targetIndex >= next.length) return next
+      const clone = [...next]
+      const [moved] = clone.splice(currentIndex, 1)
+      clone.splice(targetIndex, 0, moved)
+      return clone
+    })
+  }
 
   const roomActions = actionRoom ? [
     { label: '채팅방 이름변경', onClick: async () => {
@@ -1725,6 +1793,7 @@ ${guide}`)
                 {menuOpen && (
                   <div className="dropdown-menu right">
                     <button type="button" className="dropdown-item" onClick={handleCreateGroupRoom}>채팅개설</button>
+                    <button type="button" className="dropdown-item" onClick={() => { setPinArrangeOpen(true); setMenuOpen(false) }}>채팅방고정 위치변경</button>
                   </div>
                 )}
               </div>
@@ -1742,21 +1811,18 @@ ${guide}`)
           </div>
         )}
         {loading ? <div className="muted">불러오는 중...</div> : (
-          <div className="chat-room-list">
+          <div className="chat-room-list chat-room-list-spaced">
             {filteredRooms.map(room => (
               <button key={`${room.room_type}-${room.room_ref}`} type="button" className="chat-room-row" onClick={() => navigate(buildRoomPath(room))}>
                 <RoomAvatar room={room} />
-                <div className="chat-room-text structured">
-                  <div className="chat-room-primary-row">
-                    <strong className="chat-room-name-block">{room.title}</strong>
-                    <div className="chat-room-message-block">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
+                <div className="chat-room-body-single">
+                  <div className="chat-room-topline">
+                    <strong className="chat-room-name-single">{room.title}</strong>
+                    {room.pinned && <span className="chat-pin-indicator" aria-label="고정">📌</span>}
+                    <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
                     <button type="button" className="small ghost chat-room-menu-button" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>메뉴</button>
                   </div>
-                  <div className="chat-room-secondary-row">
-                    <span className="chat-room-name-inline">{room.title}</span>
-                    <span className="chat-room-message-inline">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</span>
-                    <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
-                  </div>
+                  <div className="chat-room-subtitle-two-line">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
                 </div>
               </button>
             ))}
@@ -1765,6 +1831,25 @@ ${guide}`)
         )}
       </section>
       <ChatActionSheet title={actionRoom?.title} actions={roomActions} onClose={() => setActionRoom(null)} />
+      {pinArrangeOpen && (
+        <div className="profile-preview-backdrop" onClick={() => setPinArrangeOpen(false)}>
+          <div className="chat-popup-menu" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">고정 채팅방 위치변경</div>
+            <div className="stack compact-gap pin-arrange-list">
+              {pinnedRooms.map((room, index) => (
+                <div key={room.id} className="pin-arrange-item">
+                  <span className="pin-arrange-title">{room.title}</span>
+                  <div className="inline-actions">
+                    <button type="button" className="small ghost" disabled={index === 0} onClick={() => movePinnedRoom(room.id, 'up')}>위로</button>
+                    <button type="button" className="small ghost" disabled={index === pinnedRooms.length - 1} onClick={() => movePinnedRoom(room.id, 'down')}>아래로</button>
+                  </div>
+                </div>
+              ))}
+              {pinnedRooms.length === 0 && <div className="muted">상단 고정된 채팅방이 없습니다.</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2498,7 +2583,7 @@ function CalendarPage() {
   const [workDays, setWorkDays] = useState([])
   const [monthCursor, setMonthCursor] = useState(initialMonth)
   const [selectedDate, setSelectedDate] = useState(initialDate)
-  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [] })
+  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [], title: '' })
   const [calendarStatusDate, setCalendarStatusDate] = useState('')
   const [calendarStatusForm, setCalendarStatusForm] = useState(buildDayStatusForm(null))
   const [mobileStatusPopup, setMobileStatusPopup] = useState(null)
@@ -2570,11 +2655,11 @@ function CalendarPage() {
 
   function openOverflowPopup(date, dayItems, event) {
     if (event) event.stopPropagation()
-    setOverflowPopup({ dateKey: fmtDate(date), items: dayItems })
+    setOverflowPopup({ dateKey: fmtDate(date), items: dayItems, title: '일정목록' })
   }
 
   function closeOverflowPopup() {
-    setOverflowPopup({ dateKey: '', items: [] })
+    setOverflowPopup({ dateKey: '', items: [], title: '' })
   }
 
   function openCalendarStatus(daySummary) {
@@ -2626,13 +2711,13 @@ function CalendarPage() {
             <strong>{monthLabel}</strong>
             <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)}>▶</button>
           </div>
-          <div className="inline-actions wrap">
+          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ''}`}>
             {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
             {!readOnly && <button type="button" className="small ghost" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손없는날등록</button>}
           </div>
         </div>
-        {!isMobile && <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>}
-        <div className={`calendar-grid schedule-grid detail-mode ${isMobile ? 'mobile-simplified' : ''}`}>
+        <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
+        <div className={`calendar-grid schedule-grid detail-mode${isMobile ? ' mobile-calendar-grid' : ''}`}>
           {days.map((date, idx) => {
             const key = date ? fmtDate(date) : `blank-${idx}`
             const today = date && fmtDate(date) === fmtDate(new Date())
@@ -2648,11 +2733,11 @@ function CalendarPage() {
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
                       <button type="button" className="calendar-date-select" onClick={() => selectDate(date)}>
-                        <span className="calendar-date">{isMobile ? `${date.getDate()}일` : date.getDate()}</span>
+                        <span className="calendar-date">{date.getDate()}</span>
                       </button>
                       {!isMobile && (
                         <div className="calendar-top-actions filled">
-                          <button type="button" className="calendar-entry-band secondary filled" onClick={() => navigate(`/work-schedule?date=${fmtDate(date)}`)}>
+                          <button type="button" className="calendar-entry-band secondary filled" onClick={() => setOverflowPopup({ dateKey: fmtDate(date), items: daySummary?.entries || [], title: '스케줄목록' })}>
                             <span className="calendar-entry-label">스케줄목록</span>
                           </button>
                           <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
@@ -2665,15 +2750,15 @@ function CalendarPage() {
                     <button type="button" className="calendar-day-summary-button redesigned" onClick={() => openCalendarStatus(daySummary)}>
                       {isMobile ? (
                         <>
-                          <span className="calendar-mobile-vehicle-line">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className={`calendar-handless-pill ${daySummary?.is_handless_day ? 'active' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반일정'}</span>
+                          <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          {daySummary?.is_handless_day ? <span className="calendar-handless-pill active">손없는날</span> : <span className="calendar-handless-pill subtle">&nbsp;</span>}
                         </>
                       ) : (
                         <>
-                          <span className="calendar-day-summary-vehicle">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className="calendar-day-summary-chip">A: {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}건</span>
-                          <span className="calendar-day-summary-chip">B: {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}건</span>
-                          <span className="calendar-day-summary-chip">C: {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}건</span>
+                          <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-chip">A:{String(daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-chip">B:{String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-chip">C:{String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
                         </>
                       )}
                     </button>
@@ -2824,25 +2909,27 @@ function CalendarPage() {
             <div className="between schedule-popup-head">
               <div>
                 <strong>{formatSelectedDateLabel(overflowPopup.dateKey)}</strong>
-                <div className="muted">해당 날짜의 전체 일정 목록입니다.</div>
+                <div className="muted">{overflowPopup.title === '스케줄목록' ? '해당 날짜의 스케줄 목록입니다.' : '해당 날짜의 전체 일정 목록입니다.'}</div>
               </div>
               <button type="button" className="ghost small" onClick={closeOverflowPopup}>닫기</button>
             </div>
             <div className="schedule-popup-list">
-              {overflowPopup.items.map(item => (
+              {overflowPopup.items.map(item => {
+                const isWorkEntry = item.entry_type === 'manual' || item.source_summary === ''
+                return (
                 <button
                   key={item.id}
                   type="button"
                   className="detail-schedule-item popup-item colorized"
-                  style={{ background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') }}
+                  style={{ background: applyAlphaToHex(item.color || '#334155', '24'), borderColor: applyAlphaToHex(item.color || '#334155', '88') }}
                   onClick={() => {
                     closeOverflowPopup()
-                    navigate(`/schedule/${item.id}`)
+                    if (!isWorkEntry && item.event_id) navigate(`/schedule/${item.event_id}`)
                   }}
                 >
-                  <ScheduleCardLine item={item} colorized={false} />
+                  {isWorkEntry ? <ScheduleCardLine item={item} colorized={false} /> : <ScheduleCardLine item={item} colorized={false} />}
                 </button>
-              ))}
+              )})}
             </div>
           </section>
         </div>
@@ -3056,6 +3143,7 @@ function HandlessDaysPage() {
   const [monthCursor, setMonthCursor] = useState(Number.isNaN(baseDate.getTime()) ? startOfMonth(new Date()) : startOfMonth(baseDate))
   const [workDays, setWorkDays] = useState([])
   const [selectedDates, setSelectedDates] = useState(new Set())
+  const isMobile = useIsMobile()
 
   async function load() {
     const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
@@ -3071,17 +3159,11 @@ function HandlessDaysPage() {
   const monthLabel = `${monthCursor.getFullYear()}년 ${monthCursor.getMonth() + 1}월`
 
   async function saveSelected() {
-    for (const day of workDays) {
-      await api('/api/work-schedule/day-note', {
-        method: 'PUT',
-        body: JSON.stringify({
-          ...buildDayStatusForm(day),
-          is_handless_day: selectedDates.has(day.date),
-          excluded_business_details: day.excluded_business_details || [],
-          excluded_staff_details: day.excluded_staff_details || [],
-        }),
-      })
-    }
+    const visibleDates = days.filter(Boolean).map(date => fmtDate(date))
+    await api('/api/work-schedule/handless-bulk', {
+      method: 'POST',
+      body: JSON.stringify({ month: fmtDate(monthCursor).slice(0, 7), visible_dates: visibleDates, selected_dates: Array.from(selectedDates) }),
+    })
     window.alert('손없는날 설정이 저장되었습니다.')
     navigate(`/schedule?date=${fmtDate(monthCursor)}`)
   }
@@ -3097,7 +3179,7 @@ function HandlessDaysPage() {
 
   return (
     <div className="stack-page">
-      <section className="card schedule-card handless-page">
+      <section className={`card schedule-card handless-page${isMobile ? ' mobile' : ''}`}>
         <div className="calendar-toolbar upgraded">
           <div className="inline-actions">
             <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))}>◀</button>
@@ -3118,8 +3200,7 @@ function HandlessDaysPage() {
               <div key={key} className={date ? `calendar-cell handless-picker-cell${active ? ' selected handless-day-cell' : ''}` : 'calendar-cell empty'}>
                 {date && (
                   <button type="button" className="handless-date-button" onClick={() => toggleDate(fmtDate(date))}>
-                    <span>{date.getDate()}일</span>
-                    <span className={`calendar-handless-pill ${active ? 'active' : ''}`}>{active ? '손없는날' : '선택가능'}</span>
+                    <span className="handless-date-number">{date.getDate()}</span>
                   </button>
                 )}
               </div>
@@ -4064,12 +4145,10 @@ function ScheduleDetailPage() {
 function NotificationsPage() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
-  const [likes, setLikes] = useState([])
 
   async function load() {
-    const [n, l] = await Promise.all([api('/api/notifications'), api('/api/feed-like-notifications')])
+    const n = await api('/api/notifications')
     setItems((n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || ''))))
-    setLikes(l)
   }
 
   useEffect(() => {
@@ -4089,35 +4168,39 @@ function NotificationsPage() {
     await load().catch(() => {})
   }
 
+  const scheduleItems = items.filter(item => String(item?.type || '') === 'work_schedule_assignment')
+  const generalItems = items.filter(item => String(item?.type || '') !== 'work_schedule_assignment')
+
   return (
-    <div className="grid2 notifications-page-grid">
+    <div className="grid2 notifications-page-grid notifications-page-grid-stacked">
       <section className="card">
-        <h2>일반 알림</h2>
+        <h2>스케줄 알림</h2>
         <div className="list">
-          {items.map(item => (
+          {scheduleItems.map(item => (
             <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
               <strong>{item.title}</strong>
               <div>{item.body}</div>
             </button>
           ))}
-          {items.length === 0 && <div className="muted">알림이 없습니다.</div>}
+          {scheduleItems.length === 0 && <div className="muted">스케줄 알림이 없습니다.</div>}
         </div>
       </section>
       <section className="card">
-        <h2>추가 알림</h2>
+        <h2>일반 알림</h2>
         <div className="list">
-          {likes.map(item => (
-            <div key={item.id} className="list-item block notification-item">
+          {generalItems.map(item => (
+            <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
               <strong>{item.title}</strong>
               <div>{item.body}</div>
-            </div>
+            </button>
           ))}
-          {likes.length === 0 && <div className="muted">좋아요 알림이 없습니다.</div>}
+          {generalItems.length === 0 && <div className="muted">알림이 없습니다.</div>}
         </div>
       </section>
     </div>
   )
 }
+
 
 function PointsPage() {
   return (
