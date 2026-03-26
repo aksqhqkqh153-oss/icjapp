@@ -29,7 +29,7 @@ from .db import (
 )
 from .settings import settings, get_settings
 from .storage import StorageError, save_upload
-from .settlement_sync import settlement_sync_service
+from .settlement_sync import settlement_sync_service, _credential_summary
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -149,6 +149,10 @@ class BoardPostIn(BaseModel):
     title: str
     content: str
     image_url: str = ""
+class SettlementCredentialIn(BaseModel):
+    email: str = ''
+    password: str = ''
+
 class CalendarEventIn(BaseModel):
     title: str
     content: str = ""
@@ -737,7 +741,8 @@ def startup():
     init_db()
     settlement_sync_service.start()
     runtime = get_settings()
-    logger.info("startup complete env=%s db_engine=%s policy=%s soomgo_email_env=%s soomgo_password_env=%s configured=%s", runtime.app_env, DB_ENGINE, runtime.policy_url, runtime.soomgo_email_env_name or "없음", runtime.soomgo_password_env_name or "없음", runtime.soomgo_credentials_configured)
+    cred = _credential_summary()
+    logger.info("startup complete env=%s db_engine=%s policy=%s soomgo_email_env=%s soomgo_password_env=%s configured=%s", runtime.app_env, DB_ENGINE, runtime.policy_url, cred.get('email_env') or '없음', cred.get('password_env') or '없음', cred.get('configured'))
 
 
 @app.get("/api/health")
@@ -754,9 +759,9 @@ def health():
         "policy_url": runtime.policy_url,
         "r2_enabled": runtime.r2_enabled,
         "r2_public_base_url": runtime.r2_public_base_url,
-        "soomgo_credentials_configured": runtime.soomgo_credentials_configured,
-        "soomgo_email_env": runtime.soomgo_email_env_name,
-        "soomgo_password_env": runtime.soomgo_password_env_name,
+        "soomgo_credentials_configured": _credential_summary().get('configured'),
+        "soomgo_email_env": _credential_summary().get('email_env'),
+        "soomgo_password_env": _credential_summary().get('password_env'),
     }
 
 
@@ -765,13 +770,36 @@ def settlement_platform_sync_status(user=Depends(require_user)):
     return settlement_sync_service.status()
 
 
-@app.post("/api/settlement/platform-sync/refresh")
-def settlement_platform_sync_refresh(user=Depends(require_user)):
+@app.get("/api/settlement/platform-credentials")
+def settlement_platform_credentials(user=Depends(require_user)):
     _require_write_access(user, 'schedule')
-    try:
-        return settlement_sync_service.run_once(trigger='manual')
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    summary = _credential_summary()
+    return {
+        'configured': bool(summary.get('configured')),
+        'email_source': summary.get('email_env') or '없음',
+        'password_source': summary.get('password_env') or '없음',
+        'email_preview': '저장됨' if summary.get('email_present') else '',
+    }
+
+
+@app.post("/api/settlement/platform-credentials")
+def settlement_platform_credentials_save(payload: SettlementCredentialIn, user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    email = (payload.email or '').strip()
+    password = (payload.password or '').strip()
+    if not email or not password:
+        raise HTTPException(status_code=400, detail='숨고 아이디와 비밀번호를 모두 입력해 주세요.')
+    now_iso = utcnow()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
+            ('soomgo_email', email, now_iso),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
+            ('soomgo_password', password, now_iso),
+        )
+    return settlement_platform_credentials(user)
 
 
 @app.get("/api/deployment/meta")

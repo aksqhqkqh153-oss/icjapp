@@ -5355,6 +5355,9 @@ function SettlementPage() {
   const [activeCategory, setActiveCategory] = useState('daily')
   const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
   const [syncLoading, setSyncLoading] = useState(false)
+  const [credentialLoading, setCredentialLoading] = useState(false)
+  const [soomgoEmail, setSoomgoEmail] = useState('')
+  const [soomgoPassword, setSoomgoPassword] = useState('')
 
   async function loadSyncStatus() {
     try {
@@ -5384,6 +5387,27 @@ function SettlementPage() {
     }
   }
 
+  async function handleSaveCredentials() {
+    if (!soomgoEmail.trim() || !soomgoPassword.trim()) {
+      window.alert('숨고 아이디와 비밀번호를 입력해 주세요.')
+      return
+    }
+    setCredentialLoading(true)
+    try {
+      await api('/api/settlement/platform-credentials', {
+        method: 'POST',
+        body: JSON.stringify({ email: soomgoEmail.trim(), password: soomgoPassword.trim() }),
+      })
+      setSoomgoPassword('')
+      await loadSyncStatus()
+      window.alert('숨고 계정 정보가 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.')
+    } catch (error) {
+      window.alert(error.message || '숨고 계정 저장 중 오류가 발생했습니다.')
+    } finally {
+      setCredentialLoading(false)
+    }
+  }
+
   const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
   const syncConfig = syncStatus.config || {}
@@ -5398,10 +5422,17 @@ function SettlementPage() {
             <div className="muted settlement-sync-summary">숨고 최신 합계: <strong>{soomgoMetric.value ?? 0}</strong>건 {soomgoMetric.updated_at ? `· 최근 연동 ${String(soomgoMetric.updated_at).replace('T', ' ')}` : ''}</div>
             <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
             {!syncConfig.configured && (
-              <div className="muted settlement-sync-warning">숨고 계정 변수가 아직 감지되지 않았습니다. Railway 백엔드 서비스 Variables에 <strong>SOOMGO_EMAIL</strong>, <strong>SOOMGO_PASSWORD</strong> 를 저장하고 재배포하세요.</div>
+              <div className="settlement-credential-panel">
+                <div className="muted settlement-sync-warning">현재 Railway 컨테이너에서 숨고 계정 변수를 감지하지 못했습니다. 아래에 숨고 계정을 한 번 저장하면 Git과 무관하게 서버 DB에 저장되어 연동에 사용할 수 있습니다.</div>
+                <div className="settlement-credential-grid">
+                  <input value={soomgoEmail} onChange={e => setSoomgoEmail(e.target.value)} placeholder="숨고 아이디(이메일)" />
+                  <input type="password" value={soomgoPassword} onChange={e => setSoomgoPassword(e.target.value)} placeholder="숨고 비밀번호" />
+                  <button type="button" className="small" onClick={handleSaveCredentials} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '숨고 계정 저장'}</button>
+                </div>
+              </div>
             )}
             {syncConfig.configured && (
-              <div className="muted settlement-sync-warning">연동 변수 감지 완료 · email 변수: <strong>{syncConfig.email_env || '없음'}</strong> · password 변수: <strong>{syncConfig.password_env || '없음'}</strong></div>
+              <div className="muted settlement-sync-warning">연동 자격 증명 감지 완료 · email 소스: <strong>{syncConfig.email_env || '없음'}</strong> · password 소스: <strong>{syncConfig.password_env || '없음'}</strong></div>
             )}
           </div>
           <div className="settlement-sync-actions">

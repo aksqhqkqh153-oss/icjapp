@@ -275,6 +275,13 @@ CREATE TABLE IF NOT EXISTS settlement_sync_history (
     message TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS app_secrets (
+    secret_key TEXT PRIMARY KEY,
+    secret_value TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS auth_tokens (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
@@ -1474,6 +1481,10 @@ def init_db() -> None:
             'detail_json': "TEXT NOT NULL DEFAULT '[]'",
             'message': "TEXT NOT NULL DEFAULT ''",
             'created_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'app_secrets', {
+            'secret_value': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
         for _platform_name in ('숨고', '오늘', '공홈'):
             conn.execute("INSERT OR IGNORE INTO settlement_platform_metrics(platform, metric_key, metric_value, detail_json, sync_status, sync_message, updated_at) VALUES (?, 'platform_send_count', 0, '[]', 'idle', '', ?)", (_platform_name, utcnow()))

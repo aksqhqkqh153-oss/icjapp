@@ -44,6 +44,42 @@ def _safe_int_from_text(text: str) -> int:
     return int(''.join(digits))
 
 
+def _load_saved_credentials() -> tuple[str, str]:
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT secret_key, secret_value FROM app_secrets WHERE secret_key IN ('soomgo_email', 'soomgo_password')"
+            ).fetchall()
+    except Exception:
+        logger.exception('failed to load saved settlement credentials')
+        return '', ''
+    values = {row['secret_key']: (row['secret_value'] or '').strip() for row in rows}
+    return values.get('soomgo_email', ''), values.get('soomgo_password', '')
+
+
+def _credential_summary() -> dict[str, str | bool]:
+    cfg = _runtime_settings()
+    email = (cfg.soomgo_email or '').strip()
+    password = (cfg.soomgo_password or '').strip()
+    email_source = cfg.soomgo_email_env_name or ''
+    password_source = cfg.soomgo_password_env_name or ''
+    if not email or not password:
+        saved_email, saved_password = _load_saved_credentials()
+        if saved_email:
+            email = saved_email
+            email_source = 'db_saved'
+        if saved_password:
+            password = saved_password
+            password_source = 'db_saved'
+    return {
+        'configured': bool(email and password),
+        'email_env': email_source,
+        'password_env': password_source,
+        'email_present': bool(email),
+        'password_present': bool(password),
+    }
+
+
 class SettlementSyncService:
     def __init__(self):
         self._thread: threading.Thread | None = None
@@ -92,7 +128,7 @@ class SettlementSyncService:
                     'random_min_minutes': _runtime_settings().settlement_sync_random_min_minutes,
                     'random_max_minutes': _runtime_settings().settlement_sync_random_max_minutes,
                 },
-                'config': _runtime_settings().soomgo_credentials_summary,
+                'config': _credential_summary(),
             }
         base['platforms'] = self.fetch_latest_metrics()
         return base
@@ -295,10 +331,15 @@ class SettlementSyncService:
 
     def _ensure_login(self, page, context):
         cfg = _runtime_settings()
-        email = cfg.soomgo_email.strip()
-        password = cfg.soomgo_password.strip()
+        summary = _credential_summary()
+        email = (cfg.soomgo_email or '').strip()
+        password = (cfg.soomgo_password or '').strip()
+        if summary.get('email_env') == 'db_saved' or summary.get('password_env') == 'db_saved' or not email or not password:
+            saved_email, saved_password = _load_saved_credentials()
+            email = email or saved_email
+            password = password or saved_password
         if not email or not password:
-            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={cfg.soomgo_email_env_name or "없음"}, password={cfg.soomgo_password_env_name or "없음"}. Railway에서는 백엔드 서비스 Variables에 SOOMGO_EMAIL/SOOMGO_PASSWORD 를 저장한 뒤 재배포해야 합니다.')
+            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={summary.get("email_env") or "없음"}, password={summary.get("password_env") or "없음"}. Railway Variables가 컨테이너에 주입되지 않는 경우 결산자료 화면에서 숨고 계정을 직접 저장해 사용할 수 있습니다.')
 
         login_url = cfg.soomgo_login_url.strip() or 'https://soomgo.com/login'
         page.goto(login_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
