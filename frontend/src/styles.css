@@ -2676,3 +2676,141 @@ label { font-size: 14px; color: #4f6f8c; }
   .work-schedule-day{min-height:calc(100vh - 140px)}
   .work-schedule-list.unified-list{flex:1;overflow:auto}
 }
+
+/* 2026-03-26 schedule alignment + adjacent month fill */
+.schedule-cell.detail-cell,
+.handless-picker-cell,
+.calendar-grid.schedule-grid.detail-mode .calendar-cell {
+  border-radius: 12px;
+}
+
+.calendar-cell.schedule-cell.detail-cell,
+.handless-grid .calendar-cell,
+.mobile-calendar-grid .calendar-cell {
+  min-height: 100px;
+}
+
+.calendar-cell.outside-month-cell {
+  background: #e5e7eb !important;
+  opacity: 1;
+}
+
+.calendar-cell.outside-month-cell .calendar-date,
+.calendar-cell.outside-month-cell .handless-date-number {
+  color: #64748b;
+}
+
+.calendar-cell.outside-month-cell .calendar-lane.filled,
+.calendar-cell.outside-month-cell .calendar-entry-band,
+.calendar-cell.outside-month-cell .calendar-more-indicator {
+  opacity: 0.9;
+}
+
+.schedule-header-line {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.calendar-date-select {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+}
+
+.schedule-cell.detail-cell {
+  padding: 4px;
+}
+
+.schedule-cell.detail-cell .calendar-cell-topline,
+.schedule-cell.detail-cell .calendar-day-summary-button,
+.schedule-cell.detail-cell .calendar-lanes-stack,
+.schedule-cell.detail-cell .calendar-handless-banner,
+.schedule-cell.detail-cell .calendar-top-actions {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.calendar-handless-banner {
+  text-align: center;
+  justify-content: center;
+  display: flex;
+}
+
+.handless-inline-pill {
+  align-self: center;
+  margin-top: 2px;
+}
+
+@media (min-width: 769px) {
+  .schedule-cell.detail-cell {
+    min-height: 108px;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    align-content: start;
+    gap: 4px;
+  }
+
+  .schedule-cell.detail-cell .schedule-header-line {
+    align-items: center;
+  }
+
+  .schedule-cell.detail-cell .calendar-date-select,
+  .schedule-cell.detail-cell .calendar-top-actions,
+  .schedule-cell.detail-cell .calendar-entry-band,
+  .schedule-cell.detail-cell .calendar-entry-label,
+  .schedule-cell.detail-cell .calendar-lanes-stack {
+    align-self: center;
+  }
+
+  .schedule-cell.detail-cell .calendar-day-summary-button.redesigned {
+    min-height: 28px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-calendar-grid {
+    gap: 2px;
+  }
+
+  .mobile-calendar-grid .calendar-cell,
+  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell {
+    min-height: 58px;
+    padding: 2px;
+  }
+
+  .schedule-page.mobile .calendar-date-select {
+    min-height: 22px;
+  }
+
+  .schedule-page.mobile .calendar-date {
+    min-height: 20px;
+    font-size: 12px;
+  }
+
+  .schedule-page.mobile .calendar-mobile-summary-stack {
+    width: 100%;
+    align-items: center;
+  }
+
+  .schedule-page.mobile .calendar-handless-pill.mobile-compact {
+    display: inline-flex;
+    white-space: nowrap;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .schedule-page.mobile .calendar-cell.outside-month-cell .calendar-mobile-summary-stack {
+    opacity: 0.95;
+  }
+}

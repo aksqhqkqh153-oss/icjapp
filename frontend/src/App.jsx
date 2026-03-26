@@ -339,13 +339,6 @@ function AuthPage({ onLogin }) {
   useEffect(() => {
     api('/api/demo-accounts').then(setAccounts).catch(() => {})
   }, [])
-  function handleScheduleEditorKeyDown(e) {
-    if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
-      e.preventDefault()
-      scheduleEditorFormRef.current?.requestSubmit?.()
-    }
-  }
-
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
@@ -2685,19 +2678,13 @@ function fmtDate(date) {
 
 function buildMonthDays(date) {
   const start = startOfMonth(date)
-  const end = endOfMonth(date)
-  const firstWeekday = start.getDay()
-  const days = []
-  for (let i = 0; i < firstWeekday; i += 1) {
-    days.push(null)
-  }
-  for (let d = 1; d <= end.getDate(); d += 1) {
-    days.push(new Date(date.getFullYear(), date.getMonth(), d))
-  }
-  while (days.length % 7 !== 0) {
-    days.push(null)
-  }
-  return days
+  const firstGridDate = addDays(start, -start.getDay())
+  return Array.from({ length: 42 }, (_, index) => addDays(firstGridDate, index))
+}
+
+function isSameMonthDate(left, right) {
+  if (!left || !right) return false
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth()
 }
 
 const DEFAULT_DEPARTMENT_OPTIONS = [
@@ -2913,9 +2900,10 @@ function CalendarPage() {
   const [calendarStatusEditMode, setCalendarStatusEditMode] = useState(false)
   const [businessExclusionDraft, setBusinessExclusionDraft] = useState(() => normalizeBusinessExclusionDetails())
   const [staffExclusionDraft, setStaffExclusionDraft] = useState(() => normalizeStaffExclusionDetails())
+  const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
-    const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
+    const firstDate = fmtDate(days[0] || new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
     const [calendarData, workData] = await Promise.all([
       api('/api/calendar/events'),
       api(`/api/work-schedule?start_date=${firstDate}&days=42`),
@@ -2923,7 +2911,7 @@ function CalendarPage() {
     setItems(calendarData)
     setWorkDays(workData.days || [])
   }
-  useEffect(() => { load().catch(() => {}) }, [monthCursor])
+  useEffect(() => { load().catch(() => {}) }, [monthCursor, days])
   useEffect(() => {
     const preset = searchParams.get('date')
     if (preset) {
@@ -2935,7 +2923,6 @@ function CalendarPage() {
     }
   }, [searchParams])
 
-  const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
   const monthLabel = useMemo(() => `${monthCursor.getFullYear()}년 ${monthCursor.getMonth() + 1}월`, [monthCursor])
   const grouped = useMemo(() => {
     const map = new Map()
@@ -3050,8 +3037,9 @@ function CalendarPage() {
             const visibleItems = dayItems.slice(0, visibleLaneCount)
             const extraCount = Math.max(dayItems.length - visibleLaneCount, 0)
             const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
+            const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
             return (
-              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}` : 'calendar-cell empty'}>
+              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
@@ -3474,22 +3462,22 @@ function HandlessDaysPage() {
   const [workDays, setWorkDays] = useState([])
   const [selectedDates, setSelectedDates] = useState(new Set())
   const isMobile = useIsMobile()
+  const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
-    const firstDate = fmtDate(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
+    const firstDate = fmtDate(days[0] || new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
     const data = await api(`/api/work-schedule?start_date=${firstDate}&days=42`)
     setWorkDays(data.days || [])
     setSelectedDates(new Set((data.days || []).filter(item => item.is_handless_day).map(item => item.date)))
   }
 
-  useEffect(() => { load().catch(() => {}) }, [monthCursor])
+  useEffect(() => { load().catch(() => {}) }, [monthCursor, days])
 
-  const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
   const dayMap = useMemo(() => new Map(workDays.map(item => [item.date, item])), [workDays])
   const monthLabel = `${monthCursor.getFullYear()}년 ${monthCursor.getMonth() + 1}월`
 
   async function saveSelected() {
-    const visibleDates = days.filter(Boolean).map(date => fmtDate(date))
+    const visibleDates = days.filter(date => isSameMonthDate(date, monthCursor)).map(date => fmtDate(date))
     await api('/api/work-schedule/handless-bulk', {
       method: 'POST',
       body: JSON.stringify({ month: fmtDate(monthCursor).slice(0, 7), visible_dates: visibleDates, selected_dates: Array.from(selectedDates) }),
@@ -3524,15 +3512,16 @@ function HandlessDaysPage() {
         <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
         <div className="calendar-grid handless-grid">
           {days.map((date, idx) => {
-            const key = date ? fmtDate(date) : `blank-${idx}`
-            const active = date && selectedDates.has(fmtDate(date))
+            const key = fmtDate(date)
+            const active = selectedDates.has(fmtDate(date))
+            const isCurrentMonth = isSameMonthDate(date, monthCursor)
+            const dayInfo = dayMap.get(key)
             return (
-              <div key={key} className={date ? `calendar-cell handless-picker-cell${active ? ' selected handless-day-cell' : ''}` : 'calendar-cell empty'}>
-                {date && (
-                  <button type="button" className="handless-date-button" onClick={() => toggleDate(fmtDate(date))}>
-                    <span className="handless-date-number">{date.getDate()}</span>
-                  </button>
-                )}
+              <div key={key} className={`calendar-cell handless-picker-cell${active ? ' selected handless-day-cell' : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}`}>
+                <button type="button" className="handless-date-button" onClick={() => toggleDate(fmtDate(date))}>
+                  <span className="handless-date-number">{date.getDate()}</span>
+                  {dayInfo?.is_handless_day && <span className="calendar-handless-pill mobile-compact active handless-inline-pill">손없음</span>}
+                </button>
               </div>
             )
           })}
@@ -3935,6 +3924,13 @@ function ScheduleFormPage({ mode }) {
   const depositMethodSelectRef = useRef(null)
   const depositAmountSelectRef = useRef(null)
   const scheduleEditorFormRef = useRef(null)
+
+  function handleScheduleEditorKeyDown(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
+      e.preventDefault()
+      scheduleEditorFormRef.current?.requestSubmit?.()
+    }
+  }
   const [visitTimeText, setVisitTimeText] = useState('')
   const [startTimeText, setStartTimeText] = useState('')
   const [endTimeText, setEndTimeText] = useState('')
