@@ -3268,3 +3268,58 @@ button.settlement-tab.active {
     font-size: 12px;
   }
 }
+.settlement-hero-head-wrap {
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settlement-sync-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.settlement-sync-summary {
+  margin-top: 4px;
+}
+
+.settlement-sync-card {
+  padding: 12px 14px;
+}
+
+.settlement-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settlement-sync-item {
+  border: 1px solid #d7e3ee;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.settlement-sync-label {
+  font-size: 12px;
+  color: #5d7489;
+  margin-bottom: 4px;
+}
+
+.settlement-sync-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.settlement-sync-meta {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .settlement-sync-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -251,6 +251,29 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
+
+
+CREATE TABLE IF NOT EXISTS settlement_platform_metrics (
+    platform TEXT NOT NULL,
+    metric_key TEXT NOT NULL,
+    metric_value INTEGER NOT NULL DEFAULT 0,
+    detail_json TEXT NOT NULL DEFAULT '[]',
+    sync_status TEXT NOT NULL DEFAULT 'idle',
+    sync_message TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (platform, metric_key)
+);
+
+CREATE TABLE IF NOT EXISTS settlement_sync_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,
+    trigger_type TEXT NOT NULL DEFAULT 'manual',
+    sync_status TEXT NOT NULL DEFAULT 'idle',
+    metric_value INTEGER NOT NULL DEFAULT 0,
+    detail_json TEXT NOT NULL DEFAULT '[]',
+    message TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS auth_tokens (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
@@ -1430,6 +1453,22 @@ def init_db() -> None:
             'mention_user_id': 'INTEGER',
             'reactions': "TEXT DEFAULT '[]'",
         })
+        _ensure_columns(conn, 'settlement_platform_metrics', {
+            'detail_json': "TEXT NOT NULL DEFAULT '[]'",
+            'sync_status': "TEXT NOT NULL DEFAULT 'idle'",
+            'sync_message': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'settlement_sync_history', {
+            'trigger_type': "TEXT NOT NULL DEFAULT 'manual'",
+            'sync_status': "TEXT NOT NULL DEFAULT 'idle'",
+            'metric_value': 'INTEGER NOT NULL DEFAULT 0',
+            'detail_json': "TEXT NOT NULL DEFAULT '[]'",
+            'message': "TEXT NOT NULL DEFAULT ''",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        for _platform_name in ('숨고', '오늘', '공홈'):
+            conn.execute("INSERT OR IGNORE INTO settlement_platform_metrics(platform, metric_key, metric_value, detail_json, sync_status, sync_message, updated_at) VALUES (?, 'platform_send_count', 0, '[]', 'idle', '', ?)", (_platform_name, utcnow()))
         seed_imported_accounts(conn)
         ensure_default_group_rooms(conn)
         if settings.seed_demo_data:

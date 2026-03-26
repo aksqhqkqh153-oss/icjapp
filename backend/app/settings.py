@@ -22,6 +22,28 @@ def _pages_preview_origin_regex() -> str:
     return r"https://([a-z0-9-]+\.)*pages\.dev$"
 
 
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith('#') or '=' not in raw:
+            continue
+        key, value = raw.split('=', 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+def _bootstrap_local_env() -> None:
+    base_dir = Path(__file__).resolve().parents[1]
+    _load_env_file(base_dir / '.env')
+    _load_env_file(base_dir / '.secrets' / 'settlement.local.env')
+
+
+_bootstrap_local_env()
 @dataclass(frozen=True)
 class Settings:
     app_env: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
@@ -56,6 +78,22 @@ class Settings:
     upload_root: Path = field(default_factory=lambda: Path(os.getenv("LOCAL_UPLOAD_ROOT", str(Path(__file__).resolve().parents[1] / "static" / "uploads"))))
     max_upload_mb: int = field(default_factory=lambda: int(os.getenv("MAX_UPLOAD_MB", "20")))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO").upper())
+    schedule_timezone: str = field(default_factory=lambda: os.getenv("SCHEDULE_TIMEZONE", "Asia/Seoul").strip())
+    settlement_sync_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("SETTLEMENT_SYNC_ENABLED", "1"), True))
+    settlement_sync_start_hour: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_SYNC_START_HOUR", "9")))
+    settlement_sync_end_hour: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_SYNC_END_HOUR", "18")))
+    settlement_sync_random_min_minutes: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_SYNC_RANDOM_MIN_MINUTES", "30")))
+    settlement_sync_random_max_minutes: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_SYNC_RANDOM_MAX_MINUTES", "60")))
+    settlement_playwright_headless: bool = field(default_factory=lambda: _as_bool(os.getenv("SETTLEMENT_PLAYWRIGHT_HEADLESS", "1"), True))
+    settlement_playwright_timeout_ms: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_PLAYWRIGHT_TIMEOUT_MS", "30000")))
+    settlement_runtime_dir: Path = field(default_factory=lambda: Path(os.getenv("SETTLEMENT_RUNTIME_DIR", str(Path(__file__).resolve().parents[1] / "runtime"))))
+    settlement_auth_state_path: str = field(default_factory=lambda: os.getenv("SETTLEMENT_AUTH_STATE_PATH", str(Path(__file__).resolve().parents[1] / "playwright" / ".auth" / "soomgo-state.json")).strip())
+    soomgo_login_url: str = field(default_factory=lambda: os.getenv("SOOMGO_LOGIN_URL", "https://soomgo.com/login").strip())
+    soomgo_email: str = field(default_factory=lambda: os.getenv("SOOMGO_EMAIL", "").strip())
+    soomgo_password: str = field(default_factory=lambda: os.getenv("SOOMGO_PASSWORD", "").strip())
+    soomgo_value_xpath: str = field(default_factory=lambda: os.getenv("SOOMGO_VALUE_XPATH", '//*[@id="__next"]/main/div/div[2]/div[2]/div[1]/p[1]').strip())
+    soomgo_target_urls: list[str] = field(default_factory=lambda: _split_csv(os.getenv("SOOMGO_TARGET_URLS"), ["https://soomgo.com/instant-match/65839", "https://soomgo.com/instant-match/57259", "https://soomgo.com/instant-match/229276"]))
+
 
     @property
     def r2_enabled(self) -> bool:

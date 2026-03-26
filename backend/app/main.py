@@ -29,6 +29,7 @@ from .db import (
 )
 from .settings import settings
 from .storage import StorageError, save_upload
+from .settlement_sync import settlement_sync_service
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -732,7 +733,9 @@ async def request_logger(request: Request, call_next):
 @app.on_event("startup")
 def startup():
     settings.upload_root.mkdir(parents=True, exist_ok=True)
+    settings.settlement_runtime_dir.mkdir(parents=True, exist_ok=True)
     init_db()
+    settlement_sync_service.start()
     logger.info("startup complete env=%s db_engine=%s policy=%s", settings.app_env, DB_ENGINE, settings.policy_url)
 
 
@@ -750,6 +753,20 @@ def health():
         "r2_enabled": settings.r2_enabled,
         "r2_public_base_url": settings.r2_public_base_url,
     }
+
+
+@app.get("/api/settlement/platform-sync-status")
+def settlement_platform_sync_status(user=Depends(require_user)):
+    return settlement_sync_service.status()
+
+
+@app.post("/api/settlement/platform-sync/refresh")
+def settlement_platform_sync_refresh(user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    try:
+        return settlement_sync_service.run_once(trigger='manual')
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @app.get("/api/deployment/meta")

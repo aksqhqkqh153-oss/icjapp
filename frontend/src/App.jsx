@@ -5279,6 +5279,18 @@ function formatSettlementValue(label, value) {
   return raw
 }
 
+
+function applySettlementPlatformMetrics(blocks, platformMetrics) {
+  return (blocks || []).map(block => ({
+    ...block,
+    summaryRows: (block.summaryRows || []).map(row => {
+      const metric = platformMetrics?.[row.source]
+      if (!metric || row.source !== '숨고') return row
+      return { ...row, count: String(metric.value ?? 0) }
+    }),
+  }))
+}
+
 function SettlementSheetCard({ block }) {
   return (
     <section className="settlement-sheet card">
@@ -5341,15 +5353,54 @@ function SettlementPage() {
     { id: 'monthly', label: '월간결산' },
   ]
   const [activeCategory, setActiveCategory] = useState('daily')
-  const blocks = SETTLEMENT_DATA[activeCategory] || []
+  const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
+  const [syncLoading, setSyncLoading] = useState(false)
+
+  async function loadSyncStatus() {
+    try {
+      const data = await api('/api/settlement/platform-sync-status')
+      setSyncStatus(data || { platforms: {} })
+    } catch (error) {
+      setSyncStatus(prev => ({ ...prev, last_message: error.message || '연동 상태를 불러오지 못했습니다.' }))
+    }
+  }
+
+  useEffect(() => {
+    loadSyncStatus()
+    const timer = window.setInterval(loadSyncStatus, 60000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  async function handleRefreshSync() {
+    setSyncLoading(true)
+    try {
+      const data = await api('/api/settlement/platform-sync/refresh', { method: 'POST' })
+      setSyncStatus(data || { platforms: {} })
+      window.alert('결산자료 연동이 완료되었습니다.')
+    } catch (error) {
+      window.alert(error.message || '데이터 연동 중 오류가 발생했습니다.')
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
+  const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
 
   return (
     <div className="stack-page settlement-page">
       <section className="card settlement-hero">
-        <div className="between settlement-hero-head">
+        <div className="between settlement-hero-head settlement-hero-head-wrap">
           <div>
             <h2>결산자료</h2>
             <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
+            <div className="muted settlement-sync-summary">숨고 최신 합계: <strong>{soomgoMetric.value ?? 0}</strong>건 {soomgoMetric.updated_at ? `· 최근 연동 ${String(soomgoMetric.updated_at).replace('T', ' ')}` : ''}</div>
+            <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
+          </div>
+          <div className="settlement-sync-actions">
+            <button type="button" className="small" onClick={handleRefreshSync} disabled={syncLoading || syncStatus.is_running}>
+              {syncLoading || syncStatus.is_running ? '연동중...' : '데이터 연동'}
+            </button>
           </div>
         </div>
         <div className="settlement-tabs" role="tablist" aria-label="결산자료 카테고리">
@@ -5363,6 +5414,21 @@ function SettlementPage() {
               {category.label}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="card settlement-sync-card">
+        <div className="settlement-sync-grid">
+          {['숨고', '오늘', '공홈'].map(name => {
+            const item = syncStatus.platforms?.[name] || {}
+            return (
+              <div key={name} className="settlement-sync-item">
+                <div className="settlement-sync-label">{name}</div>
+                <div className="settlement-sync-value">{item.value ?? 0}</div>
+                <div className="muted settlement-sync-meta">{item.updated_at ? String(item.updated_at).replace('T', ' ') : '미연동'}</div>
+              </div>
+            )
+          })}
         </div>
       </section>
 

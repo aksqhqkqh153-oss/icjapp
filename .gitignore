@@ -1,13 +1,23 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-backend/.venv/
+*.sqlite3
+*.db
+
+# Local env / secrets
+.env
+*.env
+backend/.env
+backend/.secrets/
+backend/playwright/.auth/
+backend/runtime/
+
+# Frontend
 frontend/node_modules/
 frontend/dist/
-backend/data/*.db
-backend/backups/
-.env
-.env.*
-!.env.example
-!.env.production
+
+# Misc
+.DS_Store
+Thumbs.db
