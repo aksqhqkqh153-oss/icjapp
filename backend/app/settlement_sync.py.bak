@@ -767,71 +767,6 @@ class SettlementSyncService:
             f'{m}월 {d}일', f'{mm}월 {dd}일',
         ]
 
-    def _extract_ohou_accept_sections(self, page, section_xpath: str, accept_keyword: str, patterns: list[str]) -> tuple[int, list[dict[str, Any]]]:
-        analysis: list[dict[str, Any]] = page.evaluate(
-            """
-            ({ sectionXPath, acceptKeyword, patterns }) => {
-              const snapshot = document.evaluate(
-                sectionXPath,
-                document,
-                null,
-                XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-                null,
-              );
-              const sections = [];
-              const normalizedKeyword = String(acceptKeyword || '').trim();
-              for (let i = 0; i < snapshot.snapshotLength; i += 1) {
-                const section = snapshot.snapshotItem(i);
-                if (!section) continue;
-                const text = (section.innerText || section.textContent || '').replace(/\s+/g, ' ').trim();
-                const pTexts = Array.from(section.querySelectorAll('p'))
-                  .map(node => (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim())
-                  .filter(Boolean);
-                const firstPText = pTexts[0] || '';
-                const hasAcceptInText = normalizedKeyword ? text.includes(normalizedKeyword) : false;
-                const hasAcceptInFirstP = normalizedKeyword ? firstPText.includes(normalizedKeyword) : false;
-                const hasAcceptInPList = normalizedKeyword ? pTexts.some(item => item.includes(normalizedKeyword)) : false;
-                const hasToday = patterns.some(pattern => text.includes(pattern));
-                sections.push({
-                  section_index: i + 1,
-                  raw_text: text.slice(0, 2000),
-                  first_p_text: firstPText,
-                  paragraph_texts: pTexts.slice(0, 8),
-                  has_accept_keyword: hasAcceptInText,
-                  has_accept_in_first_p: hasAcceptInFirstP,
-                  has_accept_in_paragraphs: hasAcceptInPList,
-                  has_today_date: hasToday,
-                });
-              }
-              return sections;
-            }
-            """,
-            {
-                'sectionXPath': section_xpath,
-                'acceptKeyword': accept_keyword,
-                'patterns': patterns,
-            },
-        ) or []
-        if not isinstance(analysis, list):
-            analysis = []
-
-        keyword_matches = [
-            item for item in analysis
-            if item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword')
-        ]
-        dated_keyword_matches = [item for item in keyword_matches if item.get('has_today_date')]
-
-        # payment/cash 화면 자체가 오늘 기준 카드 목록을 보여주는 경우가 있어, 날짜 텍스트가 각 section에 없을 수 있다.
-        matched = dated_keyword_matches if dated_keyword_matches else keyword_matches
-        for item in analysis:
-            item['matched'] = item in matched
-            item['match_reason'] = (
-                'keyword+date' if item in dated_keyword_matches else
-                'keyword-only' if item in keyword_matches else
-                'not-matched'
-            )
-        return len(matched), analysis
-
     def _sync_ohou_platform_count(self, trigger: str) -> SyncResult:
         try:
             from playwright.sync_api import sync_playwright
@@ -869,19 +804,27 @@ class SettlementSyncService:
                 page.wait_for_timeout(2500)
             if not page.url.startswith(target_url):
                 raise RuntimeError(f'오늘의집 최종 접근 URL이 예상과 다릅니다. 현재 URL: {page.url}')
-            container = page.locator(f'xpath={container_xpath}').first
-            container.wait_for(timeout=cfg.settlement_playwright_timeout_ms)
-            page.wait_for_timeout(1500)
-            try:
-                container.scroll_into_view_if_needed(timeout=3000)
-            except Exception:
-                pass
-            container_text = container.inner_text().strip()
+            container_text = page.locator(f'xpath={container_xpath}').first.inner_text().strip()
             sections = page.locator(f'xpath={section_xpath}')
             count = sections.count()
             if count <= 0:
                 raise RuntimeError('오늘의집 정산 섹션을 찾지 못했습니다.')
-            total, detail = self._extract_ohou_accept_sections(page, section_xpath, accept_keyword, patterns)
+            matched_sections = []
+            for index in range(count):
+                raw_text = sections.nth(index).inner_text().strip()
+                has_accept = accept_keyword in raw_text
+                has_today = any(pattern in raw_text for pattern in patterns)
+                matched = has_accept and has_today
+                if matched:
+                    total += 1
+                    matched_sections.append(index + 1)
+                detail.append({
+                    'section_index': index + 1,
+                    'matched': matched,
+                    'has_accept_keyword': has_accept,
+                    'has_today_date': has_today,
+                    'raw_text': raw_text[:1000],
+                })
             shot_path = screenshot_dir / 'ohou_payment_cash.png'
             try:
                 page.screenshot(path=str(shot_path), full_page=False)
