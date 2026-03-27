@@ -5669,7 +5669,14 @@ function SettlementPage() {
 }
 
 
-export default function App() {
+export default function AppAssignmentNotificationWatcher({ user }) {
+  useEffect(() => {
+    return undefined
+  }, [user])
+  return null
+}
+
+function App() {
   const [user, setUser] = useState(getStoredUser())
   const navigate = useNavigate()
 
