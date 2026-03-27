@@ -589,8 +589,10 @@ def _materials_scope_allowed(user: dict, scope: str) -> bool:
     grade = _grade_of(user)
     if scope in {'sales', 'inventory'}:
         return grade <= 6
-    if scope in {'requesters', 'settlements', 'history', 'inventory_manage'}:
+    if scope in {'requesters', 'settlements', 'history'}:
         return grade <= 2
+    if scope == 'inventory_manage':
+        return grade <= 1
     return False
 
 def _require_materials_scope(user: dict, scope: str):

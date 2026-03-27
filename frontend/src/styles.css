@@ -3545,6 +3545,46 @@ button.selected-toggle:hover,
 .admin-account-list-body strong { display: inline-block; min-width: 88px; color: var(--text); }
 
 
+.collapsible-account-card {
+  gap: 10px;
+}
+
+.admin-account-summary-button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid rgba(51, 65, 85, 0.18);
+  border-radius: 12px;
+  background: rgba(148, 210, 255, 0.14);
+  color: inherit;
+}
+
+.admin-account-summary-button:hover {
+  background: rgba(148, 210, 255, 0.2);
+}
+
+.admin-account-summary-button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-edit-expanded-grid {
+  margin-top: 2px;
+}
+
+.materials-inline-notice {
+  margin-top: 6px;
+}
+
+.materials-row-head-sales,
+.materials-row-sales {
+  grid-template-columns: minmax(140px, 1.8fr) minmax(110px, 1fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(120px, 1fr);
+}
+
+
 .admin-status-tabs-row {
   display: flex;
   justify-content: flex-start;
@@ -3731,8 +3771,14 @@ button.ghost.active {
   gap: 6px;
 }
 @media (max-width: 768px) {
+  .admin-account-summary-button {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .materials-row,
-  .materials-table-inventory .materials-row {
+  .materials-table-inventory .materials-row,
+  .materials-row-head-sales,
+  .materials-row-sales {
     grid-template-columns: 1fr 1fr;
   }
   .materials-row > div,

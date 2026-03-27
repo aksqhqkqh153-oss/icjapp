@@ -4946,6 +4946,8 @@ function AdminModePage() {
   const [employeeEditMode, setEmployeeEditMode] = useState(false)
   const [accountPage, setAccountPage] = useState(1)
   const [accountManagePages, setAccountManagePages] = useState({ list: 1, edit: 1, delete: 1 })
+  const [accountListOpen, setAccountListOpen] = useState({})
+  const [accountEditOpen, setAccountEditOpen] = useState({})
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
@@ -4967,6 +4969,8 @@ function AdminModePage() {
       setEmployeeRows((response.employees || []).map(item => ({ ...item })))
       setAccountPage(1)
       setAccountManagePages({ list: 1, edit: 1, delete: 1 })
+      setAccountListOpen({})
+      setAccountEditOpen({})
       setAccountDeleteSelection({})
       setAccountDeleteDialogOpen(false)
       setAccountDeleteConfirmText('')
@@ -5150,6 +5154,14 @@ function AdminModePage() {
     setEmployeeOpen(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
+  function toggleAccountListRow(id) {
+    setAccountListOpen(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  function toggleAccountEditRow(id) {
+    setAccountEditOpen(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
   const pagedAccounts = useMemo(() => {
     const start = (accountPage - 1) * ACCOUNTS_PER_PAGE
     return accountRows.slice(start, start + ACCOUNTS_PER_PAGE)
@@ -5271,34 +5283,58 @@ function AdminModePage() {
             <div className="stack compact-gap">
               <div className="inline-actions wrap">
                 <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
-                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
                 <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
+                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
                 <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
               </div>
 
               {accountManageTab === 'list' && (
                 <>
                   <div className="admin-account-list-grid">
-                    {pagedManageList.map(item => (
-                      <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card">
-                        <div className="admin-account-list-head">
-                          <strong>{item.name || '-'}</strong>
-                          <span className="muted">{item.account_unique_id || '-'}</span>
+                    {pagedManageList.map(item => {
+                      const isOpen = !!accountListOpen[item.id]
+                      return (
+                        <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
+                          <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountListRow(item.id)} aria-expanded={isOpen}>
+                            <span>[{item.name || '-'}]</span>
+                            <span>[{item.email || '-'}]</span>
+                            <span>[{item.account_unique_id || '-'}]</span>
+                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                            <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
+                          </button>
+                          {isOpen && (
+                            <div className="admin-account-list-body">
+                              <div><strong>아이디</strong> {item.email || '-'}</div>
+                              <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
+                              <div><strong>이름</strong> {item.name || '-'}</div>
+                              <div><strong>닉네임</strong> {item.nickname || '-'}</div>
+                              <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
+                              <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
+                              <div><strong>연락처</strong> {item.phone || '-'}</div>
+                              <div><strong>복구이메일</strong> {item.recovery_email || '-'}</div>
+                              <div><strong>성별</strong> {item.gender || '-'}</div>
+                              <div><strong>출생연도</strong> {item.birth_year || '-'}</div>
+                              <div><strong>지역</strong> {item.region || '-'}</div>
+                              <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
+                              <div><strong>호점</strong> {item.branch_no || '-'}</div>
+                              <div><strong>결혼여부</strong> {item.marital_status || '-'}</div>
+                              <div><strong>거주지주소</strong> {item.resident_address || '-'}</div>
+                              <div><strong>사업자명</strong> {item.business_name || '-'}</div>
+                              <div><strong>사업자번호</strong> {item.business_number || '-'}</div>
+                              <div><strong>업태</strong> {item.business_type || '-'}</div>
+                              <div><strong>종목</strong> {item.business_item || '-'}</div>
+                              <div><strong>사업장주소</strong> {item.business_address || '-'}</div>
+                              <div><strong>계좌번호</strong> {item.bank_account || '-'}</div>
+                              <div><strong>은행명</strong> {item.bank_name || '-'}</div>
+                              <div><strong>MBTI</strong> {item.mbti || '-'}</div>
+                              <div><strong>구글이메일</strong> {item.google_email || '-'}</div>
+                              <div><strong>주민등록번호</strong> {item.resident_id || '-'}</div>
+                              <div><strong>승인상태</strong> {item.approved ? '승인됨' : '미승인'}</div>
+                            </div>
+                          )}
                         </div>
-                        <div className="admin-account-list-body">
-                          <div><strong>아이디</strong> {item.email || '-'}</div>
-                          <div><strong>이름</strong> {item.name || '-'}</div>
-                          <div><strong>닉네임</strong> {item.nickname || '-'}</div>
-                          <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
-                          <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
-                          <div><strong>연락처</strong> {item.phone || '-'}</div>
-                          <div><strong>지역</strong> {item.region || '-'}</div>
-                          <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
-                          <div><strong>호점</strong> {item.branch_no || '-'}</div>
-                          <div><strong>계좌정보</strong> {[item.bank_account || '-', item.bank_name || '-'].join(' / ')}</div>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {renderPagination(accountRows.length, 'list')}
                 </>
@@ -5342,56 +5378,64 @@ function AdminModePage() {
               {accountManageTab === 'edit' && (
                 <>
                   <div className="admin-account-edit-list">
-                    {pagedManageEditRows.map(item => (
-                      <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card">
-                        <div className="admin-account-list-head">
-                          <strong>{item.name || item.nickname || item.email}</strong>
-                          <span className="muted">{item.account_unique_id || '-'}</span>
+                    {pagedManageEditRows.map(item => {
+                      const isOpen = !!accountEditOpen[item.id]
+                      return (
+                        <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
+                          <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
+                            <span>[{item.name || '-'}]</span>
+                            <span>[{item.email || '-'}]</span>
+                            <span>[{item.account_unique_id || '-'}]</span>
+                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                            <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
+                          </button>
+                          {isOpen && (
+                            <div className="admin-inline-grid compact-inline-grid admin-edit-expanded-grid">
+                              <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
+                              <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
+                              <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
+                              <label>고유ID값 <input value={item.account_unique_id || ''} onChange={e => updateAccountRow(item.id, { account_unique_id: e.target.value })} /></label>
+                              <label>직급
+                                <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })}>
+                                  <option value="">미지정</option>
+                                  {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                </select>
+                              </label>
+                              <label>권한등급
+                                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                                  {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                                </select>
+                              </label>
+                              <label>연락처 <input value={item.phone || ''} onChange={e => updateAccountRow(item.id, { phone: e.target.value })} /></label>
+                              <label>복구이메일 <input value={item.recovery_email || ''} onChange={e => updateAccountRow(item.id, { recovery_email: e.target.value })} /></label>
+                              <label>성별 <input value={item.gender || ''} onChange={e => updateAccountRow(item.id, { gender: e.target.value })} /></label>
+                              <label>출생연도 <input value={item.birth_year || ''} onChange={e => updateAccountRow(item.id, { birth_year: e.target.value })} /></label>
+                              <label>지역 <input value={item.region || ''} onChange={e => updateAccountRow(item.id, { region: e.target.value })} /></label>
+                              <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateAccountRow(item.id, { vehicle_number: e.target.value })} /></label>
+                              <label>호점
+                                <select value={item.branch_no || ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value ? Number(e.target.value) : '' })}>
+                                  <option value="">선택 안 함</option>
+                                  {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
+                                </select>
+                              </label>
+                              <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateAccountRow(item.id, { marital_status: e.target.value })} /></label>
+                              <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateAccountRow(item.id, { resident_address: e.target.value })} /></label>
+                              <label>사업자명 <input value={item.business_name || ''} onChange={e => updateAccountRow(item.id, { business_name: e.target.value })} /></label>
+                              <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateAccountRow(item.id, { business_number: e.target.value })} /></label>
+                              <label>업태 <input value={item.business_type || ''} onChange={e => updateAccountRow(item.id, { business_type: e.target.value })} /></label>
+                              <label>종목 <input value={item.business_item || ''} onChange={e => updateAccountRow(item.id, { business_item: e.target.value })} /></label>
+                              <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateAccountRow(item.id, { business_address: e.target.value })} /></label>
+                              <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateAccountRow(item.id, { bank_account: e.target.value })} /></label>
+                              <label>은행명 <input value={item.bank_name || ''} onChange={e => updateAccountRow(item.id, { bank_name: e.target.value })} /></label>
+                              <label>MBTI <input value={item.mbti || ''} onChange={e => updateAccountRow(item.id, { mbti: e.target.value })} /></label>
+                              <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateAccountRow(item.id, { google_email: e.target.value })} /></label>
+                              <label>주민등록번호 <input value={item.resident_id || ''} onChange={e => updateAccountRow(item.id, { resident_id: e.target.value })} /></label>
+                              <label className="check"><input type="checkbox" checked={!!item.approved} onChange={e => updateAccountRow(item.id, { approved: e.target.checked })} /> 승인됨</label>
+                            </div>
+                          )}
                         </div>
-                        <div className="admin-inline-grid compact-inline-grid">
-                          <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
-                          <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
-                          <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
-                          <label>고유ID값 <input value={item.account_unique_id || ''} onChange={e => updateAccountRow(item.id, { account_unique_id: e.target.value })} /></label>
-                          <label>직급
-                            <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })}>
-                              <option value="">미지정</option>
-                              {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                            </select>
-                          </label>
-                          <label>권한등급
-                            <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
-                              {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
-                            </select>
-                          </label>
-                          <label>연락처 <input value={item.phone || ''} onChange={e => updateAccountRow(item.id, { phone: e.target.value })} /></label>
-                          <label>복구이메일 <input value={item.recovery_email || ''} onChange={e => updateAccountRow(item.id, { recovery_email: e.target.value })} /></label>
-                          <label>성별 <input value={item.gender || ''} onChange={e => updateAccountRow(item.id, { gender: e.target.value })} /></label>
-                          <label>출생연도 <input value={item.birth_year || ''} onChange={e => updateAccountRow(item.id, { birth_year: e.target.value })} /></label>
-                          <label>지역 <input value={item.region || ''} onChange={e => updateAccountRow(item.id, { region: e.target.value })} /></label>
-                          <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateAccountRow(item.id, { vehicle_number: e.target.value })} /></label>
-                          <label>호점
-                            <select value={item.branch_no || ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value ? Number(e.target.value) : '' })}>
-                              <option value="">선택 안 함</option>
-                              {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
-                            </select>
-                          </label>
-                          <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateAccountRow(item.id, { marital_status: e.target.value })} /></label>
-                          <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateAccountRow(item.id, { resident_address: e.target.value })} /></label>
-                          <label>사업자명 <input value={item.business_name || ''} onChange={e => updateAccountRow(item.id, { business_name: e.target.value })} /></label>
-                          <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateAccountRow(item.id, { business_number: e.target.value })} /></label>
-                          <label>업태 <input value={item.business_type || ''} onChange={e => updateAccountRow(item.id, { business_type: e.target.value })} /></label>
-                          <label>종목 <input value={item.business_item || ''} onChange={e => updateAccountRow(item.id, { business_item: e.target.value })} /></label>
-                          <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateAccountRow(item.id, { business_address: e.target.value })} /></label>
-                          <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateAccountRow(item.id, { bank_account: e.target.value })} /></label>
-                          <label>은행명 <input value={item.bank_name || ''} onChange={e => updateAccountRow(item.id, { bank_name: e.target.value })} /></label>
-                          <label>MBTI <input value={item.mbti || ''} onChange={e => updateAccountRow(item.id, { mbti: e.target.value })} /></label>
-                          <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateAccountRow(item.id, { google_email: e.target.value })} /></label>
-                          <label>주민등록번호 <input value={item.resident_id || ''} onChange={e => updateAccountRow(item.id, { resident_id: e.target.value })} /></label>
-                          <label className="check"><input type="checkbox" checked={!!item.approved} onChange={e => updateAccountRow(item.id, { approved: e.target.checked })} /> 승인됨</label>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {renderPagination(accountRows.length, 'edit')}
                 </>
@@ -6126,6 +6170,7 @@ function MaterialsPage({ user }) {
   const [selectedRequestIds, setSelectedRequestIds] = useState([])
   const [inventoryDraft, setInventoryDraft] = useState({})
   const [notice, setNotice] = useState('')
+  const [salesError, setSalesError] = useState('')
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
 
@@ -6139,6 +6184,7 @@ function MaterialsPage({ user }) {
       setActiveTab(nextTab && tabs.some(item => item.id === nextTab) ? nextTab : (tabs[0]?.id || 'sales'))
     } catch (error) {
       setNotice(error.message || '자재 데이터를 불러오지 못했습니다.')
+      setSalesError('')
     } finally {
       setLoading(false)
     }
@@ -6150,7 +6196,7 @@ function MaterialsPage({ user }) {
 
   function buildVisibleTabs(permissions) {
     return [
-      permissions.can_view_sales ? { id: 'sales', label: '자재판매' } : null,
+      permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
       permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
       permissions.can_view_requesters ? { id: 'requesters', label: '구매신청자' } : null,
       permissions.can_view_settlements ? { id: 'settlements', label: '구매자결산' } : null,
@@ -6177,6 +6223,7 @@ function MaterialsPage({ user }) {
     .filter(product => product.quantity > 0)
 
   const cartTotal = cartRows.reduce((sum, item) => sum + item.lineTotal, 0)
+  const insufficientCartItem = cartRows.find(item => Number(item.quantity || 0) > Number(item.current_stock || 0))
 
   function updateQuantity(productId, value) {
     const nextValue = String(value).replace(/[^\d]/g, '')
@@ -6188,6 +6235,8 @@ function MaterialsPage({ user }) {
       setNotice('구매 개수를 입력한 뒤 진행해 주세요.')
       return
     }
+    const confirmed = window.confirm('3333-29-1202673 카카오뱅크 (심진수)으로 입금하였습니까?')
+    if (!confirmed) return
     setSaving(true)
     try {
       await api('/api/materials/purchase-requests', {
@@ -6197,11 +6246,12 @@ function MaterialsPage({ user }) {
           items: cartRows.map(item => ({ product_id: item.id, quantity: item.quantity })),
         }),
       })
-      setNotice('자재구매 신청이 완료되었습니다.')
+      setNotice('자재구매 신청이 완료되었습니다. 구매신청자 카테고리로 이동합니다.')
+      setSalesError('')
       setQuantities({})
       setRequestNote('')
       setSalesStep(1)
-      await loadOverview('sales')
+      await loadOverview('requesters')
     } catch (error) {
       setNotice(error.message || '자재구매 신청 중 오류가 발생했습니다.')
     } finally {
@@ -6289,6 +6339,7 @@ function MaterialsPage({ user }) {
     return (
       <button key={tab.id} type="button" className={active ? 'ghost materials-tab active' : 'ghost materials-tab'} onClick={() => {
         setNotice('')
+        setSalesError('')
         setSalesStep(1)
         setActiveTab(tab.id)
       }}>
@@ -6302,7 +6353,7 @@ function MaterialsPage({ user }) {
       return (
         <section className="card materials-panel">
           <div className="materials-summary-head">
-            <h3>자재판매 2페이지</h3>
+            <h3>자재구매(2/2)</h3>
             <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div>
           </div>
           <div className="materials-account-box">
@@ -6337,7 +6388,7 @@ function MaterialsPage({ user }) {
           </label>
           <div className="row gap">
             <button type="button" className="ghost" onClick={() => setSalesStep(1)}>이전</button>
-            <button type="button" className="ghost active" disabled={saving} onClick={submitPurchaseRequest}>확인</button>
+            <button type="button" className="ghost active" disabled={saving} onClick={submitPurchaseRequest}>입금 후 확인</button>
           </div>
         </section>
       )
@@ -6345,22 +6396,25 @@ function MaterialsPage({ user }) {
     return (
       <section className="card materials-panel">
         <div className="materials-summary-head">
-          <h3>자재판매 1페이지</h3>
-          <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요.</div>
+          <h3>자재구매(1/2)</h3>
+          <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
         </div>
         <div className="materials-table">
-          <div className="materials-row materials-row-head">
+          <div className="materials-row materials-row-head materials-row-head-sales">
             <div>구분</div>
             <div>물품가</div>
+            <div>현재고</div>
             <div>구매개수</div>
             <div>합계금액</div>
           </div>
           {productRows.map(product => {
             const quantity = Number(quantities[product.id] || 0)
+            const stock = Number(product.current_stock || 0)
             return (
-              <div key={product.id} className="materials-row">
+              <div key={product.id} className="materials-row materials-row-sales">
                 <div>{product.name}</div>
                 <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
+                <div>{stock}</div>
                 <div>
                   <input
                     className="materials-qty-input"
@@ -6374,16 +6428,26 @@ function MaterialsPage({ user }) {
               </div>
             )
           })}
-          <div className="materials-row materials-row-total">
+          <div className="materials-row materials-row-total materials-row-sales">
             <div>합계</div>
             <div />
+            <div>{cartRows.reduce((sum, item) => sum + Number(item.current_stock || 0), 0)}</div>
             <div>{cartRows.reduce((sum, item) => sum + item.quantity, 0)}</div>
             <div>{cartTotal.toLocaleString('ko-KR')}원</div>
           </div>
         </div>
         <div className="row gap">
-          <button type="button" className="ghost active" onClick={() => setSalesStep(2)}>자재구매</button>
+          <button type="button" className="ghost active" onClick={() => {
+            if (insufficientCartItem) {
+              const label = insufficientCartItem.short_name || insufficientCartItem.name || '해당'
+              setSalesError(`${label} 물품의 재고가 부족하여 구매를 할 수 없습니다.`)
+              return
+            }
+            setSalesError('')
+            setSalesStep(2)
+          }}>자재구매</button>
         </div>
+        {salesError ? <div className="notice-text materials-inline-notice">{salesError}</div> : null}
       </section>
     )
   }
