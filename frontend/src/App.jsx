@@ -101,9 +101,14 @@ const MENU_PERMISSION_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => [
 ])
 
 function effectivePositionTitle(user) {
-  if (Number(user?.branch_no || 0) > 0) return '호점대표'
   const title = String(user?.position_title || '').trim()
-  return title || '미지정'
+  if (title) return title
+  if (Number(user?.branch_no || 0) > 0) return '호점대표'
+  return '미지정'
+}
+
+function isAdministrator(user) {
+  return Number(user?.grade || 6) === 1
 }
 
 function parseMenuPermissions(raw) {
@@ -406,7 +411,7 @@ function Layout({ children, user, onLogout }) {
                     ))}
                   </div>
                 ))}
-                {canAccessAdminMode(user) && (
+                {isAdministrator(user) && (
                   <div className="menu-category-footer">
                     <button type="button" className="dropdown-item menu-permission-button" onClick={() => {
                       navigate('/menu-permissions')
@@ -1950,7 +1955,7 @@ ${guide}`)
           </div>
           <div className="chat-category-row evenly-spaced chat-category-row-spaced">
             {CHAT_CATEGORIES.map(([value, label]) => (
-              <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
+              <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
             ))}
           </div>
         </div>
@@ -2755,7 +2760,7 @@ function BoardsPage() {
       <section className="card">
         <h2>게시판</h2>
         <div className="inline-actions wrap">
-          {categories.map(([value, label]) => <button key={value} className={category === value ? 'small' : 'small ghost'} onClick={() => setCategory(value)}>{label}</button>)}
+          {categories.map(([value, label]) => <button key={value} className={category === value ? 'small selected-toggle' : 'small ghost'} onClick={() => setCategory(value)}>{label}</button>)}
         </div>
         <div className="list">
           {posts.map(item => (
@@ -4706,6 +4711,8 @@ function PlaceholderFeaturePage({ title, description }) {
 }
 
 function MenuPermissionPage() {
+  const currentUser = getStoredUser()
+  const isAdminUser = isAdministrator(currentUser)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -4781,6 +4788,7 @@ function MenuPermissionPage() {
     }
   }
 
+  if (!isAdminUser) return <AccessDeniedRedirect message="관리자만 메뉴권한을 변경할 수 있습니다." />
   if (loading) return <div className="card">메뉴권한 정보를 불러오는 중...</div>
 
   return (
@@ -4934,6 +4942,8 @@ function AdminModePage() {
   const [accountPage, setAccountPage] = useState(1)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusTab, setStatusTab] = useState('branch')
+  const [accountListOpen, setAccountListOpen] = useState(false)
   const ACCOUNTS_PER_PAGE = 8
 
   async function load() {
@@ -5096,7 +5106,7 @@ function AdminModePage() {
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
-    return accountRows.filter(item => `${item.nickname} ${item.email}`.toLowerCase().includes(q))
+    return accountRows.filter(item => `${item.nickname} ${item.email} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
   }, [accountRows, searchQuery])
 
   const actorGrade = Number(currentUser?.grade || 6)
@@ -5123,8 +5133,7 @@ function AdminModePage() {
   }
 
   function defaultPositionForRow(row) {
-    if (Number(row?.branch_no || 0) > 0) return '호점대표'
-    return row?.position_title || ''
+    return row?.position_title || (Number(row?.branch_no || 0) > 0 ? '호점대표' : '')
   }
 
   function canEditPosition(target) {
@@ -5133,7 +5142,7 @@ function AdminModePage() {
 
   function accountActionAllowed(section) {
     if (actorGrade === 1) return true
-    if (actorGrade === 2) return ['가맹현황', '직원현황', '계정추가', '계정권한'].includes(section)
+    if (actorGrade === 2) return ['운영현황', '계정추가', '계정권한'].includes(section)
     return false
   }
 
@@ -5203,122 +5212,136 @@ function AdminModePage() {
           )}
         </section>
       )}
-
       <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
-          <h2>가맹현황</h2>
+          <h2>운영현황</h2>
           <div className="inline-actions wrap">
-            <button type="button" className={branchEditMode ? 'small' : 'small ghost'} onClick={() => setBranchEditMode(v => !v)}>편집</button>
-            {renderActionButton('가맹현황', '정보저장', saveBranchDetails)}
+            <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
+            <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
+            {statusTab === 'branch'
+              ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
+              : renderActionButton('직원현황', '정보저장', saveEmployeeDetails)}
+            <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+              if (statusTab === 'branch') setBranchEditMode(v => !v)
+              else setEmployeeEditMode(v => !v)
+            }}>편집</button>
           </div>
         </div>
-        <div className="admin-inline-grid compact-inline-grid">
-          <label>총차량 대수 <input value={configForm.total_vehicle_count} onChange={e => setConfigForm({ ...configForm, total_vehicle_count: e.target.value })} /></label>
-          <label>호점현황수 <input value={configForm.branch_count_override} onChange={e => setConfigForm({ ...configForm, branch_count_override: e.target.value })} /></label>
-        </div>
-        <div className="admin-subtitle">호점현황/상세정보</div>
-        <div className="admin-detail-list">
-          {branchRows.map(item => (
-            <div key={item.id} className="admin-nested-item">
-              <button type="button" className="admin-primary-row" onClick={() => toggleBranch(item.id)}>
-                {String(item.branch_no || '').padStart(2, '0')}호점 / {item.nickname || '-'} / {item.phone || '-'} / {item.vehicle_number || '-'}
-              </button>
-              {branchOpen[item.id] && (
-                <div className="admin-secondary-panel">
-                  {branchEditMode ? (
-                    <>
-                      <label>대표자이름 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} /></label>
+        {statusTab === 'branch' ? (
+          <>
+            <div className="admin-inline-grid compact-inline-grid three-col summary-grid">
+              <label>가맹현황수 <input value={String(branchRows.length || data.branch_count || 0)} readOnly /></label>
+              <label>지점수 <input value={configForm.branch_count_override} onChange={e => setConfigForm({ ...configForm, branch_count_override: e.target.value.replace(/[^0-9]/g, '') })} /></label>
+              <label>총차량수 <input value={configForm.total_vehicle_count} onChange={e => setConfigForm({ ...configForm, total_vehicle_count: e.target.value.replace(/[^0-9]/g, '') })} /></label>
+            </div>
+            <div className="admin-subtitle">가맹현황/상세정보</div>
+            <div className="list">
+              {branchRows.map(item => (
+                <div key={item.id} className="list-item block admin-detail-card compact-card">
+                  <div className="between" onClick={() => toggleBranch(item.id)}>
+                    <div>
+                      <strong>{item.branch_no || '-'}호점 · {item.nickname}</strong>
+                      <div className="muted">{item.phone || '연락처 미입력'} · {item.vehicle_number || '차량번호 미입력'} · {item.account_unique_id || '-'}</div>
+                    </div>
+                    <button type="button" className="small ghost">{branchOpen[item.id] ? '접기' : '보기'}</button>
+                  </div>
+                  {branchOpen[item.id] && (
+                    <div className="stack compact-gap admin-detail-stack">
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>연락처 <input value={item.phone || ''} onChange={e => updateBranchRow(item.id, { phone: e.target.value })} /></label>
-                        <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} /></label>
-                      </div>
-                      <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateBranchRow(item.id, { resident_address: e.target.value })} /></label>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} /></label>
-                        <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateBranchRow(item.id, { business_number: e.target.value })} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>업태 <input value={item.business_type || ''} onChange={e => updateBranchRow(item.id, { business_type: e.target.value })} /></label>
-                        <label>종목 <input value={item.business_item || ''} onChange={e => updateBranchRow(item.id, { business_item: e.target.value })} /></label>
-                      </div>
-                      <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateBranchRow(item.id, { business_address: e.target.value })} /></label>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateBranchRow(item.id, { bank_account: e.target.value })} /></label>
-                        <label>은행 <input value={item.bank_name || ''} onChange={e => updateBranchRow(item.id, { bank_name: e.target.value })} /></label>
+                        <label>닉네임 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>연락처 <input value={item.phone || ''} onChange={e => updateBranchRow(item.id, { phone: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>주이메일 <input value={item.email || ''} onChange={e => updateBranchRow(item.id, { email: e.target.value })} /></label>
-                        <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateBranchRow(item.id, { google_email: e.target.value })} /></label>
+                        <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div>{item.resident_address || '거주지주소 미입력'}</div>
-                      <div>{item.business_name || '-'} / {item.business_number || '-'} / {item.business_type || '-'} / {item.business_item || '-'}</div>
-                      <div>{item.business_address || '사업장주소 미입력'}</div>
-                      <div>{item.bank_account || '-'} / {item.bank_name || '-'} / {item.email || '-'}</div>
-                    </>
+                      <div className="admin-inline-grid compact-inline-grid">
+                        <label>주이메일 <input value={item.email || ''} onChange={e => updateBranchRow(item.id, { email: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateBranchRow(item.id, { google_email: e.target.value })} disabled={!branchEditMode} /></label>
+                      </div>
+                      {branchEditMode ? (
+                        <>
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} /></label>
+                            <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateBranchRow(item.id, { business_number: e.target.value })} /></label>
+                          </div>
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>업태 <input value={item.business_type || ''} onChange={e => updateBranchRow(item.id, { business_type: e.target.value })} /></label>
+                            <label>종목 <input value={item.business_item || ''} onChange={e => updateBranchRow(item.id, { business_item: e.target.value })} /></label>
+                          </div>
+                          <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateBranchRow(item.id, { business_address: e.target.value })} /></label>
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateBranchRow(item.id, { marital_status: e.target.value })} /></label>
+                            <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateBranchRow(item.id, { resident_address: e.target.value })} /></label>
+                          </div>
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateBranchRow(item.id, { bank_account: e.target.value })} /></label>
+                            <label>은행명 <input value={item.bank_name || ''} onChange={e => updateBranchRow(item.id, { bank_name: e.target.value })} /></label>
+                          </div>
+                          <label>MBTI <input value={item.mbti || ''} onChange={e => updateBranchRow(item.id, { mbti: e.target.value })} /></label>
+                        </>
+                      ) : (
+                        <>
+                          <div>{item.business_name || '-'} / {item.business_number || '-'} / {item.business_type || '-'} / {item.business_item || '-'}</div>
+                          <div>{item.business_address || '사업장주소 미입력'}</div>
+                          <div>{item.resident_address || '거주지주소 미입력'}</div>
+                          <div>{item.bank_account || '-'} / {item.bank_name || '-'} / {item.mbti || '-'}</div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head">
-          <h2>직원현황</h2>
-          <div className="inline-actions wrap">
-            <button type="button" className={employeeEditMode ? 'small' : 'small ghost'} onClick={() => setEmployeeEditMode(v => !v)}>편집</button>
-            {renderActionButton('직원현황', '정보저장', saveEmployeeDetails)}
-          </div>
-        </div>
-        <div className="admin-inline-grid compact-inline-grid">
-          <label>직원현황수 <input value={String(employeeRows.length || 0)} readOnly /></label>
-        </div>
-        <div className="admin-subtitle">직원현황/상세정보</div>
-        <div className="admin-detail-list">
-          {employeeRows.map(item => (
-            <div key={item.id} className="admin-nested-item">
-              <button type="button" className="admin-primary-row" onClick={() => toggleEmployee(item.id)}>
-                {item.nickname || '-'} / {item.phone || '-'} / {item.resident_id || '-'} / {item.marital_status || '-'}
-              </button>
-              {employeeOpen[item.id] && (
-                <div className="admin-secondary-panel">
-                  {employeeEditMode ? (
-                    <>
+          </>
+        ) : (
+          <>
+            <div className="admin-inline-grid compact-inline-grid three-col summary-grid">
+              <label>직원현황수 <input value={String(employeeRows.length || 0)} readOnly /></label>
+              <label>총차량수 <input value={configForm.total_vehicle_count} readOnly /></label>
+              <label>지점수 <input value={configForm.branch_count_override} readOnly /></label>
+            </div>
+            <div className="admin-subtitle">직원현황/상세정보</div>
+            <div className="list">
+              {employeeRows.map(item => (
+                <div key={item.id} className="list-item block admin-detail-card compact-card">
+                  <div className="between" onClick={() => toggleEmployee(item.id)}>
+                    <div>
+                      <strong>{item.nickname}</strong>
+                      <div className="muted">{item.phone || '연락처 미입력'} · {item.vehicle_number || '차량번호 미입력'} · {item.account_unique_id || '-'}</div>
+                    </div>
+                    <button type="button" className="small ghost">{employeeOpen[item.id] ? '접기' : '보기'}</button>
+                  </div>
+                  {employeeOpen[item.id] && (
+                    <div className="stack compact-gap admin-detail-stack">
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>직원이름 <input value={item.nickname || ''} onChange={e => updateEmployeeRow(item.id, { nickname: e.target.value })} /></label>
-                        <label>연락처 <input value={item.phone || ''} onChange={e => updateEmployeeRow(item.id, { phone: e.target.value })} /></label>
+                        <label>닉네임 <input value={item.nickname || ''} onChange={e => updateEmployeeRow(item.id, { nickname: e.target.value })} disabled={!employeeEditMode} /></label>
+                        <label>연락처 <input value={item.phone || ''} onChange={e => updateEmployeeRow(item.id, { phone: e.target.value })} disabled={!employeeEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>주민번호 <input value={item.resident_id || ''} onChange={e => updateEmployeeRow(item.id, { resident_id: e.target.value })} /></label>
-                        <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateEmployeeRow(item.id, { marital_status: e.target.value })} /></label>
-                      </div>
-                      <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateEmployeeRow(item.id, { resident_address: e.target.value })} /></label>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateEmployeeRow(item.id, { bank_account: e.target.value })} /></label>
-                        <label>은행명 <input value={item.bank_name || ''} onChange={e => updateEmployeeRow(item.id, { bank_name: e.target.value })} /></label>
+                        <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateEmployeeRow(item.id, { vehicle_number: e.target.value })} disabled={!employeeEditMode} /></label>
+                        <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateEmployeeRow(item.id, { position_title: e.target.value })} disabled={!employeeEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>MBTI <input value={item.mbti || ''} onChange={e => updateEmployeeRow(item.id, { mbti: e.target.value })} /></label>
-                        <label>주이메일 <input value={item.email || ''} onChange={e => updateEmployeeRow(item.id, { email: e.target.value })} /></label>
+                        <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateEmployeeRow(item.id, { marital_status: e.target.value })} disabled={!employeeEditMode} /></label>
+                        <label>주이메일 <input value={item.email || ''} onChange={e => updateEmployeeRow(item.id, { email: e.target.value })} disabled={!employeeEditMode} /></label>
                       </div>
-                      <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateEmployeeRow(item.id, { google_email: e.target.value })} /></label>
-                    </>
-                  ) : (
-                    <>
-                      <div>{item.resident_address || '거주지주소 미입력'}</div>
-                      <div>{item.bank_account || '-'} / {item.bank_name || '-'} / {item.mbti || '-'}</div>
-                      <div>{item.email || '-'} / {item.google_email || '-'}</div>
-                    </>
+                      <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateEmployeeRow(item.id, { resident_address: e.target.value })} disabled={!employeeEditMode} /></label>
+                      <div className="admin-inline-grid compact-inline-grid">
+                        <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateEmployeeRow(item.id, { bank_account: e.target.value })} disabled={!employeeEditMode} /></label>
+                        <label>은행명 <input value={item.bank_name || ''} onChange={e => updateEmployeeRow(item.id, { bank_name: e.target.value })} disabled={!employeeEditMode} /></label>
+                      </div>
+                      <div className="admin-inline-grid compact-inline-grid">
+                        <label>MBTI <input value={item.mbti || ''} onChange={e => updateEmployeeRow(item.id, { mbti: e.target.value })} disabled={!employeeEditMode} /></label>
+                        <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateEmployeeRow(item.id, { google_email: e.target.value })} disabled={!employeeEditMode} /></label>
+                      </div>
+                    </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </section>
 
       <section className="card admin-mode-card">
@@ -5326,18 +5349,22 @@ function AdminModePage() {
           <h2>계정권한</h2>
           <div className="inline-actions wrap">
             {renderActionButton('계정권한', '정보저장', saveAccounts)}
-            <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>
+            {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
+            {actorGrade === 1 && <button type="button" className={accountListOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountListOpen(v => !v)}>계정목록</button>}
             <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
           </div>
         </div>
         <div className="admin-account-table">
           {pagedAccounts.map(item => (
             <div key={item.id} className="admin-account-grid compact labeled-account-grid">
-              <div>{item.nickname}</div>
+              <div>
+                <strong>{item.nickname}</strong>
+                <div className="muted tiny-text">{item.account_unique_id || '-'}</div>
+              </div>
               <div>{item.email}</div>
               <label className="admin-select-field">
                 <span>직급</span>
-                <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
+                <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                   <option value="">미지정</option>
                   {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
@@ -5353,10 +5380,56 @@ function AdminModePage() {
         </div>
         <div className="admin-pagination">
           {Array.from({ length: pageCount }, (_, index) => index + 1).map(pageNo => (
-            <button key={pageNo} type="button" className={accountPage === pageNo ? 'small' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
+            <button key={pageNo} type="button" className={accountPage === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
           ))}
         </div>
       </section>
+
+      {actorGrade === 1 && accountListOpen && (
+        <section className="card admin-mode-card">
+          <div className="between admin-mode-section-head">
+            <div>
+              <h2>계정목록</h2>
+              <div className="muted">관리자만 전체 계정의 상세정보와 고유ID값을 볼 수 있습니다.</div>
+            </div>
+          </div>
+          <div className="admin-account-list-grid">
+            {accountRows.map(item => (
+              <div key={`account-list-${item.id}`} className="list-item block admin-detail-card compact-card">
+                <div className="admin-account-list-head">
+                  <strong>{item.nickname}</strong>
+                  <span className="muted">{item.account_unique_id || '-'}</span>
+                </div>
+                <div className="admin-account-list-body">
+                  <div><strong>아이디</strong> {item.email || '-'}</div>
+                  <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
+                  <div><strong>이름/닉네임</strong> {item.name || item.nickname || '-'}</div>
+                  <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
+                  <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
+                  <div><strong>연락처</strong> {item.phone || '-'}</div>
+                  <div><strong>지역</strong> {item.region || '-'}</div>
+                  <div><strong>성별</strong> {item.gender || '-'}</div>
+                  <div><strong>출생연도</strong> {item.birth_year || '-'}</div>
+                  <div><strong>복구이메일</strong> {item.recovery_email || '-'}</div>
+                  <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
+                  <div><strong>호점</strong> {item.branch_no || '-'}</div>
+                  <div><strong>사업자명</strong> {item.business_name || '-'}</div>
+                  <div><strong>사업자번호</strong> {item.business_number || '-'}</div>
+                  <div><strong>업태/종목</strong> {[item.business_type || '-', item.business_item || '-'].join(' / ')}</div>
+                  <div><strong>사업장주소</strong> {item.business_address || '-'}</div>
+                  <div><strong>결혼여부</strong> {item.marital_status || '-'}</div>
+                  <div><strong>거주지주소</strong> {item.resident_address || '-'}</div>
+                  <div><strong>계좌정보</strong> {[item.bank_account || '-', item.bank_name || '-'].join(' / ')}</div>
+                  <div><strong>MBTI</strong> {item.mbti || '-'}</div>
+                  <div><strong>구글이메일</strong> {item.google_email || '-'}</div>
+                  <div><strong>주민등록번호</strong> {item.resident_id || '-'}</div>
+                  <div><strong>생성일</strong> {item.created_at || '-'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {actorGrade === 1 && <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
@@ -5417,7 +5490,7 @@ function AdminModePage() {
             <div className="between schedule-popup-head">
               <div>
                 <strong>계정권한 검색</strong>
-                <div className="muted">닉네임 또는 아이디(이메일)로 검색할 수 있습니다.</div>
+                <div className="muted">닉네임, 아이디(이메일), 고유ID값으로 검색할 수 있습니다.</div>
               </div>
               <button type="button" className="ghost small" onClick={() => setSearchOpen(false)}>닫기</button>
             </div>
@@ -5425,9 +5498,9 @@ function AdminModePage() {
             <div className="admin-account-table admin-search-results">
               {searchResults.map(item => (
                 <div key={item.id} className="admin-account-grid compact">
-                  <div>{item.nickname}</div>
+                  <div>{item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
                   <div>{item.email}</div>
-                  <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
+                  <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                     <option value="">미지정</option>
                     {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                   </select>
@@ -6012,7 +6085,7 @@ function App() {
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
-        <Route path="/menu-permissions" element={canAccessAdminMode(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect />} />
+        <Route path="/menu-permissions" element={isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

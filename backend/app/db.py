@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import re
 import secrets
 import sqlite3
@@ -215,6 +216,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    name TEXT DEFAULT '',
     nickname TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user',
     grade INTEGER NOT NULL DEFAULT 6,
@@ -249,6 +251,7 @@ CREATE TABLE IF NOT EXISTS users (
     google_email TEXT DEFAULT '',
     resident_id TEXT DEFAULT '',
     position_title TEXT DEFAULT '',
+    account_unique_id TEXT DEFAULT '',
     created_at TEXT NOT NULL
 );
 
@@ -1430,6 +1433,8 @@ def init_db() -> None:
             'google_email': "TEXT DEFAULT ''",
             'resident_id': "TEXT DEFAULT ''",
             'position_title': "TEXT DEFAULT ''",
+            'name': "TEXT DEFAULT ''",
+            'account_unique_id': "TEXT DEFAULT ''",
         })
         default_admin_settings = {
             'total_vehicle_count': '',
@@ -1441,9 +1446,13 @@ def init_db() -> None:
             'account_suspend_target_min_grade': '3',
             'signup_approve_actor_max_grade': '3',
             'signup_approve_target_min_grade': '7',
+            'menu_permissions_json': '',
         }
         for setting_key, setting_value in default_admin_settings.items():
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
+        conn.execute("UPDATE users SET name = nickname WHERE COALESCE(name, '') = ''")
+        ensure_account_unique_ids(conn)
+        _ensure_unique_index(conn, 'users', 'uq_users_account_unique_id', ['account_unique_id'])
         _ensure_columns(conn, 'work_schedule_day_notes', {
             'excluded_business_details': "TEXT NOT NULL DEFAULT '[]'",
             'excluded_staff_details': "TEXT NOT NULL DEFAULT '[]'",
@@ -1576,13 +1585,42 @@ def grade_label(grade: int | None) -> str:
         grade_num = 6
     return ROLE_LABELS.get(grade_num, '일반')
 
+
+
+def generate_account_unique_id(conn, email: str, user_id: int | None = None) -> str:
+    base_source = str(email or '').strip()
+    local = base_source.split('@')[0] if '@' in base_source else base_source
+    base = re.sub(r'[^0-9A-Za-z가-힣]', '', local)[:24] or f'USER{user_id or random.randint(100, 999)}'
+    alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    while True:
+        suffix = ''.join(random.choice(alphabet) for _ in range(5))
+        candidate = f'{base}-{suffix}'
+        existing = conn.execute('SELECT id FROM users WHERE account_unique_id = ? LIMIT 1', (candidate,)).fetchone()
+        if not existing or (user_id is not None and int(existing[0]) == int(user_id)):
+            return candidate
+
+
+def ensure_account_unique_ids(conn) -> None:
+    rows = conn.execute("SELECT id, email, account_unique_id FROM users ORDER BY id").fetchall()
+    used: set[str] = set()
+    for row in rows:
+        current = str(row['account_unique_id'] or '').strip()
+        if current and current not in used:
+            used.add(current)
+            continue
+        candidate = generate_account_unique_id(conn, row['email'], row['id'])
+        used.add(candidate)
+        conn.execute('UPDATE users SET account_unique_id = ? WHERE id = ?', (candidate, row['id']))
+
 def user_public_dict(row: sqlite3.Row) -> dict:
     grade = int(row['grade'] if row['grade'] is not None else 6)
     approved = bool(row['approved'] if row['approved'] is not None else 1)
     return {
         'id': row['id'],
         'email': row['email'],
+        'name': row['name'] if 'name' in row.keys() else row['nickname'],
         'nickname': row['nickname'],
+        'account_unique_id': row['account_unique_id'] if 'account_unique_id' in row.keys() else '',
         'role': row['role'],
         'grade': grade,
         'grade_label': grade_label(grade),

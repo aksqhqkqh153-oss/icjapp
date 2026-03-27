@@ -3525,3 +3525,21 @@ button.settlement-tab.active {
   justify-content: center;
   width: 100%;
 }
+
+button.selected-toggle,
+button.active.selected-toggle,
+.chat-tab.active.selected-toggle {
+  background: linear-gradient(180deg, #d9f8e5, #bff1cf);
+  color: #1c6241;
+  border-color: #9bd9b5;
+  box-shadow: 0 4px 12px rgba(128, 198, 149, 0.24);
+}
+button.selected-toggle:hover,
+.chat-tab.active.selected-toggle:hover {
+  background: linear-gradient(180deg, #e5fced, #caf4d7);
+}
+.tiny-text { font-size: 12px; }
+.admin-account-list-grid { display: grid; gap: 12px; }
+.admin-account-list-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
+.admin-account-list-body { display: grid; gap: 6px; font-size: 14px; }
+.admin-account-list-body strong { display: inline-block; min-width: 88px; color: var(--text); }

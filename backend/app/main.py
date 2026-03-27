@@ -23,6 +23,7 @@ from .db import (
     insert_notification,
     json_loads,
     make_token,
+    generate_account_unique_id,
     row_to_dict,
     user_public_dict,
     utcnow,
@@ -233,7 +234,9 @@ class AdminAccountsBulkUpdateIn(BaseModel):
     accounts: list[AdminAccountUpdateIn] = []
 class AdminUserDetailIn(BaseModel):
     id: int
+    name: str = ''
     nickname: str = ''
+    account_unique_id: str = ''
     position_title: str = ''
     phone: str = ''
     vehicle_number: str = ''
@@ -256,6 +259,7 @@ class AdminUserDetailsBulkIn(BaseModel):
 class AdminCreateAccountIn(BaseModel):
     email: str
     password: str
+    name: str = ''
     position_title: str = ''
     nickname: str
     gender: str = ''
@@ -2350,7 +2354,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
         permission_config = _get_permission_config(conn)
         users = conn.execute(
             """
-            SELECT id, email, nickname, role, grade, approved, region, phone, vehicle_number, branch_no, created_at,
+            SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
                    bank_account, bank_name, mbti, google_email, resident_id, position_title
             FROM users
@@ -2374,6 +2378,10 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
     }
 @app.post('/api/admin-mode/config')
 def save_admin_mode_config(payload: AdminModeConfigIn, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        existing_menu_permissions = _get_admin_setting(conn, 'menu_permissions_json', '')
+        if int(admin.get('grade') or 6) != 1 and str(payload.menu_permissions_json or '').strip() != str(existing_menu_permissions or '').strip():
+            raise HTTPException(status_code=403, detail='메뉴권한은 관리자만 변경할 수 있습니다.')
     settings_to_save = {
         'total_vehicle_count': str(payload.total_vehicle_count or '').strip(),
         'branch_count_override': str(payload.branch_count_override or '').strip(),
@@ -2406,7 +2414,9 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
         if int(admin.get('grade') or 6) != 1 and not _can_manage_grade(admin, target_grade, conn):
             raise HTTPException(status_code=403, detail='해당 권한을 수정할 수 없습니다.')
         approved = int(payload.approved) if payload.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
-        next_position_title = '호점대표' if existing['branch_no'] is not None else str(payload.position_title or existing['position_title'] if 'position_title' in existing.keys() else '')
+        next_position_title = str((payload.position_title if payload.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
+        if not next_position_title and existing['branch_no'] is not None:
+            next_position_title = '호점대표'
         conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
@@ -2423,7 +2433,9 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             if int(admin.get('grade') or 6) != 1 and not _can_manage_grade(admin, target_grade, conn):
                 continue
             approved = int(item.approved) if item.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
-            next_position_title = '호점대표' if existing['branch_no'] is not None else str(item.position_title or existing['position_title'] if 'position_title' in existing.keys() else '')
+            next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
+            if not next_position_title and existing['branch_no'] is not None:
+                next_position_title = '호점대표'
             conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
@@ -2431,7 +2443,7 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
 @app.post("/api/admin/users/details-bulk")
 def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depends(require_admin_or_subadmin)):
     editable_fields = [
-        'nickname', 'phone', 'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
+        'name', 'nickname', 'phone', 'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
         'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'position_title',
     ]
@@ -2449,7 +2461,9 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                     data['branch_no'] = int(branch_value)
                 except Exception:
                     data['branch_no'] = None
-            data['position_title'] = '호점대표' if data.get('branch_no') not in (None, '') else str(data.get('position_title') or '')
+            data['position_title'] = str(data.get('position_title') or '')
+            if not data['position_title'] and data.get('branch_no') not in (None, ''):
+                data['position_title'] = '호점대표'
             assignments = ', '.join(f"{field} = ?" for field in editable_fields)
             values = [data.get(field) for field in editable_fields] + [item.id]
             conn.execute(f"UPDATE users SET {assignments} WHERE id = ?", values)
@@ -2462,12 +2476,16 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         exists = conn.execute('SELECT id FROM users WHERE email = ?', (payload.email,)).fetchone()
         if exists:
             raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
+        generated_unique_id = generate_account_unique_id(conn, payload.email)
+        position_title = str(payload.position_title or '').strip()
+        if not position_title and payload.branch_no is not None:
+            position_title = '호점대표'
         conn.execute(
             """
-            INSERT INTO users(email, password_hash, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, created_at)
-            VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, account_unique_id, created_at)
+            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, ('호점대표' if payload.branch_no is not None else payload.position_title), utcnow()),
+            (payload.email, hash_password(payload.password), payload.name or payload.nickname, payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, generated_unique_id, utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
