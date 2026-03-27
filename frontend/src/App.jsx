@@ -6346,7 +6346,34 @@ function MaterialsPage({ user }) {
   function formatDateLabel(value) {
     const raw = String(value || '').slice(0, 10)
     if (!raw) return ''
-    return raw.replace(/-/g, '.')
+    const parts = raw.split('-')
+    if (parts.length !== 3) return raw.replace(/-/g, '.')
+    return `${parts[0].slice(2)}.${parts[1]}.${parts[2]}`
+  }
+
+  function renderSettlementHeaderLabel(product) {
+    const label = String(product?.short_name || displayMaterialName(product, true) || '').trim()
+    const match = label.match(/^(.*?)(\([^)]*\))$/)
+    if (!match) return label
+    return (
+      <span className="materials-sheet-header-label">
+        <span>{match[1].trim()}</span>
+        <span>{match[2]}</span>
+      </span>
+    )
+  }
+
+  function moveCaretToEnd(event) {
+    const input = event?.target
+    if (!input || typeof input.setSelectionRange !== 'function') return
+    window.requestAnimationFrame(() => {
+      const length = String(input.value || '').length
+      try {
+        input.setSelectionRange(length, length)
+      } catch {
+        // noop
+      }
+    })
   }
 
 
@@ -6362,14 +6389,14 @@ function MaterialsPage({ user }) {
           <table className="materials-sheet-table">
             <thead>
               <tr>
-                <th rowSpan={2}>구매신청일자</th>
+                <th rowSpan={2}>구매신청일</th>
                 <th rowSpan={2}>이름</th>
                 <th colSpan={activeProducts.length}>묶음 개수</th>
                 <th rowSpan={2}>입금 총계</th>
               </tr>
               <tr>
                 {activeProducts.map(product => (
-                  <th key={`settlement-head-${product.id}`}>{product.short_name || displayMaterialName(product, true)}</th>
+                  <th key={`settlement-head-${product.id}`}>{renderSettlementHeaderLabel(product)}</th>
                 ))}
               </tr>
             </thead>
@@ -6447,9 +6474,9 @@ function MaterialsPage({ user }) {
             <span>메모</span>
             <textarea rows={3} value={requestNote} onChange={(event) => setRequestNote(event.target.value)} placeholder="추가 요청사항을 입력해 주세요." />
           </label>
-          <div className="row gap">
-            <button type="button" className="ghost" onClick={() => setSalesStep(1)}>이전</button>
-            <button type="button" className="ghost active" disabled={saving} onClick={submitPurchaseRequest}>입금 후 확인</button>
+          <div className="row gap materials-actions-right materials-actions-bottom">
+            <button type="button" className="ghost materials-bottom-button" onClick={() => setSalesStep(1)}>이전</button>
+            <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={submitPurchaseRequest}>입금 후 확인</button>
           </div>
         </section>
       )
@@ -6461,7 +6488,7 @@ function MaterialsPage({ user }) {
           <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
         </div>
         <div className="materials-table">
-          <div className="materials-row materials-row-head materials-row-head-sales">
+          <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales">
             <div>구분</div>
             <div>물품가</div>
             <div>현재고</div>
@@ -6481,7 +6508,13 @@ function MaterialsPage({ user }) {
                     className="materials-qty-input"
                     inputMode="numeric"
                     value={quantities[product.id] ?? ''}
-                    onChange={(event) => updateQuantity(product.id, event.target.value)}
+                    onFocus={moveCaretToEnd}
+                    onClick={moveCaretToEnd}
+                    onKeyUp={moveCaretToEnd}
+                    onChange={(event) => {
+                      updateQuantity(product.id, event.target.value)
+                      moveCaretToEnd(event)
+                    }}
                     placeholder="0"
                   />
                 </div>
@@ -6497,8 +6530,8 @@ function MaterialsPage({ user }) {
             <div>{cartTotal.toLocaleString('ko-KR')}원</div>
           </div>
         </div>
-        <div className="row gap">
-          <button type="button" className="ghost active" onClick={() => {
+        <div className="row gap materials-actions-right materials-actions-bottom">
+          <button type="button" className="ghost active materials-bottom-button" onClick={() => {
             if (insufficientCartItem) {
               const label = insufficientCartItem.short_name || insufficientCartItem.name || '해당'
               setSalesError(`${label} 물품의 재고가 부족하여 구매를 할 수 없습니다.`)

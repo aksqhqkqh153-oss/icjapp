@@ -3697,6 +3697,40 @@ button.ghost.active {
   flex-direction: column;
   gap: 8px;
 }
+
+.materials-row-head-sales {
+  grid-template-columns: minmax(140px, 2.1fr) minmax(108px, 1.05fr) minmax(86px, 0.8fr) minmax(108px, 0.95fr) minmax(116px, 1.1fr);
+}
+.materials-row-sales {
+  grid-template-columns: minmax(140px, 2.1fr) minmax(108px, 1.05fr) minmax(86px, 0.8fr) minmax(108px, 0.95fr) minmax(116px, 1.1fr);
+}
+.materials-row-head-sales > div {
+  text-align: center !important;
+  white-space: nowrap;
+}
+.materials-actions-right {
+  justify-content: flex-end;
+}
+.materials-actions-bottom {
+  margin-top: 10px;
+  padding-bottom: 4px;
+}
+.materials-bottom-button {
+  min-width: 116px;
+}
+.materials-sheet-header-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  gap: 2px;
+  white-space: nowrap;
+}
+.materials-sheet-table th:first-child,
+.materials-sheet-table td:first-child {
+  width: 74px;
+  min-width: 74px;
+}
 .materials-row {
   display: grid;
   grid-template-columns: minmax(128px, 2fr) minmax(88px, 1fr) minmax(72px, 0.8fr) minmax(92px, 1fr);
@@ -3880,7 +3914,12 @@ button.ghost.active {
   .materials-row,
   .materials-row-head-sales,
   .materials-row-sales {
-    grid-template-columns: minmax(58px, 1.2fr) minmax(52px, 0.95fr) minmax(38px, 0.6fr) minmax(48px, 0.7fr) minmax(58px, 0.95fr);
+    grid-template-columns: minmax(58px, 1.2fr) minmax(52px, 0.95fr) minmax(38px, 0.6fr) minmax(56px, 0.78fr) minmax(58px, 0.95fr);
+  }
+
+  .materials-row-head-sales > div {
+    white-space: normal;
+    line-height: 1.15;
   }
 
   .materials-table-inventory .materials-row {
@@ -3910,6 +3949,10 @@ button.ghost.active {
   .materials-sheet-table {
     min-width: 720px;
     font-size: 11px;
+  }
+
+  .materials-bottom-button {
+    min-width: 96px;
   }
 
   .materials-sheet-table th,
