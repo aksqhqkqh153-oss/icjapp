@@ -3621,3 +3621,122 @@ button.selected-toggle:hover,
     width: calc(50% - 8px);
   }
 }
+
+
+.materials-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.materials-hero,
+.materials-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.materials-hero-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+.materials-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+button.materials-tab {
+  min-width: 108px;
+}
+button.materials-tab.active,
+.notice-text,
+button.ghost.active {
+  background: #dff6e6;
+  border-color: #97d8aa;
+}
+.materials-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.materials-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 2fr) minmax(110px, 1fr) minmax(88px, 0.8fr) minmax(120px, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+}
+.materials-table-inventory .materials-row {
+  grid-template-columns: minmax(150px, 1.6fr) 80px 90px 90px 100px minmax(160px, 1.5fr);
+}
+.materials-row-head {
+  font-weight: 700;
+  background: rgba(148, 210, 255, 0.16);
+}
+.materials-row-total {
+  font-weight: 700;
+  background: rgba(223, 246, 230, 0.25);
+}
+.materials-qty-input {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line, rgba(255,255,255,0.12));
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+  padding: 8px 10px;
+}
+.materials-account-box {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(148, 210, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.materials-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.materials-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.materials-request-title {
+  font-weight: 700;
+}
+.materials-request-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.materials-inline-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+.materials-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.materials-summary-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (max-width: 768px) {
+  .materials-row,
+  .materials-table-inventory .materials-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .materials-row > div,
+  .materials-table-inventory .materials-row > div {
+    min-width: 0;
+  }
+}

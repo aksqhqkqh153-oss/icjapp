@@ -24,7 +24,7 @@ const PAGE_TITLES = {
   '/reports': '신고관리',
   '/settlements': '결산자료',
   '/warehouse': '창고현황',
-  '/materials': '자재현황/자재구매',
+  '/materials': '자재구매/현황',
   '/storage-status': '짐보관현황',
   '/menu-permissions': '메뉴권한',
 }
@@ -61,7 +61,7 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'work-schedule', label: '근무스케줄', path: '/work-schedule' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
-      { id: 'materials', label: '자재현황/자재구매', path: '/materials' },
+      { id: 'materials', label: '자재구매/현황', path: '/materials' },
     ],
   },
   {
@@ -210,8 +210,8 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
   { id: 'point', label: '포인트', kind: 'placeholder' },
   { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
-  { id: 'materials', label: '자재현황', kind: 'placeholder' },
-  { id: 'materialsBuy', label: '자재구매', kind: 'placeholder' },
+  { id: 'materials', label: '자재구매/현황', kind: 'link', path: '/materials' },
+  { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials' },
   { id: 'workShift', label: '근무스케줄', kind: 'placeholder' },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
@@ -6010,6 +6010,444 @@ function SettlementPage() {
 }
 
 
+
+function MaterialsPage({ user }) {
+  const isMobile = useIsMobile()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [data, setData] = useState(null)
+  const [activeTab, setActiveTab] = useState('sales')
+  const [salesStep, setSalesStep] = useState(1)
+  const [quantities, setQuantities] = useState({})
+  const [requestNote, setRequestNote] = useState('')
+  const [selectedRequestIds, setSelectedRequestIds] = useState([])
+  const [inventoryDraft, setInventoryDraft] = useState({})
+  const [notice, setNotice] = useState('')
+
+  const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
+
+  async function loadOverview(nextTab) {
+    setLoading(true)
+    try {
+      const result = await api('/api/materials/overview')
+      setData(result)
+      setInventoryDraft(Object.fromEntries((result.inventory_rows || []).map(row => [row.product_id, { incoming_qty: row.incoming_qty || 0, note: row.note || '' }])))
+      const tabs = buildVisibleTabs(result?.permissions || {})
+      setActiveTab(nextTab && tabs.some(item => item.id === nextTab) ? nextTab : (tabs[0]?.id || 'sales'))
+    } catch (error) {
+      setNotice(error.message || '자재 데이터를 불러오지 못했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadOverview()
+  }, [])
+
+  function buildVisibleTabs(permissions) {
+    return [
+      permissions.can_view_sales ? { id: 'sales', label: '자재판매' } : null,
+      permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
+      permissions.can_view_requesters ? { id: 'requesters', label: '구매신청자' } : null,
+      permissions.can_view_settlements ? { id: 'settlements', label: '구매자결산' } : null,
+      permissions.can_view_history ? { id: 'history', label: '구매목록' } : null,
+    ].filter(Boolean)
+  }
+
+  const visibleTabs = buildVisibleTabs(data?.permissions || {})
+  const productRows = data?.products || []
+  const pendingRequests = data?.pending_requests || []
+  const settledRequests = data?.settled_requests || []
+  const historyRequests = data?.history_requests || []
+  const inventoryRows = data?.inventory_rows || []
+
+  const cartRows = productRows
+    .map(product => {
+      const quantity = Math.max(0, Number(quantities[product.id] || 0))
+      return {
+        ...product,
+        quantity,
+        lineTotal: quantity * Number(product.unit_price || 0),
+      }
+    })
+    .filter(product => product.quantity > 0)
+
+  const cartTotal = cartRows.reduce((sum, item) => sum + item.lineTotal, 0)
+
+  function updateQuantity(productId, value) {
+    const nextValue = String(value).replace(/[^\d]/g, '')
+    setQuantities(prev => ({ ...prev, [productId]: nextValue ? Number(nextValue) : '' }))
+  }
+
+  async function submitPurchaseRequest() {
+    if (cartRows.length === 0) {
+      setNotice('구매 개수를 입력한 뒤 진행해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      await api('/api/materials/purchase-requests', {
+        method: 'POST',
+        body: JSON.stringify({
+          request_note: requestNote,
+          items: cartRows.map(item => ({ product_id: item.id, quantity: item.quantity })),
+        }),
+      })
+      setNotice('자재구매 신청이 완료되었습니다.')
+      setQuantities({})
+      setRequestNote('')
+      setSalesStep(1)
+      await loadOverview('sales')
+    } catch (error) {
+      setNotice(error.message || '자재구매 신청 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function settleSelectedRequests() {
+    if (selectedRequestIds.length === 0) {
+      setNotice('입금확인 처리할 구매신청자를 선택해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      const result = await api('/api/materials/purchase-requests/settle', {
+        method: 'POST',
+        body: JSON.stringify({ request_ids: selectedRequestIds }),
+      })
+      setSelectedRequestIds([])
+      setNotice(`${result.settled_requests?.length || 0}건의 결산이 등록되었습니다.`)
+      await loadOverview('settlements')
+    } catch (error) {
+      setNotice(error.message || '결산등록 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveInventoryDraft() {
+    setSaving(true)
+    try {
+      await api('/api/materials/inventory', {
+        method: 'POST',
+        body: JSON.stringify({
+          rows: Object.entries(inventoryDraft).map(([productId, row]) => ({
+            product_id: Number(productId),
+            incoming_qty: Number(row?.incoming_qty || 0),
+            note: row?.note || '',
+          })),
+        }),
+      })
+      setNotice('재고현황이 저장되었습니다.')
+      await loadOverview('inventory')
+    } catch (error) {
+      setNotice(error.message || '재고현황 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function closeInventoryDay() {
+    setSaving(true)
+    try {
+      await api('/api/materials/inventory/close', { method: 'POST' })
+      setNotice('당일 자재 결산이 완료되었습니다.')
+      await loadOverview('inventory')
+    } catch (error) {
+      setNotice(error.message || '당일 자재 결산 처리 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function shareSettlements() {
+    const tableOnly = (settledRequests || []).map(request => {
+      const header = `${String(request.created_at || '').slice(0, 10)} | ${request.requester_name} | ${Number(request.total_amount || 0).toLocaleString('ko-KR')}원`
+      const items = (request.items || []).filter(item => Number(item.quantity || 0) > 0).map(item => `- ${item.short_name || item.name}: ${item.quantity}`)
+      return [header, ...items].join('\n')
+    }).join('\n\n')
+    const shareText = `[구매자결산표]\n${tableOnly || '공유할 결산 데이터가 없습니다.'}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: '구매자결산표', text: shareText })
+      } else {
+        await navigator.clipboard.writeText(shareText)
+      }
+      setNotice('구매자결산표를 공유용 텍스트로 준비했습니다. 카카오톡 직접 방 선택 연동은 현재 웹 환경 제약으로 브라우저 공유/복사 방식으로 처리됩니다.')
+    } catch (error) {
+      setNotice('공유를 준비하지 못했습니다.')
+    }
+  }
+
+  function renderTabButton(tab) {
+    const active = activeTab === tab.id
+    return (
+      <button key={tab.id} type="button" className={active ? 'ghost materials-tab active' : 'ghost materials-tab'} onClick={() => {
+        setNotice('')
+        setSalesStep(1)
+        setActiveTab(tab.id)
+      }}>
+        {tab.label}
+      </button>
+    )
+  }
+
+  function renderSalesContent() {
+    if (salesStep === 2) {
+      return (
+        <section className="card materials-panel">
+          <div className="materials-summary-head">
+            <h3>자재판매 2페이지</h3>
+            <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div>
+          </div>
+          <div className="materials-account-box">
+            <strong>자재 입금 계좌</strong>
+            <div>{accountGuide}</div>
+          </div>
+          <div className="materials-table">
+            <div className="materials-row materials-row-head">
+              <div>구분</div>
+              <div>물품가</div>
+              <div>구매개수</div>
+              <div>합계금액</div>
+            </div>
+            {cartRows.map(item => (
+              <div key={`confirm-${item.id}`} className="materials-row">
+                <div>{item.name}</div>
+                <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
+                <div>{item.quantity}</div>
+                <div>{item.lineTotal.toLocaleString('ko-KR')}원</div>
+              </div>
+            ))}
+            <div className="materials-row materials-row-total">
+              <div>합계</div>
+              <div />
+              <div>{cartRows.reduce((sum, item) => sum + item.quantity, 0)}</div>
+              <div>{cartTotal.toLocaleString('ko-KR')}원</div>
+            </div>
+          </div>
+          <label className="stack-form">
+            <span>메모</span>
+            <textarea rows={3} value={requestNote} onChange={(event) => setRequestNote(event.target.value)} placeholder="추가 요청사항을 입력해 주세요." />
+          </label>
+          <div className="row gap">
+            <button type="button" className="ghost" onClick={() => setSalesStep(1)}>이전</button>
+            <button type="button" className="ghost active" disabled={saving} onClick={submitPurchaseRequest}>확인</button>
+          </div>
+        </section>
+      )
+    }
+    return (
+      <section className="card materials-panel">
+        <div className="materials-summary-head">
+          <h3>자재판매 1페이지</h3>
+          <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요.</div>
+        </div>
+        <div className="materials-table">
+          <div className="materials-row materials-row-head">
+            <div>구분</div>
+            <div>물품가</div>
+            <div>구매개수</div>
+            <div>합계금액</div>
+          </div>
+          {productRows.map(product => {
+            const quantity = Number(quantities[product.id] || 0)
+            return (
+              <div key={product.id} className="materials-row">
+                <div>{product.name}</div>
+                <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
+                <div>
+                  <input
+                    className="materials-qty-input"
+                    inputMode="numeric"
+                    value={quantities[product.id] ?? ''}
+                    onChange={(event) => updateQuantity(product.id, event.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>{(quantity * Number(product.unit_price || 0)).toLocaleString('ko-KR')}원</div>
+              </div>
+            )
+          })}
+          <div className="materials-row materials-row-total">
+            <div>합계</div>
+            <div />
+            <div>{cartRows.reduce((sum, item) => sum + item.quantity, 0)}</div>
+            <div>{cartTotal.toLocaleString('ko-KR')}원</div>
+          </div>
+        </div>
+        <div className="row gap">
+          <button type="button" className="ghost active" onClick={() => setSalesStep(2)}>자재구매</button>
+        </div>
+      </section>
+    )
+  }
+
+  function renderRequestRows(requests, mode) {
+    if (!requests.length) {
+      return <div className="card muted">표시할 데이터가 없습니다.</div>
+    }
+    return (
+      <div className="materials-request-list">
+        {requests.map(request => {
+          const checked = selectedRequestIds.includes(request.id)
+          return (
+            <section key={`request-${mode}-${request.id}`} className="card materials-request-card">
+              <div className="between gap">
+                <div>
+                  <div className="materials-request-title">{request.requester_name}</div>
+                  <div className="muted">{String(request.created_at || '').slice(0, 10)} · {Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
+                </div>
+                {mode === 'pending' && (
+                  <label className="materials-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setSelectedRequestIds(prev => event.target.checked ? [...prev, request.id] : prev.filter(id => id !== request.id))
+                      }}
+                    />
+                    <span>입금확인</span>
+                  </label>
+                )}
+              </div>
+              <div className="materials-request-items">
+                {(request.items || []).filter(item => Number(item.quantity || 0) > 0).map(item => (
+                  <div key={`req-item-${request.id}-${item.id}`} className="materials-inline-item">
+                    <span>{item.short_name || item.name}</span>
+                    <strong>{item.quantity}</strong>
+                  </div>
+                ))}
+              </div>
+              {request.request_note ? <div className="muted">메모: {request.request_note}</div> : null}
+            </section>
+          )
+        })}
+      </div>
+    )
+  }
+
+  function renderInventoryContent() {
+    return (
+      <section className="card materials-panel">
+        <div className="materials-summary-head">
+          <h3>재고현황</h3>
+          <div className="muted">당일 입고 개수는 수기 입력, 당일 출고 개수는 결산 완료 데이터가 자동 연동됩니다.</div>
+        </div>
+        <div className="materials-table materials-table-inventory">
+          <div className="materials-row materials-row-head">
+            <div>구분</div>
+            <div>기존 개수</div>
+            <div>당일 입고</div>
+            <div>당일 출고</div>
+            <div>현 재고 현황</div>
+            <div>비고</div>
+          </div>
+          {inventoryRows.map(row => {
+            const draft = inventoryDraft[row.product_id] || { incoming_qty: row.incoming_qty || 0, note: row.note || '' }
+            const expected = Number(row.current_stock || 0) + Number(draft.incoming_qty || 0) - Number(row.outgoing_qty || 0)
+            return (
+              <div key={`inventory-${row.product_id}`} className="materials-row materials-row-inventory">
+                <div>{row.name}</div>
+                <div>{Number(row.current_stock || 0)}</div>
+                <div>
+                  <input
+                    className="materials-qty-input"
+                    inputMode="numeric"
+                    value={draft.incoming_qty ?? ''}
+                    disabled={!data?.permissions?.can_manage_inventory || row.is_closed}
+                    onChange={(event) => {
+                      const raw = String(event.target.value).replace(/[^\d]/g, '')
+                      setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: raw ? Number(raw) : 0, note: prev[row.product_id]?.note || '' } }))
+                    }}
+                  />
+                </div>
+                <div>{Number(row.outgoing_qty || 0)}</div>
+                <div>{expected}</div>
+                <div>
+                  <textarea
+                    rows={isMobile ? 2 : 1}
+                    value={draft.note || ''}
+                    disabled={!data?.permissions?.can_manage_inventory || row.is_closed}
+                    onChange={(event) => setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: prev[row.product_id]?.incoming_qty ?? row.incoming_qty ?? 0, note: event.target.value } }))}
+                    placeholder="메모"
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {data?.permissions?.can_manage_inventory && (
+          <div className="row gap wrap">
+            <button type="button" className="ghost" disabled={saving} onClick={saveInventoryDraft}>임시저장</button>
+            <button type="button" className="ghost active" disabled={saving || inventoryRows.some(row => row.is_closed)} onClick={closeInventoryDay}>결산처리</button>
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  if (loading) return <div className="card">자재 데이터를 불러오는 중입니다...</div>
+
+  return (
+    <div className="stack-page materials-page">
+      <section className="card materials-hero">
+        <div className="between materials-hero-head">
+          <div>
+            <h2>자재구매/현황</h2>
+            <div className="muted">자재 판매, 재고, 결산, 구매목록을 한 화면에서 관리합니다.</div>
+          </div>
+          <div className="muted">기준일: {data?.today || ''}</div>
+        </div>
+        <div className="materials-tabs" role="tablist" aria-label="자재 카테고리">
+          {visibleTabs.map(renderTabButton)}
+        </div>
+        {notice ? <div className="card notice-text">{notice}</div> : null}
+      </section>
+
+      {activeTab === 'sales' && renderSalesContent()}
+      {activeTab === 'inventory' && renderInventoryContent()}
+      {activeTab === 'requesters' && (
+        <section className="card materials-panel">
+          <div className="materials-summary-head">
+            <h3>구매신청자(결산처리)</h3>
+            <div className="muted">입금확인 체크 후 결산등록하면 구매자결산으로 이동됩니다.</div>
+          </div>
+          {renderRequestRows(pendingRequests, 'pending')}
+          <div className="row gap wrap">
+            <button type="button" className="ghost active" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
+          </div>
+        </section>
+      )}
+      {activeTab === 'settlements' && (
+        <section className="card materials-panel">
+          <div className="materials-summary-head">
+            <h3>구매자결산</h3>
+            <div className="muted">결산처리된 구매 데이터를 확인합니다.</div>
+          </div>
+          {renderRequestRows(settledRequests, 'settled')}
+          <div className="row gap wrap">
+            <button type="button" className="ghost" onClick={() => setActiveTab(visibleTabs[0]?.id || 'sales')}>확인(돌아가기)</button>
+            <button type="button" className="ghost active" onClick={shareSettlements}>카톡공유</button>
+          </div>
+        </section>
+      )}
+      {activeTab === 'history' && (
+        <section className="card materials-panel">
+          <div className="materials-summary-head">
+            <h3>구매목록</h3>
+            <div className="muted">결산 처리된 전체 구매 기록입니다.</div>
+          </div>
+          {renderRequestRows(historyRequests, 'history')}
+        </section>
+      )}
+    </div>
+  )
+}
+
+
 function AppAssignmentNotificationWatcher({ user }) {
   useEffect(() => {
     return undefined
@@ -6090,7 +6528,7 @@ function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/points" element={<PointsPage />} />
         <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
-        <Route path="/materials" element={<PlaceholderFeaturePage title="자재현황/자재구매" description="자재현황 및 자재구매 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/materials" element={<MaterialsPage user={user} />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />

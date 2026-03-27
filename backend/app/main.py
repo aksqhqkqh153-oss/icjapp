@@ -271,6 +271,27 @@ class AdminCreateAccountIn(BaseModel):
     branch_no: Optional[int] = None
     grade: int = 6
     approved: bool = True
+
+class MaterialPurchaseItemIn(BaseModel):
+    product_id: int
+    quantity: int = 0
+    memo: str = ''
+
+class MaterialPurchaseCreateIn(BaseModel):
+    items: list[MaterialPurchaseItemIn] = []
+    request_note: str = ''
+
+class MaterialSettlementProcessIn(BaseModel):
+    request_ids: list[int] = []
+
+class MaterialInventoryRowIn(BaseModel):
+    product_id: int
+    incoming_qty: int = 0
+    note: str = ''
+
+class MaterialInventorySaveIn(BaseModel):
+    rows: list[MaterialInventoryRowIn] = []
+
 class InquiryIn(BaseModel):
     category: str
     title: str
@@ -552,6 +573,142 @@ def _location_share_status(conn, user: dict) -> dict:
             'customer_name': active_item['customer_name'],
             'start_address': active_item['start_address'],
         } if active_item else None,
+    }
+
+
+
+def _materials_scope_allowed(user: dict, scope: str) -> bool:
+    grade = _grade_of(user)
+    if scope in {'sales', 'inventory'}:
+        return grade <= 6
+    if scope in {'requesters', 'settlements', 'history', 'inventory_manage'}:
+        return grade <= 2
+    return False
+
+def _require_materials_scope(user: dict, scope: str):
+    if not _materials_scope_allowed(user, scope):
+        raise HTTPException(status_code=403, detail='현재 권한으로는 자재 기능에 접근할 수 없습니다.')
+
+def _material_alias_map(name: str, short_name: str) -> list[str]:
+    aliases = {str(name or '').strip(), str(short_name or '').strip()}
+    if str(short_name or '').strip() == '노비':
+        aliases.add('노란비닐')
+    if str(short_name or '').strip() == '흰비':
+        aliases.add('흰색비닐')
+    if str(short_name or '').strip() == '침비':
+        aliases.add('침대비닐')
+    if str(short_name or '').strip() == '스티커':
+        aliases.add('스티커 인쇄물')
+    if str(short_name or '').strip() == '테이프':
+        aliases.add('이사테이프')
+    return [item for item in aliases if item]
+
+def _material_products(conn):
+    return [row_to_dict(row) for row in conn.execute(
+        "SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1 ORDER BY display_order, id"
+    ).fetchall()]
+
+def _material_permissions(user: dict) -> dict:
+    return {
+        'can_view_sales': _materials_scope_allowed(user, 'sales'),
+        'can_view_inventory': _materials_scope_allowed(user, 'inventory'),
+        'can_view_requesters': _materials_scope_allowed(user, 'requesters'),
+        'can_view_settlements': _materials_scope_allowed(user, 'settlements'),
+        'can_view_history': _materials_scope_allowed(user, 'history'),
+        'can_manage_inventory': _materials_scope_allowed(user, 'inventory_manage'),
+    }
+
+def _material_request_detail(conn, request_row: dict) -> dict:
+    items = [
+        row_to_dict(row)
+        for row in conn.execute(
+            '''
+            SELECT i.id, i.product_id, i.quantity, i.unit_price, i.line_total, i.memo, p.code, p.name, p.short_name, p.unit_label
+            FROM material_purchase_request_items i
+            JOIN material_products p ON p.id = i.product_id
+            WHERE i.request_id = ?
+            ORDER BY p.display_order, i.id
+            ''',
+            (request_row['id'],),
+        ).fetchall()
+    ]
+    return {
+        **request_row,
+        'items': items,
+    }
+
+def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
+    products = _material_products(conn)
+    outgoing_rows = conn.execute(
+        '''
+        SELECT i.product_id, COALESCE(SUM(i.quantity), 0) AS total_qty
+        FROM material_purchase_request_items i
+        JOIN material_purchase_requests r ON r.id = i.request_id
+        WHERE r.status = 'settled' AND COALESCE(substr(r.settled_at, 1, 10), '') = ?
+        GROUP BY i.product_id
+        ''',
+        (target_date,),
+    ).fetchall()
+    outgoing_map = {int(row['product_id']): int(row['total_qty'] or 0) for row in outgoing_rows}
+    daily_rows = conn.execute(
+        "SELECT * FROM material_inventory_daily WHERE inventory_date = ?",
+        (target_date,),
+    ).fetchall()
+    daily_map = {int(row['product_id']): row_to_dict(row) for row in daily_rows}
+    output = []
+    for product in products:
+        row = daily_map.get(int(product['id']), {})
+        output.append({
+            'product_id': int(product['id']),
+            'code': product.get('code', ''),
+            'name': product.get('name', ''),
+            'short_name': product.get('short_name', ''),
+            'unit_price': int(product.get('unit_price') or 0),
+            'current_stock': int(product.get('current_stock') or 0),
+            'incoming_qty': int(row.get('incoming_qty') or 0),
+            'outgoing_qty': int(outgoing_map.get(int(product['id']), 0) or 0),
+            'note': row.get('note', '') or '',
+            'is_closed': bool(int(row.get('is_closed') or 0)) if row else False,
+            'closed_at': row.get('closed_at', '') or '',
+            'expected_stock': int(product.get('current_stock') or 0) + int(row.get('incoming_qty') or 0) - int(outgoing_map.get(int(product['id']), 0) or 0),
+        })
+    return output
+
+def _material_share_text(requests: list[dict]) -> str:
+    lines = ['[구매자결산표]']
+    for request in requests:
+        created_date = str(request.get('created_at') or '')[:10]
+        lines.append(f"- {created_date} | {request.get('requester_name', '')}")
+        for item in request.get('items', []):
+            qty = int(item.get('quantity') or 0)
+            if qty <= 0:
+                continue
+            lines.append(f"  · {item.get('short_name') or item.get('name')}: {qty}")
+        lines.append(f"  · 합계: {int(request.get('total_amount') or 0):,}원")
+    return '\n'.join(lines)
+
+def _material_overview_payload(conn, user: dict) -> dict:
+    today_key = datetime.now().date().isoformat()
+    permissions = _material_permissions(user)
+    request_rows = [
+        _material_request_detail(conn, row_to_dict(row))
+        for row in conn.execute(
+            "SELECT * FROM material_purchase_requests ORDER BY created_at DESC, id DESC LIMIT 300"
+        ).fetchall()
+    ]
+    pending_requests = [row for row in request_rows if row.get('status') == 'pending']
+    settled_requests = [row for row in request_rows if row.get('status') == 'settled']
+    history_rows = settled_requests[:]
+    products = _material_products(conn)
+    return {
+        'today': today_key,
+        'permissions': permissions,
+        'products': products,
+        'pending_requests': pending_requests if permissions['can_view_requesters'] else [],
+        'settled_requests': settled_requests if permissions['can_view_settlements'] else [],
+        'history_requests': history_rows if permissions['can_view_history'] else [],
+        'inventory_rows': _material_today_inventory_rows(conn, today_key) if permissions['can_view_inventory'] else [],
+        'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
 
 def _require_write_access(user: dict, area: str):
@@ -2565,6 +2722,137 @@ def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
     with get_conn() as conn:
         conn.execute("INSERT OR REPLACE INTO preferences(user_id, data) VALUES (?, ?)", (user["id"], json.dumps(payload.data, ensure_ascii=False)))
         return {"ok": True}
+
+@app.get('/api/materials/overview')
+def get_materials_overview(user=Depends(require_user)):
+    if _grade_of(user) >= 7:
+        raise HTTPException(status_code=403, detail='기타 권한은 자재 기능을 볼 수 없습니다.')
+    with get_conn() as conn:
+        return _material_overview_payload(conn, user)
+
+@app.post('/api/materials/purchase-requests')
+def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'sales')
+    valid_items = [item for item in payload.items if int(item.quantity or 0) > 0]
+    if not valid_items:
+        raise HTTPException(status_code=400, detail='구매 개수를 1개 이상 입력해 주세요.')
+    now = utcnow()
+    with get_conn() as conn:
+        products = {int(row['id']): row_to_dict(row) for row in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+        total_amount = 0
+        request_items = []
+        for item in valid_items:
+            product = products.get(int(item.product_id))
+            if not product:
+                continue
+            qty = max(0, int(item.quantity or 0))
+            unit_price = int(product.get('unit_price') or 0)
+            line_total = qty * unit_price
+            total_amount += line_total
+            request_items.append((int(product['id']), qty, unit_price, line_total, str(item.memo or '').strip()))
+        if not request_items:
+            raise HTTPException(status_code=400, detail='유효한 자재 항목이 없습니다.')
+        requester_name = ' '.join(part for part in [
+            f"{user.get('branch_no')}호점" if user.get('branch_no') not in (None, '') else '',
+            str(user.get('name') or user.get('nickname') or user.get('email') or '').strip(),
+        ] if part).strip()
+        if not requester_name:
+            requester_name = str(user.get('nickname') or user.get('email') or '구매신청자').strip()
+        conn.execute(
+            '''
+            INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
+            VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
+            ''',
+            (user['id'], requester_name, str(user.get('account_unique_id') or ''), str(payload.request_note or '').strip(), total_amount, now),
+        )
+        request_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        for product_id, qty, unit_price, line_total, memo in request_items:
+            conn.execute(
+                "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, ?, ?)",
+                (request_id, product_id, qty, unit_price, line_total, memo),
+            )
+        row = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
+        return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(row))}
+
+@app.post('/api/materials/purchase-requests/settle')
+def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'requesters')
+    request_ids = sorted({int(item) for item in payload.request_ids if int(item or 0) > 0})
+    if not request_ids:
+        raise HTTPException(status_code=400, detail='결산등록할 구매신청자를 선택해 주세요.')
+    now = utcnow()
+    placeholders = ','.join('?' for _ in request_ids)
+    with get_conn() as conn:
+        rows = [
+            row_to_dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM material_purchase_requests WHERE id IN ({placeholders}) ORDER BY created_at, id",
+                tuple(request_ids),
+            ).fetchall()
+        ]
+        if not rows:
+            raise HTTPException(status_code=404, detail='결산 대상 신청서를 찾을 수 없습니다.')
+        settled_rows = []
+        for row in rows:
+            if row.get('status') == 'settled':
+                settled_rows.append(_material_request_detail(conn, row))
+                continue
+            detail = _material_request_detail(conn, row)
+            share_text = _material_share_text([detail])
+            conn.execute(
+                "UPDATE material_purchase_requests SET status = 'settled', payment_confirmed = 1, settled_at = ?, settled_by_user_id = ?, share_snapshot_json = ? WHERE id = ?",
+                (now, user['id'], share_text, row['id']),
+            )
+            updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (row['id'],)).fetchone()
+            settled_rows.append(_material_request_detail(conn, row_to_dict(updated)))
+        return {'ok': True, 'settled_requests': settled_rows, 'share_text': _material_share_text(settled_rows)}
+
+@app.post('/api/materials/inventory')
+def save_material_inventory(payload: MaterialInventorySaveIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'inventory_manage')
+    target_date = datetime.now().date().isoformat()
+    now = utcnow()
+    with get_conn() as conn:
+        valid_product_ids = {int(row['id']) for row in conn.execute("SELECT id FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+        for row in payload.rows:
+            product_id = int(row.product_id or 0)
+            if product_id not in valid_product_ids:
+                continue
+            incoming_qty = max(0, int(row.incoming_qty or 0))
+            note = str(row.note or '').strip()
+            conn.execute(
+                '''
+                INSERT INTO material_inventory_daily(inventory_date, product_id, incoming_qty, note, outgoing_qty, is_closed, closed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 0, 0, '', ?, ?)
+                ON CONFLICT(inventory_date, product_id) DO UPDATE SET incoming_qty = excluded.incoming_qty, note = excluded.note, updated_at = excluded.updated_at
+                ''',
+                (target_date, product_id, incoming_qty, note, now, now),
+            )
+        return {'ok': True, 'inventory_rows': _material_today_inventory_rows(conn, target_date)}
+
+@app.post('/api/materials/inventory/close')
+def close_material_inventory(user=Depends(require_admin_or_subadmin)):
+    target_date = datetime.now().date().isoformat()
+    now = utcnow()
+    with get_conn() as conn:
+        rows = _material_today_inventory_rows(conn, target_date)
+        if any(row.get('is_closed') for row in rows):
+            raise HTTPException(status_code=400, detail='오늘 재고 결산은 이미 처리되었습니다.')
+        for row in rows:
+            conn.execute(
+                "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
+                (int(row.get('expected_stock') or 0), now, int(row['product_id'])),
+            )
+            conn.execute(
+                '''
+                INSERT INTO material_inventory_daily(inventory_date, product_id, incoming_qty, note, outgoing_qty, is_closed, closed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(inventory_date, product_id) DO UPDATE SET outgoing_qty = excluded.outgoing_qty, is_closed = 1, closed_at = excluded.closed_at, updated_at = excluded.updated_at
+                ''',
+                (target_date, int(row['product_id']), int(row.get('incoming_qty') or 0), str(row.get('note') or ''), int(row.get('outgoing_qty') or 0), now, now, now),
+            )
+        return {'ok': True, 'inventory_rows': _material_today_inventory_rows(conn, target_date)}
+
 FRONTEND_DIST_DIR = (Path(__file__).resolve().parents[1] / "static").resolve()
 FALLBACK_FRONTEND_DIST_DIR = (Path(__file__).resolve().parents[2] / "frontend" / "dist").resolve()
 if not FRONTEND_DIST_DIR.exists() and FALLBACK_FRONTEND_DIST_DIR.exists():

@@ -1495,10 +1495,129 @@ def init_db() -> None:
             'secret_value': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
+
+        material_schema_sql = _sqlite_schema_to_postgres("""
+CREATE TABLE IF NOT EXISTS material_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    short_name TEXT NOT NULL DEFAULT '',
+    unit_label TEXT NOT NULL DEFAULT '개',
+    unit_price INTEGER NOT NULL DEFAULT 0,
+    current_stock INTEGER NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS material_purchase_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    requester_name TEXT NOT NULL DEFAULT '',
+    requester_unique_id TEXT NOT NULL DEFAULT '',
+    request_note TEXT NOT NULL DEFAULT '',
+    total_amount INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_confirmed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT '',
+    settled_at TEXT NOT NULL DEFAULT '',
+    settled_by_user_id INTEGER,
+    share_snapshot_json TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS material_purchase_request_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit_price INTEGER NOT NULL DEFAULT 0,
+    line_total INTEGER NOT NULL DEFAULT 0,
+    memo TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(request_id) REFERENCES material_purchase_requests(id) ON DELETE CASCADE,
+    FOREIGN KEY(product_id) REFERENCES material_products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS material_inventory_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    inventory_date TEXT NOT NULL,
+    product_id INTEGER NOT NULL,
+    incoming_qty INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    outgoing_qty INTEGER NOT NULL DEFAULT 0,
+    is_closed INTEGER NOT NULL DEFAULT 0,
+    closed_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    UNIQUE (inventory_date, product_id),
+    FOREIGN KEY(product_id) REFERENCES material_products(id) ON DELETE CASCADE
+);
+""") if DB_ENGINE == 'postgresql' else """
+CREATE TABLE IF NOT EXISTS material_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    short_name TEXT NOT NULL DEFAULT '',
+    unit_label TEXT NOT NULL DEFAULT '개',
+    unit_price INTEGER NOT NULL DEFAULT 0,
+    current_stock INTEGER NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS material_purchase_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    requester_name TEXT NOT NULL DEFAULT '',
+    requester_unique_id TEXT NOT NULL DEFAULT '',
+    request_note TEXT NOT NULL DEFAULT '',
+    total_amount INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_confirmed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT '',
+    settled_at TEXT NOT NULL DEFAULT '',
+    settled_by_user_id INTEGER,
+    share_snapshot_json TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS material_purchase_request_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit_price INTEGER NOT NULL DEFAULT 0,
+    line_total INTEGER NOT NULL DEFAULT 0,
+    memo TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(request_id) REFERENCES material_purchase_requests(id) ON DELETE CASCADE,
+    FOREIGN KEY(product_id) REFERENCES material_products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS material_inventory_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    inventory_date TEXT NOT NULL,
+    product_id INTEGER NOT NULL,
+    incoming_qty INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    outgoing_qty INTEGER NOT NULL DEFAULT 0,
+    is_closed INTEGER NOT NULL DEFAULT 0,
+    closed_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    UNIQUE (inventory_date, product_id),
+    FOREIGN KEY(product_id) REFERENCES material_products(id) ON DELETE CASCADE
+);
+"""
+        conn.executescript(material_schema_sql)
+        _ensure_unique_index(conn, 'material_inventory_daily', 'uq_material_inventory_daily_date_product', ['inventory_date', 'product_id'])
         for _platform_name in ('숨고', '오늘', '공홈'):
             conn.execute("INSERT OR IGNORE INTO settlement_platform_metrics(platform, metric_key, metric_value, detail_json, sync_status, sync_message, updated_at) VALUES (?, 'platform_send_count', 0, '[]', 'idle', '', ?)", (_platform_name, utcnow()))
         seed_imported_accounts(conn)
         ensure_default_group_rooms(conn)
+        seed_material_products(conn)
         if settings.seed_demo_data:
             seed_if_empty(conn)
             conn.execute("UPDATE users SET grade = 1, approved = 1 WHERE email = 'admin@example.com'")
@@ -1586,6 +1705,38 @@ def grade_label(grade: int | None) -> str:
     return ROLE_LABELS.get(grade_num, '일반')
 
 
+
+
+
+def seed_material_products(conn) -> None:
+    product_specs = [
+        {'code': 'yellow_vinyl', 'name': '노란 비닐', 'short_name': '노비', 'unit_price': 58400, 'current_stock': 15, 'display_order': 1},
+        {'code': 'white_vinyl', 'name': '흰색 비닐', 'short_name': '흰비', 'unit_price': 45000, 'current_stock': 85, 'display_order': 2},
+        {'code': 'bed_vinyl', 'name': '침대 비닐', 'short_name': '침비', 'unit_price': 55440, 'current_stock': 19, 'display_order': 3},
+        {'code': 'sticker', 'name': '스티커 인쇄물', 'short_name': '스티커', 'unit_price': 13000, 'current_stock': 40, 'display_order': 4},
+        {'code': 'tape', 'name': '이사테이프', 'short_name': '테이프', 'unit_price': 46000, 'current_stock': 7, 'display_order': 5},
+        {'code': 'shoe_cover', 'name': '덧신', 'short_name': '덧신', 'unit_price': 95590, 'current_stock': 8, 'display_order': 6},
+        {'code': 'blanket_box', 'name': '이불박스(흰)', 'short_name': '이불박스(흰)', 'unit_price': 16000, 'current_stock': 110, 'display_order': 7},
+        {'code': 'clothes_box', 'name': '옷박스(흰)', 'short_name': '옷박스(흰)', 'unit_price': 14000, 'current_stock': 134, 'display_order': 8},
+        {'code': 'large_box', 'name': '대박스(흰)', 'short_name': '대박스(흰)', 'unit_price': 11000, 'current_stock': 43, 'display_order': 9},
+        {'code': 'vest_95', 'name': '조끼(95)', 'short_name': '조끼(95)', 'unit_price': 30000, 'current_stock': 0, 'display_order': 10},
+        {'code': 'vest_100', 'name': '조끼(100)', 'short_name': '조끼(100)', 'unit_price': 30000, 'current_stock': 4, 'display_order': 11},
+        {'code': 'vest_105', 'name': '조끼(105)', 'short_name': '조끼(105)', 'unit_price': 30000, 'current_stock': 2, 'display_order': 12},
+        {'code': 'vest_110', 'name': '조끼(110)', 'short_name': '조끼(110)', 'unit_price': 30000, 'current_stock': 1, 'display_order': 13},
+    ]
+    for spec in product_specs:
+        existing = conn.execute("SELECT id FROM material_products WHERE code = ?", (spec['code'],)).fetchone()
+        now = utcnow()
+        if existing:
+            conn.execute(
+                "UPDATE material_products SET name = ?, short_name = ?, unit_price = ?, display_order = ?, updated_at = ? WHERE code = ?",
+                (spec['name'], spec['short_name'], spec['unit_price'], spec['display_order'], now, spec['code']),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO material_products(code, name, short_name, unit_price, current_stock, display_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (spec['code'], spec['name'], spec['short_name'], spec['unit_price'], spec['current_stock'], spec['display_order'], now, now),
+            )
 
 def generate_account_unique_id(conn, email: str, user_id: int | None = None) -> str:
     base_source = str(email or '').strip()
