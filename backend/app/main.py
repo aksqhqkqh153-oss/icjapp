@@ -5,7 +5,7 @@ import random
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -160,6 +160,12 @@ class SettlementCredentialIn(BaseModel):
     platform: str = '숨고'
     email: str = ''
     password: str = ''
+
+class SettlementReflectIn(BaseModel):
+    settlement_date: str
+    category: str = 'daily'
+    title: str = ''
+    block: dict[str, Any]
 
 class CalendarEventIn(BaseModel):
     title: str
@@ -1033,6 +1039,195 @@ def settlement_platform_sync_refresh(user=Depends(require_user)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'데이터 연동 중 오류가 발생했습니다: {exc}') from exc
 
+
+
+
+def _normalize_settlement_date(value: str) -> str:
+    raw = str(value or '').strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail='결산 날짜가 비어 있습니다.')
+    for fmt in ('%Y-%m-%d', '%y.%m.%d', '%y.%m.%d.', '%Y.%m.%d', '%Y.%m.%d.'):
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except ValueError:
+            continue
+    raise HTTPException(status_code=400, detail=f'지원하지 않는 결산 날짜 형식입니다: {raw}')
+
+
+def _safe_settlement_block(block: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(block, dict):
+        raise HTTPException(status_code=400, detail='결산 데이터 형식이 올바르지 않습니다.')
+    return {
+        'title': str(block.get('title') or '').strip(),
+        'date': str(block.get('date') or '').strip(),
+        'summaryHeaders': list(block.get('summaryHeaders') or []),
+        'summaryRows': list(block.get('summaryRows') or []),
+        'reviewHeaders': list(block.get('reviewHeaders') or []),
+        'branchRows': list(block.get('branchRows') or []),
+        'total': block.get('total') if isinstance(block.get('total'), dict) else {},
+    }
+
+
+def _settlement_metric_map(block: dict[str, Any]) -> dict[str, float]:
+    rows = block.get('summaryRows') or []
+    metrics: dict[str, float] = {
+        '숨고': 0.0,
+        '오늘': 0.0,
+        '공홈': 0.0,
+        '총견적': 0.0,
+        '총계약': 0.0,
+        '계약률': 0.0,
+        '플랫폼리뷰': 0.0,
+        '호점리뷰': 0.0,
+        '이슈': 0.0,
+    }
+    for row in rows:
+        source = str((row or {}).get('source') or '').strip()
+        count_raw = str((row or {}).get('count') or '0').replace(',', '').strip()
+        value_raw = str((row or {}).get('value') or '0').replace(',', '').strip()
+        try:
+            count_value = float(count_raw or 0)
+        except ValueError:
+            count_value = 0.0
+        try:
+            value_value = float(value_raw or 0)
+        except ValueError:
+            value_value = 0.0
+        if source in ('숨고', '오늘', '공홈'):
+            metrics[source] = count_value
+        label = str((row or {}).get('label') or '')
+        if '총 견적 발송 수' in label:
+            metrics['총견적'] = value_value
+        elif '총 계약 수' in label:
+            metrics['총계약'] = value_value
+        elif '계약률' in label:
+            metrics['계약률'] = value_value
+    total = block.get('total') if isinstance(block.get('total'), dict) else {}
+    for key, metric_name in [('platformReview', '플랫폼리뷰'), ('branchReview', '호점리뷰'), ('issues', '이슈')]:
+        raw = str(total.get(key) or '0').replace(',', '').strip()
+        try:
+            metrics[metric_name] = float(raw or 0)
+        except ValueError:
+            metrics[metric_name] = 0.0
+    return metrics
+
+
+def _settlement_period_labels(day: date) -> tuple[str, str]:
+    week_start = day - timedelta(days=day.weekday())
+    week_end = week_start + timedelta(days=6)
+    week_key = f"{week_start.isoformat()}~{week_end.isoformat()}"
+    month_key = day.strftime('%Y-%m')
+    return week_key, month_key
+
+
+def _aggregate_settlement_records(rows: list[dict[str, Any]], unit: str) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        settlement_day = datetime.strptime(row['settlement_date'], '%Y-%m-%d').date()
+        week_key, month_key = _settlement_period_labels(settlement_day)
+        group_key = week_key if unit == 'weekly' else month_key
+        bucket = grouped.setdefault(group_key, {
+            'period_key': group_key,
+            'period_label': group_key,
+            'record_count': 0,
+            'dates': [],
+            'metrics': {
+                '숨고': 0.0,
+                '오늘': 0.0,
+                '공홈': 0.0,
+                '총견적': 0.0,
+                '총계약': 0.0,
+                '플랫폼리뷰': 0.0,
+                '호점리뷰': 0.0,
+                '이슈': 0.0,
+            },
+            'last_reflected_at': '',
+        })
+        bucket['record_count'] += 1
+        bucket['dates'].append(row['settlement_date'])
+        metrics = _settlement_metric_map(row.get('block') or {})
+        for key in bucket['metrics']:
+            bucket['metrics'][key] += metrics.get(key, 0.0)
+        reflected_at = row.get('reflected_at') or ''
+        if reflected_at and reflected_at > bucket['last_reflected_at']:
+            bucket['last_reflected_at'] = reflected_at
+    result: list[dict[str, Any]] = []
+    for _, bucket in sorted(grouped.items(), key=lambda item: item[0], reverse=True):
+        total_quotes = bucket['metrics']['총견적']
+        total_contracts = bucket['metrics']['총계약']
+        result.append({
+            'period_key': bucket['period_key'],
+            'period_label': bucket['period_label'],
+            'record_count': bucket['record_count'],
+            'date_range': {
+                'start': min(bucket['dates']) if bucket['dates'] else '',
+                'end': max(bucket['dates']) if bucket['dates'] else '',
+            },
+            'summary': {
+                '숨고': int(bucket['metrics']['숨고']),
+                '오늘': int(bucket['metrics']['오늘']),
+                '공홈': int(bucket['metrics']['공홈']),
+                '총견적': int(bucket['metrics']['총견적']),
+                '총계약': int(bucket['metrics']['총계약']),
+                '계약률': round((total_contracts / total_quotes), 6) if total_quotes else 0,
+                '플랫폼리뷰': int(bucket['metrics']['플랫폼리뷰']),
+                '호점리뷰': int(bucket['metrics']['호점리뷰']),
+                '이슈': int(bucket['metrics']['이슈']),
+            },
+            'last_reflected_at': bucket['last_reflected_at'],
+        })
+    return result
+
+
+@app.get('/api/settlement/records')
+def settlement_records(user=Depends(require_user)):
+    rows: list[dict[str, Any]] = []
+    with get_conn() as conn:
+        fetched = conn.execute(
+            "SELECT settlement_date, category, title, block_json, reflected_at, reflected_by_user_id, reflected_by_name FROM settlement_reflections WHERE category = 'daily' ORDER BY settlement_date DESC, reflected_at DESC"
+        ).fetchall()
+    for row in fetched:
+        item = row_to_dict(row)
+        item['block'] = json_loads(item.get('block_json'), {})
+        rows.append(item)
+    return {
+        'daily_records': rows,
+        'weekly_records': _aggregate_settlement_records(rows, 'weekly'),
+        'monthly_records': _aggregate_settlement_records(rows, 'monthly'),
+    }
+
+
+@app.post('/api/settlement/records/reflect')
+def settlement_records_reflect(payload: SettlementReflectIn, user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    category = (payload.category or 'daily').strip() or 'daily'
+    if category != 'daily':
+        raise HTTPException(status_code=400, detail='현재는 일일결산만 결산반영할 수 있습니다.')
+    settlement_date = _normalize_settlement_date(payload.settlement_date)
+    block = _safe_settlement_block(payload.block)
+    reflected_at = utcnow()
+    reflected_by_name = str(user.get('nickname') or user.get('name') or user.get('email') or '').strip()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settlement_reflections(settlement_date, category, title, block_json, reflected_at, reflected_by_user_id, reflected_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                settlement_date,
+                category,
+                str(payload.title or block.get('title') or '').strip(),
+                json.dumps(block, ensure_ascii=False),
+                reflected_at,
+                user.get('id'),
+                reflected_by_name,
+            ),
+        )
+    return {
+        'ok': True,
+        'settlement_date': settlement_date,
+        'category': category,
+        'reflected_at': reflected_at,
+        'reflected_by_name': reflected_by_name,
+        'block': block,
+    }
 
 @app.get("/api/deployment/meta")
 def deployment_meta():

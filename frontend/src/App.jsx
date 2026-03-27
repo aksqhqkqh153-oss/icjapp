@@ -5768,15 +5768,74 @@ function formatSettlementValue(label, value) {
 }
 
 
-function applySettlementPlatformMetrics(blocks, platformMetrics) {
-  return (blocks || []).map(block => ({
-    ...block,
-    summaryRows: (block.summaryRows || []).map(row => {
+function cloneSettlementBlock(block) {
+  return JSON.parse(JSON.stringify(block || {}))
+}
+
+function settlementDateKeyFromText(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  const match = text.match(/(\d{2,4})\.(\d{1,2})\.(\d{1,2})/)
+  if (!match) return ''
+  const year = match[1].length === 2 ? Number(`20${match[1]}`) : Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (!year || !month || !day) return ''
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function getSettlementBlockDateKey(block) {
+  return settlementDateKeyFromText(block?.date || '')
+}
+
+function getTodaySettlementDateKey() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function applySettlementPlatformMetrics(blocks, platformMetrics, options = {}) {
+  const reflectionMap = options.reflectionMap || {}
+  const todayKey = options.todayKey || getTodaySettlementDateKey()
+  return (blocks || []).map(block => {
+    const cloned = cloneSettlementBlock(block)
+    const dateKey = getSettlementBlockDateKey(cloned)
+    if (dateKey && reflectionMap[dateKey]?.block) {
+      const reflectedBlock = cloneSettlementBlock(reflectionMap[dateKey].block)
+      reflectedBlock.reflectionMeta = reflectionMap[dateKey]
+      return reflectedBlock
+    }
+    if (dateKey && dateKey !== todayKey) {
+      return cloned
+    }
+    cloned.summaryRows = (cloned.summaryRows || []).map(row => {
       const metric = platformMetrics?.[row.source]
       if (!metric) return row
       return { ...row, count: String(metric.value ?? 0) }
-    }),
-  }))
+    })
+    return cloned
+  })
+}
+
+function buildSettlementReflectionMap(records) {
+  return Object.fromEntries((records || []).map(record => [record.settlement_date, record]))
+}
+
+function findPreferredSettlementIndex(blocks) {
+  if (!Array.isArray(blocks) || !blocks.length) return 0
+  const todayKey = getTodaySettlementDateKey()
+  const todayIndex = blocks.findIndex(block => getSettlementBlockDateKey(block) === todayKey)
+  if (todayIndex >= 0) return todayIndex
+  return blocks.length - 1
+}
+
+function formatSettlementDateKeyLabel(dateKey) {
+  if (!dateKey) return '-'
+  const [year, month, day] = String(dateKey).split('-')
+  if (!year || !month || !day) return dateKey
+  return `${year}.${month}.${day}`
 }
 
 function SettlementSheetCard({ block }) {
@@ -5784,6 +5843,11 @@ function SettlementSheetCard({ block }) {
     <section className="settlement-sheet card">
       <div className="settlement-sheet-title">{block.title}</div>
       <div className="settlement-sheet-date">{block.date}</div>
+      {block.reflectionMeta?.reflected_at && (
+        <div className="settlement-sheet-reflected">
+          최종 반영 {String(block.reflectionMeta.reflected_at).replace('T', ' ').slice(0, 16)} · {block.reflectionMeta.reflected_by_name || '기록됨'}
+        </div>
+      )}
 
       <div className="settlement-grid-head settlement-grid-head-summary">
         <div>{block.summaryHeaders[0]}</div>
@@ -5845,11 +5909,83 @@ function formatSettlementSyncDetail(metric, label) {
   return `${label} 최신 합계: ${metric?.value ?? 0}건${updated}`
 }
 
+function SettlementRecordBoard({ recordsByType }) {
+  const [recordTab, setRecordTab] = useState('daily')
+  const current = recordTab === 'weekly'
+    ? (recordsByType.weekly_records || [])
+    : recordTab === 'monthly'
+      ? (recordsByType.monthly_records || [])
+      : (recordsByType.daily_records || [])
+
+  return (
+    <section className="card settlement-record-board">
+      <div className="between settlement-record-head">
+        <div>
+          <h3>결산기록</h3>
+          <div className="muted">일일결산에서 결산반영을 누른 자료가 누적 저장됩니다.</div>
+        </div>
+        <div className="settlement-record-tabs">
+          <button type="button" className={recordTab === 'daily' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setRecordTab('daily')}>일일</button>
+          <button type="button" className={recordTab === 'weekly' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setRecordTab('weekly')}>주간</button>
+          <button type="button" className={recordTab === 'monthly' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setRecordTab('monthly')}>월간</button>
+        </div>
+      </div>
+
+      {!current.length && <div className="muted">아직 저장된 결산기록이 없습니다.</div>}
+
+      <div className="settlement-record-list">
+        {recordTab === 'daily' && current.map(record => {
+          const block = record.block || {}
+          return (
+            <section key={`daily-${record.settlement_date}`} className="settlement-record-card card">
+              <div className="between settlement-record-card-head">
+                <strong>{formatSettlementDateKeyLabel(record.settlement_date)}</strong>
+                <span className="muted">반영 {String(record.reflected_at || '').replace('T', ' ').slice(0, 16)}</span>
+              </div>
+              <div className="muted">반영자 {record.reflected_by_name || '-'}</div>
+              <div className="settlement-record-summary-grid">
+                {(block.summaryRows || []).map((row, index) => (
+                  <div key={`daily-summary-${record.settlement_date}-${index}`} className="settlement-record-mini-stat">
+                    <span>{row.source || row.label || '-'}</span>
+                    <strong>{formatSettlementValue(row.label, row.count)}</strong></div>
+                ))}
+              </div>
+              <div className="muted settlement-record-card-title">{block.title || record.title || ''}</div>
+            </section>
+          )
+        })}
+
+        {recordTab !== 'daily' && current.map(item => (
+          <section key={`${recordTab}-${item.period_key}`} className="settlement-record-card card">
+            <div className="between settlement-record-card-head">
+              <strong>{item.period_label}</strong>
+              <span className="muted">{item.date_range?.start || ''} ~ {item.date_range?.end || ''}</span>
+            </div>
+            <div className="muted">기록일수 {item.record_count}일 · 마지막 반영 {String(item.last_reflected_at || '').replace('T', ' ').slice(0, 16)}</div>
+            <div className="settlement-record-summary-grid settlement-record-summary-grid-wide">
+              <div className="settlement-record-mini-stat"><span>숨고</span><strong>{item.summary?.숨고 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>오늘</span><strong>{item.summary?.오늘 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>공홈</span><strong>{item.summary?.공홈 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>총 견적</span><strong>{item.summary?.총견적 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>총 계약</span><strong>{item.summary?.총계약 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>계약률</span><strong>{formatSettlementValue('계약률', item.summary?.계약률 ?? 0)}</strong></div>
+              <div className="settlement-record-mini-stat"><span>플랫폼 리뷰</span><strong>{item.summary?.플랫폼리뷰 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>호점 리뷰</span><strong>{item.summary?.호점리뷰 ?? 0}</strong></div>
+              <div className="settlement-record-mini-stat"><span>이슈</span><strong>{item.summary?.이슈 ?? 0}</strong></div>
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function SettlementPage() {
   const categories = [
     { id: 'daily', label: '일일결산' },
     { id: 'weekly', label: '주간결산' },
     { id: 'monthly', label: '월간결산' },
+    { id: 'records', label: '결산기록' },
   ]
   const [activeCategory, setActiveCategory] = useState('daily')
   const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
@@ -5868,6 +6004,10 @@ function SettlementPage() {
   const [guidePlatform, setGuidePlatform] = useState('')
   const [guideLoading, setGuideLoading] = useState(false)
   const [guideData, setGuideData] = useState(null)
+  const [recordsData, setRecordsData] = useState({ daily_records: [], weekly_records: [], monthly_records: [] })
+  const [recordsLoading, setRecordsLoading] = useState(false)
+  const [reflectLoading, setReflectLoading] = useState(false)
+  const [dailyIndex, setDailyIndex] = useState(() => findPreferredSettlementIndex(SETTLEMENT_DATA.daily || []))
 
   async function loadSyncStatus() {
     try {
@@ -5878,8 +6018,21 @@ function SettlementPage() {
     }
   }
 
+  async function loadRecords() {
+    setRecordsLoading(true)
+    try {
+      const data = await api('/api/settlement/records')
+      setRecordsData(data || { daily_records: [], weekly_records: [], monthly_records: [] })
+    } catch (error) {
+      setRecordsData({ daily_records: [], weekly_records: [], monthly_records: [] })
+    } finally {
+      setRecordsLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadSyncStatus()
+    loadRecords()
     const timer = window.setInterval(loadSyncStatus, 60000)
     return () => window.clearInterval(timer)
   }, [])
@@ -5965,7 +6118,28 @@ function SettlementPage() {
     setActiveSettingPlatform(prev => (prev === platform ? '' : platform))
   }
 
-  const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
+  const reflectionMap = useMemo(() => buildSettlementReflectionMap(recordsData.daily_records || []), [recordsData.daily_records])
+  const dailyBlocks = useMemo(
+    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.daily || [], syncStatus.platforms, { reflectionMap }),
+    [syncStatus.platforms, reflectionMap],
+  )
+  const weeklyBlocks = useMemo(
+    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.weekly || [], syncStatus.platforms, { reflectionMap: {} }),
+    [syncStatus.platforms],
+  )
+  const monthlyBlocks = useMemo(
+    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.monthly || [], syncStatus.platforms, { reflectionMap: {} }),
+    [syncStatus.platforms],
+  )
+
+  useEffect(() => {
+    setDailyIndex(prev => {
+      if (!dailyBlocks.length) return 0
+      if (prev >= 0 && prev < dailyBlocks.length) return prev
+      return findPreferredSettlementIndex(dailyBlocks)
+    })
+  }, [dailyBlocks])
+
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
   const ohouMetric = syncStatus.platforms?.['오늘'] || { value: 0, updated_at: '', sync_message: '' }
   const soomgoConfig = syncStatus.configs?.['숨고'] || syncStatus.config || {}
@@ -5977,6 +6151,33 @@ function SettlementPage() {
   const activeEmail = activePlatform === '오늘' ? ohouEmail : soomgoEmail
   const activePassword = activePlatform === '오늘' ? ohouPassword : soomgoPassword
   const activeAuthStateText = activePlatform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
+  const selectedDailyBlock = dailyBlocks[dailyIndex] || null
+  const selectedDailyDateKey = getSettlementBlockDateKey(selectedDailyBlock)
+
+  async function handleReflectSettlement() {
+    if (!selectedDailyBlock || !selectedDailyDateKey) {
+      window.alert('반영할 일일결산 데이터가 없습니다.')
+      return
+    }
+    setReflectLoading(true)
+    try {
+      await api('/api/settlement/records/reflect', {
+        method: 'POST',
+        body: JSON.stringify({
+          category: 'daily',
+          settlement_date: selectedDailyDateKey,
+          title: selectedDailyBlock.title || '',
+          block: selectedDailyBlock,
+        }),
+      })
+      await loadRecords()
+      window.alert(`${formatSettlementDateKeyLabel(selectedDailyDateKey)} 결산이 최종 반영되었습니다.`)
+    } catch (error) {
+      window.alert(error.message || '결산반영 중 오류가 발생했습니다.')
+    } finally {
+      setReflectLoading(false)
+    }
+  }
 
   function setActiveEmailValue(value) {
     if (activePlatform === '오늘') setOhouEmail(value)
@@ -5993,27 +6194,57 @@ function SettlementPage() {
     else setSoomgoAuthStateText(value)
   }
 
+  let content = null
+  if (activeCategory === 'records') {
+    content = <SettlementRecordBoard recordsByType={recordsData} />
+  } else if (activeCategory === 'daily') {
+    content = selectedDailyBlock ? (
+      <>
+        <div className="settlement-day-nav card">
+          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
+          <div className="settlement-day-nav-title">
+            <strong>{formatSettlementDateKeyLabel(selectedDailyDateKey)}</strong>
+            <span className="muted">{dailyIndex + 1} / {dailyBlocks.length}</span>
+          </div>
+          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(dailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= dailyBlocks.length - 1}>▶</button>
+        </div>
+        <div className="settlement-sheet-grid settlement-sheet-grid-single">
+          <SettlementSheetCard block={selectedDailyBlock} />
+        </div>
+        <div className="settlement-float-actions">
+          <button type="button" onClick={handleReflectSettlement} disabled={reflectLoading}>
+            {reflectLoading ? '반영중...' : '결산반영'}
+          </button>
+        </div>
+      </>
+    ) : <div className="card muted">표시할 일일결산 데이터가 없습니다.</div>
+  } else {
+    const blocks = activeCategory === 'weekly' ? weeklyBlocks : monthlyBlocks
+    content = (
+      <div className="settlement-sheet-grid">
+        {blocks.map((block, index) => (
+          <SettlementSheetCard key={`${block.title}-${index}`} block={block} />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="stack-page settlement-page">
       <section className="card settlement-hero">
         <div className="between settlement-hero-head settlement-hero-head-wrap">
           <div className="settlement-hero-main">
             <h2>결산자료</h2>
-            <button
-              type="button"
-              className="ghost settlement-status-toggle"
-              onClick={() => setStatusDetailOpen(prev => !prev)}
-            >
+            <button type="button" className="ghost settlement-status-toggle" onClick={() => setStatusDetailOpen(prev => !prev)}>
               {nextRunLabel}
             </button>
-            <div className="muted settlement-status-caption">
-              현재 상태 {statusText}
-            </div>
+            <div className="muted settlement-status-caption">현재 상태 {statusText}</div>
             {statusDetailOpen && (
               <div className="settlement-status-detail card">
-                <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
+                <div className="muted">일일결산은 하루씩만 표시되며, 결산반영 버튼으로 결산기록에 저장됩니다.</div>
                 <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(soomgoMetric, '숨고')}</div>
                 <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(ohouMetric, '오늘')}</div>
+                <div className="muted settlement-sync-summary">저장된 결산기록 {recordsLoading ? '불러오는 중...' : `${(recordsData.daily_records || []).length}건`}</div>
               </div>
             )}
           </div>
@@ -6030,20 +6261,8 @@ function SettlementPage() {
         {settingsOpen && (
           <div className="settlement-settings-panel">
             <div className="settlement-settings-tabs">
-              <button
-                type="button"
-                className={activeSettingPlatform === '숨고' ? 'small active' : 'small'}
-                onClick={() => handleTogglePlatformSetting('숨고')}
-              >
-                숨고 인증세션
-              </button>
-              <button
-                type="button"
-                className={activeSettingPlatform === '오늘' ? 'small active' : 'small'}
-                onClick={() => handleTogglePlatformSetting('오늘')}
-              >
-                오늘 인증세션
-              </button>
+              <button type="button" className={activeSettingPlatform === '숨고' ? 'small active' : 'small'} onClick={() => handleTogglePlatformSetting('숨고')}>숨고 인증세션</button>
+              <button type="button" className={activeSettingPlatform === '오늘' ? 'small active' : 'small'} onClick={() => handleTogglePlatformSetting('오늘')}>오늘 인증세션</button>
             </div>
 
             {activeSettingPlatform && (
@@ -6055,71 +6274,45 @@ function SettlementPage() {
                       email 소스: <strong>{activeConfig.email_env || '없음'}</strong> · password 소스: <strong>{activeConfig.password_env || '없음'}</strong> · 인증세션: <strong>{activeConfig.auth_state_present ? '저장됨' : '없음'}</strong>
                     </div>
                   </div>
-                  <button type="button" className="ghost small" onClick={() => handleOpenGuide(activePlatform)}>
-                    설명서
-                  </button>
+                  <button type="button" className="ghost small" onClick={() => handleOpenGuide(activePlatform)}>설명서</button>
                 </div>
 
                 <div className="settlement-credential-grid">
                   <input value={activeEmail} onChange={e => setActiveEmailValue(e.target.value)} placeholder={`${activePlatform} 아이디(이메일)`} />
                   <input type="password" value={activePassword} onChange={e => setActivePasswordValue(e.target.value)} placeholder={`${activePlatform} 비밀번호`} />
-                  <button type="button" className="small" onClick={() => handleSaveCredentials(activePlatform)} disabled={credentialLoading}>
-                    {credentialLoading ? '저장중...' : `${activePlatform} 계정 저장`}
-                  </button>
+                  <button type="button" className="small" onClick={() => handleSaveCredentials(activePlatform)} disabled={credentialLoading}>{credentialLoading ? '저장중...' : `${activePlatform} 계정 저장`}</button>
                 </div>
 
                 <div className="muted settlement-sync-warning">
-                  {activePlatform === '숨고'
-                    ? '숨고 로그인 유지가 불안정하거나 추가 인증이 필요한 경우, 로컬 helper 스크립트로 storage_state JSON을 만든 뒤 이 화면에 붙여 넣어 저장할 수 있습니다.'
-                    : '오늘의집 로그인 후 moving/payment/cash 화면까지 정상 접근되는 인증세션을 JSON으로 만들어 저장하면 데이터 연동 안정성이 높아집니다.'}
+                  {activePlatform === '숨고' ? '숨고는 로그인 이후 바로 새로고침하지 말고 대시보드가 열린 상태에서 인증세션 저장을 진행해 주세요.' : '오늘의집은 파트너센터 이동 페이지가 열린 상태에서 인증세션 저장을 진행해 주세요.'}
                 </div>
 
-                <textarea
-                  className="settlement-auth-state-textarea"
-                  value={activeAuthStateText}
-                  onChange={e => setActiveAuthStateValue(e.target.value)}
-                  placeholder={activePlatform === '숨고' ? 'soomgo_storage_state.json 내용을 여기에 붙여 넣으세요.' : 'ohou_storage_state.json 내용을 여기에 붙여 넣으세요.'}
-                />
+                <textarea className="settlement-auth-state-textarea" value={activeAuthStateText} onChange={e => setActiveAuthStateValue(e.target.value)} placeholder={`${activePlatform} storageState JSON 전체를 붙여 넣어 주세요.`} />
                 <div className="settlement-sync-actions settlement-sync-actions-inline">
-                  <button type="button" className="small" onClick={() => handleAuthStateUpload(activePlatform)} disabled={authStateLoading === activePlatform}>
-                    {authStateLoading === activePlatform ? '저장중...' : `${activePlatform} 인증세션 저장`}
-                  </button>
+                  <button type="button" className="small" onClick={() => handleAuthStateUpload(activePlatform)} disabled={authStateLoading === activePlatform}>{authStateLoading === activePlatform ? '저장중...' : '인증세션 저장'}</button>
                 </div>
 
                 {guidePlatform === activePlatform && (
                   <div className="settlement-guide-card">
-                    {guideLoading && <div className="muted">설명서를 불러오는 중입니다...</div>}
+                    {guideLoading && <div className="muted">설명서를 불러오는 중입니다.</div>}
                     {!guideLoading && guideData && (
                       <>
-                        <h3>{guideData.title}</h3>
-                        <div className="muted">{guideData.summary}</div>
-
                         <div className="settlement-guide-section">
-                          <strong>필요 자료</strong>
-                          <ul>
-                            {(guideData.required_materials || []).map((item, index) => <li key={`material-${index}`}>{item}</li>)}
-                          </ul>
+                          <strong>{guideData.title}</strong>
+                          <div className="muted">{guideData.description}</div>
                         </div>
-
                         <div className="settlement-guide-section">
                           <strong>저장 경로</strong>
-                          <ul>
-                            {(guideData.paths || []).map((item, index) => <li key={`path-${index}`}>{item}</li>)}
-                          </ul>
+                          <ul>{(guideData.paths || []).map((item, index) => <li key={`path-${index}`}>{item}</li>)}</ul>
                         </div>
-
                         <div className="settlement-guide-section">
                           <strong>터미널 명령어</strong>
                           <pre>{(guideData.commands || []).join('\n')}</pre>
                         </div>
-
                         <div className="settlement-guide-section">
                           <strong>진행 절차</strong>
-                          <ol>
-                            {(guideData.steps || []).map((item, index) => <li key={`step-${index}`}>{item}</li>)}
-                          </ol>
+                          <ol>{(guideData.steps || []).map((item, index) => <li key={`step-${index}`}>{item}</li>)}</ol>
                         </div>
-
                         <div className="settlement-guide-section">
                           <strong>인증세션 저장 버튼을 눌러야 하는 타이밍</strong>
                           <div>{guideData.timing}</div>
@@ -6135,30 +6328,18 @@ function SettlementPage() {
 
         <div className="settlement-tabs" role="tablist" aria-label="결산자료 카테고리">
           {categories.map(category => (
-            <button
-              key={category.id}
-              type="button"
-              className={activeCategory === category.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'}
-              onClick={() => setActiveCategory(category.id)}
-            >
-              {category.label}
-            </button>
+            <button key={category.id} type="button" className={activeCategory === category.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setActiveCategory(category.id)}>{category.label}</button>
           ))}
         </div>
       </section>
 
-      <div className="settlement-sheet-grid">
-        {blocks.map((block, index) => (
-          <SettlementSheetCard key={`${block.title}-${index}`} block={block} />
-        ))}
-      </div>
+      {content}
     </div>
   )
 }
 
-
-
 function MaterialsPage({ user }) {
+
   const isMobile = useIsMobile()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

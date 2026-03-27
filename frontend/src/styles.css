@@ -3258,6 +3258,85 @@ button.settlement-tab.active {
   background: #f7fbff;
   font-weight: 700;
 }
+
+.settlement-sheet-reflected {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #53708a;
+  border-bottom: 1px solid #d7e3ee;
+  background: #fbfdff;
+}
+.settlement-sheet-grid-single {
+  grid-template-columns: 1fr;
+}
+.settlement-day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settlement-day-nav-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+.settlement-float-actions {
+  position: sticky;
+  bottom: 18px;
+  display: flex;
+  justify-content: flex-end;
+  z-index: 20;
+}
+.settlement-float-actions button {
+  min-width: 120px;
+}
+.settlement-record-board h3 {
+  margin: 0 0 4px;
+}
+.settlement-record-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settlement-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+.settlement-record-card {
+  padding: 14px;
+}
+.settlement-record-card-head {
+  margin-bottom: 6px;
+}
+.settlement-record-card-title {
+  margin-top: 10px;
+}
+.settlement-record-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.settlement-record-summary-grid-wide {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+.settlement-record-mini-stat {
+  border: 1px solid #d7e3ee;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settlement-record-mini-stat span {
+  font-size: 12px;
+  color: #5d7489;
+}
 @media (max-width: 760px) {
   .settlement-sheet-grid {
     grid-template-columns: 1fr;

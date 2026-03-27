@@ -279,6 +279,19 @@ CREATE TABLE IF NOT EXISTS settlement_sync_history (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settlement_reflections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    settlement_date TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'daily',
+    title TEXT NOT NULL DEFAULT '',
+    block_json TEXT NOT NULL DEFAULT '{}',
+    reflected_at TEXT NOT NULL DEFAULT '',
+    reflected_by_user_id INTEGER,
+    reflected_by_name TEXT NOT NULL DEFAULT '',
+    UNIQUE (settlement_date, category),
+    FOREIGN KEY(reflected_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 
 CREATE TABLE IF NOT EXISTS deleted_imported_accounts (
     email TEXT PRIMARY KEY,
@@ -1958,6 +1971,16 @@ def init_db() -> None:
             'message': "TEXT NOT NULL DEFAULT ''",
             'created_at': "TEXT NOT NULL DEFAULT ''",
         })
+        _ensure_columns(conn, 'settlement_reflections', {
+            'settlement_date': "TEXT NOT NULL DEFAULT ''",
+            'category': "TEXT NOT NULL DEFAULT 'daily'",
+            'title': "TEXT NOT NULL DEFAULT ''",
+            'block_json': "TEXT NOT NULL DEFAULT '{}'",
+            'reflected_at': "TEXT NOT NULL DEFAULT ''",
+            'reflected_by_user_id': 'INTEGER',
+            'reflected_by_name': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_unique_index(conn, 'settlement_reflections', 'uq_settlement_reflections_date_category', ['settlement_date', 'category'])
         _ensure_columns(conn, 'app_secrets', {
             'secret_value': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",

@@ -788,19 +788,23 @@ class SettlementSyncService:
                   .map(node => (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim())
                   .filter(Boolean);
                 const firstPText = pTexts[0] || '';
+                const secondPText = pTexts[1] || '';
                 const hasAcceptInText = normalizedKeyword ? text.includes(normalizedKeyword) : false;
                 const hasAcceptInFirstP = normalizedKeyword ? firstPText.includes(normalizedKeyword) : false;
                 const hasAcceptInPList = normalizedKeyword ? pTexts.some(item => item.includes(normalizedKeyword)) : false;
-                const hasToday = patterns.some(pattern => text.includes(pattern));
+                const hasTodayInSecondP = patterns.some(pattern => secondPText.includes(pattern));
+                const hasTodayAnywhere = patterns.some(pattern => text.includes(pattern));
                 sections.push({
                   section_index: i + 1,
                   raw_text: text.slice(0, 2000),
                   first_p_text: firstPText,
+                  second_p_text: secondPText,
                   paragraph_texts: pTexts.slice(0, 8),
                   has_accept_keyword: hasAcceptInText,
                   has_accept_in_first_p: hasAcceptInFirstP,
                   has_accept_in_paragraphs: hasAcceptInPList,
-                  has_today_date: hasToday,
+                  has_today_date: hasTodayInSecondP,
+                  has_today_date_anywhere: hasTodayAnywhere,
                 });
               }
               return sections;
@@ -815,19 +819,17 @@ class SettlementSyncService:
         if not isinstance(analysis, list):
             analysis = []
 
-        keyword_matches = [
+        matched = [
             item for item in analysis
-            if item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword')
+            if (item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword'))
+            and item.get('has_today_date')
         ]
-        dated_keyword_matches = [item for item in keyword_matches if item.get('has_today_date')]
-
-        # payment/cash 화면 자체가 오늘 기준 카드 목록을 보여주는 경우가 있어, 날짜 텍스트가 각 section에 없을 수 있다.
-        matched = dated_keyword_matches if dated_keyword_matches else keyword_matches
         for item in analysis:
             item['matched'] = item in matched
             item['match_reason'] = (
-                'keyword+date' if item in dated_keyword_matches else
-                'keyword-only' if item in keyword_matches else
+                'keyword+date(second-p)' if item in matched else
+                'date-only' if item.get('has_today_date') else
+                'keyword-only' if (item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword')) else
                 'not-matched'
             )
         return len(matched), analysis
@@ -896,7 +898,9 @@ class SettlementSyncService:
             browser.close()
         if accept_keyword not in container_text:
             raise RuntimeError(f'오늘의집 데이터 영역에서 "{accept_keyword}" 문구를 찾지 못했습니다.')
-        message = f'오늘의집 당일 오더 수락 섹션 {total}건 동기화 완료'
+        if total <= 0:
+            logger.info('ohou sync completed with zero matched sections based on second p date text and keyword')
+        message = f'오늘의집 당일 날짜 일치 오더 수락 섹션 {total}건 동기화 완료'
         return SyncResult(ok=True, platform='오늘', value=total, detail=detail, message=message, updated_at=now_iso)
 
 
