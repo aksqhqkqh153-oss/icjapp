@@ -108,11 +108,19 @@ class Settings:
     settlement_playwright_timeout_ms: int = field(default_factory=lambda: int(os.getenv("SETTLEMENT_PLAYWRIGHT_TIMEOUT_MS", "30000")))
     settlement_runtime_dir: Path = field(default_factory=lambda: Path(os.getenv("SETTLEMENT_RUNTIME_DIR", str(Path(__file__).resolve().parents[1] / "runtime"))))
     settlement_auth_state_path: str = field(default_factory=lambda: os.getenv("SETTLEMENT_AUTH_STATE_PATH", str(Path(__file__).resolve().parents[1] / "playwright" / ".auth" / "soomgo-state.json")).strip())
+    settlement_ohou_auth_state_path: str = field(default_factory=lambda: os.getenv("SETTLEMENT_OHOU_AUTH_STATE_PATH", str(Path(__file__).resolve().parents[1] / "playwright" / ".auth" / "ohou-state.json")).strip())
     soomgo_login_url: str = field(default_factory=lambda: os.getenv("SOOMGO_LOGIN_URL", "https://soomgo.com/login").strip())
     soomgo_email: str = field(default_factory=lambda: _first_env("SOOMGO_EMAIL", "SETTLEMENT_SOOMGO_EMAIL", "SOOMGO_ID", "SOOMGO_LOGIN_ID")[0])
     soomgo_password: str = field(default_factory=lambda: _first_env("SOOMGO_PASSWORD", "SETTLEMENT_SOOMGO_PASSWORD", "SOOMGO_PW", "SOOMGO_LOGIN_PASSWORD")[0])
     soomgo_value_xpath: str = field(default_factory=lambda: os.getenv("SOOMGO_VALUE_XPATH", '//*[@id="__next"]/main/div/div[2]/div[2]/div[1]/p[1]').strip())
     soomgo_target_urls: list[str] = field(default_factory=lambda: _split_csv(os.getenv("SOOMGO_TARGET_URLS"), ["https://soomgo.com/instant-match/65839", "https://soomgo.com/instant-match/57259", "https://soomgo.com/instant-match/229276"]))
+    ohou_login_url: str = field(default_factory=lambda: os.getenv("OHOU_LOGIN_URL", "https://o2o-partner.ohou.se/moving/payment/cash").strip())
+    ohou_target_url: str = field(default_factory=lambda: os.getenv("OHOU_TARGET_URL", "https://o2o-partner.ohou.se/moving/payment/cash").strip())
+    ohou_email: str = field(default_factory=lambda: _first_env("OHOU_EMAIL", "TODAYSHOUSE_EMAIL", "O2O_PARTNER_EMAIL", "OHOU_ID")[0])
+    ohou_password: str = field(default_factory=lambda: _first_env("OHOU_PASSWORD", "TODAYSHOUSE_PASSWORD", "O2O_PARTNER_PASSWORD", "OHOU_PW")[0])
+    ohou_container_xpath: str = field(default_factory=lambda: os.getenv("OHOU_CONTAINER_XPATH", '//*[@id="__next"]/div[1]/main/div[2]/section/div[2]/div/div[2]').strip())
+    ohou_section_xpath: str = field(default_factory=lambda: os.getenv("OHOU_SECTION_XPATH", '//*[@id="__next"]/div[1]/main/div[2]/section/div[2]/div/div[2]/section').strip())
+    ohou_accept_keyword: str = field(default_factory=lambda: os.getenv("OHOU_ACCEPT_KEYWORD", "오더 수락").strip())
 
 
     @property
@@ -152,6 +160,26 @@ class Settings:
             "configured": self.soomgo_credentials_configured,
             "email_env": self.soomgo_email_env_name,
             "password_env": self.soomgo_password_env_name,
+        }
+
+    @property
+    def ohou_email_env_name(self) -> str:
+        return _first_env("OHOU_EMAIL", "TODAYSHOUSE_EMAIL", "O2O_PARTNER_EMAIL", "OHOU_ID")[1]
+
+    @property
+    def ohou_password_env_name(self) -> str:
+        return _first_env("OHOU_PASSWORD", "TODAYSHOUSE_PASSWORD", "O2O_PARTNER_PASSWORD", "OHOU_PW")[1]
+
+    @property
+    def ohou_credentials_configured(self) -> bool:
+        return bool(self.ohou_email and self.ohou_password)
+
+    @property
+    def ohou_credentials_summary(self) -> dict[str, str | bool]:
+        return {
+            "configured": self.ohou_credentials_configured,
+            "email_env": self.ohou_email_env_name,
+            "password_env": self.ohou_password_env_name,
         }
 
 

@@ -5,7 +5,6 @@ import logging
 import random
 import re
 import threading
-import time
 from dataclasses import dataclass
 from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
@@ -13,7 +12,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .db import get_conn, utcnow
-from .settings import settings, get_settings
+from .settings import get_settings
 
 logger = logging.getLogger('icj24app.settlement_sync')
 
@@ -37,6 +36,36 @@ class SyncResult:
     updated_at: str
 
 
+PLATFORM_KEY_MAP: dict[str, dict[str, str]] = {
+    '숨고': {
+        'email_secret': 'soomgo_email',
+        'password_secret': 'soomgo_password',
+        'auth_state_secret': 'soomgo_storage_state',
+        'auth_state_path_attr': 'settlement_auth_state_path',
+        'email_attr': 'soomgo_email',
+        'password_attr': 'soomgo_password',
+        'email_env_attr': 'soomgo_email_env_name',
+        'password_env_attr': 'soomgo_password_env_name',
+    },
+    '오늘': {
+        'email_secret': 'ohou_email',
+        'password_secret': 'ohou_password',
+        'auth_state_secret': 'ohou_storage_state',
+        'auth_state_path_attr': 'settlement_ohou_auth_state_path',
+        'email_attr': 'ohou_email',
+        'password_attr': 'ohou_password',
+        'email_env_attr': 'ohou_email_env_name',
+        'password_env_attr': 'ohou_password_env_name',
+    },
+}
+
+
+def _platform_config(platform: str) -> dict[str, str]:
+    if platform not in PLATFORM_KEY_MAP:
+        raise RuntimeError(f'지원하지 않는 플랫폼입니다: {platform}')
+    return PLATFORM_KEY_MAP[platform]
+
+
 def _safe_int_from_text(text: str) -> int:
     digits = re.findall(r"\d+", text.replace(',', ''))
     if not digits:
@@ -44,34 +73,36 @@ def _safe_int_from_text(text: str) -> int:
     return int(''.join(digits))
 
 
-def _load_saved_credentials() -> tuple[str, str]:
+def _load_saved_credentials(platform: str = '숨고') -> tuple[str, str]:
+    cfg = _platform_config(platform)
     try:
         with get_conn() as conn:
             rows = conn.execute(
-                "SELECT secret_key, secret_value FROM app_secrets WHERE secret_key IN ('soomgo_email', 'soomgo_password')"
+                'SELECT secret_key, secret_value FROM app_secrets WHERE secret_key IN (?, ?)',
+                (cfg['email_secret'], cfg['password_secret']),
             ).fetchall()
     except Exception:
-        logger.exception('failed to load saved settlement credentials')
+        logger.exception('failed to load saved settlement credentials platform=%s', platform)
         return '', ''
     values = {row['secret_key']: (row['secret_value'] or '').strip() for row in rows}
-    return values.get('soomgo_email', ''), values.get('soomgo_password', '')
+    return values.get(cfg['email_secret'], ''), values.get(cfg['password_secret'], '')
 
 
-
-
-def _load_saved_auth_state() -> str:
+def _load_saved_auth_state(platform: str = '숨고') -> str:
+    cfg = _platform_config(platform)
     try:
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT secret_value FROM app_secrets WHERE secret_key = 'soomgo_storage_state'"
+                'SELECT secret_value FROM app_secrets WHERE secret_key = ?',
+                (cfg['auth_state_secret'],),
             ).fetchone()
     except Exception:
-        logger.exception('failed to load saved settlement auth state')
+        logger.exception('failed to load saved settlement auth state platform=%s', platform)
         return ''
     return (row['secret_value'] or '').strip() if row else ''
 
 
-def save_auth_state_json(raw_text: str) -> dict[str, Any]:
+def save_auth_state_json(raw_text: str, platform: str = '숨고') -> dict[str, Any]:
     text = (raw_text or '').strip()
     if not text:
         raise RuntimeError('인증 세션 JSON이 비어 있습니다.')
@@ -87,49 +118,55 @@ def save_auth_state_json(raw_text: str) -> dict[str, Any]:
         raise RuntimeError('인증 세션 JSON 형식이 올바르지 않습니다.')
     compact = json.dumps({'cookies': cookies, 'origins': origins}, ensure_ascii=False)
     now_iso = utcnow()
+    cfg = _platform_config(platform)
     with get_conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
-            ('soomgo_storage_state', compact, now_iso),
+            'INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)',
+            (cfg['auth_state_secret'], compact, now_iso),
         )
-    cfg = _runtime_settings()
-    auth_state_path = Path(cfg.settlement_auth_state_path)
+    runtime = _runtime_settings()
+    auth_state_path = Path(getattr(runtime, cfg['auth_state_path_attr']))
     auth_state_path.parent.mkdir(parents=True, exist_ok=True)
     auth_state_path.write_text(compact, encoding='utf-8')
     return {
         'saved': True,
+        'platform': platform,
         'updated_at': now_iso,
         'cookie_count': len(cookies),
         'origin_count': len(origins),
     }
 
 
-def _restore_auth_state_file() -> bool:
-    cfg = _runtime_settings()
-    auth_state_path = Path(cfg.settlement_auth_state_path)
-    raw = _load_saved_auth_state()
+def _restore_auth_state_file(platform: str = '숨고') -> bool:
+    runtime = _runtime_settings()
+    cfg = _platform_config(platform)
+    auth_state_path = Path(getattr(runtime, cfg['auth_state_path_attr']))
+    raw = _load_saved_auth_state(platform)
     if not raw:
         return auth_state_path.exists()
     auth_state_path.parent.mkdir(parents=True, exist_ok=True)
     auth_state_path.write_text(raw, encoding='utf-8')
     return True
 
-def _credential_summary() -> dict[str, str | bool]:
-    cfg = _runtime_settings()
-    email = (cfg.soomgo_email or '').strip()
-    password = (cfg.soomgo_password or '').strip()
-    email_source = cfg.soomgo_email_env_name or ''
-    password_source = cfg.soomgo_password_env_name or ''
+
+def _credential_summary(platform: str = '숨고') -> dict[str, str | bool]:
+    runtime = _runtime_settings()
+    cfg = _platform_config(platform)
+    email = (getattr(runtime, cfg['email_attr']) or '').strip()
+    password = (getattr(runtime, cfg['password_attr']) or '').strip()
+    email_source = getattr(runtime, cfg['email_env_attr']) or ''
+    password_source = getattr(runtime, cfg['password_env_attr']) or ''
     if not email or not password:
-        saved_email, saved_password = _load_saved_credentials()
+        saved_email, saved_password = _load_saved_credentials(platform)
         if saved_email:
             email = saved_email
             email_source = 'db_saved'
         if saved_password:
             password = saved_password
             password_source = 'db_saved'
-    auth_state_present = bool(_load_saved_auth_state())
+    auth_state_present = bool(_load_saved_auth_state(platform))
     return {
+        'platform': platform,
         'configured': bool(email and password),
         'email_env': email_source,
         'password_env': password_source,
@@ -187,8 +224,12 @@ class SettlementSyncService:
                     'random_min_minutes': _runtime_settings().settlement_sync_random_min_minutes,
                     'random_max_minutes': _runtime_settings().settlement_sync_random_max_minutes,
                 },
-                'config': _credential_summary(),
+                'configs': {
+                    '숨고': _credential_summary('숨고'),
+                    '오늘': _credential_summary('오늘'),
+                },
             }
+        base['config'] = base['configs']['숨고']
         base['platforms'] = self.fetch_latest_metrics()
         return base
 
@@ -237,24 +278,36 @@ class SettlementSyncService:
         acquired = self._run_lock.acquire(blocking=False)
         if not acquired:
             raise RuntimeError('이미 데이터 연동이 진행 중입니다. 잠시 후 다시 시도해 주세요.')
+        errors: list[str] = []
+        success_count = 0
         try:
             self._set_running(True, f'{trigger} 연동 시작')
             self._last_started_at = utcnow()
-            result = self._sync_soomgo_platform_count(trigger=trigger)
-            self._store_result(result, trigger=trigger)
+            for platform, sync_func in [('숨고', self._sync_soomgo_platform_count), ('오늘', self._sync_ohou_platform_count)]:
+                try:
+                    result = sync_func(trigger=trigger)
+                    self._store_result(result, trigger=trigger)
+                    success_count += 1
+                except Exception as exc:
+                    logger.exception('platform sync failed platform=%s error=%s', platform, exc)
+                    now_iso = utcnow()
+                    self._store_failure(platform, str(exc), now_iso, trigger=trigger)
+                    errors.append(f'{platform}: {exc}')
             self._last_finished_at = utcnow()
-            self._last_ok = result.ok
-            self._last_message = result.message
+            self._last_ok = not errors
+            if errors and success_count:
+                self._last_message = f'부분 완료 · ' + ' / '.join(errors)
+            elif errors:
+                self._last_message = '연동 실패 · ' + ' / '.join(errors)
+                raise RuntimeError(self._last_message)
+            else:
+                self._last_message = '숨고/오늘 데이터 연동 완료'
             if trigger != 'manual':
                 self._plan_next_run(reason='post-sync')
             return self.status()
-        except Exception as exc:
-            logger.exception('settlement sync failed: %s', exc)
-            now_iso = utcnow()
-            self._last_finished_at = now_iso
+        except Exception:
+            self._last_finished_at = utcnow()
             self._last_ok = False
-            self._last_message = f'연동 실패: {exc}'
-            self._store_failure('숨고', str(exc), now_iso, trigger=trigger)
             if trigger != 'manual':
                 self._plan_next_run(reason='error')
             raise
@@ -388,22 +441,30 @@ class SettlementSyncService:
                 return False
         return now >= next_dt
 
-    def _ensure_login(self, page, context):
-        cfg = _runtime_settings()
-        summary = _credential_summary()
-        email = (cfg.soomgo_email or '').strip()
-        password = (cfg.soomgo_password or '').strip()
+    def _resolve_credentials(self, platform: str) -> tuple[str, str, dict[str, Any]]:
+        runtime = _runtime_settings()
+        cfg = _platform_config(platform)
+        summary = _credential_summary(platform)
+        email = (getattr(runtime, cfg['email_attr']) or '').strip()
+        password = (getattr(runtime, cfg['password_attr']) or '').strip()
         if summary.get('email_env') == 'db_saved' or summary.get('password_env') == 'db_saved' or not email or not password:
-            saved_email, saved_password = _load_saved_credentials()
+            saved_email, saved_password = _load_saved_credentials(platform)
             email = email or saved_email
             password = password or saved_password
-        if not email or not password:
-            raise RuntimeError(f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: email={summary.get("email_env") or "없음"}, password={summary.get("password_env") or "없음"}. Railway Variables가 컨테이너에 주입되지 않는 경우 결산자료 화면에서 숨고 계정을 직접 저장해 사용할 수 있습니다.')
+        return email, password, summary
 
+    def _ensure_login(self, page, context):
+        email, password, summary = self._resolve_credentials('숨고')
+        if not email or not password:
+            raise RuntimeError(
+                f'숨고 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: '
+                f'email={summary.get("email_env") or "없음"}, password={summary.get("password_env") or "없음"}. '
+                '결산자료 화면에서 숨고 계정을 직접 저장해 사용할 수 있습니다.'
+            )
+        cfg = _runtime_settings()
         login_url = cfg.soomgo_login_url.strip() or 'https://soomgo.com/login'
         page.goto(login_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
         page.wait_for_timeout(1500)
-
         email_selectors = [
             'input[type="email"]',
             'input[name="email"]',
@@ -422,7 +483,6 @@ class SettlementSyncService:
             'button:has-text("Login")',
             'input[type="submit"]',
         ]
-
         email_filled = False
         for selector in email_selectors:
             loc = page.locator(selector)
@@ -442,7 +502,6 @@ class SettlementSyncService:
                     continue
         if not email_filled:
             raise RuntimeError('숨고 로그인 이메일 입력창을 찾지 못했습니다.')
-
         password_filled = False
         for selector in password_selectors:
             loc = page.locator(selector)
@@ -462,7 +521,6 @@ class SettlementSyncService:
                     continue
         if not password_filled:
             raise RuntimeError('숨고 로그인 비밀번호 입력창을 찾지 못했습니다.')
-
         submitted = False
         for selector in submit_selectors:
             loc = page.locator(selector)
@@ -475,32 +533,110 @@ class SettlementSyncService:
                     continue
         if not submitted:
             page.keyboard.press('Enter')
-
         page.wait_for_timeout(3000)
         if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
             raise RuntimeError('숨고 로그인 이후에도 로그인 화면이 유지됩니다. 추가 인증/캡차 여부를 확인해 주세요.')
         auth_state_path = Path(cfg.settlement_auth_state_path)
-        _restore_auth_state_file()
+        _restore_auth_state_file('숨고')
         auth_state_path.parent.mkdir(parents=True, exist_ok=True)
         context.storage_state(path=str(auth_state_path))
         try:
-            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
+            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'), platform='숨고')
         except Exception:
-            logger.exception('failed to persist auth state into db after login')
+            logger.exception('failed to persist auth state into db after soomgo login')
+
+    def _ensure_ohou_login(self, page, context):
+        email, password, summary = self._resolve_credentials('오늘')
+        if not email or not password:
+            raise RuntimeError(
+                f'오늘의집 계정 정보가 설정되지 않았습니다. 현재 감지된 변수: '
+                f'email={summary.get("email_env") or "없음"}, password={summary.get("password_env") or "없음"}. '
+                '결산자료 화면에서 오늘 계정을 직접 저장해 사용할 수 있습니다.'
+            )
+        cfg = _runtime_settings()
+        login_url = cfg.ohou_login_url.strip() or 'https://o2o-partner.ohou.se/moving/payment/cash'
+        page.goto(login_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
+        page.wait_for_timeout(2000)
+        email_selectors = [
+            'input[type="email"]',
+            'input[name="email"]',
+            'input[autocomplete="username"]',
+            'input[name="id"]',
+            'input[placeholder*="이메일"]',
+            'input[placeholder*="ID"]',
+        ]
+        password_selectors = [
+            'input[type="password"]',
+            'input[name="password"]',
+            'input[autocomplete="current-password"]',
+        ]
+        submit_selectors = [
+            'button[type="submit"]',
+            'button:has-text("로그인")',
+            'button:has-text("Login")',
+            'input[type="submit"]',
+        ]
+        for selector, value, label in [(email_selectors, email, '이메일'), (password_selectors, password, '비밀번호')]:
+            filled = False
+            for item in selector:
+                loc = page.locator(item)
+                if loc.count() > 0:
+                    try:
+                        target = loc.first
+                        target.click(timeout=3000)
+                        try:
+                            target.press('Control+A', timeout=1000)
+                            target.press('Delete', timeout=1000)
+                        except Exception:
+                            pass
+                        target.type(value, delay=random.randint(40, 100), timeout=5000)
+                        filled = True
+                        break
+                    except Exception:
+                        continue
+            if not filled:
+                raise RuntimeError(f'오늘의집 로그인 {label} 입력창을 찾지 못했습니다.')
+        submitted = False
+        for selector in submit_selectors:
+            loc = page.locator(selector)
+            if loc.count() > 0:
+                try:
+                    loc.first.click(timeout=3000)
+                    submitted = True
+                    break
+                except Exception:
+                    continue
+        if not submitted:
+            page.keyboard.press('Enter')
+        page.wait_for_timeout(4000)
+        target_url = cfg.ohou_target_url.strip() or login_url
+        if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
+            raise RuntimeError('오늘의집 로그인 이후에도 로그인 화면이 유지됩니다. 추가 인증 여부를 확인해 주세요.')
+        if target_url:
+            page.goto(target_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
+            page.wait_for_timeout(2500)
+            if not page.url.startswith(target_url):
+                raise RuntimeError(f'오늘의집 로그인 후 최종 페이지 접근에 실패했습니다. 현재 URL: {page.url}')
+        auth_state_path = Path(cfg.settlement_ohou_auth_state_path)
+        _restore_auth_state_file('오늘')
+        auth_state_path.parent.mkdir(parents=True, exist_ok=True)
+        context.storage_state(path=str(auth_state_path))
+        try:
+            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'), platform='오늘')
+        except Exception:
+            logger.exception('failed to persist auth state into db after ohou login')
 
     def _sync_soomgo_platform_count(self, trigger: str) -> SyncResult:
         try:
             from playwright.sync_api import sync_playwright
         except Exception as exc:
             raise RuntimeError('playwright 가 설치되지 않았습니다. backend requirements 설치 후 playwright install chromium 을 실행해 주세요.') from exc
-
         cfg = _runtime_settings()
         urls = [u.strip() for u in cfg.soomgo_target_urls if str(u).strip()]
         if not urls:
             raise RuntimeError('숨고 대상 URL이 설정되지 않았습니다.')
-
         auth_state_path = Path(cfg.settlement_auth_state_path)
-        _restore_auth_state_file()
+        _restore_auth_state_file('숨고')
         screenshot_dir = Path(cfg.settlement_runtime_dir) / 'settlement_sync'
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         total = 0
@@ -534,17 +670,103 @@ class SettlementSyncService:
                 detail.append({'url': url, 'raw_text': text, 'value': value})
             context.storage_state(path=str(auth_state_path))
             try:
-                save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
+                save_auth_state_json(auth_state_path.read_text(encoding='utf-8'), platform='숨고')
             except Exception:
-                logger.exception('failed to persist auth state into db after sync')
-        try:
-            save_auth_state_json(auth_state_path.read_text(encoding='utf-8'))
-        except Exception:
-            logger.exception('failed to persist auth state into db after login')
+                logger.exception('failed to persist auth state into db after soomgo sync')
             context.close()
             browser.close()
         message = f'숨고 발송 건수 합계 {total}건 동기화 완료'
         return SyncResult(ok=True, platform='숨고', value=total, detail=detail, message=message, updated_at=now_iso)
+
+    def _today_match_patterns(self) -> list[str]:
+        now = self._now()
+        yyyy = now.year
+        m = now.month
+        d = now.day
+        mm = f'{m:02d}'
+        dd = f'{d:02d}'
+        return [
+            f'{yyyy}.{m}.{d}', f'{yyyy}.{mm}.{dd}',
+            f'{yyyy}-{mm}-{dd}',
+            f'{m}.{d}', f'{mm}.{dd}',
+            f'{m}/{d}', f'{mm}/{dd}',
+            f'{m}월 {d}일', f'{mm}월 {dd}일',
+        ]
+
+    def _sync_ohou_platform_count(self, trigger: str) -> SyncResult:
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            raise RuntimeError('playwright 가 설치되지 않았습니다. backend requirements 설치 후 playwright install chromium 을 실행해 주세요.') from exc
+        cfg = _runtime_settings()
+        auth_state_path = Path(cfg.settlement_ohou_auth_state_path)
+        _restore_auth_state_file('오늘')
+        screenshot_dir = Path(cfg.settlement_runtime_dir) / 'settlement_sync'
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        now_iso = utcnow()
+        target_url = cfg.ohou_target_url.strip() or 'https://o2o-partner.ohou.se/moving/payment/cash'
+        section_xpath = cfg.ohou_section_xpath.strip() or '//*[@id="__next"]/div[1]/main/div[2]/section/div[2]/div/div[2]/section'
+        container_xpath = cfg.ohou_container_xpath.strip() or '//*[@id="__next"]/div[1]/main/div[2]/section/div[2]/div/div[2]'
+        accept_keyword = (cfg.ohou_accept_keyword or '오더 수락').strip()
+        detail: list[dict[str, Any]] = []
+        total = 0
+        patterns = self._today_match_patterns()
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=cfg.settlement_playwright_headless)
+            context_kwargs: dict[str, Any] = {}
+            if auth_state_path.exists():
+                context_kwargs['storage_state'] = str(auth_state_path)
+            context = browser.new_context()
+            if context_kwargs:
+                context.close()
+                context = browser.new_context(**context_kwargs)
+            page = context.new_page()
+            page.set_default_timeout(cfg.settlement_playwright_timeout_ms)
+            page.goto(target_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
+            page.wait_for_timeout(2500)
+            if 'login' in page.url.lower() or page.locator('input[type="password"]').count() > 0:
+                self._ensure_ohou_login(page, context)
+                page.goto(target_url, wait_until='domcontentloaded', timeout=cfg.settlement_playwright_timeout_ms)
+                page.wait_for_timeout(2500)
+            if not page.url.startswith(target_url):
+                raise RuntimeError(f'오늘의집 최종 접근 URL이 예상과 다릅니다. 현재 URL: {page.url}')
+            container_text = page.locator(f'xpath={container_xpath}').first.inner_text().strip()
+            sections = page.locator(f'xpath={section_xpath}')
+            count = sections.count()
+            if count <= 0:
+                raise RuntimeError('오늘의집 정산 섹션을 찾지 못했습니다.')
+            matched_sections = []
+            for index in range(count):
+                raw_text = sections.nth(index).inner_text().strip()
+                has_accept = accept_keyword in raw_text
+                has_today = any(pattern in raw_text for pattern in patterns)
+                matched = has_accept and has_today
+                if matched:
+                    total += 1
+                    matched_sections.append(index + 1)
+                detail.append({
+                    'section_index': index + 1,
+                    'matched': matched,
+                    'has_accept_keyword': has_accept,
+                    'has_today_date': has_today,
+                    'raw_text': raw_text[:1000],
+                })
+            shot_path = screenshot_dir / 'ohou_payment_cash.png'
+            try:
+                page.screenshot(path=str(shot_path), full_page=False)
+            except Exception:
+                pass
+            context.storage_state(path=str(auth_state_path))
+            try:
+                save_auth_state_json(auth_state_path.read_text(encoding='utf-8'), platform='오늘')
+            except Exception:
+                logger.exception('failed to persist auth state into db after ohou sync')
+            context.close()
+            browser.close()
+        if accept_keyword not in container_text:
+            raise RuntimeError(f'오늘의집 데이터 영역에서 "{accept_keyword}" 문구를 찾지 못했습니다.')
+        message = f'오늘의집 당일 오더 수락 섹션 {total}건 동기화 완료'
+        return SyncResult(ok=True, platform='오늘', value=total, detail=detail, message=message, updated_at=now_iso)
 
 
 settlement_sync_service = SettlementSyncService()

@@ -152,8 +152,10 @@ class BoardPostIn(BaseModel):
 
 class SettlementAuthStateIn(BaseModel):
     storage_state: str
+    platform: str = '숨고'
 
 class SettlementCredentialIn(BaseModel):
+    platform: str = '숨고'
     email: str = ''
     password: str = ''
 
@@ -775,42 +777,54 @@ def settlement_platform_sync_status(user=Depends(require_user)):
 
 
 @app.get("/api/settlement/platform-credentials")
-def settlement_platform_credentials(user=Depends(require_user)):
+def settlement_platform_credentials(platform: str = Query('숨고'), user=Depends(require_user)):
     _require_write_access(user, 'schedule')
-    summary = _credential_summary()
+    if platform not in ('숨고', '오늘'):
+        raise HTTPException(status_code=400, detail='지원하지 않는 플랫폼입니다.')
+    summary = _credential_summary(platform)
     return {
+        'platform': platform,
         'configured': bool(summary.get('configured')),
         'email_source': summary.get('email_env') or '없음',
         'password_source': summary.get('password_env') or '없음',
         'email_preview': '저장됨' if summary.get('email_present') else '',
+        'auth_state_present': bool(summary.get('auth_state_present')),
     }
 
 
 @app.post("/api/settlement/platform-credentials")
 def settlement_platform_credentials_save(payload: SettlementCredentialIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
+    platform = (payload.platform or '숨고').strip()
+    if platform not in ('숨고', '오늘'):
+        raise HTTPException(status_code=400, detail='지원하지 않는 플랫폼입니다.')
     email = (payload.email or '').strip()
     password = (payload.password or '').strip()
     if not email or not password:
-        raise HTTPException(status_code=400, detail='숨고 아이디와 비밀번호를 모두 입력해 주세요.')
+        raise HTTPException(status_code=400, detail=f'{platform} 아이디와 비밀번호를 모두 입력해 주세요.')
+    email_key = 'soomgo_email' if platform == '숨고' else 'ohou_email'
+    password_key = 'soomgo_password' if platform == '숨고' else 'ohou_password'
     now_iso = utcnow()
     with get_conn() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
-            ('soomgo_email', email, now_iso),
+            (email_key, email, now_iso),
         )
         conn.execute(
             "INSERT OR REPLACE INTO app_secrets(secret_key, secret_value, updated_at) VALUES (?, ?, ?)",
-            ('soomgo_password', password, now_iso),
+            (password_key, password, now_iso),
         )
-    return settlement_platform_credentials(user)
+    return settlement_platform_credentials(platform=platform, user=user)
 
 
 @app.post("/api/settlement/platform-auth-state")
 def settlement_platform_auth_state_save(payload: SettlementAuthStateIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
+    platform = (payload.platform or '숨고').strip()
+    if platform not in ('숨고', '오늘'):
+        raise HTTPException(status_code=400, detail='지원하지 않는 플랫폼입니다.')
     try:
-        return save_auth_state_json(payload.storage_state)
+        return save_auth_state_json(payload.storage_state, platform=platform)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

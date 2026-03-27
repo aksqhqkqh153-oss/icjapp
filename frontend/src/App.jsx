@@ -5285,7 +5285,7 @@ function applySettlementPlatformMetrics(blocks, platformMetrics) {
     ...block,
     summaryRows: (block.summaryRows || []).map(row => {
       const metric = platformMetrics?.[row.source]
-      if (!metric || row.source !== '숨고') return row
+      if (!metric) return row
       return { ...row, count: String(metric.value ?? 0) }
     }),
   }))
@@ -5358,8 +5358,11 @@ function SettlementPage() {
   const [credentialLoading, setCredentialLoading] = useState(false)
   const [soomgoEmail, setSoomgoEmail] = useState('')
   const [soomgoPassword, setSoomgoPassword] = useState('')
-  const [authStateText, setAuthStateText] = useState('')
-  const [authStateLoading, setAuthStateLoading] = useState(false)
+  const [ohouEmail, setOhouEmail] = useState('')
+  const [ohouPassword, setOhouPassword] = useState('')
+  const [soomgoAuthStateText, setSoomgoAuthStateText] = useState('')
+  const [ohouAuthStateText, setOhouAuthStateText] = useState('')
+  const [authStateLoading, setAuthStateLoading] = useState('')
 
   async function loadSyncStatus() {
     try {
@@ -5389,43 +5392,48 @@ function SettlementPage() {
     }
   }
 
-  async function handleAuthStateUpload() {
-    if (!authStateText.trim()) {
-      window.alert('로컬에서 만든 인증 세션 JSON 내용을 붙여 넣어 주세요.')
+  async function handleAuthStateUpload(platform) {
+    const value = platform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
+    if (!String(value || '').trim()) {
+      window.alert(`${platform} 인증 세션 JSON 내용을 붙여 넣어 주세요.`)
       return
     }
-    setAuthStateLoading(true)
+    setAuthStateLoading(platform)
     try {
       await api('/api/settlement/platform-auth-state', {
         method: 'POST',
-        body: JSON.stringify({ storage_state: authStateText.trim() }),
+        body: JSON.stringify({ platform, storage_state: String(value).trim() }),
       })
-      setAuthStateText('')
+      if (platform === '오늘') setOhouAuthStateText('')
+      else setSoomgoAuthStateText('')
       await loadSyncStatus()
-      window.alert('인증 세션이 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.')
+      window.alert(`${platform} 인증 세션이 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.`)
     } catch (error) {
-      window.alert(error.message || '인증 세션 저장 중 오류가 발생했습니다.')
+      window.alert(error.message || `${platform} 인증 세션 저장 중 오류가 발생했습니다.`)
     } finally {
-      setAuthStateLoading(false)
+      setAuthStateLoading('')
     }
   }
 
-  async function handleSaveCredentials() {
-    if (!soomgoEmail.trim() || !soomgoPassword.trim()) {
-      window.alert('숨고 아이디와 비밀번호를 입력해 주세요.')
+  async function handleSaveCredentials(platform) {
+    const email = platform === '오늘' ? ohouEmail : soomgoEmail
+    const password = platform === '오늘' ? ohouPassword : soomgoPassword
+    if (!String(email || '').trim() || !String(password || '').trim()) {
+      window.alert(`${platform} 아이디와 비밀번호를 입력해 주세요.`)
       return
     }
     setCredentialLoading(true)
     try {
       await api('/api/settlement/platform-credentials', {
         method: 'POST',
-        body: JSON.stringify({ email: soomgoEmail.trim(), password: soomgoPassword.trim() }),
+        body: JSON.stringify({ platform, email: String(email).trim(), password: String(password).trim() }),
       })
-      setSoomgoPassword('')
+      if (platform === '오늘') setOhouPassword('')
+      else setSoomgoPassword('')
       await loadSyncStatus()
-      window.alert('숨고 계정 정보가 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.')
+      window.alert(`${platform} 계정 정보가 서버에 저장되었습니다. 다시 데이터 연동을 눌러 주세요.`)
     } catch (error) {
-      window.alert(error.message || '숨고 계정 저장 중 오류가 발생했습니다.')
+      window.alert(error.message || `${platform} 계정 저장 중 오류가 발생했습니다.`)
     } finally {
       setCredentialLoading(false)
     }
@@ -5433,7 +5441,9 @@ function SettlementPage() {
 
   const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
-  const syncConfig = syncStatus.config || {}
+  const ohouMetric = syncStatus.platforms?.['오늘'] || { value: 0, updated_at: '', sync_message: '' }
+  const soomgoConfig = syncStatus.configs?.['숨고'] || syncStatus.config || {}
+  const ohouConfig = syncStatus.configs?.['오늘'] || {}
 
   return (
     <div className="stack-page settlement-page">
@@ -5443,25 +5453,32 @@ function SettlementPage() {
             <h2>결산자료</h2>
             <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
             <div className="muted settlement-sync-summary">숨고 최신 합계: <strong>{soomgoMetric.value ?? 0}</strong>건 {soomgoMetric.updated_at ? `· 최근 연동 ${String(soomgoMetric.updated_at).replace('T', ' ')}` : ''}</div>
-            <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
-            {!syncConfig.configured && (
-              <div className="settlement-credential-panel">
-                <div className="muted settlement-sync-warning">현재 Railway 컨테이너에서 숨고 계정 변수를 감지하지 못했습니다. 아래에 숨고 계정을 한 번 저장하면 Git과 무관하게 서버 DB에 저장되어 연동에 사용할 수 있습니다.</div>
-                <div className="settlement-credential-grid">
-                  <input value={soomgoEmail} onChange={e => setSoomgoEmail(e.target.value)} placeholder="숨고 아이디(이메일)" />
-                  <input type="password" value={soomgoPassword} onChange={e => setSoomgoPassword(e.target.value)} placeholder="숨고 비밀번호" />
-                  <button type="button" className="small" onClick={handleSaveCredentials} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '숨고 계정 저장'}</button>
-                </div>
-              </div>
-            )}
-            {syncConfig.configured && (
-              <div className="muted settlement-sync-warning">연동 자격 증명 감지 완료 · email 소스: <strong>{syncConfig.email_env || '없음'}</strong> · password 소스: <strong>{syncConfig.password_env || '없음'}</strong> · 인증세션: <strong>{syncConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
-            )}
+            <div className="muted settlement-sync-summary">오늘 최신 합계: <strong>{ohouMetric.value ?? 0}</strong>건 {ohouMetric.updated_at ? `· 최근 연동 ${String(ohouMetric.updated_at).replace('T', ' ')}` : ''}</div>
+            <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || ohouMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
             <div className="settlement-credential-panel">
-              <div className="muted settlement-sync-warning">Railway 서버에서는 숨고 캡차/추가 인증을 직접 해결하기 어렵습니다. Windows PC에서 보이는 브라우저로 한 번 로그인한 뒤, storage_state JSON을 아래에 붙여 넣어 저장하면 서버가 그 세션 쿠키를 재사용할 수 있습니다.</div>
-              <textarea className="settlement-auth-state-textarea" value={authStateText} onChange={e => setAuthStateText(e.target.value)} placeholder="로컬 helper 스크립트가 만든 soomgo_storage_state.json 내용을 여기에 붙여 넣으세요." />
+              <div className="muted settlement-sync-warning">숨고 자격 증명 · email 소스: <strong>{soomgoConfig.email_env || '없음'}</strong> · password 소스: <strong>{soomgoConfig.password_env || '없음'}</strong> · 인증세션: <strong>{soomgoConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
+              <div className="settlement-credential-grid">
+                <input value={soomgoEmail} onChange={e => setSoomgoEmail(e.target.value)} placeholder="숨고 아이디(이메일)" />
+                <input type="password" value={soomgoPassword} onChange={e => setSoomgoPassword(e.target.value)} placeholder="숨고 비밀번호" />
+                <button type="button" className="small" onClick={() => handleSaveCredentials('숨고')} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '숨고 계정 저장'}</button>
+              </div>
+              <div className="muted settlement-sync-warning">Railway 서버에서 숨고 추가 인증이 필요한 경우, 로컬 helper 스크립트로 만든 storage_state JSON을 저장해 쿠키를 재사용할 수 있습니다.</div>
+              <textarea className="settlement-auth-state-textarea" value={soomgoAuthStateText} onChange={e => setSoomgoAuthStateText(e.target.value)} placeholder="soomgo_storage_state.json 내용을 여기에 붙여 넣으세요." />
               <div className="settlement-sync-actions settlement-sync-actions-inline">
-                <button type="button" className="small" onClick={handleAuthStateUpload} disabled={authStateLoading}>{authStateLoading ? '저장중...' : '인증세션 저장'}</button>
+                <button type="button" className="small" onClick={() => handleAuthStateUpload('숨고')} disabled={authStateLoading === '숨고'}>{authStateLoading === '숨고' ? '저장중...' : '숨고 인증세션 저장'}</button>
+              </div>
+            </div>
+            <div className="settlement-credential-panel">
+              <div className="muted settlement-sync-warning">오늘의집 자격 증명 · email 소스: <strong>{ohouConfig.email_env || '없음'}</strong> · password 소스: <strong>{ohouConfig.password_env || '없음'}</strong> · 인증세션: <strong>{ohouConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
+              <div className="settlement-credential-grid">
+                <input value={ohouEmail} onChange={e => setOhouEmail(e.target.value)} placeholder="오늘의집 아이디(이메일)" />
+                <input type="password" value={ohouPassword} onChange={e => setOhouPassword(e.target.value)} placeholder="오늘의집 비밀번호" />
+                <button type="button" className="small" onClick={() => handleSaveCredentials('오늘')} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '오늘 계정 저장'}</button>
+              </div>
+              <div className="muted settlement-sync-warning">오늘의집도 로그인 유지가 불안정하면 로컬 브라우저에서 확보한 storage_state JSON을 저장할 수 있습니다.</div>
+              <textarea className="settlement-auth-state-textarea" value={ohouAuthStateText} onChange={e => setOhouAuthStateText(e.target.value)} placeholder="ohou_storage_state.json 내용을 여기에 붙여 넣으세요." />
+              <div className="settlement-sync-actions settlement-sync-actions-inline">
+                <button type="button" className="small" onClick={() => handleAuthStateUpload('오늘')} disabled={authStateLoading === '오늘'}>{authStateLoading === '오늘' ? '저장중...' : '오늘 인증세션 저장'}</button>
               </div>
             </div>
           </div>
