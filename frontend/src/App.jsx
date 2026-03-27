@@ -6210,6 +6210,7 @@ function MaterialsPage({ user }) {
   const settledRequests = data?.settled_requests || []
   const historyRequests = data?.history_requests || []
   const inventoryRows = data?.inventory_rows || []
+  const isInventoryManager = Boolean(data?.permissions?.can_manage_inventory)
 
   const cartRows = productRows
     .map(product => {
@@ -6334,6 +6335,66 @@ function MaterialsPage({ user }) {
     }
   }
 
+
+  function displayMaterialName(product, compact = false) {
+    const base = String(product?.name || '')
+    if (!compact) return base
+    if (base === '스티커 인쇄물') return '스티커'
+    return base
+  }
+
+  function formatDateLabel(value) {
+    const raw = String(value || '').slice(0, 10)
+    if (!raw) return ''
+    return raw.replace(/-/g, '.')
+  }
+
+
+  function renderSettlementTable(requests) {
+    if (!requests.length) {
+      return <div className="card muted">표시할 데이터가 없습니다.</div>
+    }
+    const activeProducts = productRows.filter(product => Number(product.is_active ?? 1) !== 0)
+    return (
+      <section className="materials-settlement-sheet">
+        <div className="materials-sheet-banner">◆ 일일 본사 자재 출고 / 입금 현황</div>
+        <div className="materials-sheet-table-wrap">
+          <table className="materials-sheet-table">
+            <thead>
+              <tr>
+                <th rowSpan={2}>구매신청일자</th>
+                <th rowSpan={2}>이름</th>
+                <th colSpan={activeProducts.length}>묶음 개수</th>
+                <th rowSpan={2}>입금 총계</th>
+              </tr>
+              <tr>
+                {activeProducts.map(product => (
+                  <th key={`settlement-head-${product.id}`}>{product.short_name || displayMaterialName(product, true)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map(request => {
+                const qtyMap = Object.fromEntries((request.items || []).map(item => [Number(item.product_id), Number(item.quantity || 0)]))
+                return (
+                  <tr key={`settlement-row-${request.id}`}>
+                    <td>{formatDateLabel(request.created_at)}</td>
+                    <td className="materials-sheet-name">{request.requester_name}</td>
+                    {activeProducts.map(product => (
+                      <td key={`settlement-${request.id}-${product.id}`} className="materials-sheet-number">{qtyMap[Number(product.id)] || ''}</td>
+                    ))}
+                    <td className="materials-sheet-number materials-sheet-total">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )
+  }
+
+
   function renderTabButton(tab) {
     const active = activeTab === tab.id
     return (
@@ -6364,12 +6425,12 @@ function MaterialsPage({ user }) {
             <div className="materials-row materials-row-head">
               <div>구분</div>
               <div>물품가</div>
-              <div>구매개수</div>
-              <div>합계금액</div>
+              <div>구매수량</div>
+              <div>금액</div>
             </div>
             {cartRows.map(item => (
               <div key={`confirm-${item.id}`} className="materials-row">
-                <div>{item.name}</div>
+                <div>{displayMaterialName(item, isMobile)}</div>
                 <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{item.quantity}</div>
                 <div>{item.lineTotal.toLocaleString('ko-KR')}원</div>
@@ -6412,7 +6473,7 @@ function MaterialsPage({ user }) {
             const stock = Number(product.current_stock || 0)
             return (
               <div key={product.id} className="materials-row materials-row-sales">
-                <div>{product.name}</div>
+                <div>{displayMaterialName(product, isMobile)}</div>
                 <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{stock}</div>
                 <div>
@@ -6496,15 +6557,12 @@ function MaterialsPage({ user }) {
     )
   }
 
+
   function renderInventoryContent() {
     return (
-      <section className="card materials-panel">
-        <div className="materials-summary-head">
-          <h3>재고현황</h3>
-          <div className="muted">당일 입고 개수는 수기 입력, 당일 출고 개수는 결산 완료 데이터가 자동 연동됩니다.</div>
-        </div>
+      <section className="card materials-panel materials-panel-compact-head">
         <div className="materials-table materials-table-inventory">
-          <div className="materials-row materials-row-head">
+          <div className="materials-row materials-row-head materials-row-inventory-header">
             <div>구분</div>
             <div>기존 개수</div>
             <div>당일 입고</div>
@@ -6515,38 +6573,48 @@ function MaterialsPage({ user }) {
           {inventoryRows.map(row => {
             const draft = inventoryDraft[row.product_id] || { incoming_qty: row.incoming_qty || 0, note: row.note || '' }
             const expected = Number(row.current_stock || 0) + Number(draft.incoming_qty || 0) - Number(row.outgoing_qty || 0)
+            const readonlyNote = (draft.note || '').trim()
             return (
-              <div key={`inventory-${row.product_id}`} className="materials-row materials-row-inventory">
-                <div>{row.name}</div>
+              <div key={`inventory-${row.product_id}`} className={`materials-row materials-row-inventory${!isInventoryManager ? ' materials-row-inventory-readonly' : ''}`}>
+                <div>{displayMaterialName(row, isMobile)}</div>
                 <div>{Number(row.current_stock || 0)}</div>
                 <div>
-                  <input
-                    className="materials-qty-input"
-                    inputMode="numeric"
-                    value={draft.incoming_qty ?? ''}
-                    disabled={!data?.permissions?.can_manage_inventory || row.is_closed}
-                    onChange={(event) => {
-                      const raw = String(event.target.value).replace(/[^\d]/g, '')
-                      setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: raw ? Number(raw) : 0, note: prev[row.product_id]?.note || '' } }))
-                    }}
-                  />
+                  {isInventoryManager ? (
+                    <input
+                      className="materials-qty-input"
+                      inputMode="numeric"
+                      value={draft.incoming_qty ?? ''}
+                      disabled={!isInventoryManager || row.is_closed}
+                      onChange={(event) => {
+                        const raw = String(event.target.value).replace(/[^\d]/g, '')
+                        setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: raw ? Number(raw) : 0, note: prev[row.product_id]?.note || '' } }))
+                      }}
+                    />
+                  ) : (
+                    <span className="materials-static-value">{Number(draft.incoming_qty || 0)}</span>
+                  )}
                 </div>
                 <div>{Number(row.outgoing_qty || 0)}</div>
                 <div>{expected}</div>
                 <div>
-                  <textarea
-                    rows={isMobile ? 2 : 1}
-                    value={draft.note || ''}
-                    disabled={!data?.permissions?.can_manage_inventory || row.is_closed}
-                    onChange={(event) => setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: prev[row.product_id]?.incoming_qty ?? row.incoming_qty ?? 0, note: event.target.value } }))}
-                    placeholder="메모"
-                  />
+                  {isInventoryManager ? (
+                    <textarea
+                      className="materials-note-input"
+                      rows={1}
+                      value={draft.note || ''}
+                      disabled={!isInventoryManager || row.is_closed}
+                      onChange={(event) => setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: prev[row.product_id]?.incoming_qty ?? row.incoming_qty ?? 0, note: event.target.value } }))}
+                      placeholder="메모"
+                    />
+                  ) : (
+                    <span className={`materials-static-note${readonlyNote ? '' : ' empty'}`}>{readonlyNote || '-'}</span>
+                  )}
                 </div>
               </div>
             )
           })}
         </div>
-        {data?.permissions?.can_manage_inventory && (
+        {isInventoryManager && (
           <div className="row gap wrap">
             <button type="button" className="ghost" disabled={saving} onClick={saveInventoryDraft}>임시저장</button>
             <button type="button" className="ghost active" disabled={saving || inventoryRows.some(row => row.is_closed)} onClick={closeInventoryDay}>결산처리</button>
@@ -6555,6 +6623,7 @@ function MaterialsPage({ user }) {
       </section>
     )
   }
+
 
   if (loading) return <div className="card">자재 데이터를 불러오는 중입니다...</div>
 
@@ -6577,11 +6646,7 @@ function MaterialsPage({ user }) {
       {activeTab === 'sales' && renderSalesContent()}
       {activeTab === 'inventory' && renderInventoryContent()}
       {activeTab === 'requesters' && (
-        <section className="card materials-panel">
-          <div className="materials-summary-head">
-            <h3>구매신청자(결산처리)</h3>
-            <div className="muted">입금확인 체크 후 결산등록하면 구매자결산으로 이동됩니다.</div>
-          </div>
+        <section className="card materials-panel materials-panel-compact-head">
           {renderRequestRows(pendingRequests, 'pending')}
           <div className="row gap wrap">
             <button type="button" className="ghost active" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
@@ -6589,24 +6654,16 @@ function MaterialsPage({ user }) {
         </section>
       )}
       {activeTab === 'settlements' && (
-        <section className="card materials-panel">
-          <div className="materials-summary-head">
-            <h3>구매자결산</h3>
-            <div className="muted">결산처리된 구매 데이터를 확인합니다.</div>
-          </div>
-          {renderRequestRows(settledRequests, 'settled')}
-          <div className="row gap wrap">
+        <section className="card materials-panel materials-panel-compact-head">
+          {renderSettlementTable(settledRequests)}
+          <div className="row gap wrap materials-actions-center">
             <button type="button" className="ghost" onClick={() => setActiveTab(visibleTabs[0]?.id || 'sales')}>확인(돌아가기)</button>
             <button type="button" className="ghost active" onClick={shareSettlements}>카톡공유</button>
           </div>
         </section>
       )}
       {activeTab === 'history' && (
-        <section className="card materials-panel">
-          <div className="materials-summary-head">
-            <h3>구매목록</h3>
-            <div className="muted">결산 처리된 전체 구매 기록입니다.</div>
-          </div>
+        <section className="card materials-panel materials-panel-compact-head">
           {renderRequestRows(historyRequests, 'history')}
         </section>
       )}

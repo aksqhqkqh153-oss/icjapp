@@ -710,14 +710,25 @@ def _material_overview_payload(conn, user: dict) -> dict:
     settled_requests = [row for row in request_rows if row.get('status') == 'settled']
     history_rows = settled_requests[:]
     products = _material_products(conn)
+    inventory_rows = _material_today_inventory_rows(conn, today_key)
+    inventory_map = {int(row['product_id']): row for row in inventory_rows}
+    effective_products = []
+    for product in products:
+        product_copy = dict(product)
+        inventory_row = inventory_map.get(int(product_copy['id']))
+        if inventory_row:
+            product_copy['current_stock'] = max(0, int(inventory_row.get('expected_stock') or 0))
+        else:
+            product_copy['current_stock'] = max(0, int(product_copy.get('current_stock') or 0))
+        effective_products.append(product_copy)
     return {
         'today': today_key,
         'permissions': permissions,
-        'products': products,
+        'products': effective_products,
         'pending_requests': pending_requests if permissions['can_view_requesters'] else [],
         'settled_requests': settled_requests if permissions['can_view_settlements'] else [],
         'history_requests': history_rows if permissions['can_view_history'] else [],
-        'inventory_rows': _material_today_inventory_rows(conn, today_key) if permissions['can_view_inventory'] else [],
+        'inventory_rows': inventory_rows if permissions['can_view_inventory'] else [],
         'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
 
