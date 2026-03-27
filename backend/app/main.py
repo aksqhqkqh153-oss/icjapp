@@ -242,7 +242,11 @@ class AdminUserDetailIn(BaseModel):
     nickname: str = ''
     account_unique_id: str = ''
     position_title: str = ''
+    gender: str = ''
+    birth_year: int = 1995
+    region: str = ''
     phone: str = ''
+    recovery_email: str = ''
     vehicle_number: str = ''
     branch_no: Optional[int] = None
     marital_status: str = ''
@@ -2604,9 +2608,10 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
 @app.post("/api/admin/users/details-bulk")
 def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depends(require_admin_or_subadmin)):
     editable_fields = [
-        'name', 'nickname', 'phone', 'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
+        'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
+        'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'position_title',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -2622,7 +2627,24 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                     data['branch_no'] = int(branch_value)
                 except Exception:
                     data['branch_no'] = None
+            try:
+                data['birth_year'] = int(data.get('birth_year') or 1995)
+            except Exception:
+                data['birth_year'] = 1995
             data['position_title'] = str(data.get('position_title') or '')
+            data['name'] = str(data.get('name') or '').strip()
+            data['nickname'] = str(data.get('nickname') or '').strip()
+            data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()
+            data['email'] = str(data.get('email') or '').strip()
+            data['recovery_email'] = str(data.get('recovery_email') or '').strip()
+            if data['email']:
+                dup_email = conn.execute("SELECT id FROM users WHERE email = ? AND id != ?", (data['email'], item.id)).fetchone()
+                if dup_email:
+                    raise HTTPException(status_code=400, detail=f"{data['email']} 아이디는 이미 사용 중입니다.")
+            if data['account_unique_id']:
+                dup_uid = conn.execute("SELECT id FROM users WHERE account_unique_id = ? AND id != ?", (data['account_unique_id'], item.id)).fetchone()
+                if dup_uid:
+                    raise HTTPException(status_code=400, detail=f"{data['account_unique_id']} 고유ID값은 이미 사용 중입니다.")
             if not data['position_title'] and data.get('branch_no') not in (None, ''):
                 data['position_title'] = '호점대표'
             assignments = ', '.join(f"{field} = ?" for field in editable_fields)
@@ -2646,7 +2668,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, account_unique_id, created_at)
             VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.name or payload.nickname, payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, generated_unique_id, utcnow()),
+            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, generated_unique_id, utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

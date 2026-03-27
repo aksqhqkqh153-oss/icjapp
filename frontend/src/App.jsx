@@ -4909,6 +4909,7 @@ function SettingsPage({ onLogout }) {
   )
 }
 
+
 function AdminModePage() {
   const currentUser = getStoredUser()
   const navigate = useNavigate()
@@ -4917,11 +4918,12 @@ function AdminModePage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [accountManageOpen, setAccountManageOpen] = useState(false)
-  const [accountManageTab, setAccountManageTab] = useState('create')
+  const [accountManageTab, setAccountManageTab] = useState('list')
   const [accountDeleteSelection, setAccountDeleteSelection] = useState({})
-  const [accountCreateOpen, setAccountCreateOpen] = useState(false)
+  const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false)
+  const [accountDeleteConfirmText, setAccountDeleteConfirmText] = useState('')
   const [createForm, setCreateForm] = useState({
-    email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true,
+    email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -4943,11 +4945,11 @@ function AdminModePage() {
   const [branchEditMode, setBranchEditMode] = useState(false)
   const [employeeEditMode, setEmployeeEditMode] = useState(false)
   const [accountPage, setAccountPage] = useState(1)
+  const [accountManagePages, setAccountManagePages] = useState({ list: 1, edit: 1, delete: 1 })
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
-  const [accountListOpen, setAccountListOpen] = useState(false)
-  const ACCOUNTS_PER_PAGE = 8
+  const ACCOUNTS_PER_PAGE = 10
 
   async function load() {
     setLoading(true)
@@ -4964,7 +4966,10 @@ function AdminModePage() {
       setBranchRows((response.branches || []).map(item => ({ ...item })))
       setEmployeeRows((response.employees || []).map(item => ({ ...item })))
       setAccountPage(1)
+      setAccountManagePages({ list: 1, edit: 1, delete: 1 })
       setAccountDeleteSelection({})
+      setAccountDeleteDialogOpen(false)
+      setAccountDeleteConfirmText('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -4997,6 +5002,36 @@ function AdminModePage() {
     await load()
   }
 
+  function normalizeDetailPayload(row) {
+    return {
+      id: row.id,
+      name: row.name || '',
+      nickname: row.nickname || '',
+      account_unique_id: row.account_unique_id || '',
+      gender: row.gender || '',
+      birth_year: Number(row.birth_year || 1995),
+      region: row.region || '',
+      phone: row.phone || '',
+      recovery_email: row.recovery_email || '',
+      vehicle_number: row.vehicle_number || '',
+      branch_no: row.branch_no ? Number(row.branch_no) : null,
+      marital_status: row.marital_status || '',
+      resident_address: row.resident_address || '',
+      business_name: row.business_name || '',
+      business_number: row.business_number || '',
+      business_type: row.business_type || '',
+      business_item: row.business_item || '',
+      business_address: row.business_address || '',
+      bank_account: row.bank_account || '',
+      bank_name: row.bank_name || '',
+      mbti: row.mbti || '',
+      email: row.email || '',
+      google_email: row.google_email || '',
+      resident_id: row.resident_id || '',
+      position_title: row.position_title || '',
+    }
+  }
+
   async function saveBranchDetails() {
     await api('/api/admin-mode/config', {
       method: 'POST',
@@ -5004,27 +5039,7 @@ function AdminModePage() {
     })
     await api('/api/admin/users/details-bulk', {
       method: 'POST',
-      body: JSON.stringify({ users: branchRows.map(row => ({
-        id: row.id,
-        nickname: row.nickname || '',
-        phone: row.phone || '',
-        vehicle_number: row.vehicle_number || '',
-        branch_no: row.branch_no || null,
-        marital_status: row.marital_status || '',
-        resident_address: row.resident_address || '',
-        business_name: row.business_name || '',
-        business_number: row.business_number || '',
-        business_type: row.business_type || '',
-        business_item: row.business_item || '',
-        business_address: row.business_address || '',
-        bank_account: row.bank_account || '',
-        bank_name: row.bank_name || '',
-        mbti: row.mbti || '',
-        email: row.email || '',
-        google_email: row.google_email || '',
-        resident_id: row.resident_id || '',
-        position_title: row.position_title || '',
-      })) }),
+      body: JSON.stringify({ users: branchRows.map(normalizeDetailPayload) }),
     })
     setMessage('가맹현황 정보가 저장되었습니다.')
     setBranchEditMode(false)
@@ -5034,32 +5049,33 @@ function AdminModePage() {
   async function saveEmployeeDetails() {
     await api('/api/admin/users/details-bulk', {
       method: 'POST',
-      body: JSON.stringify({ users: employeeRows.map(row => ({
-        id: row.id,
-        nickname: row.nickname || '',
-        phone: row.phone || '',
-        vehicle_number: row.vehicle_number || '',
-        branch_no: row.branch_no || null,
-        marital_status: row.marital_status || '',
-        resident_address: row.resident_address || '',
-        business_name: row.business_name || '',
-        business_number: row.business_number || '',
-        business_type: row.business_type || '',
-        business_item: row.business_item || '',
-        business_address: row.business_address || '',
-        bank_account: row.bank_account || '',
-        bank_name: row.bank_name || '',
-        mbti: row.mbti || '',
-        email: row.email || '',
-        google_email: row.google_email || '',
-        resident_id: row.resident_id || '',
-        position_title: row.position_title || '',
-      })) }),
+      body: JSON.stringify({ users: employeeRows.map(normalizeDetailPayload) }),
     })
     setMessage('직원현황 정보가 저장되었습니다.')
     setEmployeeEditMode(false)
     await load()
   }
+
+  async function saveAccountEdits() {
+    await api('/api/admin/users/details-bulk', {
+      method: 'POST',
+      body: JSON.stringify({ users: accountRows.map(normalizeDetailPayload) }),
+    })
+    await api('/api/admin/accounts/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        accounts: accountRows.map(row => ({
+          id: row.id,
+          grade: Number(row.grade || 6),
+          approved: !!row.approved,
+          position_title: row.position_title || '',
+        })),
+      }),
+    })
+    setMessage('계정편집 정보가 저장되었습니다.')
+    await load()
+  }
+
   async function submitCreateAccount(e) {
     e.preventDefault()
     await api('/api/admin/accounts/create', {
@@ -5074,16 +5090,29 @@ function AdminModePage() {
       }),
     })
     setMessage('계정이 생성되었습니다.')
-    setAccountCreateOpen(false)
-    setCreateForm({ email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true })
+    setCreateForm({ email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true })
     await load()
   }
 
-
-  async function submitDeleteAccounts() {
+  function requestDeleteAccounts() {
     const ids = Object.entries(accountDeleteSelection).filter(([, checked]) => !!checked).map(([id]) => Number(id))
     if (!ids.length) {
       setMessage('삭제할 계정을 먼저 선택해주세요.')
+      return
+    }
+    setAccountDeleteConfirmText('')
+    setAccountDeleteDialogOpen(true)
+  }
+
+  async function submitDeleteAccountsConfirmed() {
+    const ids = Object.entries(accountDeleteSelection).filter(([, checked]) => !!checked).map(([id]) => Number(id))
+    if (!ids.length) {
+      setAccountDeleteDialogOpen(false)
+      setMessage('삭제할 계정을 먼저 선택해주세요.')
+      return
+    }
+    if (accountDeleteConfirmText.trim() !== '삭제') {
+      setMessage("삭제를 진행하려면 텍스트창에 '삭제'라고 입력해주세요.")
       return
     }
     await api('/api/admin/accounts/delete', {
@@ -5092,6 +5121,8 @@ function AdminModePage() {
     })
     setMessage('선택한 계정이 삭제되었습니다.')
     setAccountDeleteSelection({})
+    setAccountDeleteDialogOpen(false)
+    setAccountDeleteConfirmText('')
     await load()
   }
 
@@ -5129,7 +5160,7 @@ function AdminModePage() {
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
-    return accountRows.filter(item => `${item.nickname} ${item.email} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
+    return accountRows.filter(item => `${item.name || ''} ${item.nickname || ''} ${item.email || ''} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
   }, [accountRows, searchQuery])
 
   const actorGrade = Number(currentUser?.grade || 6)
@@ -5144,16 +5175,15 @@ function AdminModePage() {
     [accountRows, currentUser?.id],
   )
 
-
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
     if (actorGrade > actorRoleLimit) return false
     const safeCurrentGrade = Number(targetCurrentGrade || 6)
-    const safeNextGrade = Number(nextGrade || 6)
-    if (actorGrade >= safeCurrentGrade) return false
-    if (safeCurrentGrade < targetRoleFloor) return false
-    if (safeNextGrade < targetRoleFloor) return false
+    const safeNextGrade = Number(nextGrade || safeCurrentGrade)
+    if (safeCurrentGrade <= actorGrade) return false
     if (safeNextGrade <= actorGrade) return false
+    if (safeNextGrade < targetRoleFloor) return false
+    if (Number(targetUserId) === Number(currentUser?.id || 0) && safeNextGrade !== safeCurrentGrade) return false
     return true
   }
 
@@ -5168,14 +5198,8 @@ function AdminModePage() {
     return row?.position_title || (Number(row?.branch_no || 0) > 0 ? '호점대표' : '')
   }
 
-  function canEditPosition(target) {
+  function canEditPosition() {
     return actorGrade === 1
-  }
-
-  function accountActionAllowed(section) {
-    if (actorGrade === 1) return true
-    if (actorGrade === 2) return ['운영현황', '계정추가', '계정권한'].includes(section)
-    return false
   }
 
   function renderActionButton(top, bottom, onClick, extraClass = '') {
@@ -5192,6 +5216,31 @@ function AdminModePage() {
     ))
   }
 
+  function setManagePage(tab, pageNo) {
+    setAccountManagePages(prev => ({ ...prev, [tab]: pageNo }))
+  }
+
+  function getPagedRows(rows, tab) {
+    const pageNo = Number(accountManagePages[tab] || 1)
+    const start = (pageNo - 1) * ACCOUNTS_PER_PAGE
+    return rows.slice(start, start + ACCOUNTS_PER_PAGE)
+  }
+
+  function renderPagination(totalCount, tab) {
+    const totalPageCount = Math.max(1, Math.ceil(totalCount / ACCOUNTS_PER_PAGE))
+    return (
+      <div className="admin-pagination">
+        {Array.from({ length: totalPageCount }, (_, index) => index + 1).map(pageNo => (
+          <button key={`${tab}-${pageNo}`} type="button" className={(accountManagePages[tab] || 1) === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setManagePage(tab, pageNo)}>{pageNo}</button>
+        ))}
+      </div>
+    )
+  }
+
+  const pagedManageList = useMemo(() => getPagedRows(accountRows, 'list'), [accountRows, accountManagePages])
+  const pagedManageDeleteRows = useMemo(() => getPagedRows(deletableAccounts, 'delete'), [deletableAccounts, accountManagePages])
+  const pagedManageEditRows = useMemo(() => getPagedRows(accountRows, 'edit'), [accountRows, accountManagePages])
+
   if (loading) return <div className="card">관리자 정보를 불러오는 중...</div>
   if (error) return <div className="card error">{error}</div>
   if (!data) return null
@@ -5200,7 +5249,7 @@ function AdminModePage() {
     <div className="admin-mode-page stack-page">
       {message && <div className="success">{message}</div>}
 
-      {Number(currentUser?.grade || 6) <= 2 && (
+      {actorGrade === 1 && (
         <section className="card admin-mode-card">
           <div className="between admin-mode-section-head">
             <h2>계정관리</h2>
@@ -5209,21 +5258,57 @@ function AdminModePage() {
               {accountManageOpen && accountManageTab === 'create' && (
                 <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
               )}
-              {accountManageOpen && accountManageTab === 'delete' && actorGrade === 1 && (
-                <button type="button" className="small danger" onClick={submitDeleteAccounts}>계정삭제</button>
+              {accountManageOpen && accountManageTab === 'edit' && (
+                <button type="button" className="small" onClick={saveAccountEdits}>계정편집 저장</button>
+              )}
+              {accountManageOpen && accountManageTab === 'delete' && (
+                <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
               )}
             </div>
           </div>
+
           {accountManageOpen && (
             <div className="stack compact-gap">
               <div className="inline-actions wrap">
-                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setAccountManageTab('create'); setAccountCreateOpen(true) }}>계정추가</button>
-                {actorGrade === 1 && <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>}
+                <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
+                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
+                <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
+                <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
               </div>
+
+              {accountManageTab === 'list' && (
+                <>
+                  <div className="admin-account-list-grid">
+                    {pagedManageList.map(item => (
+                      <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card">
+                        <div className="admin-account-list-head">
+                          <strong>{item.name || '-'}</strong>
+                          <span className="muted">{item.account_unique_id || '-'}</span>
+                        </div>
+                        <div className="admin-account-list-body">
+                          <div><strong>아이디</strong> {item.email || '-'}</div>
+                          <div><strong>이름</strong> {item.name || '-'}</div>
+                          <div><strong>닉네임</strong> {item.nickname || '-'}</div>
+                          <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
+                          <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
+                          <div><strong>연락처</strong> {item.phone || '-'}</div>
+                          <div><strong>지역</strong> {item.region || '-'}</div>
+                          <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
+                          <div><strong>호점</strong> {item.branch_no || '-'}</div>
+                          <div><strong>계좌정보</strong> {[item.bank_account || '-', item.bank_name || '-'].join(' / ')}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {renderPagination(accountRows.length, 'list')}
+                </>
+              )}
+
               {accountManageTab === 'create' && (
                 <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
                   <div className="admin-inline-grid compact-inline-grid">
-                    <label>이메일 <input value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+                    <label>이름 <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
+                    <label>아이디 <input value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
                     <label>비밀번호 <input type="password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
                     <label>닉네임 <input value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
                     <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
@@ -5253,18 +5338,80 @@ function AdminModePage() {
                   </div>
                 </form>
               )}
-              {accountManageOpen && accountManageTab === 'delete' && actorGrade === 1 && (
-                <div className="admin-delete-list">
-                  {deletableAccounts.map(item => (
-                    <label key={`delete-${item.id}`} className="admin-delete-row">
-                      <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} />
-                      <span>[{item.name || item.nickname || '이름 미입력'}]</span>
-                      <span>[{item.email || '-'}]</span>
-                      <span>[{item.account_unique_id || '-'}]</span>
-                    </label>
-                  ))}
-                  {!deletableAccounts.length && <div className="muted">삭제 가능한 계정이 없습니다.</div>}
-                </div>
+
+              {accountManageTab === 'edit' && (
+                <>
+                  <div className="admin-account-edit-list">
+                    {pagedManageEditRows.map(item => (
+                      <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card">
+                        <div className="admin-account-list-head">
+                          <strong>{item.name || item.nickname || item.email}</strong>
+                          <span className="muted">{item.account_unique_id || '-'}</span>
+                        </div>
+                        <div className="admin-inline-grid compact-inline-grid">
+                          <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
+                          <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
+                          <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
+                          <label>고유ID값 <input value={item.account_unique_id || ''} onChange={e => updateAccountRow(item.id, { account_unique_id: e.target.value })} /></label>
+                          <label>직급
+                            <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })}>
+                              <option value="">미지정</option>
+                              {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                            </select>
+                          </label>
+                          <label>권한등급
+                            <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                              {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                            </select>
+                          </label>
+                          <label>연락처 <input value={item.phone || ''} onChange={e => updateAccountRow(item.id, { phone: e.target.value })} /></label>
+                          <label>복구이메일 <input value={item.recovery_email || ''} onChange={e => updateAccountRow(item.id, { recovery_email: e.target.value })} /></label>
+                          <label>성별 <input value={item.gender || ''} onChange={e => updateAccountRow(item.id, { gender: e.target.value })} /></label>
+                          <label>출생연도 <input value={item.birth_year || ''} onChange={e => updateAccountRow(item.id, { birth_year: e.target.value })} /></label>
+                          <label>지역 <input value={item.region || ''} onChange={e => updateAccountRow(item.id, { region: e.target.value })} /></label>
+                          <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateAccountRow(item.id, { vehicle_number: e.target.value })} /></label>
+                          <label>호점
+                            <select value={item.branch_no || ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value ? Number(e.target.value) : '' })}>
+                              <option value="">선택 안 함</option>
+                              {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
+                            </select>
+                          </label>
+                          <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateAccountRow(item.id, { marital_status: e.target.value })} /></label>
+                          <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateAccountRow(item.id, { resident_address: e.target.value })} /></label>
+                          <label>사업자명 <input value={item.business_name || ''} onChange={e => updateAccountRow(item.id, { business_name: e.target.value })} /></label>
+                          <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateAccountRow(item.id, { business_number: e.target.value })} /></label>
+                          <label>업태 <input value={item.business_type || ''} onChange={e => updateAccountRow(item.id, { business_type: e.target.value })} /></label>
+                          <label>종목 <input value={item.business_item || ''} onChange={e => updateAccountRow(item.id, { business_item: e.target.value })} /></label>
+                          <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateAccountRow(item.id, { business_address: e.target.value })} /></label>
+                          <label>계좌번호 <input value={item.bank_account || ''} onChange={e => updateAccountRow(item.id, { bank_account: e.target.value })} /></label>
+                          <label>은행명 <input value={item.bank_name || ''} onChange={e => updateAccountRow(item.id, { bank_name: e.target.value })} /></label>
+                          <label>MBTI <input value={item.mbti || ''} onChange={e => updateAccountRow(item.id, { mbti: e.target.value })} /></label>
+                          <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateAccountRow(item.id, { google_email: e.target.value })} /></label>
+                          <label>주민등록번호 <input value={item.resident_id || ''} onChange={e => updateAccountRow(item.id, { resident_id: e.target.value })} /></label>
+                          <label className="check"><input type="checkbox" checked={!!item.approved} onChange={e => updateAccountRow(item.id, { approved: e.target.checked })} /> 승인됨</label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {renderPagination(accountRows.length, 'edit')}
+                </>
+              )}
+
+              {accountManageTab === 'delete' && (
+                <>
+                  <div className="admin-delete-list">
+                    {pagedManageDeleteRows.map(item => (
+                      <label key={`delete-${item.id}`} className="admin-delete-row">
+                        <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} />
+                        <span>[{item.name || item.nickname || '이름 미입력'}]</span>
+                        <span>[{item.email || '-'}]</span>
+                        <span>[{item.account_unique_id || '-'}]</span>
+                      </label>
+                    ))}
+                    {!deletableAccounts.length && <div className="muted">삭제 가능한 계정이 없습니다.</div>}
+                  </div>
+                  {renderPagination(deletableAccounts.length, 'delete')}
+                </>
               )}
             </div>
           )}
@@ -5317,42 +5464,28 @@ function AdminModePage() {
                   {branchOpen[item.id] && (
                     <div className="stack compact-gap admin-detail-stack">
                       <div className="admin-inline-grid compact-inline-grid">
+                        <label>이름 <input value={item.name || ''} onChange={e => updateBranchRow(item.id, { name: e.target.value })} disabled={!branchEditMode} /></label>
                         <label>닉네임 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} disabled={!branchEditMode} /></label>
                         <label>연락처 <input value={item.phone || ''} onChange={e => updateBranchRow(item.id, { phone: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
                         <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
                         <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>호점 <input value={item.branch_no || ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
-                        <label>주이메일 <input value={item.email || ''} onChange={e => updateBranchRow(item.id, { email: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateBranchRow(item.id, { google_email: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateBranchRow(item.id, { business_number: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
-                      {branchEditMode ? (
-                        <>
-                          <div className="admin-inline-grid compact-inline-grid">
-                            <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} /></label>
-                            <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateBranchRow(item.id, { business_number: e.target.value })} /></label>
-                          </div>
-                          <div className="admin-inline-grid compact-inline-grid">
-                            <label>업태 <input value={item.business_type || ''} onChange={e => updateBranchRow(item.id, { business_type: e.target.value })} /></label>
-                            <label>종목 <input value={item.business_item || ''} onChange={e => updateBranchRow(item.id, { business_item: e.target.value })} /></label>
-                          </div>
-                          <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateBranchRow(item.id, { business_address: e.target.value })} /></label>
-                          <div className="admin-inline-grid compact-inline-grid">
-                            <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateBranchRow(item.id, { marital_status: e.target.value })} /></label>
-                            <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateBranchRow(item.id, { resident_address: e.target.value })} /></label>
-                          </div>
-                          <label>MBTI <input value={item.mbti || ''} onChange={e => updateBranchRow(item.id, { mbti: e.target.value })} /></label>
-                        </>
-                      ) : (
-                        <>
-                          <div>{item.business_name || '-'} / {item.business_number || '-'} / {item.business_type || '-'} / {item.business_item || '-'}</div>
-                          <div>{item.business_address || '사업장주소 미입력'}</div>
-                          <div>{item.resident_address || '거주지주소 미입력'}</div>
-                          <div>{item.mbti || '-'}</div>
-                        </>
-                      )}
+                      <div className="admin-inline-grid compact-inline-grid">
+                        <label>업태 <input value={item.business_type || ''} onChange={e => updateBranchRow(item.id, { business_type: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>종목 <input value={item.business_item || ''} onChange={e => updateBranchRow(item.id, { business_item: e.target.value })} disabled={!branchEditMode} /></label>
+                      </div>
+                      <div className="admin-inline-grid compact-inline-grid">
+                        <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateBranchRow(item.id, { business_address: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateBranchRow(item.id, { resident_address: e.target.value })} disabled={!branchEditMode} /></label>
+                      </div>
+                      <label>MBTI <input value={item.mbti || ''} onChange={e => updateBranchRow(item.id, { mbti: e.target.value })} disabled={!branchEditMode} /></label>
                     </div>
                   )}
                 </div>
@@ -5384,6 +5517,7 @@ function AdminModePage() {
                   {employeeOpen[item.id] && (
                     <div className="stack compact-gap admin-detail-stack">
                       <div className="admin-inline-grid compact-inline-grid">
+                        <label>이름 <input value={item.name || ''} onChange={e => updateEmployeeRow(item.id, { name: e.target.value })} disabled={!employeeEditMode} /></label>
                         <label>닉네임 <input value={item.nickname || ''} onChange={e => updateEmployeeRow(item.id, { nickname: e.target.value })} disabled={!employeeEditMode} /></label>
                         <label>연락처 <input value={item.phone || ''} onChange={e => updateEmployeeRow(item.id, { phone: e.target.value })} disabled={!employeeEditMode} /></label>
                       </div>
@@ -5415,7 +5549,6 @@ function AdminModePage() {
           <div className="inline-actions wrap">
             {renderActionButton('계정권한', '정보저장', saveAccounts)}
             {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
-            {actorGrade === 1 && <button type="button" className={accountListOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountListOpen(v => !v)}>계정목록</button>}
             <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
           </div>
         </div>
@@ -5450,120 +5583,18 @@ function AdminModePage() {
         </div>
       </section>
 
-      {actorGrade === 1 && accountListOpen && (
-        <section className="card admin-mode-card">
-          <div className="between admin-mode-section-head">
-            <div>
-              <h2>계정목록</h2>
-              <div className="muted">관리자만 전체 계정의 상세정보와 고유ID값을 볼 수 있습니다.</div>
+      {searchOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setSearchOpen(false)}>
+          <div className="modal-card admin-search-modal" onClick={e => e.stopPropagation()}>
+            <div className="between">
+              <strong>계정 검색</strong>
+              <button type="button" className="small ghost" onClick={() => setSearchOpen(false)}>닫기</button>
             </div>
-          </div>
-          <div className="admin-account-list-grid">
-            {accountRows.map(item => (
-              <div key={`account-list-${item.id}`} className="list-item block admin-detail-card compact-card">
-                <div className="admin-account-list-head">
-                  <strong>{item.nickname}</strong>
-                  <span className="muted">{item.account_unique_id || '-'}</span>
-                </div>
-                <div className="admin-account-list-body">
-                  <div><strong>아이디</strong> {item.email || '-'}</div>
-                  <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
-                  <div><strong>이름/닉네임</strong> {item.name || item.nickname || '-'}</div>
-                  <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
-                  <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
-                  <div><strong>연락처</strong> {item.phone || '-'}</div>
-                  <div><strong>지역</strong> {item.region || '-'}</div>
-                  <div><strong>성별</strong> {item.gender || '-'}</div>
-                  <div><strong>출생연도</strong> {item.birth_year || '-'}</div>
-                  <div><strong>복구이메일</strong> {item.recovery_email || '-'}</div>
-                  <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
-                  <div><strong>호점</strong> {item.branch_no || '-'}</div>
-                  <div><strong>사업자명</strong> {item.business_name || '-'}</div>
-                  <div><strong>사업자번호</strong> {item.business_number || '-'}</div>
-                  <div><strong>업태/종목</strong> {[item.business_type || '-', item.business_item || '-'].join(' / ')}</div>
-                  <div><strong>사업장주소</strong> {item.business_address || '-'}</div>
-                  <div><strong>결혼여부</strong> {item.marital_status || '-'}</div>
-                  <div><strong>거주지주소</strong> {item.resident_address || '-'}</div>
-                  <div><strong>계좌정보</strong> {[item.bank_account || '-', item.bank_name || '-'].join(' / ')}</div>
-                  <div><strong>MBTI</strong> {item.mbti || '-'}</div>
-                  <div><strong>구글이메일</strong> {item.google_email || '-'}</div>
-                  <div><strong>주민등록번호</strong> {item.resident_id || '-'}</div>
-                  <div><strong>생성일</strong> {item.created_at || '-'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {actorGrade === 1 && <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head">
-          <h2>권한별 기능부여</h2>
-          <div className="inline-actions wrap">{renderActionButton('기능부여', '정보저장', saveConfig)}</div>
-        </div>
-        <div className="stack compact-gap">
-          <label>관리자모드접근권한
-            <select value={Number(configForm.admin_mode_access_grade)} onChange={e => setConfigForm({ ...configForm, admin_mode_access_grade: Number(e.target.value) })}>
-              {ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label>타계정 권한부여 권한
-            <div className="permission-config-row">
-              <div className="permission-actor-wrap">
-                <select value={Number(configForm.role_assign_actor_max_grade)} onChange={e => setConfigForm({ ...configForm, role_assign_actor_max_grade: Number(e.target.value) })}>
-                  {gradeOptionsWithSuffix('').map(item => item)}
-                </select>
-                <span>가</span>
-              </div>
-              <select value={Number(configForm.role_assign_target_min_grade)} onChange={e => setConfigForm({ ...configForm, role_assign_target_min_grade: Number(e.target.value) })}>
-                {gradeOptionsWithSuffix(' 기능부여').map(item => item)}
-              </select>
-            </div>
-          </label>
-          <label>계정정지권한
-            <div className="permission-config-row">
-              <div className="permission-actor-wrap">
-                <select value={Number(configForm.account_suspend_actor_max_grade)} onChange={e => setConfigForm({ ...configForm, account_suspend_actor_max_grade: Number(e.target.value) })}>
-                  {gradeOptionsWithSuffix('').map(item => item)}
-                </select>
-                <span>가</span>
-              </div>
-              <select value={Number(configForm.account_suspend_target_min_grade)} onChange={e => setConfigForm({ ...configForm, account_suspend_target_min_grade: Number(e.target.value) })}>
-                {gradeOptionsWithSuffix(' 정지').map(item => item)}
-              </select>
-            </div>
-          </label>
-          <label>회원가입승인권한
-            <div className="permission-config-row">
-              <div className="permission-actor-wrap">
-                <select value={Number(configForm.signup_approve_actor_max_grade)} onChange={e => setConfigForm({ ...configForm, signup_approve_actor_max_grade: Number(e.target.value) })}>
-                  {gradeOptionsWithSuffix('').map(item => item)}
-                </select>
-                <span>가</span>
-              </div>
-              <select value={Number(configForm.signup_approve_target_min_grade)} onChange={e => setConfigForm({ ...configForm, signup_approve_target_min_grade: Number(e.target.value) })}>
-                {gradeOptionsWithSuffix(' 승인').map(item => item)}
-              </select>
-            </div>
-          </label>
-        </div>
-      </section>}
-
-      {searchOpen && (
-        <div className="schedule-popup-backdrop" onClick={() => setSearchOpen(false)}>
-          <section className="schedule-popup-card admin-search-popup" onClick={event => event.stopPropagation()}>
-            <div className="between schedule-popup-head">
-              <div>
-                <strong>계정권한 검색</strong>
-                <div className="muted">닉네임, 아이디(이메일), 고유ID값으로 검색할 수 있습니다.</div>
-              </div>
-              <button type="button" className="ghost small" onClick={() => setSearchOpen(false)}>닫기</button>
-            </div>
-            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="닉네임 또는 아이디 검색" />
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="이름, 닉네임, 아이디, 고유ID, 연락처 검색" />
             <div className="admin-account-table admin-search-results">
               {searchResults.map(item => (
                 <div key={item.id} className="admin-account-grid compact">
-                  <div>{item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
+                  <div>{item.name || item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
                   <div>{item.email}</div>
                   <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                     <option value="">미지정</option>
@@ -5574,15 +5605,32 @@ function AdminModePage() {
                   </select>
                 </div>
               ))}
-              {searchQuery.trim() && searchResults.length === 0 && <div className="muted">검색 결과가 없습니다.</div>}
+              {!searchResults.length && <div className="muted">검색 결과가 없습니다.</div>}
             </div>
-          </section>
-        </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {accountDeleteDialogOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setAccountDeleteDialogOpen(false)}>
+          <div className="modal-card delete-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="stack compact-gap">
+              <strong>계정을 삭제하시겠습니까?</strong>
+              <div className="muted">계정을 삭제하려면 아래 텍스트창에 '삭제'라고 입력 후 삭제 버튼을 누르세요.</div>
+              <input value={accountDeleteConfirmText} onChange={e => setAccountDeleteConfirmText(e.target.value)} placeholder="삭제" />
+              <div className="inline-actions wrap">
+                <button type="button" className="small ghost" onClick={() => setAccountDeleteDialogOpen(false)}>취소</button>
+                <button type="button" className="small danger" onClick={submitDeleteAccountsConfirmed}>삭제</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
 }
-
 
 function ReportsPage() {
   const [items, setItems] = useState([])
