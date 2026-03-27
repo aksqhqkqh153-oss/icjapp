@@ -3543,3 +3543,81 @@ button.selected-toggle:hover,
 .admin-account-list-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
 .admin-account-list-body { display: grid; gap: 6px; font-size: 14px; }
 .admin-account-list-body strong { display: inline-block; min-width: 88px; color: var(--text); }
+
+
+.admin-status-tabs-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.status-tab-actions {
+  justify-content: flex-start;
+}
+
+.summary-grid-inline-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-grid-inline-labels label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.summary-grid-inline-labels label input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-detail-summary-row {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-summary-lines {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  line-height: 1.5;
+}
+
+.admin-summary-line span {
+  display: inline-flex;
+  min-width: 0;
+}
+
+@media (min-width: 769px) {
+  .branch-summary-lines .admin-summary-line,
+  .employee-summary-lines .admin-summary-line {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-grid-inline-labels {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid-inline-labels label {
+    width: 100%;
+  }
+
+  .branch-summary-lines .admin-summary-line span {
+    width: calc(33.333% - 8px);
+  }
+
+  .employee-summary-lines .admin-summary-line span {
+    width: calc(50% - 8px);
+  }
+}
