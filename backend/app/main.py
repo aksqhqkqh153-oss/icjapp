@@ -24,6 +24,7 @@ from .db import (
     json_loads,
     make_token,
     generate_account_unique_id,
+    mark_deleted_imported_account,
     row_to_dict,
     user_public_dict,
     utcnow,
@@ -232,6 +233,9 @@ class AdminAccountUpdateIn(BaseModel):
     id: Optional[int] = None
 class AdminAccountsBulkUpdateIn(BaseModel):
     accounts: list[AdminAccountUpdateIn] = []
+class AdminDeleteAccountsIn(BaseModel):
+    ids: list[int] = []
+
 class AdminUserDetailIn(BaseModel):
     id: int
     name: str = ''
@@ -2648,6 +2652,24 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
         row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     return {'ok': True, 'user': user_public_dict(row)}
+@app.post('/api/admin/accounts/delete')
+def delete_admin_accounts(payload: AdminDeleteAccountsIn, admin=Depends(require_admin)):
+    target_ids = [int(item) for item in (payload.ids or []) if int(item or 0) > 0]
+    if not target_ids:
+        raise HTTPException(status_code=400, detail='삭제할 계정을 선택해주세요.')
+    deleted_ids = []
+    with get_conn() as conn:
+        for target_id in target_ids:
+            if int(admin['id']) == target_id:
+                continue
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (target_id,)).fetchone()
+            if not row:
+                continue
+            mark_deleted_imported_account(conn, row['email'])
+            conn.execute("DELETE FROM users WHERE id = ?", (target_id,))
+            deleted_ids.append(target_id)
+    return {'ok': True, 'deleted_ids': deleted_ids}
+
 @app.get("/api/admin/reports")
 def admin_reports(admin=Depends(require_admin)):
     with get_conn() as conn:

@@ -3740,3 +3740,39 @@ button.ghost.active {
     min-width: 0;
   }
 }
+
+
+.admin-delete-list {
+  display: grid;
+  gap: 10px;
+}
+.admin-delete-row {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(51, 65, 85, 0.18);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+}
+.admin-delete-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+button.danger {
+  background: linear-gradient(180deg, #ffd9df, #ffc5cf);
+  color: #7a2740;
+  border-color: #efb2bf;
+}
+button.danger:hover {
+  background: linear-gradient(180deg, #ffe5e9, #ffd1d8);
+}
+@media (max-width: 768px) {
+  .admin-delete-row {
+    grid-template-columns: auto 1fr;
+  }
+  .admin-delete-row span {
+    grid-column: 2;
+  }
+}

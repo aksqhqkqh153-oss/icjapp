@@ -4916,6 +4916,9 @@ function AdminModePage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [accountManageOpen, setAccountManageOpen] = useState(false)
+  const [accountManageTab, setAccountManageTab] = useState('create')
+  const [accountDeleteSelection, setAccountDeleteSelection] = useState({})
   const [accountCreateOpen, setAccountCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
     email: '', password: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true,
@@ -4961,6 +4964,7 @@ function AdminModePage() {
       setBranchRows((response.branches || []).map(item => ({ ...item })))
       setEmployeeRows((response.employees || []).map(item => ({ ...item })))
       setAccountPage(1)
+      setAccountDeleteSelection({})
     } catch (err) {
       setError(err.message)
     } finally {
@@ -5076,6 +5080,25 @@ function AdminModePage() {
   }
 
 
+  async function submitDeleteAccounts() {
+    const ids = Object.entries(accountDeleteSelection).filter(([, checked]) => !!checked).map(([id]) => Number(id))
+    if (!ids.length) {
+      setMessage('삭제할 계정을 먼저 선택해주세요.')
+      return
+    }
+    await api('/api/admin/accounts/delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    })
+    setMessage('선택한 계정이 삭제되었습니다.')
+    setAccountDeleteSelection({})
+    await load()
+  }
+
+  function toggleDeleteSelection(userId) {
+    setAccountDeleteSelection(prev => ({ ...prev, [userId]: !prev[userId] }))
+  }
+
   function updateAccountRow(userId, patch) {
     setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...patch } : item))
   }
@@ -5116,6 +5139,11 @@ function AdminModePage() {
   const franchiseRows = useMemo(() => branchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [branchRows])
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseCount
+  const deletableAccounts = useMemo(
+    () => accountRows.filter(item => Number(item.id) !== Number(currentUser?.id || 0)),
+    [accountRows, currentUser?.id],
+  )
+
 
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
@@ -5175,47 +5203,74 @@ function AdminModePage() {
       {Number(currentUser?.grade || 6) <= 2 && (
         <section className="card admin-mode-card">
           <div className="between admin-mode-section-head">
-            <h2>계정추가</h2>
+            <h2>계정관리</h2>
             <div className="inline-actions wrap">
-              <button type="button" className={accountCreateOpen ? 'small ghost' : 'small ghost'} onClick={() => setAccountCreateOpen(v => !v)}>{accountCreateOpen ? '접기' : '펼치기'}</button>
-              <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
+              <button type="button" className={accountManageOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageOpen(v => !v)}>{accountManageOpen ? '접기' : '펼치기'}</button>
+              {accountManageOpen && accountManageTab === 'create' && (
+                <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
+              )}
+              {accountManageOpen && accountManageTab === 'delete' && actorGrade === 1 && (
+                <button type="button" className="small danger" onClick={submitDeleteAccounts}>계정삭제</button>
+              )}
             </div>
           </div>
-          {accountCreateOpen && (
-            <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
-              <div className="admin-inline-grid compact-inline-grid">
-                <label>이메일 <input value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
-                <label>비밀번호 <input type="password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
-                <label>닉네임 <input value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
-                <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
-                <label>출생연도 <input value={createForm.birth_year} onChange={e => setCreateForm({ ...createForm, birth_year: e.target.value })} /></label>
-                <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
-                <label>연락처 <input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
-                <label>복구이메일 <input value={createForm.recovery_email} onChange={e => setCreateForm({ ...createForm, recovery_email: e.target.value })} /></label>
-                <label>차량번호 <input value={createForm.vehicle_number} onChange={e => setCreateForm({ ...createForm, vehicle_number: e.target.value })} /></label>
-                <label>호점
-                  <select value={createForm.branch_no} onChange={e => setCreateForm({ ...createForm, branch_no: e.target.value })}>
-                    <option value="">선택 안 함</option>
-                    {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
-                  </select>
-                </label>
-                <label>권한등급
-                  <select value={Number(createForm.grade)} onChange={e => setCreateForm({ ...createForm, grade: Number(e.target.value) })}>
-                    {roleOptionsForTarget(createForm).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
-                  </select>
-                </label>
-                <label>직급
-                  <select value={createForm.branch_no ? '호점대표' : (createForm.position_title || '')} onChange={e => setCreateForm({ ...createForm, position_title: e.target.value })} disabled={!!createForm.branch_no}>
-                    <option value="">미지정</option>
-                    {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label className="check"><input type="checkbox" checked={!!createForm.approved} onChange={e => setCreateForm({ ...createForm, approved: e.target.checked })} /> 승인됨</label>
+          {accountManageOpen && (
+            <div className="stack compact-gap">
+              <div className="inline-actions wrap">
+                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setAccountManageTab('create'); setAccountCreateOpen(true) }}>계정추가</button>
+                {actorGrade === 1 && <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>}
               </div>
-            </form>
+              {accountManageTab === 'create' && (
+                <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
+                  <div className="admin-inline-grid compact-inline-grid">
+                    <label>이메일 <input value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+                    <label>비밀번호 <input type="password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
+                    <label>닉네임 <input value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
+                    <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
+                    <label>출생연도 <input value={createForm.birth_year} onChange={e => setCreateForm({ ...createForm, birth_year: e.target.value })} /></label>
+                    <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
+                    <label>연락처 <input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
+                    <label>복구이메일 <input value={createForm.recovery_email} onChange={e => setCreateForm({ ...createForm, recovery_email: e.target.value })} /></label>
+                    <label>차량번호 <input value={createForm.vehicle_number} onChange={e => setCreateForm({ ...createForm, vehicle_number: e.target.value })} /></label>
+                    <label>호점
+                      <select value={createForm.branch_no} onChange={e => setCreateForm({ ...createForm, branch_no: e.target.value })}>
+                        <option value="">선택 안 함</option>
+                        {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
+                      </select>
+                    </label>
+                    <label>권한등급
+                      <select value={Number(createForm.grade)} onChange={e => setCreateForm({ ...createForm, grade: Number(e.target.value) })}>
+                        {roleOptionsForTarget(createForm).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <label>직급
+                      <select value={createForm.branch_no ? '호점대표' : (createForm.position_title || '')} onChange={e => setCreateForm({ ...createForm, position_title: e.target.value })} disabled={!!createForm.branch_no}>
+                        <option value="">미지정</option>
+                        {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label className="check"><input type="checkbox" checked={!!createForm.approved} onChange={e => setCreateForm({ ...createForm, approved: e.target.checked })} /> 승인됨</label>
+                  </div>
+                </form>
+              )}
+              {accountManageOpen && accountManageTab === 'delete' && actorGrade === 1 && (
+                <div className="admin-delete-list">
+                  {deletableAccounts.map(item => (
+                    <label key={`delete-${item.id}`} className="admin-delete-row">
+                      <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} />
+                      <span>[{item.name || item.nickname || '이름 미입력'}]</span>
+                      <span>[{item.email || '-'}]</span>
+                      <span>[{item.account_unique_id || '-'}]</span>
+                    </label>
+                  ))}
+                  {!deletableAccounts.length && <div className="muted">삭제 가능한 계정이 없습니다.</div>}
+                </div>
+              )}
+            </div>
           )}
         </section>
       )}
+
       <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
           <h2>운영현황</h2>
