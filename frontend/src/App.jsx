@@ -5669,7 +5669,7 @@ function SettlementPage() {
 }
 
 
-export default function AppAssignmentNotificationWatcher({ user }) {
+function AppAssignmentNotificationWatcher({ user }) {
   useEffect(() => {
     return undefined
   }, [user])
@@ -5758,3 +5758,5 @@ function App() {
     </>
   )
 }
+
+export default App
