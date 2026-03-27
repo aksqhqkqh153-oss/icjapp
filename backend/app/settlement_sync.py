@@ -137,6 +137,80 @@ def save_auth_state_json(raw_text: str, platform: str = '숨고') -> dict[str, A
     }
 
 
+
+
+def get_auth_session_guide(platform: str = '숨고') -> dict[str, Any]:
+    runtime = _runtime_settings()
+    cfg = _platform_config(platform)
+    auth_state_path = Path(getattr(runtime, cfg['auth_state_path_attr']))
+    script_name = 'soomgo_capture_auth_state.py' if platform == '숨고' else 'ohou_capture_auth_state.py'
+    login_url = runtime.soomgo_login_url if platform == '숨고' else runtime.ohou_login_url
+    target_url = (runtime.soomgo_target_urls[0] if platform == '숨고' and runtime.soomgo_target_urls else '') or (runtime.ohou_target_url if platform == '오늘' else '')
+    file_name = auth_state_path.name
+    title = f'{platform} 인증세션 저장 설명서'
+    summary = (
+        f'{platform} 로그인 쿠키와 세션 정보를 Playwright storage_state JSON으로 만든 뒤, '
+        '결산자료 > 설정 > 인증세션 화면에서 JSON 내용을 붙여 넣어 저장하는 절차입니다.'
+    )
+    required_materials = [
+        f'{platform} 로그인 가능한 계정',
+        'Windows PowerShell 또는 VS Code 터미널',
+        'backend 가상환경(.venv)과 requirements 설치',
+        '브라우저에서 실제 로그인을 마칠 수 있는 시간',
+        '생성된 JSON 파일 내용을 복사할 수 있는 메모장 또는 VS Code',
+    ]
+    paths = [
+        '프로젝트 루트: C:\\Users\\icj24\\Downloads\\icjapp',
+        f'인증세션 생성 스크립트: backend\\scripts\\{script_name}',
+        f'생성될 인증세션 파일 기본 경로: {auth_state_path}',
+        '앱 내 저장 위치: 결산자료 > 설정 > 해당 플랫폼 인증세션 > JSON 입력칸',
+        f'접속 확인 URL: {target_url or login_url}',
+    ]
+    commands = [
+        'cd C:\\Users\\icj24\\Downloads\\icjapp',
+        '.\\backend\\.venv\\Scripts\\python.exe -m pip install -r .\\backend\\requirements.txt',
+        '.\\backend\\.venv\\Scripts\\python.exe -m playwright install chromium',
+        f'.\\backend\\.venv\\Scripts\\python.exe .\\backend\\scripts\\{script_name}',
+    ]
+    if platform == '숨고':
+        steps = [
+            '터미널에서 프로젝트 루트로 이동합니다.',
+            'backend 가상환경과 requirements, playwright chromium 이 설치되어 있는지 확인합니다.',
+            f'`{script_name}` 스크립트를 실행하면 브라우저가 열립니다.',
+            f'{login_url} 에서 숨고 계정으로 로그인합니다.',
+            '추가 인증이나 캡차가 나오면 모두 직접 완료합니다.',
+            '로그인이 끝나면 브라우저가 자동으로 storage_state JSON 을 저장합니다.',
+            f'{file_name} 파일을 VS Code 또는 메모장으로 열어 JSON 전체를 복사합니다.',
+            '앱의 결산자료 > 설정 > 숨고 인증세션 화면으로 이동합니다.',
+            '복사한 JSON 을 입력칸에 붙여 넣고, 필요하면 같은 화면에서 아이디/비밀번호도 저장합니다.',
+            '마지막으로 숨고 인증세션 저장 버튼을 눌러 서버 DB와 런타임 경로에 반영합니다.',
+        ]
+        timing = '로컬 브라우저에서 로그인이 끝나고, 생성된 soomgo storage_state JSON 전체를 복사한 직후에 눌러야 합니다. JSON 생성 전에 누르면 저장할 데이터가 없습니다.'
+    else:
+        steps = [
+            '터미널에서 프로젝트 루트로 이동합니다.',
+            'backend 가상환경과 requirements, playwright chromium 이 설치되어 있는지 확인합니다.',
+            f'`{script_name}` 스크립트를 실행하면 브라우저가 열립니다.',
+            f'{login_url} 로 접근해 오늘의집 파트너 계정으로 로그인합니다.',
+            f'로그인 후 반드시 {target_url} 화면까지 최종 접근되었는지 확인합니다.',
+            'moving/payment/cash 화면이 열린 상태에서 브라우저를 닫거나 스크립트 안내에 따라 종료해 storage_state JSON 을 생성합니다.',
+            f'{file_name} 파일을 열어 JSON 전체를 복사합니다.',
+            '앱의 결산자료 > 설정 > 오늘 인증세션 화면으로 이동합니다.',
+            '복사한 JSON 을 입력칸에 붙여 넣고, 필요하면 오늘의집 아이디/비밀번호도 같이 저장합니다.',
+            '마지막으로 오늘 인증세션 저장 버튼을 눌러 서버 DB와 런타임 경로에 반영합니다.',
+            '그 다음 결산자료 화면의 데이터 연동 버튼을 눌러 실제 수집이 되는지 확인합니다.',
+        ]
+        timing = '오늘의집 로그인 후 moving/payment/cash 최종 페이지 접근까지 확인하고, 생성된 ohou storage_state JSON 전체를 복사한 직후에 눌러야 합니다. 즉, 로그인 검증이 끝난 뒤가 저장 타이밍입니다.'
+    return {
+        'platform': platform,
+        'title': title,
+        'summary': summary,
+        'required_materials': required_materials,
+        'paths': paths,
+        'commands': commands,
+        'steps': steps,
+        'timing': timing,
+    }
 def _restore_auth_state_file(platform: str = '숨고') -> bool:
     runtime = _runtime_settings()
     cfg = _platform_config(platform)

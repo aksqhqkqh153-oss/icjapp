@@ -5346,6 +5346,17 @@ function SettlementSheetCard({ block }) {
   )
 }
 
+function formatSettlementNextRunLabel(value) {
+  if (!value) return '다음 예정 없음'
+  const raw = String(value).replace('T', ' ')
+  return `다음 예정 ${raw.slice(0, 16)}`
+}
+
+function formatSettlementSyncDetail(metric, label) {
+  const updated = metric?.updated_at ? ` · 최근 연동 ${String(metric.updated_at).replace('T', ' ')}` : ''
+  return `${label} 최신 합계: ${metric?.value ?? 0}건${updated}`
+}
+
 function SettlementPage() {
   const categories = [
     { id: 'daily', label: '일일결산' },
@@ -5363,6 +5374,12 @@ function SettlementPage() {
   const [soomgoAuthStateText, setSoomgoAuthStateText] = useState('')
   const [ohouAuthStateText, setOhouAuthStateText] = useState('')
   const [authStateLoading, setAuthStateLoading] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [activeSettingPlatform, setActiveSettingPlatform] = useState('')
+  const [statusDetailOpen, setStatusDetailOpen] = useState(false)
+  const [guidePlatform, setGuidePlatform] = useState('')
+  const [guideLoading, setGuideLoading] = useState(false)
+  const [guideData, setGuideData] = useState(null)
 
   async function loadSyncStatus() {
     try {
@@ -5439,55 +5456,195 @@ function SettlementPage() {
     }
   }
 
+  async function handleOpenGuide(platform) {
+    setGuidePlatform(platform)
+    setGuideLoading(true)
+    try {
+      const data = await api(`/api/settlement/platform-auth-guide?platform=${encodeURIComponent(platform)}`)
+      setGuideData(data || null)
+    } catch (error) {
+      window.alert(error.message || `${platform} 설명서를 불러오지 못했습니다.`)
+      setGuideData(null)
+    } finally {
+      setGuideLoading(false)
+    }
+  }
+
+  function handleTogglePlatformSetting(platform) {
+    setSettingsOpen(true)
+    setGuideData(null)
+    setGuidePlatform('')
+    setActiveSettingPlatform(prev => (prev === platform ? '' : platform))
+  }
+
   const blocks = applySettlementPlatformMetrics(SETTLEMENT_DATA[activeCategory] || [], syncStatus.platforms)
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
   const ohouMetric = syncStatus.platforms?.['오늘'] || { value: 0, updated_at: '', sync_message: '' }
   const soomgoConfig = syncStatus.configs?.['숨고'] || syncStatus.config || {}
   const ohouConfig = syncStatus.configs?.['오늘'] || {}
+  const nextRunLabel = formatSettlementNextRunLabel(syncStatus.next_run_at)
+  const statusText = syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || ohouMetric.sync_message || '대기중')
+  const activePlatform = activeSettingPlatform === '오늘' ? '오늘' : '숨고'
+  const activeConfig = activePlatform === '오늘' ? ohouConfig : soomgoConfig
+  const activeEmail = activePlatform === '오늘' ? ohouEmail : soomgoEmail
+  const activePassword = activePlatform === '오늘' ? ohouPassword : soomgoPassword
+  const activeAuthStateText = activePlatform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
+
+  function setActiveEmailValue(value) {
+    if (activePlatform === '오늘') setOhouEmail(value)
+    else setSoomgoEmail(value)
+  }
+
+  function setActivePasswordValue(value) {
+    if (activePlatform === '오늘') setOhouPassword(value)
+    else setSoomgoPassword(value)
+  }
+
+  function setActiveAuthStateValue(value) {
+    if (activePlatform === '오늘') setOhouAuthStateText(value)
+    else setSoomgoAuthStateText(value)
+  }
 
   return (
     <div className="stack-page settlement-page">
       <section className="card settlement-hero">
         <div className="between settlement-hero-head settlement-hero-head-wrap">
-          <div>
+          <div className="settlement-hero-main">
             <h2>결산자료</h2>
-            <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
-            <div className="muted settlement-sync-summary">숨고 최신 합계: <strong>{soomgoMetric.value ?? 0}</strong>건 {soomgoMetric.updated_at ? `· 최근 연동 ${String(soomgoMetric.updated_at).replace('T', ' ')}` : ''}</div>
-            <div className="muted settlement-sync-summary">오늘 최신 합계: <strong>{ohouMetric.value ?? 0}</strong>건 {ohouMetric.updated_at ? `· 최근 연동 ${String(ohouMetric.updated_at).replace('T', ' ')}` : ''}</div>
-            <div className="muted settlement-sync-summary">상태: {syncStatus.is_running ? '연동 진행 중' : (syncStatus.last_message || soomgoMetric.sync_message || ohouMetric.sync_message || '대기중')} {syncStatus.next_run_at ? `· 다음 예정 ${String(syncStatus.next_run_at).replace('T', ' ')}` : ''}</div>
-            <div className="settlement-credential-panel">
-              <div className="muted settlement-sync-warning">숨고 자격 증명 · email 소스: <strong>{soomgoConfig.email_env || '없음'}</strong> · password 소스: <strong>{soomgoConfig.password_env || '없음'}</strong> · 인증세션: <strong>{soomgoConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
-              <div className="settlement-credential-grid">
-                <input value={soomgoEmail} onChange={e => setSoomgoEmail(e.target.value)} placeholder="숨고 아이디(이메일)" />
-                <input type="password" value={soomgoPassword} onChange={e => setSoomgoPassword(e.target.value)} placeholder="숨고 비밀번호" />
-                <button type="button" className="small" onClick={() => handleSaveCredentials('숨고')} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '숨고 계정 저장'}</button>
-              </div>
-              <div className="muted settlement-sync-warning">Railway 서버에서 숨고 추가 인증이 필요한 경우, 로컬 helper 스크립트로 만든 storage_state JSON을 저장해 쿠키를 재사용할 수 있습니다.</div>
-              <textarea className="settlement-auth-state-textarea" value={soomgoAuthStateText} onChange={e => setSoomgoAuthStateText(e.target.value)} placeholder="soomgo_storage_state.json 내용을 여기에 붙여 넣으세요." />
-              <div className="settlement-sync-actions settlement-sync-actions-inline">
-                <button type="button" className="small" onClick={() => handleAuthStateUpload('숨고')} disabled={authStateLoading === '숨고'}>{authStateLoading === '숨고' ? '저장중...' : '숨고 인증세션 저장'}</button>
-              </div>
+            <button
+              type="button"
+              className="ghost settlement-status-toggle"
+              onClick={() => setStatusDetailOpen(prev => !prev)}
+            >
+              {nextRunLabel}
+            </button>
+            <div className="muted settlement-status-caption">
+              현재 상태 {statusText}
             </div>
-            <div className="settlement-credential-panel">
-              <div className="muted settlement-sync-warning">오늘의집 자격 증명 · email 소스: <strong>{ohouConfig.email_env || '없음'}</strong> · password 소스: <strong>{ohouConfig.password_env || '없음'}</strong> · 인증세션: <strong>{ohouConfig.auth_state_present ? '저장됨' : '없음'}</strong></div>
-              <div className="settlement-credential-grid">
-                <input value={ohouEmail} onChange={e => setOhouEmail(e.target.value)} placeholder="오늘의집 아이디(이메일)" />
-                <input type="password" value={ohouPassword} onChange={e => setOhouPassword(e.target.value)} placeholder="오늘의집 비밀번호" />
-                <button type="button" className="small" onClick={() => handleSaveCredentials('오늘')} disabled={credentialLoading}>{credentialLoading ? '저장중...' : '오늘 계정 저장'}</button>
+            {statusDetailOpen && (
+              <div className="settlement-status-detail card">
+                <div className="muted">첨부된 사무결산(일일, 주간, 월간) 시트 양식을 앱 화면에 맞춰 표 형태로 반영했습니다.</div>
+                <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(soomgoMetric, '숨고')}</div>
+                <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(ohouMetric, '오늘')}</div>
               </div>
-              <div className="muted settlement-sync-warning">오늘의집도 로그인 유지가 불안정하면 로컬 브라우저에서 확보한 storage_state JSON을 저장할 수 있습니다.</div>
-              <textarea className="settlement-auth-state-textarea" value={ohouAuthStateText} onChange={e => setOhouAuthStateText(e.target.value)} placeholder="ohou_storage_state.json 내용을 여기에 붙여 넣으세요." />
-              <div className="settlement-sync-actions settlement-sync-actions-inline">
-                <button type="button" className="small" onClick={() => handleAuthStateUpload('오늘')} disabled={authStateLoading === '오늘'}>{authStateLoading === '오늘' ? '저장중...' : '오늘 인증세션 저장'}</button>
-              </div>
-            </div>
+            )}
           </div>
-          <div className="settlement-sync-actions">
+          <div className="settlement-sync-actions settlement-sync-actions-stack">
             <button type="button" className="small" onClick={handleRefreshSync} disabled={syncLoading || syncStatus.is_running}>
               {syncLoading || syncStatus.is_running ? '연동중...' : '데이터 연동'}
             </button>
+            <button type="button" className="ghost small" onClick={() => setSettingsOpen(prev => !prev)}>
+              {settingsOpen ? '설정 닫기' : '설정'}
+            </button>
           </div>
         </div>
+
+        {settingsOpen && (
+          <div className="settlement-settings-panel">
+            <div className="settlement-settings-tabs">
+              <button
+                type="button"
+                className={activeSettingPlatform === '숨고' ? 'small active' : 'small'}
+                onClick={() => handleTogglePlatformSetting('숨고')}
+              >
+                숨고 인증세션
+              </button>
+              <button
+                type="button"
+                className={activeSettingPlatform === '오늘' ? 'small active' : 'small'}
+                onClick={() => handleTogglePlatformSetting('오늘')}
+              >
+                오늘 인증세션
+              </button>
+            </div>
+
+            {activeSettingPlatform && (
+              <div className="settlement-credential-panel">
+                <div className="between settlement-config-head">
+                  <div>
+                    <strong>{activePlatform} 인증세션 설정</strong>
+                    <div className="muted settlement-sync-warning">
+                      email 소스: <strong>{activeConfig.email_env || '없음'}</strong> · password 소스: <strong>{activeConfig.password_env || '없음'}</strong> · 인증세션: <strong>{activeConfig.auth_state_present ? '저장됨' : '없음'}</strong>
+                    </div>
+                  </div>
+                  <button type="button" className="ghost small" onClick={() => handleOpenGuide(activePlatform)}>
+                    설명서
+                  </button>
+                </div>
+
+                <div className="settlement-credential-grid">
+                  <input value={activeEmail} onChange={e => setActiveEmailValue(e.target.value)} placeholder={`${activePlatform} 아이디(이메일)`} />
+                  <input type="password" value={activePassword} onChange={e => setActivePasswordValue(e.target.value)} placeholder={`${activePlatform} 비밀번호`} />
+                  <button type="button" className="small" onClick={() => handleSaveCredentials(activePlatform)} disabled={credentialLoading}>
+                    {credentialLoading ? '저장중...' : `${activePlatform} 계정 저장`}
+                  </button>
+                </div>
+
+                <div className="muted settlement-sync-warning">
+                  {activePlatform === '숨고'
+                    ? '숨고 로그인 유지가 불안정하거나 추가 인증이 필요한 경우, 로컬 helper 스크립트로 storage_state JSON을 만든 뒤 이 화면에 붙여 넣어 저장할 수 있습니다.'
+                    : '오늘의집 로그인 후 moving/payment/cash 화면까지 정상 접근되는 인증세션을 JSON으로 만들어 저장하면 데이터 연동 안정성이 높아집니다.'}
+                </div>
+
+                <textarea
+                  className="settlement-auth-state-textarea"
+                  value={activeAuthStateText}
+                  onChange={e => setActiveAuthStateValue(e.target.value)}
+                  placeholder={activePlatform === '숨고' ? 'soomgo_storage_state.json 내용을 여기에 붙여 넣으세요.' : 'ohou_storage_state.json 내용을 여기에 붙여 넣으세요.'}
+                />
+                <div className="settlement-sync-actions settlement-sync-actions-inline">
+                  <button type="button" className="small" onClick={() => handleAuthStateUpload(activePlatform)} disabled={authStateLoading === activePlatform}>
+                    {authStateLoading === activePlatform ? '저장중...' : `${activePlatform} 인증세션 저장`}
+                  </button>
+                </div>
+
+                {guidePlatform === activePlatform && (
+                  <div className="settlement-guide-card">
+                    {guideLoading && <div className="muted">설명서를 불러오는 중입니다...</div>}
+                    {!guideLoading && guideData && (
+                      <>
+                        <h3>{guideData.title}</h3>
+                        <div className="muted">{guideData.summary}</div>
+
+                        <div className="settlement-guide-section">
+                          <strong>필요 자료</strong>
+                          <ul>
+                            {(guideData.required_materials || []).map((item, index) => <li key={`material-${index}`}>{item}</li>)}
+                          </ul>
+                        </div>
+
+                        <div className="settlement-guide-section">
+                          <strong>저장 경로</strong>
+                          <ul>
+                            {(guideData.paths || []).map((item, index) => <li key={`path-${index}`}>{item}</li>)}
+                          </ul>
+                        </div>
+
+                        <div className="settlement-guide-section">
+                          <strong>터미널 명령어</strong>
+                          <pre>{(guideData.commands || []).join('\n')}</pre>
+                        </div>
+
+                        <div className="settlement-guide-section">
+                          <strong>진행 절차</strong>
+                          <ol>
+                            {(guideData.steps || []).map((item, index) => <li key={`step-${index}`}>{item}</li>)}
+                          </ol>
+                        </div>
+
+                        <div className="settlement-guide-section">
+                          <strong>인증세션 저장 버튼을 눌러야 하는 타이밍</strong>
+                          <div>{guideData.timing}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="settlement-tabs" role="tablist" aria-label="결산자료 카테고리">
           {categories.map(category => (
             <button
@@ -5502,71 +5659,15 @@ function SettlementPage() {
         </div>
       </section>
 
-      <section className="card settlement-sync-card">
-        <div className="settlement-sync-grid">
-          {['숨고', '오늘', '공홈'].map(name => {
-            const item = syncStatus.platforms?.[name] || {}
-            return (
-              <div key={name} className="settlement-sync-item">
-                <div className="settlement-sync-label">{name}</div>
-                <div className="settlement-sync-value">{item.value ?? 0}</div>
-                <div className="muted settlement-sync-meta">{item.updated_at ? String(item.updated_at).replace('T', ' ') : '미연동'}</div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="settlement-sheet-grid">
-        {blocks.map(block => <SettlementSheetCard key={`${activeCategory}-${block.title}-${block.date}`} block={block} />)}
-      </section>
+      <div className="settlement-sheet-grid">
+        {blocks.map((block, index) => (
+          <SettlementSheetCard key={`${block.title}-${index}`} block={block} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function AppAssignmentNotificationWatcher({ user }) {
-  const navigate = useNavigate()
-  const shownRef = useRef(new Set())
-
-  useEffect(() => {
-    if (!user?.id || typeof window === 'undefined' || !('Notification' in window)) return undefined
-    let cancelled = false
-    async function requestPermission() {
-      if (Notification.permission === 'default') {
-        try { await Notification.requestPermission() } catch (_) {}
-      }
-    }
-    requestPermission()
-    async function poll() {
-      try {
-        const items = await api('/api/notifications')
-        ;(items || [])
-          .filter(item => item.type === 'work_schedule_assignment' && !item.is_read)
-          .forEach(item => {
-            if (shownRef.current.has(item.id) || Notification.permission !== 'granted') return
-            shownRef.current.add(item.id)
-            const notice = new Notification(item.title || '스케줄 배정', { body: item.body || '새 스케줄 배정이 도착했습니다.' })
-            notice.onclick = async () => {
-              window.focus()
-              navigate('/work-schedule')
-              try { await api(`/api/notifications/${item.id}/read`, { method: 'POST' }) } catch (_) {}
-              notice.close()
-            }
-          })
-      } catch (_) {
-        if (!cancelled) {}
-      }
-    }
-    poll()
-    const timer = window.setInterval(poll, 12000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [navigate, user?.id])
-
-  return null
-}
 
 export default function App() {
   const [user, setUser] = useState(getStoredUser())

@@ -3274,10 +3274,49 @@ button.settlement-tab.active {
   flex-wrap: wrap;
 }
 
+.settlement-hero-main {
+  min-width: min(100%, 420px);
+}
+
 .settlement-sync-actions {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
+}
+
+.settlement-sync-actions-stack {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settlement-status-toggle {
+  margin-top: 8px;
+}
+
+.settlement-status-caption {
+  margin-top: 6px;
+}
+
+.settlement-status-detail {
+  margin-top: 10px;
+  padding: 12px 14px;
+}
+
+.settlement-settings-panel {
+  margin-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+.settlement-settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settlement-config-head {
+  gap: 10px;
+  align-items: flex-start;
 }
 
 .settlement-sync-summary {
@@ -3357,3 +3396,37 @@ button.settlement-tab.active {
 
 .settlement-auth-state-textarea{width:100%;min-height:140px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;resize:vertical;font:inherit;}
 .settlement-sync-actions-inline{justify-content:flex-start;margin-top:8px;}
+
+
+.settlement-guide-card {
+  margin-top: 12px;
+  border: 1px solid #d7e3ee;
+  border-radius: 12px;
+  padding: 14px;
+  background: #f8fbff;
+}
+
+.settlement-guide-card h3 {
+  margin: 0 0 6px;
+}
+
+.settlement-guide-section {
+  margin-top: 12px;
+}
+
+.settlement-guide-section ul,
+.settlement-guide-section ol {
+  margin: 6px 0 0 18px;
+}
+
+.settlement-guide-section pre {
+  margin: 8px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  overflow-x: auto;
+  background: #111827;
+  color: #f9fafb;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

@@ -29,7 +29,7 @@ from .db import (
 )
 from .settings import settings, get_settings
 from .storage import StorageError, save_upload
-from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json
+from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -827,6 +827,14 @@ def settlement_platform_auth_state_save(payload: SettlementAuthStateIn, user=Dep
         return save_auth_state_json(payload.storage_state, platform=platform)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/settlement/platform-auth-guide")
+def settlement_platform_auth_guide(platform: str = Query('숨고'), user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    if platform not in ('숨고', '오늘'):
+        raise HTTPException(status_code=400, detail='지원하지 않는 플랫폼입니다.')
+    return get_auth_session_guide(platform)
 
 
 @app.post("/api/settlement/platform-sync/refresh")
