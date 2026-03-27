@@ -768,9 +768,11 @@ class SettlementSyncService:
         ]
 
     def _extract_ohou_accept_sections(self, page, section_xpath: str, accept_keyword: str, patterns: list[str]) -> tuple[int, list[dict[str, Any]]]:
+        now = self._now()
+        today_key = f"{now.year}-{now.month:02d}-{now.day:02d}"
         analysis: list[dict[str, Any]] = page.evaluate(
             """
-            ({ sectionXPath, acceptKeyword, patterns }) => {
+            ({ sectionXPath, acceptKeyword, todayKey, patterns }) => {
               const snapshot = document.evaluate(
                 sectionXPath,
                 document,
@@ -780,19 +782,33 @@ class SettlementSyncService:
               );
               const sections = [];
               const normalizedKeyword = String(acceptKeyword || '').trim();
+              const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+              const parseDateKey = (value) => {
+                const raw = normalizeText(value);
+                const match = raw.match(/(\d{4})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{1,2})\s*\.?/);
+                if (!match) return '';
+                const year = match[1];
+                const month = String(Number(match[2])).padStart(2, '0');
+                const day = String(Number(match[3])).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+              };
               for (let i = 0; i < snapshot.snapshotLength; i += 1) {
                 const section = snapshot.snapshotItem(i);
                 if (!section) continue;
-                const text = (section.innerText || section.textContent || '').replace(/\s+/g, ' ').trim();
+                const text = normalizeText(section.innerText || section.textContent || '');
+                const primaryContainer = section.querySelector('div') || section;
+                const firstPNode = primaryContainer.querySelector('p:nth-of-type(1)');
+                const secondPNode = primaryContainer.querySelector('p:nth-of-type(2)');
                 const pTexts = Array.from(section.querySelectorAll('p'))
-                  .map(node => (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim())
+                  .map(node => normalizeText(node.innerText || node.textContent || ''))
                   .filter(Boolean);
-                const firstPText = pTexts[0] || '';
-                const secondPText = pTexts[1] || '';
+                const firstPText = normalizeText(firstPNode?.innerText || firstPNode?.textContent || pTexts[0] || '');
+                const secondPText = normalizeText(secondPNode?.innerText || secondPNode?.textContent || pTexts[1] || '');
+                const parsedDateKey = parseDateKey(secondPText);
                 const hasAcceptInText = normalizedKeyword ? text.includes(normalizedKeyword) : false;
                 const hasAcceptInFirstP = normalizedKeyword ? firstPText.includes(normalizedKeyword) : false;
                 const hasAcceptInPList = normalizedKeyword ? pTexts.some(item => item.includes(normalizedKeyword)) : false;
-                const hasTodayInSecondP = patterns.some(pattern => secondPText.includes(pattern));
+                const hasTodayInSecondP = parsedDateKey === todayKey;
                 const hasTodayAnywhere = patterns.some(pattern => text.includes(pattern));
                 sections.push({
                   section_index: i + 1,
@@ -800,6 +816,7 @@ class SettlementSyncService:
                   first_p_text: firstPText,
                   second_p_text: secondPText,
                   paragraph_texts: pTexts.slice(0, 8),
+                  parsed_date_key: parsedDateKey,
                   has_accept_keyword: hasAcceptInText,
                   has_accept_in_first_p: hasAcceptInFirstP,
                   has_accept_in_paragraphs: hasAcceptInPList,
@@ -813,6 +830,7 @@ class SettlementSyncService:
             {
                 'sectionXPath': section_xpath,
                 'acceptKeyword': accept_keyword,
+                'todayKey': today_key,
                 'patterns': patterns,
             },
         ) or []
@@ -821,13 +839,12 @@ class SettlementSyncService:
 
         matched = [
             item for item in analysis
-            if (item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword'))
-            and item.get('has_today_date')
+            if item.get('has_accept_in_first_p') and item.get('has_today_date')
         ]
         for item in analysis:
             item['matched'] = item in matched
             item['match_reason'] = (
-                'keyword+date(second-p)' if item in matched else
+                'keyword-in-first-p+exact-date(second-p)' if item in matched else
                 'date-only' if item.get('has_today_date') else
                 'keyword-only' if (item.get('has_accept_in_first_p') or item.get('has_accept_in_paragraphs') or item.get('has_accept_keyword')) else
                 'not-matched'

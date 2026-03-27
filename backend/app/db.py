@@ -145,6 +145,8 @@ def _transform_insert_or_replace(sql: str) -> str:
         'preferences': ['user_id'],
         'blocks': ['blocker_id', 'blocked_user_id'],
         'settlement_platform_metrics': ['platform', 'metric_key'],
+        'settlement_reflections': ['settlement_date', 'category'],
+        'app_secrets': ['secret_key'],
     }
     conflict_cols = conflict_map.get(table, columns[:1])
     update_cols = [col for col in columns if col not in conflict_cols]

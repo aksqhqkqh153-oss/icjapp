@@ -5838,6 +5838,91 @@ function formatSettlementDateKeyLabel(dateKey) {
   return `${year}.${month}.${day}`
 }
 
+function parseSettlementDateKey(dateKey) {
+  if (!dateKey) return null
+  const [year, month, day] = String(dateKey).split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+function getSettlementWeekOfMonth(dateKey) {
+  const date = parseSettlementDateKey(dateKey)
+  if (!date) return 0
+  return Math.floor((date.getDate() - 1) / 7) + 1
+}
+
+function formatWeeklySettlementTitle(block, fallbackIndex = 0) {
+  const dateKey = getSettlementBlockDateKey(block)
+  const date = parseSettlementDateKey(dateKey)
+  if (!date) return `${fallbackIndex + 1}주차 주간결산`
+  return `${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
+}
+
+function formatMonthlySettlementTitle(block, fallbackIndex = 0) {
+  const dateKey = getSettlementBlockDateKey(block)
+  const date = parseSettlementDateKey(dateKey)
+  if (!date) return `${fallbackIndex + 1}월 월간결산`
+  return `${date.getMonth() + 1}월 월간결산`
+}
+
+function summarizeSettlementRows(summaryRows = [], total = {}) {
+  const result = {
+    숨고: 0,
+    오늘: 0,
+    공홈: 0,
+    총견적: 0,
+    총계약: 0,
+    플랫폼리뷰: Number(total.platformReview || 0) || 0,
+    호점리뷰: Number(total.branchReview || 0) || 0,
+    이슈: Number(total.issues || 0) || 0,
+  }
+  ;(summaryRows || []).forEach(row => {
+    const source = String(row?.source || '').trim()
+    const count = Number(String(row?.count ?? 0).replace(/,/g, '')) || 0
+    const value = Number(String(row?.value ?? 0).replace(/,/g, '')) || 0
+    const label = String(row?.label || '')
+    if (source && Object.prototype.hasOwnProperty.call(result, source)) result[source] += count
+    if (label.includes('총 견적 발송 수')) result.총견적 += value
+    else if (label.includes('총 계약 수')) result.총계약 += value
+  })
+  return result
+}
+
+function buildAggregatedSettlementBlock(baseBlock, records = [], titleText = '') {
+  if (!baseBlock) return null
+  if (!records.length) return cloneSettlementBlock(baseBlock)
+  const aggregated = cloneSettlementBlock(baseBlock)
+  const metrics = records.reduce((acc, record) => {
+    const current = summarizeSettlementRows(record?.block?.summaryRows || [], record?.block?.total || {})
+    Object.keys(acc).forEach(key => {
+      acc[key] += current[key] || 0
+    })
+    return acc
+  }, { 숨고: 0, 오늘: 0, 공홈: 0, 총견적: 0, 총계약: 0, 플랫폼리뷰: 0, 호점리뷰: 0, 이슈: 0 })
+  aggregated.title = titleText || aggregated.title
+  aggregated.summaryRows = (aggregated.summaryRows || []).map(row => {
+    const source = String(row?.source || '').trim()
+    if (source === '숨고' || source === '오늘' || source === '공홈') {
+      return { ...row, count: String(metrics[source] || 0) }
+    }
+    const label = String(row?.label || '')
+    if (label.includes('총 견적 발송 수')) return { ...row, value: String(metrics.총견적 || 0) }
+    if (label.includes('총 계약 수')) return { ...row, value: String(metrics.총계약 || 0) }
+    if (label.includes('계약률')) {
+      const rate = metrics.총견적 ? (metrics.총계약 / metrics.총견적) : 0
+      return { ...row, value: String(rate) }
+    }
+    return row
+  })
+  aggregated.total = {
+    ...(aggregated.total || {}),
+    platformReview: String(metrics.플랫폼리뷰 || 0),
+    branchReview: String(metrics.호점리뷰 || 0),
+    issues: String(metrics.이슈 || 0),
+  }
+  return aggregated
+}
+
 function SettlementSheetCard({ block }) {
   return (
     <section className="settlement-sheet card">
@@ -6007,7 +6092,11 @@ function SettlementPage() {
   const [recordsData, setRecordsData] = useState({ daily_records: [], weekly_records: [], monthly_records: [] })
   const [recordsLoading, setRecordsLoading] = useState(false)
   const [reflectLoading, setReflectLoading] = useState(false)
+  const [monthlySummaryLoading, setMonthlySummaryLoading] = useState(false)
   const [dailyIndex, setDailyIndex] = useState(() => findPreferredSettlementIndex(SETTLEMENT_DATA.daily || []))
+  const [weeklyIndex, setWeeklyIndex] = useState(0)
+  const [monthlyIndex, setMonthlyIndex] = useState(0)
+  const [monthlyOverrideMap, setMonthlyOverrideMap] = useState({})
 
   async function loadSyncStatus() {
     try {
@@ -6124,12 +6213,20 @@ function SettlementPage() {
     [syncStatus.platforms, reflectionMap],
   )
   const weeklyBlocks = useMemo(
-    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.weekly || [], syncStatus.platforms, { reflectionMap: {} }),
+    () => (SETTLEMENT_DATA.weekly || []).map((block, index) => ({
+      ...applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0],
+      title: formatWeeklySettlementTitle(block, index),
+    })),
     [syncStatus.platforms],
   )
   const monthlyBlocks = useMemo(
-    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.monthly || [], syncStatus.platforms, { reflectionMap: {} }),
-    [syncStatus.platforms],
+    () => (SETTLEMENT_DATA.monthly || []).map((block, index) => {
+      const base = applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0]
+      const dateKey = getSettlementBlockDateKey(base)
+      const override = dateKey ? monthlyOverrideMap[dateKey] : null
+      return override ? override : { ...base, title: formatMonthlySettlementTitle(base, index) }
+    }),
+    [syncStatus.platforms, monthlyOverrideMap],
   )
 
   useEffect(() => {
@@ -6139,6 +6236,22 @@ function SettlementPage() {
       return findPreferredSettlementIndex(dailyBlocks)
     })
   }, [dailyBlocks])
+
+  useEffect(() => {
+    setWeeklyIndex(prev => {
+      if (!weeklyBlocks.length) return 0
+      if (prev >= 0 && prev < weeklyBlocks.length) return prev
+      return weeklyBlocks.length - 1
+    })
+  }, [weeklyBlocks])
+
+  useEffect(() => {
+    setMonthlyIndex(prev => {
+      if (!monthlyBlocks.length) return 0
+      if (prev >= 0 && prev < monthlyBlocks.length) return prev
+      return monthlyBlocks.length - 1
+    })
+  }, [monthlyBlocks])
 
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
   const ohouMetric = syncStatus.platforms?.['오늘'] || { value: 0, updated_at: '', sync_message: '' }
@@ -6153,6 +6266,41 @@ function SettlementPage() {
   const activeAuthStateText = activePlatform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
   const selectedDailyBlock = dailyBlocks[dailyIndex] || null
   const selectedDailyDateKey = getSettlementBlockDateKey(selectedDailyBlock)
+
+  const selectedWeeklyBlock = weeklyBlocks[weeklyIndex] || null
+  const selectedMonthlyBlock = monthlyBlocks[monthlyIndex] || null
+  const selectedMonthlyDateKey = getSettlementBlockDateKey(selectedMonthlyBlock)
+
+  async function handleRefreshMonthlySummary() {
+    if (!selectedMonthlyBlock || !selectedMonthlyDateKey) {
+      window.alert('종합할 월간결산 데이터가 없습니다.')
+      return
+    }
+    const monthKey = String(selectedMonthlyDateKey).slice(0, 7)
+    const monthRecords = (recordsData.daily_records || []).filter(record => String(record.settlement_date || '').startsWith(monthKey))
+    if (!monthRecords.length) {
+      window.alert('해당 월에 반영된 일일결산 기록이 아직 없습니다.')
+      return
+    }
+    setMonthlySummaryLoading(true)
+    try {
+      const updatedBlock = buildAggregatedSettlementBlock(
+        selectedMonthlyBlock,
+        monthRecords,
+        formatMonthlySettlementTitle(selectedMonthlyBlock, monthlyIndex),
+      )
+      setMonthlyOverrideMap(prev => ({
+        ...prev,
+        [selectedMonthlyDateKey]: {
+          ...updatedBlock,
+          title: formatMonthlySettlementTitle(updatedBlock, monthlyIndex),
+        },
+      }))
+      window.alert(`${monthKey} 월간결산이 최신 일일결산 기준으로 종합 반영되었습니다.`)
+    } finally {
+      setMonthlySummaryLoading(false)
+    }
+  }
 
   async function handleReflectSettlement() {
     if (!selectedDailyBlock || !selectedDailyDateKey) {
@@ -6218,15 +6366,43 @@ function SettlementPage() {
         </div>
       </>
     ) : <div className="card muted">표시할 일일결산 데이터가 없습니다.</div>
+  } else if (activeCategory === 'weekly') {
+    content = selectedWeeklyBlock ? (
+      <>
+        <div className="settlement-day-nav card">
+          <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
+          <div className="settlement-day-nav-title">
+            <strong>{selectedWeeklyBlock.title}</strong>
+            <span className="muted">{weeklyIndex + 1} / {weeklyBlocks.length}</span>
+          </div>
+          <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
+        </div>
+        <div className="settlement-sheet-grid settlement-sheet-grid-single">
+          <SettlementSheetCard block={selectedWeeklyBlock} />
+        </div>
+      </>
+    ) : <div className="card muted">표시할 주간결산 데이터가 없습니다.</div>
   } else {
-    const blocks = activeCategory === 'weekly' ? weeklyBlocks : monthlyBlocks
-    content = (
-      <div className="settlement-sheet-grid">
-        {blocks.map((block, index) => (
-          <SettlementSheetCard key={`${block.title}-${index}`} block={block} />
-        ))}
-      </div>
-    )
+    content = selectedMonthlyBlock ? (
+      <>
+        <div className="settlement-day-nav card">
+          <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
+          <div className="settlement-day-nav-title">
+            <strong>{selectedMonthlyBlock.title}</strong>
+            <span className="muted">{monthlyIndex + 1} / {monthlyBlocks.length}</span>
+          </div>
+          <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
+        </div>
+        <div className="settlement-sheet-grid settlement-sheet-grid-single">
+          <SettlementSheetCard block={selectedMonthlyBlock} />
+        </div>
+        <div className="settlement-float-actions">
+          <button type="button" onClick={handleRefreshMonthlySummary} disabled={monthlySummaryLoading}>
+            {monthlySummaryLoading ? '종합중...' : '월간결산종합'}
+          </button>
+        </div>
+      </>
+    ) : <div className="card muted">표시할 월간결산 데이터가 없습니다.</div>
   }
 
   return (
