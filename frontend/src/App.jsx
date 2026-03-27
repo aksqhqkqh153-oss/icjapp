@@ -23,6 +23,10 @@ const PAGE_TITLES = {
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
   '/settlements': '결산자료',
+  '/warehouse': '창고현황',
+  '/materials': '자재현황/자재구매',
+  '/storage-status': '짐보관현황',
+  '/menu-permissions': '메뉴권한',
 }
 
 function pageTitle(pathname) {
@@ -46,6 +50,104 @@ const ROLE_OPTIONS = [
 ]
 
 const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원', '본부장', '상담실장', '상담팀장', '상담사원']
+
+
+const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
+
+const MENU_PERMISSION_SECTIONS = [
+  {
+    id: 'common',
+    label: '공용',
+    items: [
+      { id: 'work-schedule', label: '근무스케줄', path: '/work-schedule' },
+      { id: 'warehouse', label: '창고현황', path: '/warehouse' },
+      { id: 'materials', label: '자재현황/자재구매', path: '/materials' },
+    ],
+  },
+  {
+    id: 'head-office',
+    label: '본사용',
+    items: [
+      { id: 'settlements', label: '결산자료', path: '/settlements' },
+      { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
+    ],
+  },
+  {
+    id: 'business',
+    label: '사업자용',
+    items: [],
+  },
+  {
+    id: 'staff',
+    label: '직원용',
+    items: [
+      { id: 'points', label: '포인트', path: '/points' },
+    ],
+  },
+  {
+    id: 'etc',
+    label: '기타',
+    items: [
+      { id: 'meetups', label: '모임', path: '/meetups' },
+      { id: 'boards', label: '게시판', path: '/boards' },
+      { id: 'reports', label: '신고관리', path: '/reports', adminOnly: true },
+    ],
+  },
+]
+
+const MENU_PERMISSION_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => [
+  { key: `section:${section.id}`, type: 'section', sectionId: section.id, label: section.label },
+  ...section.items.map(item => ({ ...item, key: `item:${item.id}`, type: 'item', sectionId: section.id })),
+])
+
+function effectivePositionTitle(user) {
+  if (Number(user?.branch_no || 0) > 0) return '호점대표'
+  const title = String(user?.position_title || '').trim()
+  return title || '미지정'
+}
+
+function parseMenuPermissions(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw || {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function buildDefaultMenuPermissions() {
+  const defaults = {}
+  MENU_PERMISSION_ITEMS.forEach(entry => {
+    defaults[entry.key] = POSITION_PERMISSION_OPTIONS.reduce((acc, position) => {
+      acc[position] = true
+      return acc
+    }, {})
+  })
+  return defaults
+}
+
+function normalizeMenuPermissions(raw) {
+  const parsed = parseMenuPermissions(raw)
+  const defaults = buildDefaultMenuPermissions()
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (!defaults[key] || typeof value !== 'object' || !value) return
+    POSITION_PERMISSION_OPTIONS.forEach(position => {
+      if (typeof value[position] === 'boolean') defaults[key][position] = value[position]
+    })
+  })
+  return defaults
+}
+
+function canViewMenuEntry(user, permissionMap, entryKey) {
+  if (Number(user?.grade || 6) === 1) return true
+  const position = effectivePositionTitle(user)
+  const row = permissionMap?.[entryKey]
+  if (!row) return true
+  if (typeof row[position] === 'boolean') return row[position]
+  return row['미지정'] ?? true
+}
 
 function gradeLabel(grade) {
   return ROLE_OPTIONS.find(item => item.value === Number(grade))?.label || '일반'
@@ -218,13 +320,19 @@ function Layout({ children, user, onLogout }) {
     if (to === '/') return location.pathname === '/'
     return location.pathname === to || location.pathname.startsWith(`${to}/`)
   }
-  const topMenuLinks = [
-    { to: '/meetups', label: '모임' },
-    { to: '/boards', label: '게시판' },
-    { to: '/points', label: '포인트' },
-    ...QUICK_ACTION_LIBRARY.map(item => ({ to: item.path || '', label: item.label, item })),
-    ...(canAccessAdminMode(user) ? [{ to: '/reports', label: '신고관리' }] : []),
-  ]
+  const menuPermissions = useMemo(() => normalizeMenuPermissions(user?.permission_config?.menu_permissions_json), [user?.permission_config?.menu_permissions_json])
+  const topMenuSections = useMemo(() => (
+    MENU_PERMISSION_SECTIONS
+      .map(section => ({
+        ...section,
+        visible: canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
+        items: section.items.filter(item => {
+          if (item.adminOnly && !canAccessAdminMode(user)) return false
+          return canViewMenuEntry(user, menuPermissions, `item:${item.id}`)
+        }),
+      }))
+      .filter(section => section.visible)
+  ), [menuPermissions, user])
 
   useEffect(() => {
     setMenuOpen(false)
@@ -282,19 +390,32 @@ function Layout({ children, user, onLogout }) {
               {Number(badges.menu_count || 0) > 0 && <span className="notification-badge menu-badge">{badges.menu_count > 99 ? '99+' : badges.menu_count}</span>}
             </button>
             {menuOpen && (
-              <div className="dropdown-menu left">
-                {topMenuLinks.map(({ to, label, item }) => (
-                  <button key={`${to}-${label}`} type="button" className="dropdown-item" onClick={() => {
-                    if (item && !item.path) {
-                      window.alert(`${item.label} 기능은 다음 업데이트에서 연결할 예정입니다.`)
-                    } else if (to) {
-                      navigate(to)
-                    }
-                    setMenuOpen(false)
-                  }}>
-                    {label}
-                  </button>
+              <div className="dropdown-menu left menu-category-dropdown">
+                {topMenuSections.map(section => (
+                  <div key={section.id} className="menu-category-block">
+                    <div className="menu-category-title">{section.label}</div>
+                    {section.items.length === 0 ? (
+                      <div className="dropdown-item muted menu-category-empty">표시 가능한 메뉴가 없습니다.</div>
+                    ) : section.items.map(item => (
+                      <button key={item.id} type="button" className="dropdown-item menu-category-item" onClick={() => {
+                        navigate(item.path)
+                        setMenuOpen(false)
+                      }}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 ))}
+                {canAccessAdminMode(user) && (
+                  <div className="menu-category-footer">
+                    <button type="button" className="dropdown-item menu-permission-button" onClick={() => {
+                      navigate('/menu-permissions')
+                      setMenuOpen(false)
+                    }}>
+                      메뉴권한
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -4573,6 +4694,136 @@ function PointsPage() {
   )
 }
 
+function PlaceholderFeaturePage({ title, description }) {
+  return (
+    <div className="stack-page">
+      <section className="card">
+        <h2>{title}</h2>
+        <div className="muted">{description}</div>
+      </section>
+    </div>
+  )
+}
+
+function MenuPermissionPage() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [configForm, setConfigForm] = useState({
+    total_vehicle_count: '',
+    branch_count_override: '',
+    admin_mode_access_grade: 1,
+    role_assign_actor_max_grade: 3,
+    role_assign_target_min_grade: 3,
+    account_suspend_actor_max_grade: 3,
+    account_suspend_target_min_grade: 3,
+    signup_approve_actor_max_grade: 3,
+    signup_approve_target_min_grade: 7,
+    menu_permissions_json: '',
+  })
+  const [permissionMap, setPermissionMap] = useState(() => buildDefaultMenuPermissions())
+
+  useEffect(() => {
+    let ignore = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const response = await api('/api/admin-mode')
+        if (ignore) return
+        const nextConfig = {
+          total_vehicle_count: String(response.config?.total_vehicle_count || ''),
+          branch_count_override: String(response.config?.branch_count_override || response.branch_count || ''),
+          ...response.permission_config,
+        }
+        setConfigForm(nextConfig)
+        setPermissionMap(normalizeMenuPermissions(nextConfig.menu_permissions_json))
+      } catch (err) {
+        if (!ignore) setError(err.message || '메뉴권한 정보를 불러오지 못했습니다.')
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    load()
+    return () => { ignore = true }
+  }, [])
+
+  function togglePermission(entryKey, position) {
+    setPermissionMap(prev => ({
+      ...prev,
+      [entryKey]: {
+        ...(prev[entryKey] || {}),
+        [position]: !(prev[entryKey]?.[position] ?? true),
+      },
+    }))
+  }
+
+  async function savePermissions() {
+    setSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const nextConfig = { ...configForm, menu_permissions_json: JSON.stringify(permissionMap) }
+      await api('/api/admin-mode/config', { method: 'POST', body: JSON.stringify(nextConfig) })
+      setConfigForm(nextConfig)
+      const storedUser = getStoredUser()
+      if (storedUser) {
+        const nextUser = { ...storedUser, permission_config: { ...(storedUser.permission_config || {}), ...nextConfig } }
+        sessionStorage.setItem('icj_user', JSON.stringify(nextUser))
+        if (getRememberedLogin()) localStorage.setItem('icj_user', JSON.stringify(nextUser))
+      }
+      setMessage('메뉴권한 설정이 저장되었습니다.')
+    } catch (err) {
+      setError(err.message || '메뉴권한 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="card">메뉴권한 정보를 불러오는 중...</div>
+
+  return (
+    <div className="stack-page">
+      <section className="card">
+        <div className="between admin-mode-section-head">
+          <div>
+            <h2>메뉴권한</h2>
+            <div className="muted">카테고리와 개별 메뉴를 직급별로 노출/비노출 설정할 수 있습니다.</div>
+          </div>
+          <button type="button" className="small" onClick={savePermissions} disabled={saving}>{saving ? '저장중...' : '메뉴권한 저장'}</button>
+        </div>
+        {message && <div className="success">{message}</div>}
+        {error && <div className="error">{error}</div>}
+        <div className="menu-permission-table-wrap">
+          <table className="menu-permission-table">
+            <thead>
+              <tr>
+                <th>메뉴</th>
+                {POSITION_PERMISSION_OPTIONS.map(position => <th key={position}>{position}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {MENU_PERMISSION_ITEMS.map(entry => (
+                <tr key={entry.key} className={entry.type === 'section' ? 'menu-permission-section-row' : ''}>
+                  <td><div className={entry.type === 'section' ? 'menu-permission-label section' : 'menu-permission-label item'}>{entry.label}</div></td>
+                  {POSITION_PERMISSION_OPTIONS.map(position => (
+                    <td key={`${entry.key}-${position}`}>
+                      <label className="check center-check">
+                        <input type="checkbox" checked={!!permissionMap?.[entry.key]?.[position]} onChange={() => togglePermission(entry.key, position)} />
+                      </label>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function SettingsPage({ onLogout }) {
   const navigate = useNavigate()
   const [prefs, setPrefs] = useState({})
@@ -4652,6 +4903,7 @@ function SettingsPage({ onLogout }) {
 
 function AdminModePage() {
   const currentUser = getStoredUser()
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -4670,6 +4922,7 @@ function AdminModePage() {
     account_suspend_target_min_grade: 3,
     signup_approve_actor_max_grade: 3,
     signup_approve_target_min_grade: 7,
+    menu_permissions_json: '',
   })
   const [accountRows, setAccountRows] = useState([])
   const [branchRows, setBranchRows] = useState([])
@@ -4875,9 +5128,7 @@ function AdminModePage() {
   }
 
   function canEditPosition(target) {
-    if (actorGrade === 1) return true
-    if (actorGrade !== 2) return false
-    return Number(target?.grade || 6) >= 4
+    return actorGrade === 1
   }
 
   function accountActionAllowed(section) {
@@ -5075,21 +5326,28 @@ function AdminModePage() {
           <h2>계정권한</h2>
           <div className="inline-actions wrap">
             {renderActionButton('계정권한', '정보저장', saveAccounts)}
+            <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>
             <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
           </div>
         </div>
         <div className="admin-account-table">
           {pagedAccounts.map(item => (
-            <div key={item.id} className="admin-account-grid compact">
+            <div key={item.id} className="admin-account-grid compact labeled-account-grid">
               <div>{item.nickname}</div>
               <div>{item.email}</div>
-              <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
-                <option value="">미지정</option>
-                {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-              </select>
-              <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
-                {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
-              </select>
+              <label className="admin-select-field">
+                <span>직급</span>
+                <select value={item.branch_no ? '호점대표' : (item.position_title || '')} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item) || !!item.branch_no}>
+                  <option value="">미지정</option>
+                  {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+              <label className="admin-select-field">
+                <span>계정권한</span>
+                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                  {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+                </select>
+              </label>
             </div>
           ))}
         </div>
@@ -5748,9 +6006,13 @@ function App() {
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/points" element={<PointsPage />} />
+        <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/materials" element={<PlaceholderFeaturePage title="자재현황/자재구매" description="자재현황 및 자재구매 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
+        <Route path="/menu-permissions" element={canAccessAdminMode(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

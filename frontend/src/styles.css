@@ -3430,3 +3430,98 @@ button.settlement-tab.active {
   line-height: 1.55;
   white-space: pre-wrap;
 }
+
+.menu-category-dropdown {
+  min-width: 260px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.menu-category-block + .menu-category-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.menu-category-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-text, #9ca3af);
+  padding: 6px 10px 4px;
+}
+
+.menu-category-item {
+  padding-left: 18px;
+}
+
+.menu-category-empty {
+  font-size: 12px;
+}
+
+.menu-category-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.menu-permission-button {
+  font-weight: 700;
+}
+
+.labeled-account-grid {
+  align-items: start;
+}
+
+.admin-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-text, #9ca3af);
+}
+
+.admin-select-field span {
+  font-weight: 700;
+}
+
+.menu-permission-table-wrap {
+  overflow-x: auto;
+}
+
+.menu-permission-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.menu-permission-table th,
+.menu-permission-table td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.menu-permission-table th:first-child,
+.menu-permission-table td:first-child {
+  text-align: left;
+  min-width: 180px;
+}
+
+.menu-permission-section-row {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.menu-permission-label.section {
+  font-weight: 700;
+}
+
+.menu-permission-label.item {
+  padding-left: 14px;
+}
+
+.center-check {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+}

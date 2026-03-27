@@ -223,6 +223,7 @@ class AdminModeConfigIn(BaseModel):
     account_suspend_target_min_grade: int = 3
     signup_approve_actor_max_grade: int = 3
     signup_approve_target_min_grade: int = 7
+    menu_permissions_json: str = ""
 class AdminAccountUpdateIn(BaseModel):
     grade: int = 6
     approved: Optional[bool] = None
@@ -298,6 +299,7 @@ def _get_permission_config(conn) -> dict:
         'account_suspend_target_min_grade': int(_get_admin_setting(conn, 'account_suspend_target_min_grade', '3') or 3),
         'signup_approve_actor_max_grade': int(_get_admin_setting(conn, 'signup_approve_actor_max_grade', '3') or 3),
         'signup_approve_target_min_grade': int(_get_admin_setting(conn, 'signup_approve_target_min_grade', '7') or 7),
+        'menu_permissions_json': _get_admin_setting(conn, 'menu_permissions_json', ''),
     }
 def _get_admin_total_vehicle_count(conn) -> int:
     raw = _get_admin_setting(conn, 'total_vehicle_count', '')
@@ -2382,6 +2384,7 @@ def save_admin_mode_config(payload: AdminModeConfigIn, admin=Depends(require_adm
         'account_suspend_target_min_grade': str(payload.account_suspend_target_min_grade),
         'signup_approve_actor_max_grade': str(payload.signup_approve_actor_max_grade),
         'signup_approve_target_min_grade': str(payload.signup_approve_target_min_grade),
+        'menu_permissions_json': str(payload.menu_permissions_json or '').strip(),
     }
     with get_conn() as conn:
         now = utcnow()
