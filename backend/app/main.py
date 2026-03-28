@@ -943,6 +943,8 @@ def startup():
     settings.upload_root.mkdir(parents=True, exist_ok=True)
     settings.settlement_runtime_dir.mkdir(parents=True, exist_ok=True)
     init_db()
+    with get_conn() as conn:
+        _sync_all_day_note_available_vehicle_counts(conn)
     settlement_sync_service.start()
     runtime = get_settings()
     cred = _credential_summary()
@@ -2390,15 +2392,51 @@ def _parse_branch_exclusions(value: str) -> list[int]:
         if 1 <= branch_no <= 50 and branch_no not in output:
             output.append(branch_no)
     return output
+def _column_exists(conn, table_name: str, column_name: str) -> bool:
+    try:
+        if DB_ENGINE == 'postgresql':
+            rows = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = ?",
+                (table_name, column_name),
+            ).fetchall()
+            return bool(rows)
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return any(str(row[1]) == column_name for row in rows)
+    except Exception:
+        return False
+
+
+
 def _get_admin_total_vehicle_count(conn):
-    row = conn.execute(
-        """
-        SELECT COUNT(*) AS cnt
-        FROM users
-        WHERE COALESCE(vehicle_available, 1) = 1
-        """
-    ).fetchone()
-    return int(row['cnt'] or 0) if row else 0
+    """일정 화면의 가용차량수는 관리자모드 > 계정권한의 차량가용여부=가용 계정 수만 사용한다."""
+    vehicle_available_exists = _column_exists(conn, 'users', 'vehicle_available')
+    try:
+        where_clauses = ['branch_no IS NOT NULL']
+        if vehicle_available_exists:
+            where_clauses.append('COALESCE(vehicle_available, 1) = 1')
+        where_sql = ' WHERE ' + ' AND '.join(where_clauses)
+        row = conn.execute(f"SELECT COUNT(*) AS cnt FROM users{where_sql}").fetchone()
+        if not row:
+            return 0
+        value = row['cnt'] if isinstance(row, dict) or hasattr(row, 'keys') else row[0]
+        return max(int(value or 0), 0)
+    except Exception:
+        # 마지막 안전장치: users 전체 건수라도 반환해서 월별로 0/8이 갈라지는 문제를 막는다.
+        try:
+            fallback = conn.execute('SELECT COUNT(*) AS cnt FROM users').fetchone()
+            value = fallback['cnt'] if isinstance(fallback, dict) or hasattr(fallback, 'keys') else fallback[0]
+            return max(int(value or 0), 0)
+        except Exception:
+            return 0
+
+
+
+def _sync_all_day_note_available_vehicle_counts(conn) -> None:
+    auto_count = _get_admin_total_vehicle_count(conn)
+    try:
+        conn.execute('UPDATE work_schedule_day_notes SET available_vehicle_count = ?', (auto_count,))
+    except Exception:
+        return
 
 
 def _normalize_date_key(value: Any) -> str:
@@ -2559,10 +2597,10 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
         conn.execute(
             """
             UPDATE work_schedule_day_notes
-            SET status_a_count = ?, status_b_count = ?, status_c_count = ?, updated_at = ?
+            SET available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, updated_at = ?
             WHERE user_id = ? AND schedule_date = ?
             """,
-            (total_a, total_b, total_c, now, user_id, schedule_date),
+            (_get_admin_total_vehicle_count(conn), total_a, total_b, total_c, now, user_id, schedule_date),
         )
     else:
         conn.execute(
@@ -2571,9 +2609,9 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
                 user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details,
                 available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at
             )
-            VALUES (?, ?, '', '', '[]', '[]', 0, ?, ?, ?, '', 0, ?, ?)
+            VALUES (?, ?, '', '', '[]', '[]', ?, ?, ?, ?, '', 0, ?, ?)
             """,
-            (user_id, schedule_date, total_a, total_b, total_c, now, now),
+            (user_id, schedule_date, _get_admin_total_vehicle_count(conn), total_a, total_b, total_c, now, now),
         )
 
 
@@ -2989,6 +3027,7 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
         if not next_position_title and existing['branch_no'] is not None:
             next_position_title = '호점대표'
         conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
+        _sync_all_day_note_available_vehicle_counts(conn)
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
 @app.post("/api/admin/accounts/bulk")
@@ -3007,9 +3046,10 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
             if not next_position_title and existing['branch_no'] is not None:
                 next_position_title = '호점대표'
-            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
+            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if item.vehicle_available else 0, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
+        _sync_all_day_note_available_vehicle_counts(conn)
     return {'ok': True, 'accounts': updated}
 @app.post("/api/admin/users/details-bulk")
 def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depends(require_admin_or_subadmin)):
