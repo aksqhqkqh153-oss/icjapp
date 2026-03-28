@@ -3166,13 +3166,15 @@ function CalendarPage() {
             const visibleItems = dayItems.slice(0, visibleLaneCount)
             const extraCount = Math.max(dayItems.length - visibleLaneCount, 0)
             const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
+            const dayCapacity = daySummary ? analyzeScheduleDayCapacity(daySummary) : null
+            const dayCapacityClass = daySummary ? buildCalendarDayStatusClass(daySummary) : ''
             const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
             return (
-              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
+              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}${dayCapacityClass ? ` ${dayCapacityClass}` : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
-                      <button type="button" className="calendar-date-select" onClick={() => selectDate(date)}>
+                      <button type="button" className={`calendar-date-select ${dayCapacityClass}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
                         <span className="calendar-date">{date.getDate()}</span>
                       </button>
                       {!isMobile && (
@@ -3187,7 +3189,7 @@ function CalendarPage() {
                       )}
                     </div>
 
-                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} onClick={() => openCalendarStatus(daySummary)}>
+                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack">
                           <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
@@ -3411,6 +3413,66 @@ function buildAbcInlineText(item) {
   const b = Number(item?.status_b_count || 0)
   const c = Number(item?.status_c_count || 0)
   return `A: ${String(a).padStart(2, '0')} / B: ${String(b).padStart(2, '0')} / C: ${String(c).padStart(2, '0')}`
+}
+
+function toNonNegativeInt(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 0
+  return Math.max(Math.trunc(parsed), 0)
+}
+
+function analyzeScheduleDayCapacity(daySummary) {
+  const available = toNonNegativeInt(daySummary?.available_vehicle_count)
+  const a = toNonNegativeInt(daySummary?.status_a_count)
+  const b = toNonNegativeInt(daySummary?.status_b_count)
+  const c = toNonNegativeInt(daySummary?.status_c_count)
+  const morningUsed = a + b
+  const remainingMorning = available - morningUsed
+  const afternoonCapacity = a + Math.max(remainingMorning, 0)
+  const remainingAfternoon = afternoonCapacity - c
+  const hasMismatch = c > afternoonCapacity
+  const effectiveRemaining = remainingMorning > 0 ? remainingMorning : Math.max(remainingAfternoon, 0)
+
+  let level = 'normal'
+  let label = '여유'
+  if (hasMismatch) {
+    level = 'error'
+    label = '일정오류'
+  } else if (remainingMorning <= 0 && remainingAfternoon <= 0) {
+    level = 'full'
+    label = '완전마감'
+  } else if (effectiveRemaining <= 1) {
+    level = 'critical'
+    label = '완전마감 직전'
+  } else if (effectiveRemaining === 2) {
+    level = 'warning'
+    label = '마감 거의 직전'
+  }
+
+  const detail = hasMismatch
+    ? `일정오류 · 가용 ${available} / A ${a} / B ${b} / C ${c} / 오전잔여 ${Math.max(remainingMorning, 0)} / 오후가능 ${afternoonCapacity} / 초과 ${Math.max(c - afternoonCapacity, 0)}`
+    : `${label} · 가용 ${available} / A ${a} / B ${b} / C ${c} / 오전잔여 ${Math.max(remainingMorning, 0)} / 오후잔여 ${Math.max(remainingAfternoon, 0)}`
+
+  return {
+    available,
+    a,
+    b,
+    c,
+    morningUsed,
+    remainingMorning,
+    afternoonCapacity,
+    remainingAfternoon,
+    effectiveRemaining,
+    hasMismatch,
+    level,
+    label,
+    detail,
+  }
+}
+
+function buildCalendarDayStatusClass(daySummary) {
+  const analysis = analyzeScheduleDayCapacity(daySummary)
+  return `calendar-day-state-${analysis.level}`
 }
 
 function splitScheduleNames(value) {
@@ -3648,7 +3710,7 @@ function HandlessDaysPage() {
             return (
               <div key={key} className={`calendar-cell handless-picker-cell${active ? ' selected handless-day-cell' : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}`}>
                 <button type="button" className="handless-date-button" onClick={() => toggleDate(fmtDate(date))}>
-                  <span className="handless-date-number">{date.getDate()}</span>
+                  <span className={`handless-date-number${active ? ' active' : ''}`}>{date.getDate()}</span>
                   {dayInfo?.is_handless_day && <span className="calendar-handless-pill mobile-compact active handless-inline-pill">손없음</span>}
                 </button>
               </div>
