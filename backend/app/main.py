@@ -2395,8 +2395,7 @@ def _get_admin_total_vehicle_count(conn):
         """
         SELECT COUNT(*) AS cnt
         FROM users
-        WHERE approved = 1
-          AND COALESCE(vehicle_available, 1) = 1
+        WHERE COALESCE(vehicle_available, 1) = 1
         """
     ).fetchone()
     return int(row['cnt'] or 0) if row else 0
@@ -2425,7 +2424,6 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
         """
         SELECT id, branch_no, name, nickname, email, position_title, COALESCE(vehicle_available, 1) AS vehicle_available
         FROM users
-        WHERE approved = 1
         ORDER BY COALESCE(branch_no, 9999), nickname, name, email
         """
     ).fetchall()
@@ -2834,6 +2832,7 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
     with get_conn() as conn:
         existing = conn.execute("SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
         now = utcnow()
+        computed_available_vehicle_count = _get_admin_total_vehicle_count(conn)
         if existing:
             conn.execute(
                 """
@@ -2841,7 +2840,7 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
                 SET excluded_business = ?, excluded_staff = ?, excluded_business_details = ?, excluded_staff_details = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, is_handless_day = ?, updated_at = ?
                 WHERE user_id = ? AND schedule_date = ?
                 """,
-                (payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, user['id'], payload.schedule_date),
+                (payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, user['id'], payload.schedule_date),
             )
         else:
             conn.execute(
@@ -2849,7 +2848,7 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
                 INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), payload.available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, now),
+                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, now),
             )
         row = conn.execute("SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
         return row_to_dict(row)
@@ -2874,7 +2873,7 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                 'excluded_staff': current.get('excluded_staff', '') or '',
                 'excluded_business_details': json.loads(current.get('excluded_business_details') or '[]') if isinstance(current.get('excluded_business_details'), str) else current.get('excluded_business_details', []) or [],
                 'excluded_staff_details': json.loads(current.get('excluded_staff_details') or '[]') if isinstance(current.get('excluded_staff_details'), str) else current.get('excluded_staff_details', []) or [],
-                'available_vehicle_count': int(current.get('available_vehicle_count') or 0),
+                'available_vehicle_count': _get_admin_total_vehicle_count(conn),
                 'status_a_count': int(current.get('status_a_count') or 0),
                 'status_b_count': int(current.get('status_b_count') or 0),
                 'status_c_count': int(current.get('status_c_count') or 0),

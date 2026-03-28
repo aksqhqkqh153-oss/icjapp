@@ -3132,6 +3132,7 @@ function CalendarPage() {
     const normalizedStaff = compactExclusionDetails(staffExclusionDraft)
     const payload = {
       ...calendarStatusForm,
+      available_vehicle_count: Number(selectedDaySummary?.available_vehicle_count || 0),
       excluded_business_details: normalizedBusiness,
       excluded_staff_details: normalizedStaff,
       excluded_business: normalizedBusiness.map(item => item.name).join(', '),
@@ -3319,7 +3320,7 @@ function CalendarPage() {
               {calendarStatusEditMode && !readOnly && (
                 <>
                   <div className="work-day-status-editor-grid">
-                    <label>가용차량 숫자 입력칸<input type="number" min="0" value={calendarStatusForm.available_vehicle_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
+                    <label>가용차량수(자동연동)<input type="number" min="0" value={calendarStatusForm.available_vehicle_count} readOnly disabled /></label>
                     <label>A : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_a_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_a_count: Number(e.target.value || 0) })} /></label>
                     <label>B : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_b_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_b_count: Number(e.target.value || 0) })} /></label>
                     <label>C : 숫자입력칸<input type="number" min="0" value={calendarStatusForm.status_c_count} onChange={e => setCalendarStatusForm({ ...calendarStatusForm, status_c_count: Number(e.target.value || 0) })} /></label>
@@ -3940,7 +3941,7 @@ function WorkSchedulePage() {
 
   async function submitStatusEditor(e) {
     e.preventDefault()
-    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(statusForm) })
+    await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify({ ...statusForm, available_vehicle_count: Number(daysData.find(item => item.date === activeStatusDate)?.available_vehicle_count || 0) }) })
     setMessage('일정현황 정보가 저장되었습니다.')
     setActiveStatusDate('')
     await load()
@@ -4055,7 +4056,7 @@ function WorkSchedulePage() {
                   <button type="submit" className="small">저장</button>
                 </div>
                 <div className="work-day-status-editor-grid">
-                  <label>가용차량 숫자 입력칸<input type="number" min="0" value={statusForm.available_vehicle_count} onChange={e => setStatusForm({ ...statusForm, available_vehicle_count: Number(e.target.value || 0) })} /></label>
+                  <label>가용차량수(자동연동)<input type="number" min="0" value={statusForm.available_vehicle_count} readOnly disabled /></label>
                   <label>A : 숫자입력칸<input type="number" min="0" value={statusForm.status_a_count} onChange={e => setStatusForm({ ...statusForm, status_a_count: Number(e.target.value || 0) })} /></label>
                   <label>B : 숫자입력칸<input type="number" min="0" value={statusForm.status_b_count} onChange={e => setStatusForm({ ...statusForm, status_b_count: Number(e.target.value || 0) })} /></label>
                   <label>C : 숫자입력칸<input type="number" min="0" value={statusForm.status_c_count} onChange={e => setStatusForm({ ...statusForm, status_c_count: Number(e.target.value || 0) })} /></label>
