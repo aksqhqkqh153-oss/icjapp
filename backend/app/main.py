@@ -236,6 +236,7 @@ class AdminAccountUpdateIn(BaseModel):
     grade: int = 6
     approved: Optional[bool] = None
     position_title: str = ''
+    vehicle_available: bool = True
     id: Optional[int] = None
 class AdminAccountsBulkUpdateIn(BaseModel):
     accounts: list[AdminAccountUpdateIn] = []
@@ -268,6 +269,7 @@ class AdminUserDetailIn(BaseModel):
     email: str = ''
     google_email: str = ''
     resident_id: str = ''
+    vehicle_available: bool = True
 class AdminUserDetailsBulkIn(BaseModel):
     users: list[AdminUserDetailIn] = []
 class AdminCreateAccountIn(BaseModel):
@@ -285,6 +287,12 @@ class AdminCreateAccountIn(BaseModel):
     branch_no: Optional[int] = None
     grade: int = 6
     approved: bool = True
+    vehicle_available: bool = True
+
+class VehicleExclusionIn(BaseModel):
+    start_date: str
+    end_date: str
+    reason: str = ''
 
 class MaterialPurchaseItemIn(BaseModel):
     product_id: int
@@ -2433,6 +2441,70 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
             (user_id, schedule_date, total_a, total_b, total_c, now, now),
         )
 
+
+
+def _collect_auto_unavailable_business(conn, date_keys: list[str]) -> dict[str, list[dict[str, Any]]]:
+    if not date_keys:
+        return {}
+    rows = conn.execute("SELECT id, branch_no, nickname, position_title, COALESCE(vehicle_available, 1) AS vehicle_available FROM users WHERE branch_no IS NOT NULL ORDER BY COALESCE(branch_no, 9999), nickname").fetchall()
+    branch_users = [row_to_dict(row) for row in rows]
+    exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
+    exclusion_map: dict[int, list[dict[str, Any]]] = {}
+    for row in exclusion_rows:
+        entry = row_to_dict(row)
+        exclusion_map.setdefault(int(entry.get('user_id') or 0), []).append(entry)
+    result: dict[str, list[dict[str, Any]]] = {key: [] for key in date_keys}
+    for key in date_keys:
+        for user_row in branch_users:
+            reason = ''
+            if not bool(user_row.get('vehicle_available', 1)):
+                reason = '차량가용여부: 불가'
+            else:
+                for exclusion in exclusion_map.get(int(user_row.get('id') or 0), []):
+                    if str(exclusion.get('start_date') or '') <= key <= str(exclusion.get('end_date') or ''):
+                        reason = str(exclusion.get('reason') or '').strip() or '차량열외'
+                        break
+            if reason:
+                result[key].append({
+                    'user_id': int(user_row.get('id') or 0),
+                    'branch_no': user_row.get('branch_no'),
+                    'name': str(user_row.get('nickname') or user_row.get('position_title') or '').strip() or f"{user_row.get('branch_no')}호점",
+                    'reason': reason,
+                })
+    return result
+
+@app.get('/api/admin/accounts/{user_id}/vehicle-exclusions')
+def list_vehicle_exclusions(user_id: int, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        account = conn.execute("SELECT id, nickname, branch_no FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not account:
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'account': row_to_dict(account), 'items': [row_to_dict(row) for row in rows]}
+
+@app.post('/api/admin/accounts/{user_id}/vehicle-exclusions')
+def create_vehicle_exclusion(user_id: int, payload: VehicleExclusionIn, admin=Depends(require_admin_mode_user)):
+    start_date = str(payload.start_date or '').strip()
+    end_date = str(payload.end_date or '').strip()
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', start_date) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', end_date):
+        raise HTTPException(status_code=400, detail='열외 기간 날짜 형식이 올바르지 않습니다.')
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail='열외 종료일은 시작일보다 빠를 수 없습니다.')
+    with get_conn() as conn:
+        if not conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone():
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        now = utcnow()
+        conn.execute("INSERT INTO vehicle_exclusions(user_id, start_date, end_date, reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (user_id, start_date, end_date, str(payload.reason or '').strip(), now, now))
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
+
+@app.delete('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}')
+def delete_vehicle_exclusion(user_id: int, exclusion_id: int, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM vehicle_exclusions WHERE id = ? AND user_id = ?", (exclusion_id, user_id))
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
+
 @app.get('/api/work-schedule')
 def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int = Query(default=7, ge=1, le=62), user=Depends(require_user)):
     base_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else datetime.now().date()
@@ -2464,6 +2536,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         ).fetchall()
         branch_rows = conn.execute("SELECT branch_no, nickname FROM users WHERE branch_no IS NOT NULL").fetchall()
         total_vehicle_count = _get_admin_total_vehicle_count(conn)
+        auto_unavailable_by_date = _collect_auto_unavailable_business(conn, date_keys)
     branch_name_map = {int(r['branch_no']): r['nickname'] for r in branch_rows if r['branch_no'] is not None}
     entries_by_date = {key: [] for key in date_keys}
     for row in event_rows:
@@ -2519,7 +2592,10 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         excluded_business_details = json.loads(note.get('excluded_business_details') or '[]')
         excluded_staff_details = json.loads(note.get('excluded_staff_details') or '[]')
         branch_ids = _parse_branch_exclusions(excluded_business)
-        excluded_vehicle_count = len(branch_ids)
+        auto_unavailable = auto_unavailable_by_date.get(key, [])
+        auto_branch_ids = {int(item.get('branch_no')) for item in auto_unavailable if item.get('branch_no') not in (None, '')}
+        combined_branch_ids = set(branch_ids) | auto_branch_ids
+        excluded_vehicle_count = len(combined_branch_ids)
         excluded_business_names = []
         if excluded_business_details:
             for entry in excluded_business_details:
@@ -2530,6 +2606,10 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             for branch_no in branch_ids:
                 display_name = branch_name_map.get(branch_no, f'{branch_no}호점')
                 excluded_business_names.append(f'{display_name}-열외')
+        for entry in auto_unavailable:
+            text_value = f"{str(entry.get('name') or '').strip() or f'{entry.get('branch_no')}호점'} (사유 : {str(entry.get('reason') or '').strip() or '차량열외'})"
+            if text_value not in excluded_business_names:
+                excluded_business_names.append(text_value)
         if excluded_staff_details:
             staff_display = [f"{str(entry.get('name') or '직원').strip()} (사유 : {str(entry.get('reason') or '-').strip() or '-'})" for entry in excluded_staff_details]
         else:
@@ -2537,11 +2617,11 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             staff_display = [token if '-' in token else f'{token}-열외' for token in staff_tokens]
         day_entries = sorted(entries_by_date[key], key=lambda item: ((item.get('schedule_time') or '99:99') if (item.get('schedule_time') or '') not in ('', '미정') else '99:99', str(item.get('customer_name') or item.get('title') or ''), str(item.get('id'))))
         note_available_count = note.get('available_vehicle_count')
-        computed_available = max(total_vehicle_count - excluded_vehicle_count, 0)
         try:
-            available_vehicle_count = max(int(note_available_count), 0) if note_available_count not in (None, '') else computed_available
+            base_available_count = max(int(note_available_count), 0) if note_available_count not in (None, '') else max(int(total_vehicle_count or 0), 0)
         except (TypeError, ValueError):
-            available_vehicle_count = computed_available
+            base_available_count = max(int(total_vehicle_count or 0), 0)
+        available_vehicle_count = max(base_available_count - excluded_vehicle_count, 0)
         def _safe_count(value):
             try:
                 return max(int(value or 0), 0)
@@ -2560,6 +2640,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'excluded_staff_names': staff_display,
             'excluded_vehicle_count': excluded_vehicle_count,
             'available_vehicle_count': available_vehicle_count,
+            'base_vehicle_count': base_available_count,
             'status_a_count': event_status_a_count if event_status_a_count else _safe_count(note.get('status_a_count')),
             'status_b_count': event_status_b_count if event_status_b_count else _safe_count(note.get('status_b_count')),
             'status_c_count': event_status_c_count if event_status_c_count else _safe_count(note.get('status_c_count')),
@@ -2729,7 +2810,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id, position_title
+                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
@@ -2790,7 +2871,7 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
         next_position_title = str((payload.position_title if payload.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
         if not next_position_title and existing['branch_no'] is not None:
             next_position_title = '호점대표'
-        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
+        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
 @app.post("/api/admin/accounts/bulk")
@@ -2809,7 +2890,7 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
             if not next_position_title and existing['branch_no'] is not None:
                 next_position_title = '호점대표'
-            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ? WHERE id = ?", (target_grade, approved, next_position_title, user_id))
+            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
     return {'ok': True, 'accounts': updated}
@@ -2819,7 +2900,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -2840,6 +2921,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             except Exception:
                 data['birth_year'] = 1995
             data['position_title'] = str(data.get('position_title') or '')
+            data['vehicle_available'] = 1 if bool(data.get('vehicle_available', True)) else 0
             data['name'] = str(data.get('name') or '').strip()
             data['nickname'] = str(data.get('nickname') or '').strip()
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()
@@ -2873,10 +2955,10 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             position_title = '호점대표'
         conn.execute(
             """
-            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, account_unique_id, created_at)
-            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, created_at)
+            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, generated_unique_id, utcnow()),
+            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 1 if payload.vehicle_available else 0, generated_unique_id, utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

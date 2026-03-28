@@ -253,6 +253,7 @@ CREATE TABLE IF NOT EXISTS users (
     google_email TEXT DEFAULT '',
     resident_id TEXT DEFAULT '',
     position_title TEXT DEFAULT '',
+    vehicle_available INTEGER NOT NULL DEFAULT 1,
     account_unique_id TEXT DEFAULT '',
     created_at TEXT NOT NULL
 );
@@ -1915,6 +1916,7 @@ def init_db() -> None:
             'google_email': "TEXT DEFAULT ''",
             'resident_id': "TEXT DEFAULT ''",
             'position_title': "TEXT DEFAULT ''",
+            'vehicle_available': 'INTEGER NOT NULL DEFAULT 1',
             'name': "TEXT DEFAULT ''",
             'account_unique_id': "TEXT DEFAULT ''",
         })
@@ -1945,6 +1947,8 @@ def init_db() -> None:
             'day_memo': "TEXT NOT NULL DEFAULT ''",
             'is_handless_day': 'INTEGER NOT NULL DEFAULT 0',
         })
+        conn.execute("CREATE TABLE IF NOT EXISTS vehicle_exclusions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)")
+        _ensure_unique_index(conn, 'vehicle_exclusions', 'idx_vehicle_exclusions_user_dates', ['user_id', 'start_date', 'end_date'])
         _ensure_columns(conn, 'dm_messages', {
             'reply_to_id': 'INTEGER',
             'mention_user_id': 'INTEGER',
@@ -2297,5 +2301,6 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'google_email': row['google_email'] if 'google_email' in row.keys() else '',
         'resident_id': row['resident_id'] if 'resident_id' in row.keys() else '',
         'position_title': row['position_title'] if 'position_title' in row.keys() else ('호점대표' if row['branch_no'] is not None else ''),
+        'vehicle_available': bool(row['vehicle_available']) if 'vehicle_available' in row.keys() else True,
         'created_at': row['created_at'],
     }

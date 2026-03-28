@@ -4313,3 +4313,21 @@ button.danger:hover {
     min-height: 78px;
   }
 }
+
+.schedule-toolbar-head { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.schedule-legend-trigger { align-self:flex-start; }
+.schedule-legend-modal { width:min(640px,100%); }
+.schedule-legend-body { margin-top:12px; }
+.schedule-legend-list { display:grid; gap:8px; }
+.schedule-legend-chip { display:inline-flex; align-items:center; justify-content:center; min-width:56px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; margin-right:8px; border:1px solid rgba(15,23,42,0.12); }
+.schedule-legend-chip.full { background:#111; color:#fff; }
+.schedule-legend-chip.critical { background:#b91c1c; color:#fff; }
+.schedule-legend-chip.warning { background:#facc15; color:#111827; }
+.schedule-legend-chip.normal { background:#fff; color:#111827; }
+.schedule-legend-chip.error { background:#f472b6; color:#111827; }
+.admin-account-grid.compact.labeled-account-grid { grid-template-columns:minmax(120px,1.1fr) minmax(180px,1.4fr) minmax(120px,0.9fr) minmax(120px,0.9fr) minmax(120px,0.9fr) minmax(120px,1fr); }
+.admin-action-field button { width:100%; }
+.vehicle-exclusion-modal { width:min(680px,100%); }
+.vehicle-exclusion-list { max-height:320px; overflow:auto; }
+.vehicle-exclusion-item { display:grid; grid-template-columns:1fr auto; gap:8px 12px; align-items:center; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+@media (max-width: 900px) { .admin-account-grid.compact.labeled-account-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }

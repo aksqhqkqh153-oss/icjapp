@@ -3029,6 +3029,7 @@ function CalendarPage() {
   const [calendarStatusEditMode, setCalendarStatusEditMode] = useState(false)
   const [businessExclusionDraft, setBusinessExclusionDraft] = useState(() => normalizeBusinessExclusionDetails())
   const [staffExclusionDraft, setStaffExclusionDraft] = useState(() => normalizeStaffExclusionDetails())
+  const [legendOpen, setLegendOpen] = useState(false)
   const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
@@ -3145,10 +3146,13 @@ function CalendarPage() {
     <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
         <div className="calendar-toolbar upgraded">
-          <div className="inline-actions">
-            <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(-1)}>◀</button>
-            <strong>{monthLabel}</strong>
-            <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)}>▶</button>
+          <div className="schedule-toolbar-head">
+            <div className="inline-actions">
+              <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(-1)}>◀</button>
+              <strong>{monthLabel}</strong>
+              <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)}>▶</button>
+            </div>
+            <button type="button" className="small ghost schedule-legend-trigger" onClick={() => setLegendOpen(true)}>표 설명</button>
           </div>
           <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ''}`}>
             {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
@@ -3264,6 +3268,8 @@ function CalendarPage() {
           </div>
         )}
       </section>
+
+      {legendOpen && <ScheduleLegendModal onClose={() => setLegendOpen(false)} />}
 
       {calendarStatusDate && (
         <div className="schedule-popup-backdrop" onClick={closeCalendarStatusPopup}>
@@ -3473,6 +3479,33 @@ function analyzeScheduleDayCapacity(daySummary) {
 function buildCalendarDayStatusClass(daySummary) {
   const analysis = analyzeScheduleDayCapacity(daySummary)
   return `calendar-day-state-${analysis.level}`
+}
+
+function ScheduleLegendModal({ onClose }) {
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card schedule-legend-modal" onClick={event => event.stopPropagation()}>
+        <div className="between">
+          <strong>표 설명</strong>
+          <button type="button" className="small ghost" onClick={onClose}>닫기</button>
+        </div>
+        <div className="stack compact-gap schedule-legend-body">
+          <div><strong>색상 의미</strong></div>
+          <div className="schedule-legend-list">
+            <div><span className="schedule-legend-chip full">검정</span> 완전 마감</div>
+            <div><span className="schedule-legend-chip critical">빨강</span> 완전 마감 직전(차량 1대 여유)</div>
+            <div><span className="schedule-legend-chip warning">노랑</span> 마감 거의 직전(차량 2대 여유)</div>
+            <div><span className="schedule-legend-chip normal">흰색</span> 여유(차량 3대 이상 여유)</div>
+            <div><span className="schedule-legend-chip error">분홍</span> 일정 오류 또는 검토 필요</div>
+          </div>
+          <div><strong>가용차량수</strong>는 기본 차량 수에서 차량열외/차량가용 불가 및 해당 날짜 열외 차량을 반영한 실제 출동 가능 수입니다.</div>
+          <div><strong>A / B / C</strong>는 각각 오후 재출동 가능 오전 일정, 오후 재출동 불가 오전 일정, 오후 2시 30분 이후 일정 수를 뜻합니다.</div>
+          <div><strong>손없음</strong>은 손없는날 등록이 된 날짜이고, <strong>일반</strong>은 일반 날짜입니다.</div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 function splitScheduleNames(value) {
@@ -4985,7 +5018,7 @@ function AdminModePage() {
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false)
   const [accountDeleteConfirmText, setAccountDeleteConfirmText] = useState('')
   const [createForm, setCreateForm] = useState({
-    email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true,
+    email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -5013,6 +5046,7 @@ function AdminModePage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
+  const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
   const ACCOUNTS_PER_PAGE = 10
 
   async function load() {
@@ -5062,7 +5096,7 @@ function AdminModePage() {
   async function saveAccounts() {
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
-      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title }) => ({ id, grade: Number(grade), approved, position_title: position_title || '' })) }),
+      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title, vehicle_available }) => ({ id, grade: Number(grade), approved, position_title: position_title || '', vehicle_available: !!vehicle_available })) }),
     })
     setMessage('계정 권한 정보가 저장되었습니다.')
     await load()
@@ -5095,6 +5129,7 @@ function AdminModePage() {
       google_email: row.google_email || '',
       resident_id: row.resident_id || '',
       position_title: row.position_title || '',
+      vehicle_available: !!row.vehicle_available,
     }
   }
 
@@ -5135,6 +5170,7 @@ function AdminModePage() {
           grade: Number(row.grade || 6),
           approved: !!row.approved,
           position_title: row.position_title || '',
+          vehicle_available: !!row.vehicle_available,
         })),
       }),
     })
@@ -5153,10 +5189,11 @@ function AdminModePage() {
         grade: Number(createForm.grade || 6),
         position_title: createForm.branch_no ? '호점대표' : (createForm.position_title || ''),
         approved: !!createForm.approved,
+        vehicle_available: !!createForm.vehicle_available,
       }),
     })
     setMessage('계정이 생성되었습니다.')
-    setCreateForm({ email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true })
+    setCreateForm({ email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
     await load()
   }
 
@@ -5198,6 +5235,34 @@ function AdminModePage() {
 
   function updateAccountRow(userId, patch) {
     setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...patch } : item))
+  }
+
+  async function openVehicleExceptionModal(account) {
+    setVehicleExceptionModal({ open: true, account, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: true })
+    try {
+      const response = await api(`/api/admin/accounts/${account.id}/vehicle-exclusions`)
+      setVehicleExceptionModal(prev => ({ ...prev, items: response.items || [], loading: false }))
+    } catch (error) {
+      setMessage(error.message || '차량열외 목록을 불러오지 못했습니다.')
+      setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
+    }
+  }
+
+  async function saveVehicleException() {
+    if (!vehicleExceptionModal.account) return
+    await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions`, { method: 'POST', body: JSON.stringify(vehicleExceptionModal.form) })
+    const response = await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions`)
+    setVehicleExceptionModal(prev => ({ ...prev, items: response.items || [], form: { start_date: '', end_date: '', reason: '' } }))
+    setMessage('차량열외 일정이 저장되었습니다.')
+    await load()
+  }
+
+  async function deleteVehicleException(exclusionId) {
+    if (!vehicleExceptionModal.account) return
+    const response = await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions/${exclusionId}`, { method: 'DELETE' })
+    setVehicleExceptionModal(prev => ({ ...prev, items: response.items || prev.items }))
+    setMessage('차량열외 일정이 삭제되었습니다.')
+    await load()
   }
 
   function updateBranchRow(userId, patch) {
@@ -5667,6 +5732,17 @@ function AdminModePage() {
               </div>
               <div>{item.email}</div>
               <label className="admin-select-field">
+                <span>차량가용여부</span>
+                <select value={item.vehicle_available === false ? '불가' : '가용'} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                  <option value="가용">가용</option>
+                  <option value="불가">불가</option>
+                </select>
+              </label>
+              <label className="admin-select-field admin-action-field">
+                <span>차량열외</span>
+                <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)}>차량열외</button>
+              </label>
+              <label className="admin-select-field">
                 <span>직급</span>
                 <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                   <option value="">미지정</option>
@@ -5702,6 +5778,11 @@ function AdminModePage() {
                 <div key={item.id} className="admin-account-grid compact">
                   <div>{item.name || item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
                   <div>{item.email}</div>
+                  <select value={item.vehicle_available === false ? '불가' : '가용'} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                    <option value="가용">가용</option>
+                    <option value="불가">불가</option>
+                  </select>
+                  <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)}>차량열외</button>
                   <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                     <option value="">미지정</option>
                     {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
@@ -5712,6 +5793,35 @@ function AdminModePage() {
                 </div>
               ))}
               {!searchResults.length && <div className="muted">검색 결과가 없습니다.</div>}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {vehicleExceptionModal.open && createPortal(
+        <div className="modal-overlay" onClick={() => setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })}>
+          <div className="modal-card vehicle-exclusion-modal" onClick={e => e.stopPropagation()}>
+            <div className="between">
+              <strong>차량열외 · {vehicleExceptionModal.account?.nickname || vehicleExceptionModal.account?.name || ''}</strong>
+              <button type="button" className="small ghost" onClick={() => setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })}>닫기</button>
+            </div>
+            <div className="stack compact-gap">
+              <div className="admin-inline-grid compact-inline-grid">
+                <label>시작일<input type="date" value={vehicleExceptionModal.form.start_date} onChange={e => setVehicleExceptionModal(prev => ({ ...prev, form: { ...prev.form, start_date: e.target.value } }))} /></label>
+                <label>종료일<input type="date" value={vehicleExceptionModal.form.end_date} onChange={e => setVehicleExceptionModal(prev => ({ ...prev, form: { ...prev.form, end_date: e.target.value } }))} /></label>
+              </div>
+              <label>열외사유<textarea rows={3} value={vehicleExceptionModal.form.reason} onChange={e => setVehicleExceptionModal(prev => ({ ...prev, form: { ...prev.form, reason: e.target.value } }))} placeholder="열외 사유를 입력해 주세요." /></label>
+              <div className="inline-actions wrap"><button type="button" className="small" onClick={saveVehicleException}>열외일정 추가</button></div>
+              <div className="stack compact-gap vehicle-exclusion-list">
+                {vehicleExceptionModal.loading ? <div className="muted">불러오는 중...</div> : vehicleExceptionModal.items.map(item => (
+                  <div key={item.id} className="vehicle-exclusion-item">
+                    <div><strong>{item.start_date} ~ {item.end_date}</strong><div className="muted">{item.reason || '사유 미입력'}</div></div>
+                    <button type="button" className="small ghost" onClick={() => deleteVehicleException(item.id)}>삭제</button>
+                  </div>
+                ))}
+                {!vehicleExceptionModal.loading && !vehicleExceptionModal.items.length && <div className="muted">등록된 열외 일정이 없습니다.</div>}
+              </div>
             </div>
           </div>
         </div>,
