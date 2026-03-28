@@ -2402,6 +2402,22 @@ def _get_admin_total_vehicle_count(conn):
     return int(row['cnt'] or 0) if row else 0
 
 
+def _normalize_date_key(value: Any) -> str:
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    raw = raw.split('T', 1)[0].strip()
+    raw = raw.replace('.', '-').replace('/', '-').replace(' ', '')
+    match = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', raw)
+    if not match:
+        return ''
+    year, month, day = match.groups()
+    try:
+        return date(int(year), int(month), int(day)).isoformat()
+    except ValueError:
+        return ''
+
+
 def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[int, dict[str, list[dict[str, Any]]]]:
     if not date_keys:
         return 0, {}
@@ -2415,33 +2431,44 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
     ).fetchall()
     users = [row_to_dict(row) for row in rows]
     active_users = [row for row in users if bool(row.get('vehicle_available', 1))]
+    active_user_map = {int(row.get('id') or 0): row for row in active_users if int(row.get('id') or 0) > 0}
+
     exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
     exclusion_map: dict[int, list[dict[str, Any]]] = {}
     for row in exclusion_rows:
         entry = row_to_dict(row)
-        exclusion_map.setdefault(int(entry.get('user_id') or 0), []).append(entry)
+        user_id = int(entry.get('user_id') or 0)
+        if user_id <= 0 or user_id not in active_user_map:
+            continue
+        start_key = _normalize_date_key(entry.get('start_date'))
+        end_key = _normalize_date_key(entry.get('end_date'))
+        if not start_key or not end_key or end_key < start_key:
+            continue
+        exclusion_map.setdefault(user_id, []).append({
+            **entry,
+            'start_date': start_key,
+            'end_date': end_key,
+        })
+
     result: dict[str, list[dict[str, Any]]] = {key: [] for key in date_keys}
     for key in date_keys:
-        for user_row in users:
-            reason = ''
-            if not bool(user_row.get('vehicle_available', 1)):
-                reason = '차량가용여부: 불가'
-            else:
-                for exclusion in exclusion_map.get(int(user_row.get('id') or 0), []):
-                    if str(exclusion.get('start_date') or '') <= key <= str(exclusion.get('end_date') or ''):
-                        reason = str(exclusion.get('reason') or '').strip() or '차량열외'
-                        break
-            if reason:
-                display_name = str(user_row.get('nickname') or user_row.get('name') or user_row.get('position_title') or user_row.get('email') or '').strip()
-                if not display_name:
-                    branch_value = user_row.get('branch_no')
-                    display_name = f'{branch_value}호점' if branch_value not in (None, '') else f'계정 {user_row.get("id")}'
-                result[key].append({
-                    'user_id': int(user_row.get('id') or 0),
-                    'branch_no': user_row.get('branch_no'),
-                    'name': display_name,
-                    'reason': reason,
-                })
+        normalized_key = _normalize_date_key(key)
+        if not normalized_key:
+            continue
+        for user_id, user_row in active_user_map.items():
+            for exclusion in exclusion_map.get(user_id, []):
+                if exclusion['start_date'] <= normalized_key <= exclusion['end_date']:
+                    display_name = str(user_row.get('nickname') or user_row.get('name') or user_row.get('position_title') or user_row.get('email') or '').strip()
+                    if not display_name:
+                        branch_value = user_row.get('branch_no')
+                        display_name = f'{branch_value}호점' if branch_value not in (None, '') else f'계정 {user_id}'
+                    result[key].append({
+                        'user_id': user_id,
+                        'branch_no': user_row.get('branch_no'),
+                        'name': display_name,
+                        'reason': str(exclusion.get('reason') or '').strip() or '차량열외',
+                    })
+                    break
     return len(active_users), result
 
 
@@ -2682,20 +2709,8 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         excluded_staff_details = json.loads(note.get('excluded_staff_details') or '[]')
         branch_ids = _parse_branch_exclusions(excluded_business)
         auto_unavailable = auto_unavailable_by_date.get(key, [])
-        manual_branch_ids = set(branch_ids)
-        auto_user_ids = set()
-        for item in auto_unavailable:
-            user_id = item.get('user_id')
-            branch_no = item.get('branch_no')
-            if branch_no not in (None, ''):
-                try:
-                    if int(branch_no) in manual_branch_ids:
-                        continue
-                except (TypeError, ValueError):
-                    pass
-            if user_id not in (None, ''):
-                auto_user_ids.add(int(user_id))
-        excluded_vehicle_count = len(manual_branch_ids) + len(auto_user_ids)
+        auto_user_ids = {int(item.get('user_id') or 0) for item in auto_unavailable if int(item.get('user_id') or 0) > 0}
+        excluded_vehicle_count = len(auto_user_ids)
         excluded_business_names = []
         if excluded_business_details:
             for entry in excluded_business_details:
@@ -2721,7 +2736,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
         except (TypeError, ValueError):
             base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
-        available_vehicle_count = max(base_available_count - excluded_vehicle_count, 0)
+        available_vehicle_count = max(base_available_count - len(auto_user_ids), 0)
         def _safe_count(value):
             try:
                 return max(int(value or 0), 0)
