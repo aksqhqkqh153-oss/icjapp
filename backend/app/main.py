@@ -2391,14 +2391,55 @@ def _parse_branch_exclusions(value: str) -> list[int]:
             output.append(branch_no)
     return output
 def _get_admin_total_vehicle_count(conn):
-    row = conn.execute("SELECT value FROM admin_settings WHERE key = 'total_vehicle_count'").fetchone()
-    if row and str(row['value']).strip():
-        try:
-            return max(int(str(row['value']).strip()), 0)
-        except ValueError:
-            pass
-    row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE grade = 4 AND approved = 1").fetchone()
-    return int(row['cnt']) if row else 0
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM users
+        WHERE branch_no IS NOT NULL
+          AND approved = 1
+          AND COALESCE(vehicle_available, 1) = 1
+        """
+    ).fetchone()
+    return int(row['cnt'] or 0) if row else 0
+
+
+def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[int, dict[str, list[dict[str, Any]]]]:
+    if not date_keys:
+        return 0, {}
+    rows = conn.execute(
+        """
+        SELECT id, branch_no, nickname, position_title, COALESCE(vehicle_available, 1) AS vehicle_available
+        FROM users
+        WHERE branch_no IS NOT NULL AND approved = 1
+        ORDER BY COALESCE(branch_no, 9999), nickname
+        """
+    ).fetchall()
+    branch_users = [row_to_dict(row) for row in rows]
+    active_branch_users = [row for row in branch_users if bool(row.get('vehicle_available', 1))]
+    exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
+    exclusion_map: dict[int, list[dict[str, Any]]] = {}
+    for row in exclusion_rows:
+        entry = row_to_dict(row)
+        exclusion_map.setdefault(int(entry.get('user_id') or 0), []).append(entry)
+    result: dict[str, list[dict[str, Any]]] = {key: [] for key in date_keys}
+    for key in date_keys:
+        for user_row in branch_users:
+            reason = ''
+            if not bool(user_row.get('vehicle_available', 1)):
+                reason = '차량가용여부: 불가'
+            else:
+                for exclusion in exclusion_map.get(int(user_row.get('id') or 0), []):
+                    if str(exclusion.get('start_date') or '') <= key <= str(exclusion.get('end_date') or ''):
+                        reason = str(exclusion.get('reason') or '').strip() or '차량열외'
+                        break
+            if reason:
+                result[key].append({
+                    'user_id': int(user_row.get('id') or 0),
+                    'branch_no': user_row.get('branch_no'),
+                    'name': str(user_row.get('nickname') or user_row.get('position_title') or '').strip() or f"{user_row.get('branch_no')}호점",
+                    'reason': reason,
+                })
+    return len(active_branch_users), result
 
 def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
     event_rows = conn.execute(
@@ -2444,36 +2485,12 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
 
 
 def _collect_auto_unavailable_business(conn, date_keys: list[str]) -> dict[str, list[dict[str, Any]]]:
-    if not date_keys:
-        return {}
-    rows = conn.execute("SELECT id, branch_no, nickname, position_title, COALESCE(vehicle_available, 1) AS vehicle_available FROM users WHERE branch_no IS NOT NULL ORDER BY COALESCE(branch_no, 9999), nickname").fetchall()
-    branch_users = [row_to_dict(row) for row in rows]
-    exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
-    exclusion_map: dict[int, list[dict[str, Any]]] = {}
-    for row in exclusion_rows:
-        entry = row_to_dict(row)
-        exclusion_map.setdefault(int(entry.get('user_id') or 0), []).append(entry)
-    result: dict[str, list[dict[str, Any]]] = {key: [] for key in date_keys}
-    for key in date_keys:
-        for user_row in branch_users:
-            reason = ''
-            if not bool(user_row.get('vehicle_available', 1)):
-                reason = '차량가용여부: 불가'
-            else:
-                for exclusion in exclusion_map.get(int(user_row.get('id') or 0), []):
-                    if str(exclusion.get('start_date') or '') <= key <= str(exclusion.get('end_date') or ''):
-                        reason = str(exclusion.get('reason') or '').strip() or '차량열외'
-                        break
-            if reason:
-                result[key].append({
-                    'user_id': int(user_row.get('id') or 0),
-                    'branch_no': user_row.get('branch_no'),
-                    'name': str(user_row.get('nickname') or user_row.get('position_title') or '').strip() or f"{user_row.get('branch_no')}호점",
-                    'reason': reason,
-                })
+    _, result = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
     return result
 
 @app.get('/api/admin/accounts/{user_id}/vehicle-exclusions')
+@app.get('/api/admin/accounts/{user_id}/vehicle-exclusions/')
+@app.get('/api/admin/accounts/{user_id}/vehicle_exclusions')
 def list_vehicle_exclusions(user_id: int, admin=Depends(require_admin_mode_user)):
     with get_conn() as conn:
         account = conn.execute("SELECT id, nickname, branch_no FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -2483,6 +2500,8 @@ def list_vehicle_exclusions(user_id: int, admin=Depends(require_admin_mode_user)
     return {'account': row_to_dict(account), 'items': [row_to_dict(row) for row in rows]}
 
 @app.post('/api/admin/accounts/{user_id}/vehicle-exclusions')
+@app.post('/api/admin/accounts/{user_id}/vehicle-exclusions/')
+@app.post('/api/admin/accounts/{user_id}/vehicle_exclusions')
 def create_vehicle_exclusion(user_id: int, payload: VehicleExclusionIn, admin=Depends(require_admin_mode_user)):
     start_date = str(payload.start_date or '').strip()
     end_date = str(payload.end_date or '').strip()
@@ -2499,6 +2518,8 @@ def create_vehicle_exclusion(user_id: int, payload: VehicleExclusionIn, admin=De
     return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
 
 @app.delete('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}')
+@app.delete('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}/')
+@app.delete('/api/admin/accounts/{user_id}/vehicle_exclusions/{exclusion_id}')
 def delete_vehicle_exclusion(user_id: int, exclusion_id: int, admin=Depends(require_admin_mode_user)):
     with get_conn() as conn:
         conn.execute("DELETE FROM vehicle_exclusions WHERE id = ? AND user_id = ?", (exclusion_id, user_id))
@@ -2535,8 +2556,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             (user['id'], *date_keys),
         ).fetchall()
         branch_rows = conn.execute("SELECT branch_no, nickname FROM users WHERE branch_no IS NOT NULL").fetchall()
-        total_vehicle_count = _get_admin_total_vehicle_count(conn)
-        auto_unavailable_by_date = _collect_auto_unavailable_business(conn, date_keys)
+        dynamic_total_vehicle_count, auto_unavailable_by_date = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
     branch_name_map = {int(r['branch_no']): r['nickname'] for r in branch_rows if r['branch_no'] is not None}
     entries_by_date = {key: [] for key in date_keys}
     for row in event_rows:
@@ -2618,9 +2638,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         day_entries = sorted(entries_by_date[key], key=lambda item: ((item.get('schedule_time') or '99:99') if (item.get('schedule_time') or '') not in ('', '미정') else '99:99', str(item.get('customer_name') or item.get('title') or ''), str(item.get('id'))))
         note_available_count = note.get('available_vehicle_count')
         try:
-            base_available_count = max(int(note_available_count), 0) if note_available_count not in (None, '') else max(int(total_vehicle_count or 0), 0)
+            base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
         except (TypeError, ValueError):
-            base_available_count = max(int(total_vehicle_count or 0), 0)
+            base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
         available_vehicle_count = max(base_available_count - excluded_vehicle_count, 0)
         def _safe_count(value):
             try:

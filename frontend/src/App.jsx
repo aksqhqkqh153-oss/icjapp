@@ -5243,8 +5243,8 @@ function AdminModePage() {
       const response = await api(`/api/admin/accounts/${account.id}/vehicle-exclusions`)
       setVehicleExceptionModal(prev => ({ ...prev, items: response.items || [], loading: false }))
     } catch (error) {
-      setMessage(error.message || '차량열외 목록을 불러오지 못했습니다.')
-      setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
+      setMessage(error.message || '차량열외 목록을 불러오지 못했습니다. 백엔드 배포 상태와 API 경로를 확인해 주세요.')
+      setVehicleExceptionModal(prev => ({ ...prev, loading: false, items: [] }))
     }
   }
 
