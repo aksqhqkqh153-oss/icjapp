@@ -5233,6 +5233,30 @@ function AdminModePage() {
     setAccountDeleteSelection(prev => ({ ...prev, [userId]: !prev[userId] }))
   }
 
+
+
+  async function callVehicleExclusionApi(accountId, action = 'list', payload = null) {
+    const primaryBase = `/api/admin/accounts/${accountId}/vehicle-exclusions`
+    const aliasBase = `/api/admin/vehicle-exclusions/${accountId}`
+    const attempt = async (path, options = {}) => api(path, options)
+    const isRetryable = error => {
+      const message = String(error?.message || '')
+      return message.includes('(404)') || message.includes('(405)') || message.includes('Not Found') || message.includes('Method Not Allowed')
+    }
+    try {
+      if (action === 'list') return await attempt(primaryBase)
+      if (action === 'create') return await attempt(primaryBase, { method: 'POST', body: JSON.stringify(payload || {}) })
+      if (action === 'delete') return await attempt(`${primaryBase}/${payload}`, { method: 'DELETE' })
+      throw new Error('지원하지 않는 차량열외 요청입니다.')
+    } catch (error) {
+      if (!isRetryable(error)) throw error
+      if (action === 'list') return await attempt(aliasBase)
+      if (action === 'create') return await attempt(aliasBase, { method: 'POST', body: JSON.stringify(payload || {}) })
+      if (action === 'delete') return await attempt(`${aliasBase}/${payload}`, { method: 'DELETE' })
+      throw error
+    }
+  }
+
   function updateAccountRow(userId, patch) {
     setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...patch } : item))
   }
@@ -5240,7 +5264,7 @@ function AdminModePage() {
   async function openVehicleExceptionModal(account) {
     setVehicleExceptionModal({ open: true, account, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: true })
     try {
-      const response = await api(`/api/admin/accounts/${account.id}/vehicle-exclusions`)
+      const response = await callVehicleExclusionApi(account.id, 'list')
       setVehicleExceptionModal(prev => ({ ...prev, items: response.items || [], loading: false }))
     } catch (error) {
       setMessage(error.message || '차량열외 목록을 불러오지 못했습니다. 백엔드 배포 상태와 API 경로를 확인해 주세요.')
@@ -5250,8 +5274,8 @@ function AdminModePage() {
 
   async function saveVehicleException() {
     if (!vehicleExceptionModal.account) return
-    await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions`, { method: 'POST', body: JSON.stringify(vehicleExceptionModal.form) })
-    const response = await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions`)
+    await callVehicleExclusionApi(vehicleExceptionModal.account.id, 'create', vehicleExceptionModal.form)
+    const response = await callVehicleExclusionApi(vehicleExceptionModal.account.id, 'list')
     setVehicleExceptionModal(prev => ({ ...prev, items: response.items || [], form: { start_date: '', end_date: '', reason: '' } }))
     setMessage('차량열외 일정이 저장되었습니다.')
     await load()
@@ -5259,7 +5283,7 @@ function AdminModePage() {
 
   async function deleteVehicleException(exclusionId) {
     if (!vehicleExceptionModal.account) return
-    const response = await api(`/api/admin/accounts/${vehicleExceptionModal.account.id}/vehicle-exclusions/${exclusionId}`, { method: 'DELETE' })
+    const response = await callVehicleExclusionApi(vehicleExceptionModal.account.id, 'delete', exclusionId)
     setVehicleExceptionModal(prev => ({ ...prev, items: response.items || prev.items }))
     setMessage('차량열외 일정이 삭제되었습니다.')
     await load()

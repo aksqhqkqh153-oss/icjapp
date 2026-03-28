@@ -2395,8 +2395,7 @@ def _get_admin_total_vehicle_count(conn):
         """
         SELECT COUNT(*) AS cnt
         FROM users
-        WHERE branch_no IS NOT NULL
-          AND approved = 1
+        WHERE approved = 1
           AND COALESCE(vehicle_available, 1) = 1
         """
     ).fetchone()
@@ -2408,14 +2407,14 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
         return 0, {}
     rows = conn.execute(
         """
-        SELECT id, branch_no, nickname, position_title, COALESCE(vehicle_available, 1) AS vehicle_available
+        SELECT id, branch_no, name, nickname, email, position_title, COALESCE(vehicle_available, 1) AS vehicle_available
         FROM users
-        WHERE branch_no IS NOT NULL AND approved = 1
-        ORDER BY COALESCE(branch_no, 9999), nickname
+        WHERE approved = 1
+        ORDER BY COALESCE(branch_no, 9999), nickname, name, email
         """
     ).fetchall()
-    branch_users = [row_to_dict(row) for row in rows]
-    active_branch_users = [row for row in branch_users if bool(row.get('vehicle_available', 1))]
+    users = [row_to_dict(row) for row in rows]
+    active_users = [row for row in users if bool(row.get('vehicle_available', 1))]
     exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
     exclusion_map: dict[int, list[dict[str, Any]]] = {}
     for row in exclusion_rows:
@@ -2423,7 +2422,7 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
         exclusion_map.setdefault(int(entry.get('user_id') or 0), []).append(entry)
     result: dict[str, list[dict[str, Any]]] = {key: [] for key in date_keys}
     for key in date_keys:
-        for user_row in branch_users:
+        for user_row in users:
             reason = ''
             if not bool(user_row.get('vehicle_available', 1)):
                 reason = '차량가용여부: 불가'
@@ -2433,13 +2432,83 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
                         reason = str(exclusion.get('reason') or '').strip() or '차량열외'
                         break
             if reason:
+                display_name = str(user_row.get('nickname') or user_row.get('name') or user_row.get('position_title') or user_row.get('email') or '').strip()
+                if not display_name:
+                    branch_value = user_row.get('branch_no')
+                    display_name = f'{branch_value}호점' if branch_value not in (None, '') else f'계정 {user_row.get("id")}'
                 result[key].append({
                     'user_id': int(user_row.get('id') or 0),
                     'branch_no': user_row.get('branch_no'),
-                    'name': str(user_row.get('nickname') or user_row.get('position_title') or '').strip() or f"{user_row.get('branch_no')}호점",
+                    'name': display_name,
                     'reason': reason,
                 })
-    return len(active_branch_users), result
+    return len(active_users), result
+
+
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions', methods=['GET', 'POST'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/', methods=['GET', 'POST'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle_exclusions', methods=['GET', 'POST'])
+def vehicle_exclusions_collection(user_id: int, payload: Optional[VehicleExclusionIn] = None, request: Request = None, admin=Depends(require_admin_mode_user)):
+    method = (request.method if request else 'GET').upper()
+    if method == 'GET':
+        return _list_vehicle_exclusions_response(user_id)
+    if method == 'POST':
+        if payload is None:
+            raise HTTPException(status_code=400, detail='열외 일정 입력값이 없습니다.')
+        return _create_vehicle_exclusion_response(user_id, payload)
+    raise HTTPException(status_code=405, detail='허용되지 않는 요청입니다.')
+
+
+@app.api_route('/api/admin/vehicle-exclusions/{user_id}', methods=['GET', 'POST'])
+@app.api_route('/api/admin/vehicle_exclusions/{user_id}', methods=['GET', 'POST'])
+def vehicle_exclusions_collection_alias(user_id: int, payload: Optional[VehicleExclusionIn] = None, request: Request = None, admin=Depends(require_admin_mode_user)):
+    return vehicle_exclusions_collection(user_id=user_id, payload=payload, request=request, admin=admin)
+
+
+def _list_vehicle_exclusions_response(user_id: int):
+    with get_conn() as conn:
+        account = conn.execute("SELECT id, nickname, branch_no FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not account:
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'account': row_to_dict(account), 'items': [row_to_dict(row) for row in rows]}
+
+
+def _create_vehicle_exclusion_response(user_id: int, payload: VehicleExclusionIn):
+    start_date = str(payload.start_date or '').strip()
+    end_date = str(payload.end_date or '').strip()
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', start_date) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', end_date):
+        raise HTTPException(status_code=400, detail='열외 기간 날짜 형식이 올바르지 않습니다.')
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail='열외 종료일은 시작일보다 빠를 수 없습니다.')
+    with get_conn() as conn:
+        if not conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone():
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        now = utcnow()
+        conn.execute("INSERT INTO vehicle_exclusions(user_id, start_date, end_date, reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (user_id, start_date, end_date, str(payload.reason or '').strip(), now, now))
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
+
+
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}', methods=['DELETE'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}/', methods=['DELETE'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle_exclusions/{exclusion_id}', methods=['DELETE'])
+def vehicle_exclusions_item(user_id: int, exclusion_id: int, request: Request = None, admin=Depends(require_admin_mode_user)):
+    return _delete_vehicle_exclusion_response(user_id, exclusion_id)
+
+
+@app.api_route('/api/admin/vehicle-exclusions/{user_id}/{exclusion_id}', methods=['DELETE'])
+@app.api_route('/api/admin/vehicle_exclusions/{user_id}/{exclusion_id}', methods=['DELETE'])
+def vehicle_exclusions_item_alias(user_id: int, exclusion_id: int, request: Request = None, admin=Depends(require_admin_mode_user)):
+    return _delete_vehicle_exclusion_response(user_id, exclusion_id)
+
+
+def _delete_vehicle_exclusion_response(user_id: int, exclusion_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM vehicle_exclusions WHERE id = ? AND user_id = ?", (exclusion_id, user_id))
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
+
 
 def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
     event_rows = conn.execute(
@@ -2613,9 +2682,20 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
         excluded_staff_details = json.loads(note.get('excluded_staff_details') or '[]')
         branch_ids = _parse_branch_exclusions(excluded_business)
         auto_unavailable = auto_unavailable_by_date.get(key, [])
-        auto_branch_ids = {int(item.get('branch_no')) for item in auto_unavailable if item.get('branch_no') not in (None, '')}
-        combined_branch_ids = set(branch_ids) | auto_branch_ids
-        excluded_vehicle_count = len(combined_branch_ids)
+        manual_branch_ids = set(branch_ids)
+        auto_user_ids = set()
+        for item in auto_unavailable:
+            user_id = item.get('user_id')
+            branch_no = item.get('branch_no')
+            if branch_no not in (None, ''):
+                try:
+                    if int(branch_no) in manual_branch_ids:
+                        continue
+                except (TypeError, ValueError):
+                    pass
+            if user_id not in (None, ''):
+                auto_user_ids.add(int(user_id))
+        excluded_vehicle_count = len(manual_branch_ids) + len(auto_user_ids)
         excluded_business_names = []
         if excluded_business_details:
             for entry in excluded_business_details:
