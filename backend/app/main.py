@@ -32,6 +32,7 @@ from .db import (
 from .settings import settings, get_settings
 from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
+from .soomgo_review_api import router as soomgo_review_router
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -46,6 +47,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(soomgo_review_router)
 class SignupIn(BaseModel):
     email: str
     password: str

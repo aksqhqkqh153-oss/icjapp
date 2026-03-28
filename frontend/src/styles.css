@@ -4331,3 +4331,115 @@ button.danger:hover {
 .vehicle-exclusion-list { max-height:320px; overflow:auto; }
 .vehicle-exclusion-item { display:grid; grid-template-columns:1fr auto; gap:8px 12px; align-items:center; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
 @media (max-width: 900px) { .admin-account-grid.compact.labeled-account-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.settlement-sheet-grid-weekly-daily {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.settlement-daily-week-card-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settlement-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.soomgo-review-page {
+  gap: 12px;
+}
+
+.soomgo-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 0.9fr);
+  gap: 12px;
+}
+
+.soomgo-review-main,
+.soomgo-review-side {
+  gap: 12px;
+}
+
+.soomgo-slot-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.soomgo-slot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.soomgo-slot-head,
+.soomgo-slot-name-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.soomgo-slot-name-row > label {
+  flex: 1 1 0;
+}
+
+.soomgo-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.soomgo-slot-grid textarea,
+.soomgo-prompt-textarea,
+.soomgo-side-memo,
+.soomgo-hidden-textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  padding: 10px;
+  resize: vertical;
+  background: #fff;
+  color: #111827;
+}
+
+.soomgo-prompt-textarea.short,
+.soomgo-hidden-textarea.short {
+  min-height: 84px;
+}
+
+.soomgo-settings-modal {
+  width: min(1100px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+.soomgo-hidden-grid,
+.soomgo-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.soomgo-result-grid pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 900px) {
+  .soomgo-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .soomgo-slot-grid,
+  .soomgo-hidden-grid,
+  .soomgo-result-grid {
+    grid-template-columns: 1fr;
+  }
+}

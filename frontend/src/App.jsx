@@ -23,6 +23,7 @@ const PAGE_TITLES = {
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
   '/settlements': '결산자료',
+  '/soomgo-review-finder': '숨고리뷰찾기',
   '/warehouse': '창고현황',
   '/materials': '자재구매/현황',
   '/storage-status': '짐보관현황',
@@ -70,6 +71,7 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
+      { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
     ],
   },
   {
@@ -6062,6 +6064,45 @@ function formatMonthlySettlementTitle(block, fallbackIndex = 0) {
   return `${date.getMonth() + 1}월 월간결산`
 }
 
+function getSettlementWeekStartKey(dateKey) {
+  const date = parseSettlementDateKey(dateKey)
+  if (!date) return ''
+  const copy = new Date(date)
+  const weekday = copy.getDay()
+  const diff = (weekday + 1) % 7
+  copy.setDate(copy.getDate() - diff)
+  return `${copy.getFullYear()}-${String(copy.getMonth() + 1).padStart(2, '0')}-${String(copy.getDate()).padStart(2, '0')}`
+}
+
+function buildSettlementWeeklyPages(blocks = []) {
+  const map = new Map()
+  ;(blocks || []).forEach((block, index) => {
+    const dateKey = getSettlementBlockDateKey(block)
+    const weekKey = getSettlementWeekStartKey(dateKey) || `fallback-${index}`
+    if (!map.has(weekKey)) {
+      map.set(weekKey, { weekKey, start: weekKey, blocks: [] })
+    }
+    map.get(weekKey).blocks.push(block)
+  })
+  return Array.from(map.values()).map(page => {
+    const ordered = [...page.blocks].sort((a, b) => getSettlementBlockDateKey(a).localeCompare(getSettlementBlockDateKey(b)))
+    const startKey = getSettlementBlockDateKey(ordered[0])
+    const endKey = getSettlementBlockDateKey(ordered[ordered.length - 1])
+    return { ...page, start: startKey, end: endKey, blocks: ordered }
+  }).sort((a, b) => String(a.start).localeCompare(String(b.start)))
+}
+
+function findPreferredSettlementWeekIndex(pages = []) {
+  if (!pages.length) return 0
+  const todayKey = getTodaySettlementDateKey()
+  const todayWeekKey = getSettlementWeekStartKey(todayKey)
+  const idx = pages.findIndex(page => page.weekKey === todayWeekKey)
+  if (idx >= 0) return idx
+  const futureIdx = pages.findIndex(page => String(page.start) > todayKey)
+  if (futureIdx >= 0) return futureIdx
+  return pages.length - 1
+}
+
 function summarizeSettlementRows(summaryRows = [], total = {}) {
   const result = {
     숨고: 0,
@@ -6290,7 +6331,7 @@ function SettlementPage() {
   const [recordsLoading, setRecordsLoading] = useState(false)
   const [reflectLoading, setReflectLoading] = useState(false)
   const [monthlySummaryLoading, setMonthlySummaryLoading] = useState(false)
-  const [dailyIndex, setDailyIndex] = useState(() => findPreferredSettlementIndex(SETTLEMENT_DATA.daily || []))
+  const [dailyWeekIndex, setDailyWeekIndex] = useState(0)
   const [weeklyIndex, setWeeklyIndex] = useState(0)
   const [monthlyIndex, setMonthlyIndex] = useState(0)
   const [monthlyOverrideMap, setMonthlyOverrideMap] = useState({})
@@ -6409,6 +6450,7 @@ function SettlementPage() {
     () => applySettlementPlatformMetrics(SETTLEMENT_DATA.daily || [], syncStatus.platforms, { reflectionMap }),
     [syncStatus.platforms, reflectionMap],
   )
+  const dailyWeekPages = useMemo(() => buildSettlementWeeklyPages(dailyBlocks), [dailyBlocks])
   const weeklyBlocks = useMemo(
     () => (SETTLEMENT_DATA.weekly || []).map((block, index) => ({
       ...applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0],
@@ -6427,12 +6469,12 @@ function SettlementPage() {
   )
 
   useEffect(() => {
-    setDailyIndex(prev => {
-      if (!dailyBlocks.length) return 0
-      if (prev >= 0 && prev < dailyBlocks.length) return prev
-      return findPreferredSettlementIndex(dailyBlocks)
+    setDailyWeekIndex(prev => {
+      if (!dailyWeekPages.length) return 0
+      if (prev >= 0 && prev < dailyWeekPages.length) return prev
+      return findPreferredSettlementWeekIndex(dailyWeekPages)
     })
-  }, [dailyBlocks])
+  }, [dailyWeekPages])
 
   useEffect(() => {
     setWeeklyIndex(prev => {
@@ -6461,8 +6503,7 @@ function SettlementPage() {
   const activeEmail = activePlatform === '오늘' ? ohouEmail : soomgoEmail
   const activePassword = activePlatform === '오늘' ? ohouPassword : soomgoPassword
   const activeAuthStateText = activePlatform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
-  const selectedDailyBlock = dailyBlocks[dailyIndex] || null
-  const selectedDailyDateKey = getSettlementBlockDateKey(selectedDailyBlock)
+  const selectedDailyWeekPage = dailyWeekPages[dailyWeekIndex] || null
 
   const selectedWeeklyBlock = weeklyBlocks[weeklyIndex] || null
   const selectedMonthlyBlock = monthlyBlocks[monthlyIndex] || null
@@ -6499,8 +6540,9 @@ function SettlementPage() {
     }
   }
 
-  async function handleReflectSettlement() {
-    if (!selectedDailyBlock || !selectedDailyDateKey) {
+  async function handleReflectSettlement(block) {
+    const targetDateKey = getSettlementBlockDateKey(block)
+    if (!block || !targetDateKey) {
       window.alert('반영할 일일결산 데이터가 없습니다.')
       return
     }
@@ -6510,13 +6552,13 @@ function SettlementPage() {
         method: 'POST',
         body: JSON.stringify({
           category: 'daily',
-          settlement_date: selectedDailyDateKey,
-          title: selectedDailyBlock.title || '',
-          block: selectedDailyBlock,
+          settlement_date: targetDateKey,
+          title: block.title || '',
+          block,
         }),
       })
       await loadRecords()
-      window.alert(`${formatSettlementDateKeyLabel(selectedDailyDateKey)} 결산이 최종 반영되었습니다.`)
+      window.alert(`${formatSettlementDateKeyLabel(targetDateKey)} 결산이 최종 반영되었습니다.`)
     } catch (error) {
       window.alert(error.message || '결산반영 중 오류가 발생했습니다.')
     } finally {
@@ -6543,23 +6585,30 @@ function SettlementPage() {
   if (activeCategory === 'records') {
     content = <SettlementRecordBoard recordsByType={recordsData} />
   } else if (activeCategory === 'daily') {
-    content = selectedDailyBlock ? (
+    content = selectedDailyWeekPage ? (
       <>
         <div className="settlement-day-nav card">
-          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
+          <button type="button" className="ghost small" onClick={() => setDailyWeekIndex(prev => Math.max(0, prev - 1))} disabled={dailyWeekIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{formatSettlementDateKeyLabel(selectedDailyDateKey)}</strong>
-            <span className="muted">{dailyIndex + 1} / {dailyBlocks.length}</span>
+            <strong>{formatSettlementDateKeyLabel(selectedDailyWeekPage.start)} ~ {formatSettlementDateKeyLabel(selectedDailyWeekPage.end)}</strong>
+            <span className="muted">{dailyWeekIndex + 1} / {dailyWeekPages.length} · 토요일 ~ 금요일</span>
           </div>
-          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(dailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= dailyBlocks.length - 1}>▶</button>
+          <button type="button" className="ghost small" onClick={() => setDailyWeekIndex(prev => Math.min(dailyWeekPages.length - 1, prev + 1))} disabled={dailyWeekIndex >= dailyWeekPages.length - 1}>▶</button>
         </div>
-        <div className="settlement-sheet-grid settlement-sheet-grid-single">
-          <SettlementSheetCard block={selectedDailyBlock} />
-        </div>
-        <div className="settlement-float-actions">
-          <button type="button" onClick={handleReflectSettlement} disabled={reflectLoading}>
-            {reflectLoading ? '반영중...' : '결산반영'}
-          </button>
+        <div className="settlement-sheet-grid settlement-sheet-grid-weekly-daily">
+          {selectedDailyWeekPage.blocks.map(block => {
+            const dateKey = getSettlementBlockDateKey(block)
+            return (
+              <div key={`daily-week-${dateKey}`} className="settlement-daily-week-card-wrap">
+                <SettlementSheetCard block={block} />
+                <div className="settlement-inline-actions">
+                  <button type="button" onClick={() => handleReflectSettlement(block)} disabled={reflectLoading}>
+                    {reflectLoading ? '반영중...' : `${formatSettlementDateKeyLabel(dateKey)} 결산반영`}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </>
     ) : <div className="card muted">표시할 일일결산 데이터가 없습니다.</div>
@@ -7259,6 +7308,222 @@ function MaterialsPage({ user }) {
 }
 
 
+function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onManualMatch }) {
+  if (!open) return null
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card soomgo-settings-modal" onClick={e => e.stopPropagation()}>
+        <div className="between">
+          <h3>숨은 설정</h3>
+          <button type="button" className="ghost small" onClick={onClose}>닫기</button>
+        </div>
+        <div className="stack compact-gap">
+          <label className="stack compact-gap"><span>숨고 로그인 이메일</span><input value={state.settings.soomgo_email || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_email: e.target.value } }))} /></label>
+          <label className="stack compact-gap"><span>숨고 로그인 비밀번호</span><input type="password" value={state.settings.soomgo_password || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_password: e.target.value } }))} /></label>
+          <label className="stack compact-gap"><span>outer HTML 코드</span><textarea className="soomgo-hidden-textarea" value={state.settings.outer_html || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, outer_html: e.target.value } }))} /></label>
+          <div className="soomgo-hidden-grid">
+            <label className="stack compact-gap"><span>익명 이름</span><input value={state.settings.anonymous_name || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, anonymous_name: e.target.value } }))} /></label>
+            <label className="stack compact-gap"><span>리뷰 내용 일부</span><textarea className="soomgo-hidden-textarea short" value={state.settings.review_input || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, review_input: e.target.value } }))} /></label>
+          </div>
+          <div className="row gap wrap">
+            <button type="button" onClick={onManualMatch}>수기 작성자 찾기</button>
+            <button type="button" className="ghost" onClick={onSave}>설정 저장</button>
+          </div>
+          <div className="soomgo-result-grid">
+            <div className="card"><strong>리뷰작성자 후보</strong><pre>{state.results.candidate_names || '-'}</pre></div>
+            <div className="card"><strong>유사도</strong><pre>{state.results.candidate_scores || '-'}</pre></div>
+            <div className="card"><strong>고객리뷰</strong><textarea className="soomgo-hidden-textarea short" value={state.results.customer_review || ''} onChange={e => setState(prev => ({ ...prev, results: { ...prev.results, customer_review: e.target.value } }))} /></div>
+            <div className="card"><strong>이사현장 / 특이사항</strong><textarea className="soomgo-hidden-textarea short" value={`${state.results.field_status || ''}
+${state.results.special_note || ''}`.trim()} readOnly /></div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
+  return (
+    <section className="card soomgo-slot-card">
+      <div className="soomgo-slot-head">
+        <strong>슬롯 {index + 1}</strong>
+        <button type="button" className="small" onClick={() => onGenerate(index)}>리뷰초안생성</button>
+      </div>
+      <div className="soomgo-slot-name-row">
+        <label className="stack compact-gap"><span>가명</span><input value={slot.masked_name || ''} onChange={e => onChange(index, 'masked_name', e.target.value)} /></label>
+        <label className="stack compact-gap"><span>실명</span><input value={slot.real_name || ''} onChange={e => onChange(index, 'real_name', e.target.value)} /></label>
+      </div>
+      <div className="soomgo-slot-grid">
+        <label className="stack compact-gap"><span>리뷰 내용</span><textarea value={slot.review || ''} onChange={e => onChange(index, 'review', e.target.value)} /></label>
+        <label className="stack compact-gap"><span>AI 결과</span><textarea value={slot.reply || ''} onChange={e => onChange(index, 'reply', e.target.value)} /></label>
+        <label className="stack compact-gap"><span>이사현장상황</span><textarea value={slot.situation || ''} onChange={e => onChange(index, 'situation', e.target.value)} /></label>
+        <label className="stack compact-gap"><span>현장특이사항</span><textarea value={slot.specifics || ''} onChange={e => onChange(index, 'specifics', e.target.value)} /></label>
+      </div>
+    </section>
+  )
+}
+
+function SoomgoReviewFinderPage() {
+  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 10 }, (_, index) => ({ index, masked_name: '', real_name: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [extraOpen, setExtraOpen] = useState(false)
+
+  async function loadState() {
+    const data = await api('/api/soomgo-review/state')
+    setState(prev => ({ ...prev, ...data }))
+    return data
+  }
+
+  useEffect(() => {
+    let ignore = false
+    loadState().then(data => {
+      if (!ignore && data?.settings?.auto_scan_on_open) {
+        handleAutoScan()
+      }
+    }).catch(() => {})
+    return () => { ignore = true }
+  }, [])
+
+  async function persistState(nextState = state) {
+    setSaving(true)
+    try {
+      const saved = await api('/api/soomgo-review/state', {
+        method: 'POST',
+        body: JSON.stringify({ settings: nextState.settings, memos: nextState.memos, results: nextState.results, slots: nextState.slots }),
+      })
+      setState(prev => ({ ...prev, ...saved }))
+    } catch (error) {
+      window.alert(error.message || '숨고리뷰찾기 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAutoScan() {
+    setLoading(true)
+    try {
+      const data = await api('/api/soomgo-review/scan-auto', { method: 'POST' })
+      setState(prev => ({ ...prev, ...data }))
+    } catch (error) {
+      window.alert(error.message || '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleManualScan() {
+    setLoading(true)
+    try {
+      const data = await api('/api/soomgo-review/scan-manual', { method: 'POST' })
+      setState(prev => ({ ...prev, ...data }))
+    } catch (error) {
+      window.alert(error.message || '수동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleManualMatch() {
+    setLoading(true)
+    try {
+      const data = await api('/api/soomgo-review/manual-match', {
+        method: 'POST',
+        body: JSON.stringify({ outer_html: state.settings.outer_html || '', anonymous_name: state.settings.anonymous_name || '', review_input: state.settings.review_input || '' }),
+      })
+      setState(prev => ({ ...prev, ...(data.state || {}), results: { ...prev.results, candidate_names: data.candidate_names || '', candidate_scores: data.candidate_scores || '' } }))
+    } catch (error) {
+      window.alert(error.message || '수기 작성자 찾기 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGenerateSlot(index) {
+    setLoading(true)
+    try {
+      const slot = state.slots[index] || {}
+      const data = await api('/api/soomgo-review/generate-draft', {
+        method: 'POST',
+        body: JSON.stringify({ slot_index: index, review: slot.review || '', situation: slot.situation || '', specifics: slot.specifics || '' }),
+      })
+      setState(prev => ({ ...prev, ...(data.state || {}), results: { ...prev.results, ai_result: data.draft || '' } }))
+    } catch (error) {
+      window.alert(error.message || '리뷰초안 생성 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function updateSlot(index, key, value) {
+    setState(prev => ({
+      ...prev,
+      slots: prev.slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, [key]: value } : slot),
+    }))
+  }
+
+  return (
+    <div className="stack-page soomgo-review-page">
+      <section className="card soomgo-review-hero">
+        <div className="between wrap gap">
+          <div>
+            <h2>숨고리뷰찾기</h2>
+            <div className="muted">첨부한 리뷰 찾기 스크립트의 핵심 흐름을 앱 화면에 옮긴 페이지입니다.</div>
+            <div className="muted">최근 검사 {state.last_scan?.updated_at ? String(state.last_scan.updated_at).replace('T', ' ').slice(0, 16) : '-'} · {state.last_scan?.message || '대기중'}</div>
+          </div>
+          <div className="row gap wrap">
+            <button type="button" onClick={handleAutoScan} disabled={loading}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
+            <button type="button" className="ghost" onClick={handleManualScan} disabled={loading}>{loading ? '진행중...' : '수동 리뷰 찾기'}</button>
+            <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>숨은 설정</button>
+            <button type="button" className="ghost" onClick={() => persistState()} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="soomgo-review-layout">
+        <div className="soomgo-review-main stack-page">
+          <section className="card soomgo-prompt-card">
+            <div className="between"><h3>리뷰초안 프롬프트</h3><span className="muted">리뷰초안생성 기준</span></div>
+            <textarea value={state.settings.prompt || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, prompt: e.target.value } }))} className="soomgo-prompt-textarea" />
+          </section>
+
+          <section className="card soomgo-ai-result-card">
+            <div className="between"><h3>AI 리뷰 답변 결과</h3><button type="button" className="ghost small" onClick={() => navigator.clipboard?.writeText(state.results.ai_result || '')}>복사</button></div>
+            <textarea value={state.results.ai_result || ''} onChange={e => setState(prev => ({ ...prev, results: { ...prev.results, ai_result: e.target.value } }))} className="soomgo-prompt-textarea short" />
+          </section>
+
+          <section className="soomgo-slot-list-grid">
+            {state.slots.slice(0, 5).map((slot, index) => <SoomgoReviewSlotCard key={`slot-top-${index}`} slot={slot} index={index} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}
+          </section>
+
+          <section className="card soomgo-extra-slots-card">
+            <div className="between"><h3>추가 슬롯 5개</h3><button type="button" className="ghost small" onClick={() => setExtraOpen(v => !v)}>{extraOpen ? '접기' : '펼치기'}</button></div>
+            {extraOpen && <div className="soomgo-slot-list-grid">{state.slots.slice(5, 10).map((slot, index) => <SoomgoReviewSlotCard key={`slot-extra-${index + 5}`} slot={slot} index={index + 5} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}</div>}
+          </section>
+        </div>
+
+        <aside className="soomgo-review-side stack-page">
+          <section className="card"><h3>상시 메모장 1. 숨고</h3><textarea className="soomgo-side-memo" value={state.memos.soomgo || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, soomgo: e.target.value } }))} /></section>
+          <section className="card"><h3>상시 메모장 2. 오늘</h3><textarea className="soomgo-side-memo" value={state.memos.today || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, today: e.target.value } }))} /></section>
+          <section className="card"><h3>상시 메모장 3. 공홈</h3><textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, site: e.target.value } }))} /></section>
+        </aside>
+      </section>
+
+      <SoomgoReviewSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        state={state}
+        setState={setState}
+        onSave={() => persistState()}
+        onManualMatch={handleManualMatch}
+      />
+    </div>
+  )
+}
+
+
 function AppAssignmentNotificationWatcher({ user }) {
   useEffect(() => {
     return undefined
@@ -7342,6 +7607,7 @@ function App() {
         <Route path="/materials" element={<MaterialsPage user={user} />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={<SettlementPage />} />
+        <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
         <Route path="/menu-permissions" element={isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />} />
