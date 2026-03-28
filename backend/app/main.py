@@ -2731,12 +2731,15 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             staff_tokens = [token.strip() for token in re.split(r'[\n,/]+', excluded_staff or '') if token.strip()]
             staff_display = [token if '-' in token else f'{token}-열외' for token in staff_tokens]
         day_entries = sorted(entries_by_date[key], key=lambda item: ((item.get('schedule_time') or '99:99') if (item.get('schedule_time') or '') not in ('', '미정') else '99:99', str(item.get('customer_name') or item.get('title') or ''), str(item.get('id'))))
-        note_available_count = note.get('available_vehicle_count')
         try:
             base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
         except (TypeError, ValueError):
-            base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
-        available_vehicle_count = max(base_available_count - len(auto_user_ids), 0)
+            base_available_count = 0
+        # 사용자 최신 요구사항 기준:
+        # 일정 화면의 가용차량수는 관리자모드 > 계정권한에서
+        # 차량가용여부가 '가용'인 승인 계정 수를 그대로 표시한다.
+        # 날짜별 차량열외/수기 열외/과거 메모값은 가용차량수 숫자 자체를 차감하지 않는다.
+        available_vehicle_count = base_available_count
         def _safe_count(value):
             try:
                 return max(int(value or 0), 0)
