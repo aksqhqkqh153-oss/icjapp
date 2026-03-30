@@ -7347,7 +7347,7 @@ function MaterialsPage({ user }) {
         })
         if (nextQty !== originalQty) {
           hasChanges = true
-          const itemName = item.short_name || item.name || '물품'
+          const itemName = displayMyRequestItemName(item)
           if (nextQty === 0) {
             changeSummaries.push(`- [${String(request.created_at || '').slice(0, 10)}]으로 신청한 ${itemName} ${originalQty}개가 ${nextQty}개로 수정되어 물품을 취소하겠습니까?`)
           } else {
@@ -7390,6 +7390,16 @@ function MaterialsPage({ user }) {
     if (!compact) return base
     if (base === '스티커 인쇄물') return '스티커'
     return base
+  }
+
+  function displayMyRequestItemName(item) {
+    const full = String(item?.name || '').trim()
+    if (full) return full
+    const short = String(item?.short_name || '').trim()
+    if (short === '노비') return '노란 비닐'
+    if (short === '흰비') return '흰색 비닐'
+    if (short === '침비') return '침대 비닐'
+    return short || '물품'
   }
 
   function formatDateLabel(value) {
@@ -7731,7 +7741,7 @@ function MaterialsPage({ user }) {
                     const shouldPulseQty = myPulseQtyKeys.includes(key) || (isSelected && myEditing && !isSettled)
                     return (
                       <div key={key} className="materials-request-history-row">
-                        <div>{item.short_name || item.name}</div>
+                        <div>{displayMyRequestItemName(item)}</div>
                         <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                         <div>{myEditing && isSelected && !isSettled ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
                         <div>{lineTotal.toLocaleString('ko-KR')}원</div>
