@@ -2476,19 +2476,36 @@ def _normalize_date_key(value: Any) -> str:
         return ''
 
 
-def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[int, dict[str, list[dict[str, Any]]]]:
+def _build_available_vehicle_accounts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    output: list[dict[str, Any]] = []
+    for row in rows:
+        branch_no = row.get('branch_no')
+        display_name = str(row.get('nickname') or row.get('name') or row.get('position_title') or row.get('email') or '').strip()
+        if not display_name:
+            display_name = f"{branch_no}호점" if branch_no not in (None, '') else '미지정'
+        output.append({
+            'branch_no': branch_no,
+            'label': f"[{branch_no}호점 차량] {display_name}" if branch_no not in (None, '') else f"[미지정 차량] {display_name}",
+            'display_name': display_name,
+        })
+    return output
+
+
+def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[int, dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     if not date_keys:
-        return 0, {}
+        return 0, {}, []
     rows = conn.execute(
         """
         SELECT id, branch_no, name, nickname, email, position_title, COALESCE(vehicle_available, 1) AS vehicle_available
         FROM users
+        WHERE branch_no IS NOT NULL
         ORDER BY COALESCE(branch_no, 9999), nickname, name, email
         """
     ).fetchall()
     users = [row_to_dict(row) for row in rows]
     active_users = [row for row in users if bool(row.get('vehicle_available', 1))]
     active_user_map = {int(row.get('id') or 0): row for row in active_users if int(row.get('id') or 0) > 0}
+    available_vehicle_accounts = _build_available_vehicle_accounts(active_users)
 
     exclusion_rows = conn.execute("SELECT id, user_id, start_date, end_date, reason FROM vehicle_exclusions").fetchall()
     exclusion_map: dict[int, list[dict[str, Any]]] = {}
@@ -2526,7 +2543,7 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
                         'reason': str(exclusion.get('reason') or '').strip() or '차량열외',
                     })
                     break
-    return len(active_users), result
+    return len(active_users), result, available_vehicle_accounts
 
 
 @app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions', methods=['GET', 'POST'])
@@ -2638,7 +2655,7 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
 
 
 def _collect_auto_unavailable_business(conn, date_keys: list[str]) -> dict[str, list[dict[str, Any]]]:
-    _, result = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
+    _, result, _ = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
     return result
 
 @app.get('/api/admin/accounts/{user_id}/vehicle-exclusions')
@@ -2709,7 +2726,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             (user['id'], *date_keys),
         ).fetchall()
         branch_rows = conn.execute("SELECT branch_no, nickname FROM users WHERE branch_no IS NOT NULL").fetchall()
-        dynamic_total_vehicle_count, auto_unavailable_by_date = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
+        dynamic_total_vehicle_count, auto_unavailable_by_date, available_vehicle_accounts = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
     branch_name_map = {int(r['branch_no']): r['nickname'] for r in branch_rows if r['branch_no'] is not None}
     entries_by_date = {key: [] for key in date_keys}
     for row in event_rows:
@@ -2816,6 +2833,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'excluded_vehicle_count': excluded_vehicle_count,
             'available_vehicle_count': available_vehicle_count,
             'base_vehicle_count': base_available_count,
+            'available_vehicle_accounts': available_vehicle_accounts,
             'status_a_count': event_status_a_count if event_status_a_count else _safe_count(note.get('status_a_count')),
             'status_b_count': event_status_b_count if event_status_b_count else _safe_count(note.get('status_b_count')),
             'status_c_count': event_status_c_count if event_status_c_count else _safe_count(note.get('status_c_count')),

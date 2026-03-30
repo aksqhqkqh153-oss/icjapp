@@ -3034,6 +3034,7 @@ function CalendarPage() {
   const [businessExclusionDraft, setBusinessExclusionDraft] = useState(() => normalizeBusinessExclusionDetails())
   const [staffExclusionDraft, setStaffExclusionDraft] = useState(() => normalizeStaffExclusionDetails())
   const [legendOpen, setLegendOpen] = useState(false)
+  const [vehicleListPopup, setVehicleListPopup] = useState({ open: false, title: '', items: [] })
   const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
@@ -3120,6 +3121,19 @@ function CalendarPage() {
     setCalendarStatusDate('')
     setMobileStatusPopup(null)
     setCalendarStatusEditMode(false)
+  }
+
+  function openVehicleListPopup(daySummary) {
+    const items = Array.isArray(daySummary?.available_vehicle_accounts) ? daySummary.available_vehicle_accounts : []
+    setVehicleListPopup({
+      open: true,
+      title: `${formatSelectedDateLabel(daySummary?.date || selectedDate)} 가용차량 목록`,
+      items,
+    })
+  }
+
+  function closeVehicleListPopup() {
+    setVehicleListPopup({ open: false, title: '', items: [] })
   }
 
   function updateBusinessExclusion(index, field, value) {
@@ -3213,7 +3227,7 @@ function CalendarPage() {
                         </>
                       )}
                     </button>
-                    {!isMobile && daySummary?.is_handless_day && <div className="calendar-handless-banner">손없는날</div>}
+                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</div>}
 
                     {!isMobile && (
                       <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
@@ -3255,7 +3269,7 @@ function CalendarPage() {
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
               {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate}`)}>일정등록</button>}
             </div>
-            {selectedDaySummary?.is_handless_day && <div className="calendar-handless-banner">손없는날</div>}
+            <div className={`calendar-handless-banner ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손없는날' : '일반'}</div>
             <div className="schedule-popup-list embedded">
               {detailItems.map(item => (
                 <button
@@ -3293,7 +3307,7 @@ function CalendarPage() {
                 )}
               </div>
               <div className="work-day-status-summary-top detailed">
-                <div className="work-day-status-line">가용차량 {String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')} / A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')} / B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')} / C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}</div>
+                <button type="button" className="work-day-status-line-button" onClick={() => openVehicleListPopup(selectedDaySummary)}><span className="work-day-status-line">가용차량 {String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')} / A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')} / B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')} / C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}</span></button>
                 <div className={`calendar-handless-pill ${calendarStatusForm.is_handless_day ? 'active' : ''}`}>{calendarStatusForm.is_handless_day ? '손없음' : '일반'}</div>
               </div>
 
@@ -3301,7 +3315,7 @@ function CalendarPage() {
                 <div className="day-status-detail-view stack">
                   <div className="day-status-detail-row">
                     <strong>가용차량</strong>
-                    <span>{String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')}대</span>
+                    <button type="button" className="ghost small" onClick={() => openVehicleListPopup(selectedDaySummary)}>{String(calendarStatusForm.available_vehicle_count ?? 0).padStart(2, '0')}대 보기</button>
                   </div>
                   <div className="day-status-detail-row">
                     <strong>A/B/C</strong>
@@ -3352,6 +3366,26 @@ function CalendarPage() {
                 </>
               )}
             </form>
+          </section>
+        </div>
+      )}
+
+      {vehicleListPopup.open && (
+        <div className="schedule-popup-backdrop" onClick={closeVehicleListPopup}>
+          <section className="schedule-popup-card vehicle-list-popup" onClick={event => event.stopPropagation()}>
+            <div className="between schedule-popup-head">
+              <div>
+                <strong>{vehicleListPopup.title}</strong>
+                <div className="muted">가용차량 {String((vehicleListPopup.items || []).length).padStart(2, '0')}대 목록입니다.</div>
+              </div>
+              <button type="button" className="ghost small" onClick={closeVehicleListPopup}>닫기</button>
+            </div>
+            <div className="vehicle-list-stack">
+              {(vehicleListPopup.items || []).map((item, index) => (
+                <div key={`${item.branch_no || 'x'}-${item.display_name || index}`} className="vehicle-list-row">{item.label}</div>
+              ))}
+              {!(vehicleListPopup.items || []).length && <div className="muted">표시할 가용차량 목록이 없습니다.</div>}
+            </div>
           </section>
         </div>
       )}
@@ -3673,6 +3707,7 @@ function buildDayStatusForm(day) {
     excluded_business_details: day?.excluded_business_details || [],
     excluded_staff_details: day?.excluded_staff_details || [],
     available_vehicle_count: Number(day?.available_vehicle_count || 0),
+    available_vehicle_accounts: day?.available_vehicle_accounts || [],
     status_a_count: Number(day?.status_a_count || 0),
     status_b_count: Number(day?.status_b_count || 0),
     status_c_count: Number(day?.status_c_count || 0),
@@ -7171,8 +7206,8 @@ function MaterialsPage({ user }) {
       permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
       permissions.can_view_my_requests ? { id: 'myRequests', label: '신청현황' } : null,
       permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
-      permissions.can_view_requesters ? { id: 'requesters', label: '구매신청자' } : null,
-      permissions.can_view_settlements ? { id: 'settlements', label: '구매자결산' } : null,
+      permissions.can_view_requesters ? { id: 'requesters', label: '신청목록' } : null,
+      permissions.can_view_settlements ? { id: 'settlements', label: '구매결산' } : null,
       permissions.can_view_history ? { id: 'history', label: '구매목록' } : null,
     ].filter(Boolean)
   }
@@ -7594,9 +7629,9 @@ function MaterialsPage({ user }) {
             <span>메모</span>
             <textarea rows={3} value={requestNote} onChange={(event) => setRequestNote(event.target.value)} placeholder="추가 요청사항을 입력해 주세요." />
           </label>
-          <div className="row gap materials-actions-right materials-actions-bottom">
-            <button type="button" className="ghost materials-bottom-button" onClick={() => setSalesStep(1)}>이전</button>
-            <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={submitPurchaseRequest}>입금 후 확인</button>
+          <div className="row gap materials-actions-split materials-actions-bottom">
+            <button type="button" className="ghost materials-bottom-button materials-bottom-button-left" onClick={() => setSalesStep(1)}>이전</button>
+            <button type="button" className="ghost active materials-bottom-button materials-bottom-button-right" disabled={saving} onClick={submitPurchaseRequest}>입금 후 확인</button>
           </div>
         </section>
       )
