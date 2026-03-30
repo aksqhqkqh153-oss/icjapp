@@ -5426,6 +5426,8 @@ function AdminModePage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [accountManageOpen, setAccountManageOpen] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
+  const [authorityOpen, setAuthorityOpen] = useState(false)
   const [accountManageTab, setAccountManageTab] = useState('list')
   const [accountDeleteSelection, setAccountDeleteSelection] = useState({})
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false)
@@ -5927,39 +5929,46 @@ function AdminModePage() {
 
       {actorGrade <= 2 && (
         <section className="card admin-mode-card">
-          <div className="between admin-mode-section-head">
+          <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setAccountManageOpen(v => !v)} onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setAccountManageOpen(v => !v)
+            }
+          }}>
             <h2>계정관리</h2>
-            <div className="inline-actions wrap">
-              <select className="small admin-sort-select" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
-                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <button type="button" className={accountManageOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageOpen(v => !v)}>{accountManageOpen ? '접기' : '펼치기'}</button>
-              {accountManageOpen && accountManageTab === 'create' && actorGrade <= 2 && (
-                <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
-              )}
-              {accountManageOpen && accountManageTab === 'edit' && actorGrade <= 2 && (
-                <button type="button" className="small" onClick={saveAccountEdits}>계정편집 저장</button>
-              )}
-              {accountManageOpen && accountManageTab === 'delete' && actorGrade <= 2 && (
-                <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
-              )}
-              {accountManageOpen && accountManageTab === 'switch' && actorGrade <= 2 && (
-                <>
-                  <button type="button" className="small" onClick={() => switchAccountType('business')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'business' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>사업자 전환</button>
-                  <button type="button" className="small ghost" onClick={() => switchAccountType('employee')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'employee' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>직원 전환</button>
-                </>
-              )}
-            </div>
+            <span className="admin-section-chevron">{accountManageOpen ? '−' : '+'}</span>
           </div>
 
           {accountManageOpen && (
             <div className="stack compact-gap">
-              <div className="inline-actions wrap">
-                <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
-                <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
-                <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
-                <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>계정전환</button>
-                <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
+              <div className="between admin-section-toolbar">
+                <div className="inline-actions wrap admin-section-tabbar">
+                  <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
+                  <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
+                  <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
+                  <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>계정전환</button>
+                  <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
+                  <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
+                    {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div className="inline-actions wrap admin-section-save-actions">
+                  {accountManageTab === 'create' && actorGrade <= 2 && (
+                    <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
+                  )}
+                  {accountManageTab === 'edit' && actorGrade <= 2 && (
+                    <button type="button" className="small" onClick={saveAccountEdits}>계정편집 저장</button>
+                  )}
+                  {accountManageTab === 'delete' && actorGrade <= 2 && (
+                    <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
+                  )}
+                  {accountManageTab === 'switch' && actorGrade <= 2 && (
+                    <>
+                      <button type="button" className="small" onClick={() => switchAccountType('business')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'business' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>사업자 전환</button>
+                      <button type="button" className="small ghost" onClick={() => switchAccountType('employee')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'employee' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>직원 전환</button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {accountManageTab === 'list' && (
@@ -6164,28 +6173,36 @@ function AdminModePage() {
       )}
 
       <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head">
+        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setStatusOpen(v => !v)} onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setStatusOpen(v => !v)
+          }
+        }}>
           <h2>운영현황</h2>
-          <div className="inline-actions wrap">
-            <select className="small admin-sort-select" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
-              {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            {actorGrade === 1 && (statusTab === 'branch'
-              ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
-              : renderActionButton('직원현황', '정보저장', saveEmployeeDetails))}
-            {actorGrade === 1 && <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
-              if (statusTab === 'branch') setBranchEditMode(v => !v)
-              else setEmployeeEditMode(v => !v)
-            }}>편집</button>}
-          </div>
+          <span className="admin-section-chevron">{statusOpen ? '−' : '+'}</span>
         </div>
-        <div className="admin-status-tabs-row">
-          <div className="inline-actions wrap status-tab-actions">
-            <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
-            <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
-          </div>
-        </div>
-        {statusTab === 'branch' ? (
+        {statusOpen && (
+          <>
+            <div className="between admin-section-toolbar">
+              <div className="inline-actions wrap status-tab-actions">
+                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
+                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
+                <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
+                  {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="inline-actions wrap admin-section-save-actions">
+                {actorGrade === 1 && (statusTab === 'branch'
+                  ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
+                  : renderActionButton('직원현황', '정보저장', saveEmployeeDetails))}
+                {actorGrade === 1 && <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+                  if (statusTab === 'branch') setBranchEditMode(v => !v)
+                  else setEmployeeEditMode(v => !v)
+                }}>편집</button>}
+              </div>
+            </div>
+            {statusTab === 'branch' ? (
           <>
             <div className="admin-inline-grid compact-inline-grid three-col summary-grid summary-grid-inline-labels">
               <label>가맹현황수 <input value={String(franchiseCount || 0)} readOnly /></label>
@@ -6289,21 +6306,35 @@ function AdminModePage() {
             </div>
           </>
         )}
+          </>
+        )}
       </section>
 
       <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head">
+        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setAuthorityOpen(v => !v)} onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setAuthorityOpen(v => !v)
+          }
+        }}>
           <h2>계정권한</h2>
-          <div className="inline-actions wrap">
-            <select className="small admin-sort-select" value={sortConfigs.authority.mode} onChange={e => handleSortModeChange('authority', e.target.value)}>
-              {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            {renderActionButton('계정권한', '정보저장', saveAccounts)}
-            {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
-            <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
-          </div>
+          <span className="admin-section-chevron">{authorityOpen ? '−' : '+'}</span>
         </div>
-        <div className="admin-account-table">
+        {authorityOpen && (
+          <>
+            <div className="between admin-section-toolbar">
+              <div className="inline-actions wrap admin-section-tabbar">
+                <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.authority.mode} onChange={e => handleSortModeChange('authority', e.target.value)}>
+                  {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="inline-actions wrap admin-section-save-actions">
+                {renderActionButton('계정권한', '정보저장', saveAccounts)}
+                {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
+                <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
+              </div>
+            </div>
+            <div className="admin-account-table">
           {pagedAccounts.map(item => (
             <div key={item.id} className="admin-account-grid compact labeled-account-grid">
               <div>
@@ -6338,11 +6369,13 @@ function AdminModePage() {
             </div>
           ))}
         </div>
-        <div className="admin-pagination">
-          {Array.from({ length: pageCount }, (_, index) => index + 1).map(pageNo => (
-            <button key={pageNo} type="button" className={accountPage === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
-          ))}
-        </div>
+            <div className="admin-pagination">
+              {Array.from({ length: pageCount }, (_, index) => index + 1).map(pageNo => (
+                <button key={pageNo} type="button" className={accountPage === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
 
@@ -7445,7 +7478,7 @@ function MaterialsPage({ user }) {
 
   async function submitPurchaseRequest() {
     if (cartRows.length === 0) {
-      setNotice('구매 개수를 입력한 뒤 진행해 주세요.')
+      setNotice('구매 수량을 입력한 뒤 진행해 주세요.')
       return
     }
     const confirmed = window.confirm('3333-29-1202673 카카오뱅크 (심진수)으로 입금하였습니까?')
@@ -7648,6 +7681,40 @@ function MaterialsPage({ user }) {
     return `${parts[0].slice(2)}.${parts[1]}.${parts[2]}`
   }
 
+  function formatFullDateLabel(value) {
+    const raw = String(value || '').slice(0, 10)
+    return raw || '-'
+  }
+
+  function parseRequesterMeta(request) {
+    const source = String(request?.requester_name || '').trim()
+    const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
+    if (match) {
+      return {
+        branch: match[1] || '-',
+        name: match[2] || match[1] || '-',
+      }
+    }
+    return {
+      branch: '-',
+      name: source || '-',
+    }
+  }
+
+  function renderRequestListHeader(mode) {
+    return (
+      <div className={`materials-request-sheet-row materials-request-sheet-head ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
+        {mode === 'pending' ? <div className="materials-request-sheet-check">입금확인</div> : null}
+        <div>호점</div>
+        <div>이름</div>
+        <div>구매신청일자</div>
+        <div>결산처리완료일자</div>
+        <div>물품총합계</div>
+      </div>
+    )
+  }
+
+
   function runTemporaryPulse(setter, values, duration = 2200) {
     setter(Array.isArray(values) ? values : [values])
     window.setTimeout(() => setter([]), duration)
@@ -7844,7 +7911,7 @@ function MaterialsPage({ user }) {
         <div className="materials-summary-head materials-summary-head-sales-top">
           <div>
             <h3>자재구매(1/2)</h3>
-            <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
+            <div className="muted">구매 수량을 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
           </div>
           {renderSalesPurchaseButtons('materials-actions-top')}
         </div>
@@ -7853,7 +7920,7 @@ function MaterialsPage({ user }) {
             <div>구분</div>
             <div>물품가</div>
             <div>현재고</div>
-            <div>구매개수</div>
+            <div>구매수량</div>
             <div>합계금액</div>
           </div>
           {productRows.map(product => {
@@ -7902,18 +7969,17 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     return (
-      <div className="materials-request-list">
+      <div className="materials-request-sheet">
+        {renderRequestListHeader(mode)}
         {requests.map(request => {
           const checked = selectedRequestIds.includes(request.id)
+          const meta = parseRequesterMeta(request)
+          const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
           return (
-            <section key={`request-${mode}-${request.id}`} className="card materials-request-card">
-              <div className="between gap">
-                <div>
-                  <div className="materials-request-title">{request.requester_name}</div>
-                  <div className="muted">{String(request.created_at || '').slice(0, 10)} · {Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
-                </div>
-                {mode === 'pending' && (
-                  <label className="materials-checkbox">
+            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
+              <div className={`materials-request-sheet-row ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
+                {mode === 'pending' ? (
+                  <label className="materials-checkbox materials-request-checkbox-cell">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -7923,13 +7989,21 @@ function MaterialsPage({ user }) {
                     />
                     <span>입금확인</span>
                   </label>
-                )}
+                ) : null}
+                <div>{meta.branch}</div>
+                <div className="materials-request-name-cell">
+                  <strong>{meta.name}</strong>
+                </div>
+                <div>{formatFullDateLabel(request.created_at)}</div>
+                <div>{formatFullDateLabel(request.settled_at)}</div>
+                <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-request-items">
-                {(request.items || []).filter(item => Number(item.quantity || 0) > 0).map(item => (
-                  <div key={`req-item-${request.id}-${item.id}`} className="materials-inline-item">
-                    <span>{item.short_name || item.name}</span>
-                    <strong>{item.quantity}</strong>
+              <div className="materials-request-items materials-request-items-sheet">
+                {visibleItems.map(item => (
+                  <div key={`req-item-${request.id}-${item.id}`} className="materials-inline-item materials-inline-item-sheet">
+                    <span className="materials-inline-item-name">{item.short_name || item.name}</span>
+                    <span className="materials-inline-item-price">{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</span>
+                    <strong>{Number(item.quantity || 0)}개</strong>
                   </div>
                 ))}
               </div>
@@ -8009,8 +8083,8 @@ function MaterialsPage({ user }) {
             <div>기존 개수</div>
             <div>당일 입고</div>
             <div>당일 출고</div>
-            <div>현 재고 현황</div>
-            <div>비고</div>
+            <div>현재고</div>
+            <div>현황 비고</div>
           </div>
           {inventoryRows.map(row => {
             const draft = inventoryDraft[row.product_id] || { incoming_qty: row.incoming_qty || 0, note: row.note || '' }
@@ -8057,9 +8131,9 @@ function MaterialsPage({ user }) {
           })}
         </div>
         {isInventoryManager && (
-          <div className="row gap wrap">
-            <button type="button" className="ghost" disabled={saving} onClick={saveInventoryDraft}>임시저장</button>
-            <button type="button" className="ghost active" disabled={saving || inventoryRows.some(row => row.is_closed)} onClick={closeInventoryDay}>결산처리</button>
+          <div className="row gap wrap materials-actions-right materials-actions-bottom">
+            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={saveInventoryDraft}>임시저장</button>
+            <button type="button" className="ghost active materials-bottom-button" disabled={saving || inventoryRows.some(row => row.is_closed)} onClick={closeInventoryDay}>결산처리</button>
           </div>
         )}
       </section>
@@ -8084,8 +8158,8 @@ function MaterialsPage({ user }) {
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">
           {renderRequestRows(pendingRequests, 'pending')}
-          <div className="row gap wrap">
-            <button type="button" className="ghost active" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
+          <div className="row gap wrap materials-actions-right materials-actions-bottom">
+            <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
           </div>
         </section>
       )}
