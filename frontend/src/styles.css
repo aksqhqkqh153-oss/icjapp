@@ -3853,6 +3853,11 @@ button.ghost.active {
   border: 1px solid #edf1f5;
   box-shadow: var(--shadow-soft);
 }
+.materials-table-sales .materials-row.materials-row-sales,
+.materials-table-sales .materials-row.materials-row-head.materials-row-head-sales {
+  grid-template-columns: minmax(140px, 1.35fr) minmax(96px, 0.9fr) minmax(76px, 0.65fr) minmax(110px, 0.9fr) minmax(116px, 0.95fr);
+  width: 100%;
+}
 .materials-table-inventory .materials-row {
   grid-template-columns: minmax(120px, 1.45fr) 68px 76px 76px 84px minmax(84px, 1fr);
 }
