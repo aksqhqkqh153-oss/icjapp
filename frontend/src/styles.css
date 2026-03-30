@@ -4032,7 +4032,7 @@ button.ghost.active {
   .materials-row-sales {
     gap: 4px;
     padding: 6px 7px;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .materials-table {
@@ -4043,9 +4043,15 @@ button.ghost.active {
   .materials-row,
   .materials-row-head-sales,
   .materials-row-sales {
-    grid-template-columns: max-content max-content max-content minmax(68px, 72px) max-content;
-    width: max-content;
     min-width: 0;
+  }
+
+  .materials-table-sales .materials-row.materials-row-sales,
+  .materials-table-sales .materials-row.materials-row-head.materials-row-head-sales {
+    grid-template-columns: 64px 58px 44px 62px 62px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .materials-row-head-sales > div {
@@ -4053,9 +4059,15 @@ button.ghost.active {
     line-height: 1.1;
   }
 
+  .materials-row-sales > div,
+  .materials-row-head-sales > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .materials-row-sales > div:first-child,
   .materials-row-head-sales > div:first-child {
-    max-width: 72px;
+    max-width: 64px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -4067,7 +4079,7 @@ button.ghost.active {
   .materials-row-head-sales > div:nth-child(2),
   .materials-row-head-sales > div:nth-child(3),
   .materials-row-head-sales > div:nth-child(5) {
-    width: max-content;
+    width: 100%;
   }
 
   .materials-table-inventory .materials-row {
@@ -4076,9 +4088,9 @@ button.ghost.active {
 
   .materials-qty-input,
   .materials-note-input {
-    min-height: 28px;
-    padding: 4px 6px;
-    font-size: 11px;
+    min-height: 26px;
+    padding: 3px 5px;
+    font-size: 10px;
   }
 
   .materials-request-card {
