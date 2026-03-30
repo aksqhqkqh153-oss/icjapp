@@ -7387,6 +7387,24 @@ function MaterialsPage({ user }) {
     )
   }
 
+  function handleMaterialsPurchaseClick() {
+    if (insufficientCartItem) {
+      const label = insufficientCartItem.short_name || insufficientCartItem.name || '해당'
+      setSalesError(`${label} 물품의 재고가 부족하여 구매를 할 수 없습니다.`)
+      return
+    }
+    setSalesError('')
+    setSalesStep(2)
+  }
+
+  function renderSalesPurchaseButtons(positionClass = '') {
+    return (
+      <div className={`row gap materials-actions-right ${positionClass}`.trim()}>
+        <button type="button" className="ghost active materials-bottom-button" onClick={handleMaterialsPurchaseClick}>자재구매</button>
+      </div>
+    )
+  }
+
   function renderSalesContent() {
     if (salesStep === 2) {
       return (
@@ -7434,11 +7452,14 @@ function MaterialsPage({ user }) {
     }
     return (
       <section className="card materials-panel">
-        <div className="materials-summary-head">
-          <h3>자재구매(1/2)</h3>
-          <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
+        <div className="materials-summary-head materials-summary-head-sales-top">
+          <div>
+            <h3>자재구매(1/2)</h3>
+            <div className="muted">구매 개수를 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
+          </div>
+          {renderSalesPurchaseButtons('materials-actions-top')}
         </div>
-        <div className="materials-table">
+        <div className="materials-table materials-table-sales">
           <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales">
             <div>구분</div>
             <div>물품가</div>
@@ -7481,17 +7502,7 @@ function MaterialsPage({ user }) {
             <div>{cartTotal.toLocaleString('ko-KR')}원</div>
           </div>
         </div>
-        <div className="row gap materials-actions-right materials-actions-bottom">
-          <button type="button" className="ghost active materials-bottom-button" onClick={() => {
-            if (insufficientCartItem) {
-              const label = insufficientCartItem.short_name || insufficientCartItem.name || '해당'
-              setSalesError(`${label} 물품의 재고가 부족하여 구매를 할 수 없습니다.`)
-              return
-            }
-            setSalesError('')
-            setSalesStep(2)
-          }}>자재구매</button>
-        </div>
+        {renderSalesPurchaseButtons('materials-actions-bottom')}
         {salesError ? <div className="notice-text materials-inline-notice">{salesError}</div> : null}
       </section>
     )
@@ -7614,13 +7625,6 @@ function MaterialsPage({ user }) {
   return (
     <div className="stack-page materials-page">
       <section className="card materials-hero">
-        <div className="between materials-hero-head">
-          <div>
-            <h2>자재구매/현황</h2>
-            <div className="muted">자재 판매, 재고, 결산, 구매목록을 한 화면에서 관리합니다.</div>
-          </div>
-          <div className="muted">기준일: {data?.today || ''}</div>
-        </div>
         <div className="materials-tabs" role="tablist" aria-label="자재 카테고리">
           {visibleTabs.map(renderTabButton)}
         </div>

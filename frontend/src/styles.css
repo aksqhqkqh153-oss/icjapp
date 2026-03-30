@@ -3791,12 +3791,15 @@ button.ghost.active {
   flex-direction: column;
   gap: 8px;
 }
+.materials-table-sales {
+  align-items: flex-start;
+}
 
 .materials-row-head-sales {
-  grid-template-columns: minmax(140px, 2.1fr) minmax(108px, 1.05fr) minmax(86px, 0.8fr) minmax(108px, 0.95fr) minmax(116px, 1.1fr);
+  grid-template-columns: minmax(104px, max-content) minmax(82px, max-content) minmax(64px, max-content) minmax(88px, max-content) minmax(96px, max-content);
 }
 .materials-row-sales {
-  grid-template-columns: minmax(140px, 2.1fr) minmax(108px, 1.05fr) minmax(86px, 0.8fr) minmax(108px, 0.95fr) minmax(116px, 1.1fr);
+  grid-template-columns: minmax(104px, max-content) minmax(82px, max-content) minmax(64px, max-content) minmax(88px, max-content) minmax(96px, max-content);
 }
 .materials-row-head-sales > div {
   text-align: center !important;
@@ -3805,12 +3808,26 @@ button.ghost.active {
 .materials-actions-right {
   justify-content: flex-end;
 }
+.materials-actions-top {
+  margin-left: auto;
+  align-self: flex-start;
+}
 .materials-actions-bottom {
   margin-top: 10px;
   padding-bottom: 4px;
 }
 .materials-bottom-button {
   min-width: 116px;
+}
+.materials-summary-head-sales-top {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.materials-summary-head-sales-top > div:first-child {
+  flex: 1;
+  min-width: 0;
 }
 .materials-sheet-header-label {
   display: inline-flex;
@@ -3856,6 +3873,11 @@ button.ghost.active {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.materials-row-sales > div:first-child,
+.materials-row-head-sales > div:first-child {
+  overflow: visible;
+  text-overflow: clip;
 }
 .materials-row > div:not(:first-child) {
   text-align: right;
@@ -4016,13 +4038,31 @@ button.ghost.active {
   .materials-row,
   .materials-row-head-sales,
   .materials-row-sales {
-    grid-template-columns: minmax(88px, 1.5fr) minmax(80px, 1fr) minmax(64px, 0.8fr) minmax(84px, 0.95fr) minmax(96px, 1.05fr);
-    min-width: 460px;
+    grid-template-columns: max-content max-content max-content minmax(68px, 72px) max-content;
+    width: max-content;
+    min-width: 0;
   }
 
   .materials-row-head-sales > div {
     white-space: nowrap;
     line-height: 1.1;
+  }
+
+  .materials-row-sales > div:first-child,
+  .materials-row-head-sales > div:first-child {
+    max-width: 72px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .materials-row-sales > div:nth-child(2),
+  .materials-row-sales > div:nth-child(3),
+  .materials-row-sales > div:nth-child(5),
+  .materials-row-head-sales > div:nth-child(2),
+  .materials-row-head-sales > div:nth-child(3),
+  .materials-row-head-sales > div:nth-child(5) {
+    width: max-content;
   }
 
   .materials-table-inventory .materials-row {
@@ -4055,7 +4095,16 @@ button.ghost.active {
   }
 
   .materials-bottom-button {
-    min-width: 96px;
+    min-width: 92px;
+    padding-inline: 12px;
+  }
+
+  .materials-summary-head-sales-top {
+    align-items: stretch;
+  }
+
+  .materials-actions-top {
+    align-self: flex-end;
   }
 
   .materials-sheet-table th,
