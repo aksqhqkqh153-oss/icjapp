@@ -7119,6 +7119,9 @@ function MaterialsPage({ user }) {
   const [quantities, setQuantities] = useState({})
   const [requestNote, setRequestNote] = useState('')
   const [selectedRequestIds, setSelectedRequestIds] = useState([])
+  const [myEditing, setMyEditing] = useState(false)
+  const [mySelectedRequestIds, setMySelectedRequestIds] = useState([])
+  const [myRequestDraft, setMyRequestDraft] = useState({})
   const [inventoryDraft, setInventoryDraft] = useState({})
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
@@ -7145,9 +7148,22 @@ function MaterialsPage({ user }) {
     loadOverview()
   }, [])
 
+  useEffect(() => {
+    const nextDraft = {}
+    for (const request of (data?.my_requests || [])) {
+      for (const item of (request.items || [])) {
+        nextDraft[`${request.id}-${item.product_id}`] = Number(item.quantity || 0)
+      }
+    }
+    setMyRequestDraft(nextDraft)
+    setMySelectedRequestIds([])
+    setMyEditing(false)
+  }, [data?.my_requests])
+
   function buildVisibleTabs(permissions) {
     return [
       permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
+      permissions.can_view_my_requests ? { id: 'myRequests', label: '신청현황' } : null,
       permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
       permissions.can_view_requesters ? { id: 'requesters', label: '구매신청자' } : null,
       permissions.can_view_settlements ? { id: 'settlements', label: '구매자결산' } : null,
@@ -7160,6 +7176,7 @@ function MaterialsPage({ user }) {
   const pendingRequests = data?.pending_requests || []
   const settledRequests = data?.settled_requests || []
   const historyRequests = data?.history_requests || []
+  const myRequests = data?.my_requests || []
   const inventoryRows = data?.inventory_rows || []
   const isInventoryManager = Boolean(data?.permissions?.can_manage_inventory)
 
@@ -7286,6 +7303,48 @@ function MaterialsPage({ user }) {
     }
   }
 
+
+  function groupedMyRequests() {
+    const groups = []
+    const sorted = [...myRequests].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    for (const request of sorted) {
+      const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0 || myEditing)
+      groups.push({
+        ...request,
+        visibleItems,
+        totalAmount: visibleItems.reduce((sum, item) => sum + (Number(myRequestDraft[`${request.id}-${item.product_id}`] ?? item.quantity ?? 0) * Number(item.unit_price || 0)), 0),
+      })
+    }
+    return groups
+  }
+
+  async function saveMyRequestEdits() {
+    if (mySelectedRequestIds.length === 0) {
+      setNotice('수정/취소할 신청건을 선택해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      for (const requestId of mySelectedRequestIds) {
+        const request = myRequests.find(item => item.id === requestId)
+        if (!request || String(request.status || '') === 'settled') continue
+        const rows = (request.items || []).map(item => ({
+          product_id: Number(item.product_id),
+          quantity: Math.max(0, Number(myRequestDraft[`${request.id}-${item.product_id}`] ?? item.quantity ?? 0)),
+        }))
+        await api('/api/materials/purchase-requests', {
+          method: 'PUT',
+          body: JSON.stringify({ request_ids: [requestId], rows }),
+        })
+      }
+      setNotice('신청수량 수정/취소가 반영되었습니다.')
+      await loadOverview('myRequests')
+    } catch (error) {
+      setNotice(error.message || '신청현황 수정 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   function displayMaterialName(product, compact = false) {
     const base = String(product?.name || '')
@@ -7553,6 +7612,61 @@ function MaterialsPage({ user }) {
   }
 
 
+  function renderMyRequests() {
+    const grouped = groupedMyRequests()
+    return (
+      <section className="card materials-panel materials-panel-compact-head">
+        <div className="materials-myrequest-head">
+          <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />- 신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.</div>
+          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : setMyEditing(true)}>{myEditing ? '저장' : '수정/취소'}</button>
+        </div>
+        <div className="materials-request-history-list">
+          {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
+            const isSettled = String(request.status || '') === 'settled'
+            return (
+              <section key={`my-request-${request.id}`} className="card materials-request-history-card">
+                <div className="materials-request-history-date-row">
+                  <div className="materials-request-history-date-left">
+                    {myEditing && !isSettled ? (
+                      <label className="materials-checkbox">
+                        <input type="checkbox" checked={mySelectedRequestIds.includes(request.id)} onChange={(event) => setMySelectedRequestIds(prev => event.target.checked ? [...prev, request.id] : prev.filter(id => id !== request.id))} />
+                      </label>
+                    ) : null}
+                    <strong>{String(request.created_at || '').slice(0, 10)}</strong>
+                  </div>
+                  <span className={`materials-status-pill ${isSettled ? 'settled' : 'pending'}`}>{isSettled ? '결산완료' : '신청접수'}</span>
+                </div>
+                <div className="materials-request-history-table">
+                  <div className="materials-request-history-row materials-request-history-head">
+                    <div>구매물품</div><div>구매가격</div><div>구매수량</div><div>합계가격</div><div>결산처리상태</div>
+                  </div>
+                  {(request.visibleItems || []).map(item => {
+                    const key = `${request.id}-${item.product_id}`
+                    const qty = Math.max(0, Number(myRequestDraft[key] ?? item.quantity ?? 0))
+                    const lineTotal = qty * Number(item.unit_price || 0)
+                    return (
+                      <div key={key} className="materials-request-history-row">
+                        <div>{item.short_name || item.name}</div>
+                        <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
+                        <div>{myEditing && mySelectedRequestIds.includes(request.id) && !isSettled ? <input className="materials-qty-input materials-history-qty-input" inputMode="numeric" value={qty} onChange={(e) => setMyRequestDraft(prev => ({...prev, [key]: String(e.target.value).replace(/[^\d]/g, '') ? Number(String(e.target.value).replace(/[^\d]/g, '')) : 0}))} /> : qty}</div>
+                        <div>{lineTotal.toLocaleString('ko-KR')}원</div>
+                        <div className={qty === 0 && !isSettled ? 'materials-cancel-text' : ''}>{isSettled ? '결산완료' : (qty === 0 ? '취소접수' : '신청접수')}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="materials-request-history-total">총계가격 {request.totalAmount.toLocaleString('ko-KR')}원</div>
+              </section>
+            )
+          })}
+        </div>
+        <div className="materials-myrequest-actions-bottom">
+          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : setMyEditing(true)}>{myEditing ? '저장' : '수정/취소'}</button>
+        </div>
+      </section>
+    )
+  }
+
   function renderInventoryContent() {
     return (
       <section className="card materials-panel materials-panel-compact-head">
@@ -7632,6 +7746,7 @@ function MaterialsPage({ user }) {
       </section>
 
       {activeTab === 'sales' && renderSalesContent()}
+      {activeTab === 'myRequests' && renderMyRequests()}
       {activeTab === 'inventory' && renderInventoryContent()}
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">

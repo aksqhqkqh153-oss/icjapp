@@ -308,6 +308,14 @@ class MaterialPurchaseCreateIn(BaseModel):
 class MaterialSettlementProcessIn(BaseModel):
     request_ids: list[int] = []
 
+class MaterialRequestUpdateRowIn(BaseModel):
+    product_id: int
+    quantity: int = 0
+
+class MaterialRequestUpdateIn(BaseModel):
+    request_ids: list[int] = []
+    rows: list[MaterialRequestUpdateRowIn] = []
+
 class MaterialInventoryRowIn(BaseModel):
     product_id: int
     incoming_qty: int = 0
@@ -650,6 +658,7 @@ def _material_permissions(user: dict) -> dict:
         'can_view_settlements': _materials_scope_allowed(user, 'settlements'),
         'can_view_history': _materials_scope_allowed(user, 'history'),
         'can_manage_inventory': _materials_scope_allowed(user, 'inventory_manage'),
+        'can_view_my_requests': _materials_scope_allowed(user, 'sales'),
     }
 
 def _material_request_detail(conn, request_row: dict) -> dict:
@@ -733,6 +742,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
     pending_requests = [row for row in request_rows if row.get('status') == 'pending']
     settled_requests = [row for row in request_rows if row.get('status') == 'settled']
     history_rows = settled_requests[:]
+    my_request_rows = [row for row in request_rows if int(row.get('user_id') or 0) == int(user.get('id') or 0)]
     products = _material_products(conn)
     inventory_rows = _material_today_inventory_rows(conn, today_key)
     inventory_map = {int(row['product_id']): row for row in inventory_rows}
@@ -752,6 +762,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
         'pending_requests': pending_requests if permissions['can_view_requesters'] else [],
         'settled_requests': settled_requests if permissions['can_view_settlements'] else [],
         'history_requests': history_rows if permissions['can_view_history'] else [],
+        'my_requests': my_request_rows if permissions['can_view_my_requests'] else [],
         'inventory_rows': inventory_rows if permissions['can_view_inventory'] else [],
         'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
@@ -3355,6 +3366,58 @@ def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user
             updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (row['id'],)).fetchone()
             settled_rows.append(_material_request_detail(conn, row_to_dict(updated)))
         return {'ok': True, 'settled_requests': settled_rows, 'share_text': _material_share_text(settled_rows)}
+
+
+@app.put('/api/materials/purchase-requests')
+def update_material_purchase_requests(payload: MaterialRequestUpdateIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'sales')
+    request_ids = sorted({int(item) for item in payload.request_ids if int(item or 0) > 0})
+    if not request_ids:
+        raise HTTPException(status_code=400, detail='수정/취소할 신청건을 선택해 주세요.')
+    quantity_map = {int(row.product_id): max(0, int(row.quantity or 0)) for row in payload.rows}
+    if not quantity_map:
+        raise HTTPException(status_code=400, detail='수정할 구매수량 정보가 없습니다.')
+    now = utcnow()
+    placeholders = ','.join('?' for _ in request_ids)
+    with get_conn() as conn:
+        rows = [row_to_dict(row) for row in conn.execute(
+            f"SELECT * FROM material_purchase_requests WHERE id IN ({placeholders}) AND user_id = ? ORDER BY created_at DESC, id DESC",
+            tuple(request_ids) + (user['id'],),
+        ).fetchall()]
+        if not rows:
+            raise HTTPException(status_code=404, detail='수정 가능한 신청건을 찾을 수 없습니다.')
+        blocked = [row for row in rows if str(row.get('status') or '') == 'settled']
+        if blocked:
+            raise HTTPException(status_code=400, detail='결산완료된 신청건은 수정 또는 취소할 수 없습니다.')
+        valid_product_ids = {int(row['id']) for row in conn.execute("SELECT id FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+        updated_requests = []
+        for request_row in rows:
+            items = [row_to_dict(row) for row in conn.execute(
+                "SELECT * FROM material_purchase_request_items WHERE request_id = ? ORDER BY id",
+                (request_row['id'],),
+            ).fetchall()]
+            total_amount = 0
+            for item in items:
+                product_id = int(item.get('product_id') or 0)
+                if product_id not in valid_product_ids:
+                    continue
+                if product_id in quantity_map:
+                    qty = max(0, int(quantity_map[product_id]))
+                    line_total = qty * int(item.get('unit_price') or 0)
+                    conn.execute(
+                        "UPDATE material_purchase_request_items SET quantity = ?, line_total = ?, memo = ? WHERE id = ?",
+                        (qty, line_total, '취소접수' if qty == 0 else '', int(item['id'])),
+                    )
+                    total_amount += line_total
+                else:
+                    total_amount += int(item.get('line_total') or 0)
+            conn.execute(
+                "UPDATE material_purchase_requests SET total_amount = ?, request_note = ?, created_at = ? WHERE id = ?",
+                (total_amount, str(request_row.get('request_note') or ''), now, int(request_row['id'])),
+            )
+            updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (int(request_row['id']),)).fetchone()
+            updated_requests.append(_material_request_detail(conn, row_to_dict(updated)))
+        return {'ok': True, 'requests': updated_requests}
 
 @app.post('/api/materials/inventory')
 def save_material_inventory(payload: MaterialInventorySaveIn, user=Depends(require_user)):

@@ -4624,3 +4624,105 @@ a:focus-visible {
 .stat:hover {
   border-color: var(--line-strong);
 }
+
+
+.materials-myrequest-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.materials-myrequest-guide {
+  flex: 1;
+  line-height: 1.6;
+}
+.materials-request-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.materials-request-history-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.materials-request-history-date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.materials-request-history-date-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.materials-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.materials-status-pill.pending { background: #eef6ff; color: #1d9bf0; }
+.materials-status-pill.settled { background: #edf7ed; color: #1a7f37; }
+.materials-request-history-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.materials-request-history-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 92px 96px 104px 92px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #edf1f5;
+}
+.materials-request-history-head {
+  font-weight: 700;
+  background: #f6f8fa;
+}
+.materials-request-history-row > div:not(:first-child) { text-align: right; white-space: nowrap; }
+.materials-request-history-total {
+  display: flex;
+  justify-content: flex-end;
+  font-weight: 700;
+}
+.materials-history-qty-input {
+  min-height: 34px;
+  padding: 5px 8px;
+}
+.materials-cancel-text { color: #d93025; font-weight: 700; }
+.materials-myrequest-actions-bottom {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (max-width: 768px) {
+  .materials-actions-bottom {
+    justify-content: flex-end;
+  }
+  .materials-bottom-button {
+    margin-left: auto;
+  }
+  .materials-myrequest-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .materials-request-history-row {
+    grid-template-columns: 78px 62px 64px 72px 72px;
+    gap: 4px;
+    padding: 6px 7px;
+    font-size: 10px;
+  }
+  .materials-request-history-total {
+    font-size: 12px;
+  }
+  .materials-status-pill {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
