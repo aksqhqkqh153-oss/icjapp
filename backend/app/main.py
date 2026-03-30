@@ -245,6 +245,10 @@ class AdminAccountsBulkUpdateIn(BaseModel):
 class AdminDeleteAccountsIn(BaseModel):
     ids: list[int] = []
 
+class AdminAccountTypeSwitchIn(BaseModel):
+    user_id: int
+    target_type: str = 'employee'
+
 class AdminUserDetailIn(BaseModel):
     id: int
     name: str = ''
@@ -390,6 +394,25 @@ def _can_actor_apply(actor: dict, actor_key: str, target_key: str, target_grade:
     actor_grade = _grade_of(actor)
     cfg = _get_permission_config(conn)
     return actor_grade <= int(cfg.get(actor_key, 1)) and target_grade >= int(cfg.get(target_key, 7)) and actor_grade < target_grade
+
+
+def _normalize_account_type(row: Any) -> str:
+    data = row_to_dict(row)
+    role_value = str(data.get('role') or '').strip().lower()
+    if role_value in {'business', 'owner', 'franchise', 'branch'}:
+        return 'business'
+    if data.get('branch_no') not in (None, ''):
+        return 'business'
+    return 'employee'
+
+
+def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
+    item = row_to_dict(row)
+    item['grade_label'] = grade_label(item.get('grade'))
+    item['approved'] = bool(item.get('approved', 1))
+    item['vehicle_available'] = bool(item.get('vehicle_available', 1))
+    item['account_type'] = _normalize_account_type(item)
+    return item
 
 
 def _split_names_for_match(*values: str) -> list[str]:
@@ -3057,10 +3080,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
         ).fetchall()
-    user_dicts = [row_to_dict(row) for row in users]
-    for item in user_dicts:
-        item['grade_label'] = grade_label(item.get('grade'))
-        item['approved'] = bool(item.get('approved', 1))
+    user_dicts = [_serialize_admin_user_row(row) for row in users]
     branches = [item for item in user_dicts if item.get('branch_no') is not None]
     employees = [item for item in user_dicts if item.get('branch_no') is None]
     return {
@@ -3138,6 +3158,27 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             updated.append(user_public_dict(row))
         _sync_all_day_note_available_vehicle_counts(conn)
     return {'ok': True, 'accounts': updated}
+
+@app.post("/api/admin/accounts/switch-type")
+def switch_admin_account_type(payload: AdminAccountTypeSwitchIn, admin=Depends(require_admin)):
+    target_type = str(payload.target_type or '').strip().lower()
+    if target_type not in {'business', 'employee'}:
+        raise HTTPException(status_code=400, detail='전환 유형이 올바르지 않습니다.')
+    with get_conn() as conn:
+        existing = conn.execute("SELECT * FROM users WHERE id = ?", (int(payload.user_id),)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        current_type = _normalize_account_type(existing)
+        if current_type == target_type:
+            return {'ok': True, 'user': _serialize_admin_user_row(existing)}
+        role_value = 'business' if target_type == 'business' else 'user'
+        position_title = str((existing['position_title'] if 'position_title' in existing.keys() else '') or '').strip()
+        if target_type == 'business' and not position_title:
+            position_title = '호점대표'
+        conn.execute("UPDATE users SET role = ?, position_title = ? WHERE id = ?", (role_value, position_title, int(payload.user_id)))
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (int(payload.user_id),)).fetchone()
+    return {'ok': True, 'user': _serialize_admin_user_row(row)}
+
 @app.post("/api/admin/users/details-bulk")
 def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depends(require_admin_or_subadmin)):
     editable_fields = [

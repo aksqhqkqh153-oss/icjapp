@@ -4798,3 +4798,31 @@ a:focus-visible {
 .materials-actions-split { justify-content: space-between; width: 100%; }
 .materials-bottom-button-left { margin-right: auto; }
 .materials-bottom-button-right { margin-left: auto; }
+
+.admin-account-switch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-account-switch-row {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: none;
+}
+.admin-account-switch-row.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+.admin-account-switch-main, .admin-account-switch-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}

@@ -5403,6 +5403,8 @@ function AdminModePage() {
   const [accountDeleteSelection, setAccountDeleteSelection] = useState({})
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false)
   const [accountDeleteConfirmText, setAccountDeleteConfirmText] = useState('')
+  const [selectedSwitchAccountId, setSelectedSwitchAccountId] = useState(null)
+  const [switchLoading, setSwitchLoading] = useState(false)
   const [createForm, setCreateForm] = useState({
     email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
   })
@@ -5435,6 +5437,20 @@ function AdminModePage() {
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
   const ACCOUNTS_PER_PAGE = 10
 
+  function parseVehicleAvailable(value) {
+    if (value === false || value === 0 || value === '0' || value === 'false' || value === 'False' || value === '불가') return false
+    return true
+  }
+
+  function normalizeAdminRow(item) {
+    const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
+    return { ...item, vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
+  }
+
+  function vehicleAvailableSelectValue(item) {
+    return parseVehicleAvailable(item?.vehicle_available) ? '가용' : '불가'
+  }
+
   async function load() {
     setLoading(true)
     setError('')
@@ -5446,9 +5462,9 @@ function AdminModePage() {
         branch_count_override: String(response.config?.branch_count_override || response.branch_count || ''),
         ...response.permission_config,
       })
-      setAccountRows((response.accounts || []).map(item => ({ ...item })))
-      setBranchRows((response.branches || []).map(item => ({ ...item })))
-      setEmployeeRows((response.employees || []).map(item => ({ ...item })))
+      setAccountRows((response.accounts || []).map(normalizeAdminRow))
+      setBranchRows((response.branches || []).map(normalizeAdminRow))
+      setEmployeeRows((response.employees || []).map(normalizeAdminRow))
       setAccountPage(1)
       setAccountManagePages({ list: 1, edit: 1, delete: 1 })
       setAccountListOpen({})
@@ -5456,6 +5472,7 @@ function AdminModePage() {
       setAccountDeleteSelection({})
       setAccountDeleteDialogOpen(false)
       setAccountDeleteConfirmText('')
+      setSelectedSwitchAccountId(null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -5482,7 +5499,7 @@ function AdminModePage() {
   async function saveAccounts() {
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
-      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title, vehicle_available }) => ({ id, grade: Number(grade), approved, position_title: position_title || '', vehicle_available: !!vehicle_available })) }),
+      body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title, vehicle_available }) => ({ id, grade: Number(grade), approved, position_title: position_title || '', vehicle_available: parseVehicleAvailable(vehicle_available) })) }),
     })
     setMessage('계정 권한 정보가 저장되었습니다.')
     await load()
@@ -5515,7 +5532,7 @@ function AdminModePage() {
       google_email: row.google_email || '',
       resident_id: row.resident_id || '',
       position_title: row.position_title || '',
-      vehicle_available: !!row.vehicle_available,
+      vehicle_available: parseVehicleAvailable(row.vehicle_available),
     }
   }
 
@@ -5556,7 +5573,7 @@ function AdminModePage() {
           grade: Number(row.grade || 6),
           approved: !!row.approved,
           position_title: row.position_title || '',
-          vehicle_available: !!row.vehicle_available,
+          vehicle_available: parseVehicleAvailable(row.vehicle_available),
         })),
       }),
     })
@@ -5575,12 +5592,30 @@ function AdminModePage() {
         grade: Number(createForm.grade || 6),
         position_title: createForm.branch_no ? '호점대표' : (createForm.position_title || ''),
         approved: !!createForm.approved,
-        vehicle_available: !!createForm.vehicle_available,
+        vehicle_available: parseVehicleAvailable(createForm.vehicle_available),
       }),
     })
     setMessage('계정이 생성되었습니다.')
     setCreateForm({ email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
     await load()
+  }
+
+  async function switchAccountType(targetType) {
+    if (!selectedSwitchAccountId) {
+      setMessage('전환할 계정을 먼저 선택해주세요.')
+      return
+    }
+    setSwitchLoading(true)
+    try {
+      await api('/api/admin/accounts/switch-type', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: Number(selectedSwitchAccountId), target_type: targetType }),
+      })
+      setMessage(targetType === 'business' ? '사업자 계정으로 전환되었습니다.' : '직원 계정으로 전환되었습니다.')
+      await load()
+    } finally {
+      setSwitchLoading(false)
+    }
   }
 
   function requestDeleteAccounts() {
@@ -5723,6 +5758,7 @@ function AdminModePage() {
     () => accountRows.filter(item => Number(item.id) !== Number(currentUser?.id || 0)),
     [accountRows, currentUser?.id],
   )
+  const selectedSwitchAccount = useMemo(() => accountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null, [accountRows, selectedSwitchAccountId])
 
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
@@ -5789,6 +5825,7 @@ function AdminModePage() {
   const pagedManageList = useMemo(() => getPagedRows(accountRows, 'list'), [accountRows, accountManagePages])
   const pagedManageDeleteRows = useMemo(() => getPagedRows(deletableAccounts, 'delete'), [deletableAccounts, accountManagePages])
   const pagedManageEditRows = useMemo(() => getPagedRows(accountRows, 'edit'), [accountRows, accountManagePages])
+  const pagedManageSwitchRows = useMemo(() => getPagedRows(accountRows, 'switch'), [accountRows, accountManagePages])
 
   if (loading) return <div className="card">관리자 정보를 불러오는 중...</div>
   if (error) return <div className="card error">{error}</div>
@@ -5813,6 +5850,12 @@ function AdminModePage() {
               {accountManageOpen && accountManageTab === 'delete' && (
                 <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
               )}
+              {accountManageOpen && accountManageTab === 'switch' && (
+                <>
+                  <button type="button" className="small" onClick={() => switchAccountType('business')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'business'}>사업자 전환</button>
+                  <button type="button" className="small ghost" onClick={() => switchAccountType('employee')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'employee'}>직원 전환</button>
+                </>
+              )}
             </div>
           </div>
 
@@ -5822,6 +5865,7 @@ function AdminModePage() {
                 <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
                 <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
                 <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
+                <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>계정전환</button>
                 <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
               </div>
 
@@ -5910,6 +5954,33 @@ function AdminModePage() {
                     <label className="check"><input type="checkbox" checked={!!createForm.approved} onChange={e => setCreateForm({ ...createForm, approved: e.target.checked })} /> 승인됨</label>
                   </div>
                 </form>
+              )}
+
+              {accountManageTab === 'switch' && (
+                <>
+                  <div className="muted">계정을 선택한 뒤 우측 상단의 사업자 전환 / 직원 전환 버튼을 눌러 전환하세요. 기존 계정 정보는 유지됩니다.</div>
+                  <div className="admin-account-switch-list">
+                    {pagedManageSwitchRows.map(item => {
+                      const isSelected = Number(selectedSwitchAccountId || 0) === Number(item.id)
+                      return (
+                        <button type="button" key={`account-switch-${item.id}`} className={`admin-account-switch-row ${isSelected ? 'selected' : ''}`.trim()} onClick={() => setSelectedSwitchAccountId(item.id)}>
+                          <div className="admin-account-switch-main">
+                            <strong>[{item.name || item.nickname || '-'}]</strong>
+                            <span>[{item.email || '-'}]</span>
+                            <span>[{item.account_unique_id || '-'}]</span>
+                          </div>
+                          <div className="admin-account-switch-sub muted">
+                            <span>현재유형 : {item.account_type === 'business' ? '사업자' : '직원'}</span>
+                            <span>직급 : {defaultPositionForRow(item) || '미지정'}</span>
+                            <span>권한 : {item.grade_label || gradeLabel(item.grade)}</span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                    {!accountRows.length && <div className="muted">전환할 계정이 없습니다.</div>}
+                  </div>
+                  {renderPagination(accountRows.length, 'switch')}
+                </>
               )}
 
               {accountManageTab === 'edit' && (
@@ -6143,7 +6214,7 @@ function AdminModePage() {
               <div>{item.email}</div>
               <label className="admin-select-field">
                 <span>차량가용여부</span>
-                <select value={item.vehicle_available === false ? '불가' : '가용'} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
                   <option value="가용">가용</option>
                   <option value="불가">불가</option>
                 </select>
@@ -6188,7 +6259,7 @@ function AdminModePage() {
                 <div key={item.id} className="admin-account-grid compact">
                   <div>{item.name || item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
                   <div>{item.email}</div>
-                  <select value={item.vehicle_available === false ? '불가' : '가용'} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                  <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
                     <option value="가용">가용</option>
                     <option value="불가">불가</option>
                   </select>
