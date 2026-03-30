@@ -320,6 +320,14 @@ class InquiryIn(BaseModel):
     category: str
     title: str
     content: str
+class QuoteFormSubmitIn(BaseModel):
+    form_type: str = 'same_day'
+    requester_name: str = ''
+    contact_phone: str = ''
+    desired_date: str = ''
+    summary_title: str = ''
+    privacy_agreed: bool = False
+    payload: dict[str, Any] = {}
 class ReportIn(BaseModel):
     reason: str
     detail: str = ""
@@ -2939,6 +2947,54 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                     (user['id'], schedule_date, payload_row['excluded_business'], payload_row['excluded_staff'], json.dumps(payload_row['excluded_business_details'], ensure_ascii=False), json.dumps(payload_row['excluded_staff_details'], ensure_ascii=False), payload_row['available_vehicle_count'], payload_row['status_a_count'], payload_row['status_b_count'], payload_row['status_c_count'], payload_row['day_memo'], 1 if payload_row['is_handless_day'] else 0, now, now),
                 )
         return {'ok': True, 'saved_count': len(visible_dates)}
+@app.post("/api/quote-forms/submit")
+def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(require_user)):
+    if not payload.privacy_agreed:
+        raise HTTPException(status_code=400, detail='개인정보 수집 및 이용 동의가 필요합니다.')
+    requester_name = str(payload.requester_name or '').strip()
+    if not requester_name:
+        raise HTTPException(status_code=400, detail='고객 성함을 입력해 주세요.')
+    contact_phone = str(payload.contact_phone or '').strip()
+    if not contact_phone:
+        raise HTTPException(status_code=400, detail='견적 받으실 연락처를 입력해 주세요.')
+    desired_date = str(payload.desired_date or '').strip()
+    now = utcnow()
+    form_type = 'storage' if str(payload.form_type or '').strip() == 'storage' else 'same_day'
+    summary_title = str(payload.summary_title or '').strip() or f"{'짐보관이사' if form_type == 'storage' else '당일이사'} · {requester_name}"
+    payload_json = json.dumps({**(payload.payload or {}), 'privacy_agreed': bool(payload.privacy_agreed)}, ensure_ascii=False)
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO quote_form_submissions(form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'received', ?, ?, ?)",
+            (form_type, user['id'], requester_name, contact_phone, desired_date, summary_title, payload_json, now, now),
+        )
+        return {'ok': True}
+
+@app.get('/api/admin/quote-forms')
+def admin_quote_forms(admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions ORDER BY created_at DESC, id DESC"
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = row_to_dict(row)
+        item['payload'] = json_loads(item.get('payload_json'), {})
+        items.append(item)
+    return {'items': items}
+
+@app.get('/api/admin/quote-forms/{submission_id}')
+def admin_quote_form_detail(submission_id: int, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail='해당 양식 접수를 찾을 수 없습니다.')
+    item = row_to_dict(row)
+    item['payload'] = json_loads(item.get('payload_json'), {})
+    return {'item': item}
+
 @app.post("/api/inquiries")
 def create_inquiry(payload: InquiryIn, user=Depends(require_user)):
     with get_conn() as conn:

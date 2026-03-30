@@ -28,6 +28,7 @@ const PAGE_TITLES = {
   '/materials': '자재구매/현황',
   '/storage-status': '짐보관현황',
   '/menu-permissions': '메뉴권한',
+  '/quote-forms': '견적양식',
 }
 
 function pageTitle(pathname) {
@@ -63,6 +64,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'work-schedule', label: '근무스케줄', path: '/work-schedule' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
+      { id: 'quote-forms', label: '견적양식', path: '/quote-forms' },
     ],
   },
   {
@@ -4797,6 +4799,352 @@ function PointsPage() {
   )
 }
 
+
+const QUOTE_FORM_RADIO_OPTIONS = {
+  household: ['1인 가구 or 1인 분가', '2인 가구', '3인 가구 이상', '기타(사무실이사, 일반용달)'],
+  structure: ['원룸', '복층원룸', '1.5룸', '투룸', '쓰리룸 이상'],
+  area: ['7평 이하', '8평 ~ 10평', '11평 ~ 15평', '15평 초과'],
+  elevator: ['가능', '불가능'],
+  destinationElevator: ['가능', '불가능', '미정(도착지가 정해지지 않은 경우)'],
+  wasteService: ['희망 (신고부터 수거까지 원스탑 서비스)', '비희망 (신고는 고객님이, 운반은 저희가)'],
+  companion: ['희망 (장거리 이동 동승 불가)', '비희망'],
+}
+
+const QUOTE_FORM_MOVE_TYPES = ['일반이사', '반포장이사(추천)', '포장이사']
+const QUOTE_FORM_PREMIUM_OPTIONS = ['침대 이중 비닐 커버(위생 보호)', '위생 덧신 착용(청결)']
+const QUOTE_FORM_FURNITURE_OPTIONS = ['해당 사항 없음(가전/가구 없음)', '침대(프레임 X)', '침대(프레임 O)', '건조기', '세탁기', '워시타워(건조기+세탁기)', '소파(3-4인)', 'TV(65인치 이하)', 'TV(65인치 초과)', '에어컨', '에어컨 철거 필요(철거 안 되어 있을 경우 필수 체크)', '스타일러(높이 191CM 이하)', '스타일러(높이 191CM 초과)', '양문형 냉장고', '일반냉장고(300L 초과)', '책장(높이 191CM 초과)', '옷장(높이 191CM 이하)', '옷장(높이 191CM 초과)', '왕자행거(봉형)', '드레스룸 행거(시스템행거 / 수납장 있는 행거)']
+const QUOTE_FORM_DISASSEMBLY_OPTIONS = ['해당 사항 없음(분해/조립 필요 가전/가구 없음)', '일반 침대 프레임', '모션 배드 침대', '돌침대', '벙커 침대 프레임', '비데', '블라인드 / 커텐', '왕자 행거(봉형)', '드레스룸 행거(시스템 행거 / 수납장 있는 행거)', '책 있음(50권 이상)']
+const QUOTE_FORM_LARGE_ITEM_OPTIONS = ['해당 사항 없음(폐기물 없음)', '스타일러', '세탁기', '건조기', '양문형 냉장고', '책장(높이 191cm 초과)', '드레스룸 행거(시스템 행거 / 수납장 있는 행거)', '옷장']
+
+const PRIVACY_NOTICE_TEXT = `이청잘 이집청년 이사잘하네(이하 ‘이청잘’)는 개인정보 보호법 제30조에 따라 정보주체의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게 처리하기 위해 필요한 범위에서 개인정보를 처리합니다.
+
+수집 목적: 견적 안내, 상담 연락, 접수 내역 관리, 고객 문의 대응
+보유 기간: 견적/상담 처리 완료 후 관련 법령 및 내부 기준에 따라 보관
+수집 항목: 고객 성함, 연락처, 주소, 이사 희망일, 가전/가구 및 옵션 정보 등 신청 양식에 직접 입력한 정보
+
+본 양식은 상담 및 견적 발송 목적의 접수용이며, 제출 시 관리자가 접수 목록과 상세 내용을 확인할 수 있습니다.`
+
+function formatQuoteDesiredDate(item) {
+  const value = String(item?.desired_date || '').trim()
+  if (value) return value
+  const payload = item?.payload || {}
+  if (item?.form_type === 'storage') return [payload.storage_start_date, payload.storage_end_date].filter(Boolean).join(' ~ ')
+  return payload.move_date || '-'
+}
+
+function formatQuoteFieldValue(value) {
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '-'
+  if (value === null || value === undefined) return '-'
+  const text = String(value).trim()
+  return text || '-'
+}
+
+function QuoteField({ label, required = false, children, hint = '' }) {
+  return <div className="quote-form-group"><label className="quote-form-label">{required ? '＊ ' : ''}{label}</label>{hint && <div className="quote-form-hint">{hint}</div>}{children}</div>
+}
+
+function QuoteRadioGroup({ name, value, options, onChange }) {
+  return <div className="quote-choice-list">{options.map(option => <label key={option} className="quote-choice quote-choice-radio"><input type="radio" name={name} checked={value === option} onChange={() => onChange(option)} /><span>{option}</span></label>)}</div>
+}
+
+function QuoteCheckboxGroup({ values, options, onChange }) {
+  const current = Array.isArray(values) ? values : []
+  function toggle(option) {
+    if (current.includes(option)) onChange(current.filter(item => item !== option))
+    else onChange([...current, option])
+  }
+  return <div className="quote-choice-list">{options.map(option => <label key={option} className="quote-choice quote-choice-check"><input type="checkbox" checked={current.includes(option)} onChange={() => toggle(option)} /><span>{option}</span></label>)}</div>
+}
+
+function QuoteFormsPage({ user }) {
+  const isAdminUser = canAccessAdminMode(user)
+  const [mode, setMode] = useState('same_day')
+  const [viewTab, setViewTab] = useState('customer')
+  const [submitting, setSubmitting] = useState(false)
+  const [listLoading, setListLoading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [adminItems, setAdminItems] = useState([])
+  const [detailItem, setDetailItem] = useState(null)
+  const baseForm = {
+    privacy_agreed: false,
+    customer_name: user?.name || user?.nickname || '',
+    move_date: '',
+    storage_start_date: '',
+    storage_end_date: '',
+    household: '',
+    structure: '',
+    area: '',
+    origin_address: '',
+    origin_address_detail: '',
+    origin_elevator: '',
+    destination_address: '',
+    destination_address_detail: '',
+    destination_elevator: '',
+    move_types: [],
+    contact_phone: user?.phone || '',
+    premium_options: [],
+    furniture_types: [],
+    extra_furniture: '',
+    duplicate_furniture: '',
+    disassembly_types: [],
+    extra_disassembly: '',
+    duplicate_disassembly: '',
+    large_item_types: [],
+    extra_large_items: '',
+    duplicate_large_items: '',
+    waste_service: '',
+    companion_preference: '',
+    via_address: '',
+    via_address_detail: '',
+    via_elevator: '',
+    via_pickup_items: '',
+    via_drop_items: '',
+    move_scope_notice: false,
+    kakao_notice: false,
+    request_memo: '',
+  }
+  const [form, setForm] = useState(baseForm)
+
+  useEffect(() => {
+    if (viewTab === 'adminList' && isAdminUser) loadAdminList()
+  }, [viewTab, isAdminUser])
+
+  function updateField(key, value) {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function selectMode(nextMode) {
+    setMode(nextMode)
+    setMessage('')
+    setError('')
+  }
+
+  function buildPayload() {
+    const payload = { ...form, request_kind: mode === 'storage' ? '짐보관이사' : '당일이사' }
+    const desiredDate = mode === 'storage'
+      ? [form.storage_start_date, form.storage_end_date].filter(Boolean).join(' ~ ')
+      : form.move_date
+    return {
+      form_type: mode === 'storage' ? 'storage' : 'same_day',
+      requester_name: form.customer_name,
+      contact_phone: form.contact_phone,
+      desired_date: desiredDate,
+      summary_title: `${mode === 'storage' ? '짐보관이사' : '당일이사'} · ${form.customer_name || '고객'}`,
+      privacy_agreed: !!form.privacy_agreed,
+      payload,
+    }
+  }
+
+  async function submitForm(e) {
+    e.preventDefault()
+    setMessage('')
+    setError('')
+    if (!form.privacy_agreed) { setError('개인정보 수집 및 이용 동의가 필요합니다.'); return }
+    if (!form.customer_name.trim()) { setError('고객 성함을 입력해 주세요.'); return }
+    if (!form.contact_phone.trim()) { setError('견적 받으실 연락처를 입력해 주세요.'); return }
+    if (mode === 'storage') {
+      if (!form.storage_start_date || !form.storage_end_date) { setError('짐보관 시작/종료 일자를 입력해 주세요.'); return }
+    } else if (!form.move_date) { setError('이사 희망 날짜를 입력해 주세요.'); return }
+    setSubmitting(true)
+    try {
+      await api('/api/quote-forms/submit', { method: 'POST', body: JSON.stringify(buildPayload()) })
+      setMessage('양식이 정상 접수되었습니다. 관리자는 작성된 양식목록에서 내용을 확인할 수 있습니다.')
+      setForm({ ...baseForm, customer_name: user?.name || user?.nickname || '', contact_phone: user?.phone || '' })
+    } catch (err) {
+      setError(err.message || '양식 접수 중 오류가 발생했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function loadAdminList() {
+    setListLoading(true)
+    setError('')
+    try {
+      const result = await api('/api/admin/quote-forms')
+      setAdminItems(result.items || [])
+      if ((result.items || []).length > 0 && !detailItem) setDetailItem(result.items[0])
+    } catch (err) {
+      setError(err.message || '작성된 양식목록을 불러오지 못했습니다.')
+    } finally {
+      setListLoading(false)
+    }
+  }
+
+  async function openDetail(itemId) {
+    setDetailLoading(true)
+    try {
+      const result = await api(`/api/admin/quote-forms/${itemId}`)
+      setDetailItem(result.item || null)
+      setViewTab('detail')
+    } catch (err) {
+      setError(err.message || '상세작성양식을 불러오지 못했습니다.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const currentDesiredLabel = mode === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
+  const adminDetailPayload = detailItem?.payload || {}
+
+  return <div className="stack-page quote-forms-page">
+    <section className="card quote-form-shell">
+      <div className="quote-form-title-block">
+        <h2>이청잘 견적서 신청</h2>
+        <div className="quote-form-note">(주말, 공휴일 접수된 경우 평일에 견적 발송이 진행됩니다.)</div>
+      </div>
+      <div className="quote-form-view-tabs">
+        <button type="button" className={viewTab === 'customer' ? 'active' : ''} onClick={() => setViewTab('customer')}>고객작성 양식폼</button>
+        {isAdminUser && <button type="button" className={viewTab === 'adminList' ? 'active' : ''} onClick={() => setViewTab('adminList')}>관리자용 작성된 양식목록</button>}
+        {isAdminUser && detailItem && <button type="button" className={viewTab === 'detail' ? 'active' : ''} onClick={() => setViewTab('detail')}>상세작성양식</button>}
+      </div>
+      {message && <div className="success-banner">{message}</div>}
+      {error && <div className="error-banner">{error}</div>}
+
+      {viewTab === 'customer' && <>
+        <div className="quote-form-mode-intro">
+          <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
+          <button type="button" className={`quote-mode-button ${mode === 'same_day' ? 'active' : ''}`} onClick={() => selectMode('same_day')}>당일 이사 👉</button>
+          <div className="quote-mode-help">짐 보관 필요 없이 바로 입주 가능한 경우</div>
+          <button type="button" className={`quote-mode-button ${mode === 'storage' ? 'active' : ''}`} onClick={() => selectMode('storage')}>짐보관이사 👉</button>
+          <div className="quote-mode-help">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
+        </div>
+
+        <div className="quote-move-type-table-wrapper">
+          <table className="quote-move-type-table">
+            <tbody>
+              <tr><th></th><th></th><th>일반이사</th><th className="blue">반포장이사(추천)</th><th className="red">포장이사</th></tr>
+              <tr><th rowSpan="2" className="sky">출발지</th><th className="sky">짐포장</th><td>고객님</td><td rowSpan="3" className="blue">이청잘</td><td rowSpan="4" className="red">이청잘</td></tr>
+              <tr><th className="sky">가전/가구포장</th><td>이청잘</td></tr>
+              <tr><th rowSpan="2" className="rose">도착지</th><th className="rose">가전/가구 배치</th><td>이청잘</td></tr>
+              <tr><th className="rose">짐 뒷정리</th><td>고객님</td><td className="blue">고객님</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <form className="quote-form-body" onSubmit={submitForm}>
+          <section className="quote-form-section">
+            <QuoteField label="개인정보 수집 및 이용 동의" required>
+              <textarea className="quote-form-textarea quote-form-privacy" value={PRIVACY_NOTICE_TEXT} readOnly />
+              <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.privacy_agreed} onChange={e => updateField('privacy_agreed', e.target.checked)} /><span>개인정보 수집 및 이용에 동의합니다.</span></label>
+            </QuoteField>
+            <QuoteField label="고객 성함" required><input className="quote-form-input" value={form.customer_name} onChange={e => updateField('customer_name', e.target.value)} /></QuoteField>
+            {mode === 'storage' ? <div className="quote-inline-grid two"><QuoteField label="짐보관 시작 일자" required><input type="date" className="quote-form-input" value={form.storage_start_date} onChange={e => updateField('storage_start_date', e.target.value)} /></QuoteField><QuoteField label="짐보관 종료 일자" required><input type="date" className="quote-form-input" value={form.storage_end_date} onChange={e => updateField('storage_end_date', e.target.value)} /></QuoteField></div> : <QuoteField label="이사 희망 날짜" required><input type="date" className="quote-form-input quote-date-input" value={form.move_date} onChange={e => updateField('move_date', e.target.value)} /></QuoteField>}
+            <QuoteField label="출발지 거주 가구원" required><QuoteRadioGroup name="household" value={form.household} options={QUOTE_FORM_RADIO_OPTIONS.household} onChange={value => updateField('household', value)} /></QuoteField>
+            <QuoteField label="출발지 구조" required><QuoteRadioGroup name="structure" value={form.structure} options={QUOTE_FORM_RADIO_OPTIONS.structure} onChange={value => updateField('structure', value)} /></QuoteField>
+            <QuoteField label="출발지 평수" required><QuoteRadioGroup name="area" value={form.area} options={QUOTE_FORM_RADIO_OPTIONS.area} onChange={value => updateField('area', value)} /></QuoteField>
+          </section>
+
+          <section className="quote-form-section">
+            <div className="quote-inline-grid two">
+              <QuoteField label="출발지 주소 선택" required><input className="quote-form-input" placeholder="주소" value={form.origin_address} onChange={e => updateField('origin_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.origin_address_detail} onChange={e => updateField('origin_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="출발지 엘레베이터" required><QuoteRadioGroup name="originElevator" value={form.origin_elevator} options={QUOTE_FORM_RADIO_OPTIONS.elevator} onChange={value => updateField('origin_elevator', value)} /></QuoteField>
+            </div>
+            <div className="quote-inline-grid two">
+              <QuoteField label="도착지 상세 주소" required><input className="quote-form-input" placeholder="주소" value={form.destination_address} onChange={e => updateField('destination_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.destination_address_detail} onChange={e => updateField('destination_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="도착지 엘레베이터" required><QuoteRadioGroup name="destinationElevator" value={form.destination_elevator} options={QUOTE_FORM_RADIO_OPTIONS.destinationElevator} onChange={value => updateField('destination_elevator', value)} /></QuoteField>
+            </div>
+            <QuoteField label="희망 이사 종류" required><QuoteCheckboxGroup values={form.move_types} options={QUOTE_FORM_MOVE_TYPES} onChange={value => updateField('move_types', value)} /></QuoteField>
+            <QuoteField label="견적 받으실 연락처" required><input className="quote-form-input" placeholder="010-0000-0000" value={form.contact_phone} onChange={e => updateField('contact_phone', e.target.value)} /></QuoteField>
+          </section>
+
+          <section className="quote-form-section">
+            <QuoteField label="프리미엄 추가 옵션(무료)"><QuoteCheckboxGroup values={form.premium_options} options={QUOTE_FORM_PREMIUM_OPTIONS} onChange={value => updateField('premium_options', value)} /></QuoteField>
+            <QuoteField label="가전/가구 종류" required><QuoteCheckboxGroup values={form.furniture_types} options={QUOTE_FORM_FURNITURE_OPTIONS} onChange={value => updateField('furniture_types', value)} /></QuoteField>
+            <div className="quote-inline-grid two">
+              <QuoteField label="위에 없는 중형/대형 가전/가구 별도 기재"><input className="quote-form-input" placeholder="ex) 소파(2인) / tv장" value={form.extra_furniture} onChange={e => updateField('extra_furniture', e.target.value)} /></QuoteField>
+              <QuoteField label="가전/가구 2개 이상 별도 기재"><input className="quote-form-input" placeholder="ex) 행거 2개 / 옷장 191cm 초과 2개" value={form.duplicate_furniture} onChange={e => updateField('duplicate_furniture', e.target.value)} /></QuoteField>
+            </div>
+            <QuoteField label="분해/조립 필요 가전/가구 및 책" required><QuoteCheckboxGroup values={form.disassembly_types} options={QUOTE_FORM_DISASSEMBLY_OPTIONS} onChange={value => updateField('disassembly_types', value)} /></QuoteField>
+            <div className="quote-inline-grid two">
+              <QuoteField label="위에 없는 분해/조립 필요 가전/가구"><input className="quote-form-input" placeholder="ex) 블라인드 / 커텐 / 행거" value={form.extra_disassembly} onChange={e => updateField('extra_disassembly', e.target.value)} /></QuoteField>
+              <QuoteField label="분해/조립 필요 가전/가구 2개 이상 기재"><input className="quote-form-input" placeholder="ex) 행거 2개 / 커텐 2개 / 블라인드 3개" value={form.duplicate_disassembly} onChange={e => updateField('duplicate_disassembly', e.target.value)} /></QuoteField>
+            </div>
+            <QuoteField label="대형 가전/가구 / 폐기물" required hint="* 폐기물 대리 신고 서비스 가능합니다."><QuoteCheckboxGroup values={form.large_item_types} options={QUOTE_FORM_LARGE_ITEM_OPTIONS} onChange={value => updateField('large_item_types', value)} /></QuoteField>
+            <div className="quote-inline-grid two">
+              <QuoteField label="위에 없는 중/대형 가전/가구 별도 기재"><input className="quote-form-input" value={form.extra_large_items} onChange={e => updateField('extra_large_items', e.target.value)} /></QuoteField>
+              <QuoteField label="중/대형 가전/가구 2개 이상 별도 기재"><input className="quote-form-input" value={form.duplicate_large_items} onChange={e => updateField('duplicate_large_items', e.target.value)} /></QuoteField>
+            </div>
+          </section>
+
+          <section className="quote-form-section">
+            <QuoteField label="폐기물 원스탑 신고 서비스 접수 희망"><QuoteRadioGroup name="wasteService" value={form.waste_service} options={QUOTE_FORM_RADIO_OPTIONS.wasteService} onChange={value => updateField('waste_service', value)} /></QuoteField>
+            <QuoteField label="동승 희망 여부"><QuoteRadioGroup name="companion" value={form.companion_preference} options={QUOTE_FORM_RADIO_OPTIONS.companion} onChange={value => updateField('companion_preference', value)} /></QuoteField>
+            <div className="quote-inline-grid two">
+              <QuoteField label="경유지 주소" hint="경유지가 있는 경우에만 작성"><input className="quote-form-input" placeholder="주소" value={form.via_address} onChange={e => updateField('via_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.via_address_detail} onChange={e => updateField('via_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="경유지 엘레베이터"><QuoteRadioGroup name="viaElevator" value={form.via_elevator} options={QUOTE_FORM_RADIO_OPTIONS.elevator} onChange={value => updateField('via_elevator', value)} /></QuoteField>
+            </div>
+            <div className="quote-inline-grid two">
+              <QuoteField label="경유지 상차 물품"><input className="quote-form-input" value={form.via_pickup_items} onChange={e => updateField('via_pickup_items', e.target.value)} /></QuoteField>
+              <QuoteField label="경유지 하차 물품"><input className="quote-form-input" value={form.via_drop_items} onChange={e => updateField('via_drop_items', e.target.value)} /></QuoteField>
+            </div>
+            <QuoteField label="추가 메모"><textarea className="quote-form-textarea" value={form.request_memo} onChange={e => updateField('request_memo', e.target.value)} /></QuoteField>
+            <div className="quote-notice-stack">
+              <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.move_scope_notice} onChange={e => updateField('move_scope_notice', e.target.checked)} /><span>'이청잘'은 원룸/투룸/소형이사 전문 브랜드이며, 집/짐량 사이즈에 따라 견적 발송이 제한될 수 있음을 확인했습니다.</span></label>
+              <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.kakao_notice} onChange={e => updateField('kakao_notice', e.target.checked)} /><span>견적은 카카오톡으로 발송되며, 전화번호로 친구 추가 허용이 필요함을 확인했습니다.</span></label>
+            </div>
+          </section>
+
+          <div className="quote-submit-bar"><button type="submit" disabled={submitting}>{submitting ? '접수 중...' : '신청 보내기'}</button></div>
+        </form>
+      </>}
+
+      {isAdminUser && viewTab === 'adminList' && <div className="quote-admin-layout">
+        <section className="card quote-admin-list-card">
+          <div className="between"><h3>(관리자용) 작성된 양식목록</h3><button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button></div>
+          <div className="quote-admin-list">{adminItems.length === 0 ? <div className="muted">접수된 양식이 없습니다.</div> : adminItems.map(item => <button type="button" key={item.id} className={`quote-admin-list-item${detailItem?.id === item.id ? ' active' : ''}`} onClick={() => openDetail(item.id)}><div className="quote-admin-list-title">{item.summary_title || `${item.form_type === 'storage' ? '짐보관이사' : '당일이사'} · ${item.requester_name || '-'}`}</div><div className="quote-admin-list-meta">{item.requester_name || '-'} · {item.contact_phone || '-'} · {formatQuoteDesiredDate(item)}</div><div className="quote-admin-list-meta">접수일 {String(item.created_at || '').replace('T', ' ').slice(0, 16)}</div></button>)}</div>
+        </section>
+      </div>}
+
+      {isAdminUser && viewTab === 'detail' && <section className="card quote-admin-detail-card">
+        <div className="between"><h3>상세작성양식</h3>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
+        {!detailItem ? <div className="muted">목록에서 양식을 선택해 주세요.</div> : <div className="quote-admin-detail-body">
+          <div className="quote-detail-hero"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
+          <div className="quote-detail-grid">
+            <div className="quote-detail-section"><h4>기본 정보</h4><dl>{[
+              ['고객 성함', adminDetailPayload.customer_name],
+              [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
+              ['출발지 거주 가구원', adminDetailPayload.household],
+              ['출발지 구조', adminDetailPayload.structure],
+              ['출발지 평수', adminDetailPayload.area],
+              ['연락처', detailItem.contact_phone || adminDetailPayload.contact_phone],
+            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+            <div className="quote-detail-section"><h4>주소 / 이동 조건</h4><dl>{[
+              ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
+              ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
+              ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
+              ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
+              ['희망 이사 종류', adminDetailPayload.move_types],
+              ['동승 희망 여부', adminDetailPayload.companion_preference],
+            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+            <div className="quote-detail-section"><h4>가전/가구 / 옵션</h4><dl>{[
+              ['프리미엄 추가 옵션', adminDetailPayload.premium_options],
+              ['가전/가구 종류', adminDetailPayload.furniture_types],
+              ['가전/가구 별도 기재', adminDetailPayload.extra_furniture],
+              ['가전/가구 2개 이상', adminDetailPayload.duplicate_furniture],
+              ['분해/조립 필요 항목', adminDetailPayload.disassembly_types],
+              ['대형 가전/가구 / 폐기물', adminDetailPayload.large_item_types],
+              ['폐기물 신고 서비스', adminDetailPayload.waste_service],
+            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+            <div className="quote-detail-section"><h4>경유지 / 메모</h4><dl>{[
+              ['경유지 주소', [adminDetailPayload.via_address, adminDetailPayload.via_address_detail].filter(Boolean).join(' ')],
+              ['경유지 엘레베이터', adminDetailPayload.via_elevator],
+              ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
+              ['경유지 하차 물품', adminDetailPayload.via_drop_items],
+              ['추가 메모', adminDetailPayload.request_memo],
+              ['이사 제한 안내 확인', adminDetailPayload.move_scope_notice ? '확인' : '-'],
+              ['카카오톡 안내 확인', adminDetailPayload.kakao_notice ? '확인' : '-'],
+            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+          </div>
+          <div className="quote-detail-json"><h4>원본 접수 데이터</h4><pre>{JSON.stringify(adminDetailPayload, null, 2)}</pre></div>
+        </div>}
+      </section>}
+    </section>
+  </div>
+}
+
 function PlaceholderFeaturePage({ title, description }) {
   return (
     <div className="stack-page">
@@ -7605,6 +7953,7 @@ function App() {
         <Route path="/points" element={<PointsPage />} />
         <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/materials" element={<MaterialsPage user={user} />} />
+        <Route path="/quote-forms" element={<QuoteFormsPage user={user} />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />

@@ -640,6 +640,21 @@ CREATE TABLE IF NOT EXISTS work_schedule_day_notes (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS quote_form_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    form_type TEXT NOT NULL DEFAULT 'same_day',
+    requester_user_id INTEGER,
+    requester_name TEXT NOT NULL DEFAULT '',
+    contact_phone TEXT NOT NULL DEFAULT '',
+    desired_date TEXT NOT NULL DEFAULT '',
+    summary_title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'received',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS inquiries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1989,6 +2004,19 @@ def init_db() -> None:
         _ensure_unique_index(conn, 'settlement_reflections', 'uq_settlement_reflections_date_category', ['settlement_date', 'category'])
         _ensure_columns(conn, 'app_secrets', {
             'secret_value': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        conn.execute("CREATE TABLE IF NOT EXISTS quote_form_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, form_type TEXT NOT NULL DEFAULT 'same_day', requester_user_id INTEGER, requester_name TEXT NOT NULL DEFAULT '', contact_phone TEXT NOT NULL DEFAULT '', desired_date TEXT NOT NULL DEFAULT '', summary_title TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'received', payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL)")
+        _ensure_columns(conn, 'quote_form_submissions', {
+            'form_type': "TEXT NOT NULL DEFAULT 'same_day'",
+            'requester_user_id': 'INTEGER',
+            'requester_name': "TEXT NOT NULL DEFAULT ''",
+            'contact_phone': "TEXT NOT NULL DEFAULT ''",
+            'desired_date': "TEXT NOT NULL DEFAULT ''",
+            'summary_title': "TEXT NOT NULL DEFAULT ''",
+            'status': "TEXT NOT NULL DEFAULT 'received'",
+            'payload_json': "TEXT NOT NULL DEFAULT '{}'",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
 
