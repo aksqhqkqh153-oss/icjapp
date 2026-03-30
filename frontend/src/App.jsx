@@ -182,7 +182,7 @@ function gradeLabel(grade) {
 }
 
 function canAccessAdminMode(user) {
-  return Number(user?.grade || 6) <= Number(user?.permission_config?.admin_mode_access_grade || 1)
+  return Number(user?.grade || 6) <= 2 || Number(user?.grade || 6) <= Number(user?.permission_config?.admin_mode_access_grade || 2)
 }
 
 function isReadOnlyMember(user) {
@@ -5228,7 +5228,7 @@ function MenuPermissionPage() {
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
     branch_count_override: '',
-    admin_mode_access_grade: 1,
+    admin_mode_access_grade: 2,
     role_assign_actor_max_grade: 3,
     role_assign_target_min_grade: 3,
     account_suspend_actor_max_grade: 3,
@@ -5438,7 +5438,7 @@ function AdminModePage() {
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
     branch_count_override: '',
-    admin_mode_access_grade: 1,
+    admin_mode_access_grade: 2,
     role_assign_actor_max_grade: 3,
     role_assign_target_min_grade: 3,
     account_suspend_actor_max_grade: 3,
@@ -5840,8 +5840,13 @@ function AdminModePage() {
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseCount
   const deletableAccounts = useMemo(
-    () => sortedAccountRows.filter(item => Number(item.id) !== Number(currentUser?.id || 0)),
-    [sortedAccountRows, currentUser?.id],
+    () => sortedAccountRows.filter(item => {
+      if (Number(item.id) === Number(currentUser?.id || 0)) return false
+      if (actorGrade === 1) return true
+      if (actorGrade === 2) return Number(item.grade || 6) > 2
+      return false
+    }),
+    [sortedAccountRows, currentUser?.id, actorGrade],
   )
   const selectedSwitchAccount = useMemo(() => sortedAccountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null, [sortedAccountRows, selectedSwitchAccountId])
 
@@ -5869,7 +5874,7 @@ function AdminModePage() {
   }
 
   function canEditPosition() {
-    return actorGrade === 1
+    return actorGrade <= 2
   }
 
   function renderActionButton(top, bottom, onClick, extraClass = '') {
@@ -5920,7 +5925,7 @@ function AdminModePage() {
     <div className="admin-mode-page stack-page">
       {message && <div className="success">{message}</div>}
 
-      {actorGrade === 1 && (
+      {actorGrade <= 2 && (
         <section className="card admin-mode-card">
           <div className="between admin-mode-section-head">
             <h2>계정관리</h2>
@@ -5929,19 +5934,19 @@ function AdminModePage() {
                 {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               <button type="button" className={accountManageOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageOpen(v => !v)}>{accountManageOpen ? '접기' : '펼치기'}</button>
-              {accountManageOpen && accountManageTab === 'create' && (
+              {accountManageOpen && accountManageTab === 'create' && actorGrade <= 2 && (
                 <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
               )}
-              {accountManageOpen && accountManageTab === 'edit' && (
+              {accountManageOpen && accountManageTab === 'edit' && actorGrade <= 2 && (
                 <button type="button" className="small" onClick={saveAccountEdits}>계정편집 저장</button>
               )}
-              {accountManageOpen && accountManageTab === 'delete' && (
+              {accountManageOpen && accountManageTab === 'delete' && actorGrade <= 2 && (
                 <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
               )}
-              {accountManageOpen && accountManageTab === 'switch' && (
+              {accountManageOpen && accountManageTab === 'switch' && actorGrade <= 2 && (
                 <>
-                  <button type="button" className="small" onClick={() => switchAccountType('business')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'business'}>사업자 전환</button>
-                  <button type="button" className="small ghost" onClick={() => switchAccountType('employee')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'employee'}>직원 전환</button>
+                  <button type="button" className="small" onClick={() => switchAccountType('business')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'business' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>사업자 전환</button>
+                  <button type="button" className="small ghost" onClick={() => switchAccountType('employee')} disabled={switchLoading || !selectedSwitchAccount || selectedSwitchAccount?.account_type === 'employee' || (actorGrade === 2 && Number(selectedSwitchAccount?.grade || 6) <= 2)}>직원 전환</button>
                 </>
               )}
             </div>
@@ -6098,7 +6103,7 @@ function AdminModePage() {
                                 </select>
                               </label>
                               <label>권한등급
-                                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2}>
                                   {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
                                 </select>
                               </label>
@@ -6142,7 +6147,7 @@ function AdminModePage() {
                   <div className="admin-delete-list">
                     {pagedManageDeleteRows.map(item => (
                       <label key={`delete-${item.id}`} className="admin-delete-row">
-                        <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} />
+                        <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2} />
                         <span>[{item.name || item.nickname || '이름 미입력'}]</span>
                         <span>[{item.email || '-'}]</span>
                         <span>[{item.account_unique_id || '-'}]</span>
@@ -6165,13 +6170,13 @@ function AdminModePage() {
             <select className="small admin-sort-select" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
               {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            {statusTab === 'branch'
+            {actorGrade === 1 && (statusTab === 'branch'
               ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
-              : renderActionButton('직원현황', '정보저장', saveEmployeeDetails)}
-            <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+              : renderActionButton('직원현황', '정보저장', saveEmployeeDetails))}
+            {actorGrade === 1 && <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
               if (statusTab === 'branch') setBranchEditMode(v => !v)
               else setEmployeeEditMode(v => !v)
-            }}>편집</button>
+            }}>편집</button>}
           </div>
         </div>
         <div className="admin-status-tabs-row">
@@ -6326,7 +6331,7 @@ function AdminModePage() {
               </label>
               <label className="admin-select-field">
                 <span>계정권한</span>
-                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2}>
                   {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
                 </select>
               </label>
@@ -6395,7 +6400,7 @@ function AdminModePage() {
                     <option value="">미지정</option>
                     {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                   </select>
-                  <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })}>
+                  <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2}>
                     {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
                   </select>
                 </div>

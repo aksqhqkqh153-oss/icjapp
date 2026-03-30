@@ -4872,3 +4872,20 @@ a:focus-visible {
   color: #d32f2f;
   font-weight: 700;
 }
+
+
+/* admin mode simplified UI */
+.admin-mode-page .card.admin-mode-card{padding:8px 10px;border-radius:0;box-shadow:none;border:1px solid #d1d5db;background:#fff}
+.admin-mode-page .admin-mode-section-head{margin-bottom:6px}
+.admin-mode-page .admin-mode-section-head h2{margin:0;font-size:18px}
+.admin-mode-page .inline-actions.wrap{gap:6px}
+.admin-mode-page .admin-account-table{display:flex;flex-direction:column;gap:0;border:1px solid #cbd5e1}
+.admin-mode-page .admin-account-grid{border-bottom:1px solid #cbd5e1;padding:6px 8px;border-radius:0;background:#fff}
+.admin-mode-page .admin-account-grid:last-child{border-bottom:0}
+.admin-mode-page .admin-account-grid.compact.labeled-account-grid{grid-template-columns:minmax(100px,1fr) minmax(160px,1.2fr) repeat(4,minmax(110px,.9fr))}
+.admin-mode-page .admin-delete-row{border-bottom:1px solid #cbd5e1;padding:6px 8px;border-radius:0}
+.admin-mode-page .list-item.block.admin-detail-card.compact-card{border-radius:0;padding:6px 8px;box-shadow:none;border:1px solid #d1d5db}
+.admin-mode-page .admin-account-summary-button{padding:4px 0}
+.admin-mode-page button.small,.admin-mode-page .small.ghost,.admin-mode-page input,.admin-mode-page select,.admin-mode-page textarea{border-radius:0}
+.admin-mode-page .multiline-action-button{border-radius:0;background:#2563eb;color:#fff;border-color:#1d4ed8;padding:6px 10px;min-width:auto}
+.admin-mode-page .selected-toggle{background:#dcfce7;border-color:#86efac;color:#166534}

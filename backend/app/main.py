@@ -386,7 +386,7 @@ def _get_branch_count_override(conn) -> int:
 def _grade_of(user: dict) -> int:
     return int(user.get('grade') or 6)
 def _can_access_admin_mode(user: dict, conn) -> bool:
-    return _grade_of(user) <= _get_permission_config(conn)['admin_mode_access_grade']
+    return _grade_of(user) <= 2 or _grade_of(user) <= _get_permission_config(conn)['admin_mode_access_grade']
 def _can_manage_grade(actor: dict, target_grade: int, conn) -> bool:
     actor_grade = _grade_of(actor)
     cfg = _get_permission_config(conn)
@@ -3164,7 +3164,7 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
     return {'ok': True, 'accounts': updated}
 
 @app.post("/api/admin/accounts/switch-type")
-def switch_admin_account_type(payload: AdminAccountTypeSwitchIn, admin=Depends(require_admin)):
+def switch_admin_account_type(payload: AdminAccountTypeSwitchIn, admin=Depends(require_admin_or_subadmin)):
     target_type = str(payload.target_type or '').strip().lower()
     if target_type not in {'business', 'employee'}:
         raise HTTPException(status_code=400, detail='전환 유형이 올바르지 않습니다.')
@@ -3172,6 +3172,8 @@ def switch_admin_account_type(payload: AdminAccountTypeSwitchIn, admin=Depends(r
         existing = conn.execute("SELECT * FROM users WHERE id = ?", (int(payload.user_id),)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        if int(admin.get('grade') or 6) == 2 and int(existing['grade'] or 6) <= 2:
+            raise HTTPException(status_code=403, detail='관리자 및 부관리자 계정은 전환할 수 없습니다.')
         current_type = _normalize_account_type(existing)
         if current_type == target_type:
             return {'ok': True, 'user': _serialize_admin_user_row(existing)}
@@ -3231,9 +3233,11 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             conn.execute(f"UPDATE users SET {assignments} WHERE id = ?", values)
     return {'ok': True}
 @app.post('/api/admin/accounts/create')
-def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_admin)):
+def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_admin_or_subadmin)):
     if payload.grade not in {1,2,3,4,5,6,7}:
         raise HTTPException(status_code=400, detail='허용되지 않는 권한입니다.')
+    if int(admin.get('grade') or 6) == 2 and int(payload.grade or 6) <= 2:
+        raise HTTPException(status_code=403, detail='부관리자는 관리자/부관리자 계정을 생성할 수 없습니다.')
     with get_conn() as conn:
         exists = conn.execute('SELECT id FROM users WHERE email = ?', (payload.email,)).fetchone()
         if exists:
@@ -3254,7 +3258,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     return {'ok': True, 'user': user_public_dict(row)}
 @app.post('/api/admin/accounts/delete')
-def delete_admin_accounts(payload: AdminDeleteAccountsIn, admin=Depends(require_admin)):
+def delete_admin_accounts(payload: AdminDeleteAccountsIn, admin=Depends(require_admin_or_subadmin)):
     target_ids = [int(item) for item in (payload.ids or []) if int(item or 0) > 0]
     if not target_ids:
         raise HTTPException(status_code=400, detail='삭제할 계정을 선택해주세요.')
@@ -3265,6 +3269,8 @@ def delete_admin_accounts(payload: AdminDeleteAccountsIn, admin=Depends(require_
                 continue
             row = conn.execute("SELECT * FROM users WHERE id = ?", (target_id,)).fetchone()
             if not row:
+                continue
+            if int(admin.get('grade') or 6) == 2 and int(row['grade'] or 6) <= 2:
                 continue
             mark_deleted_imported_account(conn, row['email'])
             conn.execute("DELETE FROM users WHERE id = ?", (target_id,))
