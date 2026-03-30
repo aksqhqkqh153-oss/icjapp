@@ -1962,7 +1962,8 @@ def init_db() -> None:
             'day_memo': "TEXT NOT NULL DEFAULT ''",
             'is_handless_day': 'INTEGER NOT NULL DEFAULT 0',
         })
-        conn.execute("CREATE TABLE IF NOT EXISTS vehicle_exclusions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)")
+        vehicle_exclusions_sql = "CREATE TABLE IF NOT EXISTS vehicle_exclusions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, start_date TEXT NOT NULL, end_date TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(vehicle_exclusions_sql) if DB_ENGINE == 'postgresql' else vehicle_exclusions_sql)
         _ensure_unique_index(conn, 'vehicle_exclusions', 'idx_vehicle_exclusions_user_dates', ['user_id', 'start_date', 'end_date'])
         _ensure_columns(conn, 'dm_messages', {
             'reply_to_id': 'INTEGER',
@@ -2006,7 +2007,8 @@ def init_db() -> None:
             'secret_value': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
-        conn.execute("CREATE TABLE IF NOT EXISTS quote_form_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, form_type TEXT NOT NULL DEFAULT 'same_day', requester_user_id INTEGER, requester_name TEXT NOT NULL DEFAULT '', contact_phone TEXT NOT NULL DEFAULT '', desired_date TEXT NOT NULL DEFAULT '', summary_title TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'received', payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL)")
+        quote_form_submissions_sql = "CREATE TABLE IF NOT EXISTS quote_form_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, form_type TEXT NOT NULL DEFAULT 'same_day', requester_user_id INTEGER, requester_name TEXT NOT NULL DEFAULT '', contact_phone TEXT NOT NULL DEFAULT '', desired_date TEXT NOT NULL DEFAULT '', summary_title TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'received', payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL)"
+        conn.execute(_sqlite_schema_to_postgres(quote_form_submissions_sql) if DB_ENGINE == 'postgresql' else quote_form_submissions_sql)
         _ensure_columns(conn, 'quote_form_submissions', {
             'form_type': "TEXT NOT NULL DEFAULT 'same_day'",
             'requester_user_id': 'INTEGER',
