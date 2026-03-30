@@ -4626,6 +4626,18 @@ a:focus-visible {
 }
 
 
+
+.materials-soft-pulse {
+  animation: materialsSoftPulse 2s ease-in-out 1;
+}
+@keyframes materialsSoftPulse {
+  0% { background-color: rgba(29, 155, 240, 0); box-shadow: 0 0 0 rgba(29, 155, 240, 0); }
+  25% { background-color: rgba(29, 155, 240, 0.12); box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.08); }
+  50% { background-color: rgba(29, 155, 240, 0.2); box-shadow: 0 0 0 5px rgba(29, 155, 240, 0.12); }
+  75% { background-color: rgba(29, 155, 240, 0.12); box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.08); }
+  100% { background-color: rgba(29, 155, 240, 0); box-shadow: 0 0 0 rgba(29, 155, 240, 0); }
+}
+
 .materials-myrequest-head {
   display: flex;
   align-items: flex-start;
@@ -4656,6 +4668,9 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  transition: background-color .25s ease, box-shadow .25s ease;
 }
 .materials-status-pill {
   display: inline-flex;
@@ -4695,6 +4710,7 @@ a:focus-visible {
 .materials-history-qty-input {
   min-height: 34px;
   padding: 5px 8px;
+  transition: background-color .25s ease, box-shadow .25s ease;
 }
 .materials-cancel-text { color: #d93025; font-weight: 700; }
 .materials-myrequest-actions-bottom {

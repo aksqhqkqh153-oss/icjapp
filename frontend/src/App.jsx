@@ -7122,6 +7122,9 @@ function MaterialsPage({ user }) {
   const [myEditing, setMyEditing] = useState(false)
   const [mySelectedRequestIds, setMySelectedRequestIds] = useState([])
   const [myRequestDraft, setMyRequestDraft] = useState({})
+  const [myPulseRequestIds, setMyPulseRequestIds] = useState([])
+  const [myPulseQtyKeys, setMyPulseQtyKeys] = useState([])
+  const [myPulseSaveCue, setMyPulseSaveCue] = useState(false)
   const [inventoryDraft, setInventoryDraft] = useState({})
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
@@ -7158,6 +7161,9 @@ function MaterialsPage({ user }) {
     setMyRequestDraft(nextDraft)
     setMySelectedRequestIds([])
     setMyEditing(false)
+    setMyPulseRequestIds([])
+    setMyPulseQtyKeys([])
+    setMyPulseSaveCue(false)
   }, [data?.my_requests])
 
   function buildVisibleTabs(permissions) {
@@ -7215,12 +7221,12 @@ function MaterialsPage({ user }) {
           items: cartRows.map(item => ({ product_id: item.id, quantity: item.quantity })),
         }),
       })
-      setNotice('자재구매 신청이 완료되었습니다. 구매신청자 카테고리로 이동합니다.')
+      setNotice('자재구매 신청이 완료되었습니다. 신청현황 화면으로 이동합니다.')
       setSalesError('')
       setQuantities({})
       setRequestNote('')
       setSalesStep(1)
-      await loadOverview('requesters')
+      await loadOverview('myRequests')
     } catch (error) {
       setNotice(error.message || '자재구매 신청 중 오류가 발생했습니다.')
     } finally {
@@ -7323,18 +7329,51 @@ function MaterialsPage({ user }) {
       setNotice('수정/취소할 신청건을 선택해 주세요.')
       return
     }
+
+    const changeSummaries = []
+    const updatePayloads = []
+
+    for (const requestId of mySelectedRequestIds) {
+      const request = myRequests.find(item => item.id === requestId)
+      if (!request || String(request.status || '') === 'settled') continue
+      const rows = []
+      let hasChanges = false
+      for (const item of (request.items || [])) {
+        const originalQty = Math.max(0, Number(item.quantity || 0))
+        const nextQty = Math.max(0, Number(myRequestDraft[`${request.id}-${item.product_id}`] ?? item.quantity ?? 0))
+        rows.push({
+          product_id: Number(item.product_id),
+          quantity: nextQty,
+        })
+        if (nextQty !== originalQty) {
+          hasChanges = true
+          const itemName = item.short_name || item.name || '물품'
+          if (nextQty === 0) {
+            changeSummaries.push(`- [${String(request.created_at || '').slice(0, 10)}]으로 신청한 ${itemName} ${originalQty}개가 ${nextQty}개로 수정되어 물품을 취소하겠습니까?`)
+          } else {
+            changeSummaries.push(`- [${String(request.created_at || '').slice(0, 10)}]으로 신청한 ${itemName} ${originalQty}개가 ${nextQty}개로 수정하겠습니까?`)
+          }
+        }
+      }
+      if (hasChanges) {
+        updatePayloads.push({ requestId, rows })
+      }
+    }
+
+    if (updatePayloads.length === 0) {
+      setNotice('변경된 신청수량이 없습니다.')
+      return
+    }
+
+    const confirmed = window.confirm(`아래 내용으로 수정/취소를 진행합니다.\n\n${changeSummaries.join('\n')}`)
+    if (!confirmed) return
+
     setSaving(true)
     try {
-      for (const requestId of mySelectedRequestIds) {
-        const request = myRequests.find(item => item.id === requestId)
-        if (!request || String(request.status || '') === 'settled') continue
-        const rows = (request.items || []).map(item => ({
-          product_id: Number(item.product_id),
-          quantity: Math.max(0, Number(myRequestDraft[`${request.id}-${item.product_id}`] ?? item.quantity ?? 0)),
-        }))
+      for (const payload of updatePayloads) {
         await api('/api/materials/purchase-requests', {
           method: 'PUT',
-          body: JSON.stringify({ request_ids: [requestId], rows }),
+          body: JSON.stringify({ request_ids: [payload.requestId], rows: payload.rows }),
         })
       }
       setNotice('신청수량 수정/취소가 반영되었습니다.')
@@ -7359,6 +7398,49 @@ function MaterialsPage({ user }) {
     const parts = raw.split('-')
     if (parts.length !== 3) return raw.replace(/-/g, '.')
     return `${parts[0].slice(2)}.${parts[1]}.${parts[2]}`
+  }
+
+  function runTemporaryPulse(setter, values, duration = 2200) {
+    setter(Array.isArray(values) ? values : [values])
+    window.setTimeout(() => setter([]), duration)
+  }
+
+  function runSaveButtonPulse(duration = 2200) {
+    setMyPulseSaveCue(true)
+    window.setTimeout(() => setMyPulseSaveCue(false), duration)
+  }
+
+  function startMyRequestEditing() {
+    setMyEditing(true)
+    const pendingIds = (myRequests || [])
+      .filter(request => String(request.status || '') !== 'settled')
+      .map(request => request.id)
+    if (pendingIds.length) {
+      window.setTimeout(() => runTemporaryPulse(setMyPulseRequestIds, pendingIds), 60)
+    }
+  }
+
+  function handleMyRequestSelection(request, checked) {
+    setMySelectedRequestIds(prev => checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))
+    if (checked) {
+      runTemporaryPulse(setMyPulseRequestIds, [request.id])
+      const qtyKeys = (request.items || []).map(item => `${request.id}-${item.product_id}`)
+      if (qtyKeys.length) runTemporaryPulse(setMyPulseQtyKeys, qtyKeys)
+    }
+  }
+
+  function handleMyRequestDraftChange(request, item, nextValue) {
+    const normalized = String(nextValue).replace(/[^\d]/g, '')
+    const key = `${request.id}-${item.product_id}`
+    const parsed = normalized ? Number(normalized) : 0
+    setMyRequestDraft(prev => ({ ...prev, [key]: parsed }))
+    if (mySelectedRequestIds.includes(request.id)) {
+      runTemporaryPulse(setMyPulseQtyKeys, [key])
+    }
+    const original = Number(item.quantity || 0)
+    if (parsed !== original) {
+      runSaveButtonPulse()
+    }
   }
 
   function renderSettlementHeaderLabel(product) {
@@ -7617,19 +7699,21 @@ function MaterialsPage({ user }) {
     return (
       <section className="card materials-panel materials-panel-compact-head">
         <div className="materials-myrequest-head">
-          <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />- 신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.</div>
-          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : setMyEditing(true)}>{myEditing ? '저장' : '수정/취소'}</button>
+          <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.</div>
+          <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
         </div>
         <div className="materials-request-history-list">
           {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
             const isSettled = String(request.status || '') === 'settled'
+            const isSelected = mySelectedRequestIds.includes(request.id)
+            const shouldPulseDate = myPulseRequestIds.includes(request.id)
             return (
               <section key={`my-request-${request.id}`} className="card materials-request-history-card">
                 <div className="materials-request-history-date-row">
-                  <div className="materials-request-history-date-left">
+                  <div className={`materials-request-history-date-left ${(shouldPulseDate || (isSelected && myEditing && !isSettled)) ? 'materials-soft-pulse' : ''}`.trim()}>
                     {myEditing && !isSettled ? (
                       <label className="materials-checkbox">
-                        <input type="checkbox" checked={mySelectedRequestIds.includes(request.id)} onChange={(event) => setMySelectedRequestIds(prev => event.target.checked ? [...prev, request.id] : prev.filter(id => id !== request.id))} />
+                        <input type="checkbox" checked={isSelected} onChange={(event) => handleMyRequestSelection(request, event.target.checked)} />
                       </label>
                     ) : null}
                     <strong>{String(request.created_at || '').slice(0, 10)}</strong>
@@ -7644,11 +7728,12 @@ function MaterialsPage({ user }) {
                     const key = `${request.id}-${item.product_id}`
                     const qty = Math.max(0, Number(myRequestDraft[key] ?? item.quantity ?? 0))
                     const lineTotal = qty * Number(item.unit_price || 0)
+                    const shouldPulseQty = myPulseQtyKeys.includes(key) || (isSelected && myEditing && !isSettled)
                     return (
                       <div key={key} className="materials-request-history-row">
                         <div>{item.short_name || item.name}</div>
                         <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
-                        <div>{myEditing && mySelectedRequestIds.includes(request.id) && !isSettled ? <input className="materials-qty-input materials-history-qty-input" inputMode="numeric" value={qty} onChange={(e) => setMyRequestDraft(prev => ({...prev, [key]: String(e.target.value).replace(/[^\d]/g, '') ? Number(String(e.target.value).replace(/[^\d]/g, '')) : 0}))} /> : qty}</div>
+                        <div>{myEditing && isSelected && !isSettled ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
                         <div>{lineTotal.toLocaleString('ko-KR')}원</div>
                         <div className={qty === 0 && !isSettled ? 'materials-cancel-text' : ''}>{isSettled ? '결산완료' : (qty === 0 ? '취소접수' : '신청접수')}</div>
                       </div>
@@ -7661,7 +7746,7 @@ function MaterialsPage({ user }) {
           })}
         </div>
         <div className="materials-myrequest-actions-bottom">
-          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : setMyEditing(true)}>{myEditing ? '저장' : '수정/취소'}</button>
+          <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
         </div>
       </section>
     )
