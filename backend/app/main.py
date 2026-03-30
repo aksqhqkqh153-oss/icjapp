@@ -643,8 +643,10 @@ def _location_share_status(conn, user: dict) -> dict:
 
 def _materials_scope_allowed(user: dict, scope: str) -> bool:
     grade = _grade_of(user)
-    if scope in {'sales', 'inventory'}:
-        return grade <= 6
+    if scope == 'sales':
+        return True
+    if scope == 'inventory':
+        return grade <= 2
     if scope in {'requesters', 'settlements', 'history'}:
         return grade <= 2
     if scope == 'inventory_manage':
@@ -3346,8 +3348,6 @@ def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
 
 @app.get('/api/materials/overview')
 def get_materials_overview(user=Depends(require_user)):
-    if _grade_of(user) >= 7:
-        raise HTTPException(status_code=403, detail='기타 권한은 자재 기능을 볼 수 없습니다.')
     with get_conn() as conn:
         return _material_overview_payload(conn, user)
 
