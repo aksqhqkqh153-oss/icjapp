@@ -4826,3 +4826,43 @@ a:focus-visible {
   flex-wrap: wrap;
   gap: 8px 14px;
 }
+
+.admin-sort-select {
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.admin-sort-modal {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.admin-sort-modal-body label {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.schedule-toolbar-actions.desktop-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.schedule-toolbar-actions.desktop-vertical > button {
+  min-width: 120px;
+  justify-content: center;
+}
+
+.schedule-type-row {
+  max-width: 320px;
+}
+
+.schedule-form-grid-1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}

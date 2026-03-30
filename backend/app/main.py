@@ -185,6 +185,7 @@ class CalendarEventIn(BaseModel):
     platform: str = ""
     customer_name: str = ""
     department_info: str = ""
+    schedule_type: str = "A"
     status_a_count: int = 0
     status_b_count: int = 0
     status_c_count: int = 0
@@ -2331,6 +2332,7 @@ def feed_like_notifications(user=Depends(require_user)):
 def _calendar_event_out(conn, row):
     item = row_to_dict(row)
     item["created_by_nickname"] = user_basic(conn, row["user_id"])["nickname"]
+    item["schedule_type"] = str(item.get("schedule_type") or ('B' if int(item.get("status_b_count") or 0) > 0 else 'C' if int(item.get("status_c_count") or 0) > 0 else 'A'))
     item["status_a_count"] = int(item.get("status_a_count") or 0)
     item["status_b_count"] = int(item.get("status_b_count") or 0)
     item["status_c_count"] = int(item.get("status_c_count") or 0)
@@ -2355,7 +2357,7 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             """
             INSERT INTO calendar_events(
                 user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address,
-                platform, customer_name, department_info, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount,
+                platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount,
                 representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2363,7 +2365,7 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
                 payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
-                payload.platform, payload.customer_name, payload.department_info, payload.status_a_count, payload.status_b_count, payload.status_c_count,
+                payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
                 payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount,
                 payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
             ),
@@ -2382,14 +2384,14 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             """
             UPDATE calendar_events
             SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?,
-                platform = ?, customer_name = ?, department_info = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?,
+                platform = ?, customer_name = ?, department_info = ?, schedule_type = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?,
                 representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
             WHERE id = ? AND user_id = ?
             """,
             (
                 payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time, payload.location,
                 payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
-                payload.platform, payload.customer_name, payload.department_info, payload.status_a_count, payload.status_b_count, payload.status_c_count,
+                payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
                 payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount,
                 payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
             ),

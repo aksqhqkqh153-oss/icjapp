@@ -56,6 +56,25 @@ const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부�
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
+const ADMIN_SORT_OPTIONS = [
+  { value: 'account_type', label: '사업자 / 직원 분류' },
+  { value: 'vehicle_available', label: '차량가용여부기준' },
+  { value: 'position_title', label: '직급별 기준' },
+  { value: 'role', label: '직책별 기준' },
+  { value: 'grade', label: '계정권한 기준' },
+  { value: 'email', label: '아이디 기준' },
+  { value: 'custom', label: '사용자 지정(필터 2개 이상)' },
+]
+
+const ADMIN_CUSTOM_SORT_FIELDS = [
+  { value: 'account_type', label: '사업자 / 직원 분류' },
+  { value: 'vehicle_available', label: '차량가용여부기준' },
+  { value: 'position_title', label: '직급별 기준' },
+  { value: 'role', label: '직책별 기준' },
+  { value: 'grade', label: '계정권한 기준' },
+  { value: 'email', label: '아이디 기준' },
+]
+
 const MENU_PERMISSION_SECTIONS = [
   {
     id: 'common',
@@ -3173,7 +3192,7 @@ function CalendarPage() {
             </div>
             <button type="button" className="small ghost schedule-legend-trigger" onClick={() => setLegendOpen(true)}>표 설명</button>
           </div>
-          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ''}`}>
+          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ' desktop-vertical'}`}>
             {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
             {!readOnly && <button type="button" className="small ghost" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손없는날등록</button>}
           </div>
@@ -4215,6 +4234,7 @@ function ScheduleFormPage({ mode }) {
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
     department_info: DEFAULT_DEPARTMENT_OPTIONS[0],
+    schedule_type: 'A',
     status_a_count: 0,
     status_b_count: 0,
     status_c_count: 0,
@@ -4269,6 +4289,7 @@ function ScheduleFormPage({ mode }) {
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
           department_info: data.department_info || DEFAULT_DEPARTMENT_OPTIONS[0],
+          schedule_type: data.schedule_type || (Number(data.status_b_count || 0) > 0 ? 'B' : Number(data.status_c_count || 0) > 0 ? 'C' : 'A'),
           status_a_count: Number(data.status_a_count || 0),
           status_b_count: Number(data.status_b_count || 0),
           status_c_count: Number(data.status_c_count || 0),
@@ -4435,8 +4456,14 @@ function ScheduleFormPage({ mode }) {
   async function submit(e) {
     e.preventDefault()
     setError('')
+    const normalizedScheduleType = String(form.schedule_type || 'A')
+    const normalizedScheduleGroup = normalizedScheduleType.replace(/[()]/g, '')
     const payload = {
       ...form,
+      schedule_type: normalizedScheduleType,
+      status_a_count: normalizedScheduleGroup === 'A' ? 1 : 0,
+      status_b_count: normalizedScheduleGroup === 'B' ? 1 : 0,
+      status_c_count: normalizedScheduleGroup === 'C' ? 1 : 0,
       title: buildScheduleTitle(form),
       event_date: form.move_start_date || presetDate,
       move_start_date: form.move_start_date || presetDate,
@@ -4477,18 +4504,18 @@ function ScheduleFormPage({ mode }) {
             </button>
             <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
           </div>
-          <div className="schedule-form-grid-3 abc-count-row">
+          <div className="schedule-form-grid-1 schedule-type-row">
             <div className="stack compact-gap">
-              <label>A건</label>
-              <input type="number" min="0" value={form.status_a_count} onChange={e => setForm({ ...form, status_a_count: Number(e.target.value || 0) })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>B건</label>
-              <input type="number" min="0" value={form.status_b_count} onChange={e => setForm({ ...form, status_b_count: Number(e.target.value || 0) })} />
-            </div>
-            <div className="stack compact-gap">
-              <label>C건</label>
-              <input type="number" min="0" value={form.status_c_count} onChange={e => setForm({ ...form, status_c_count: Number(e.target.value || 0) })} />
+              <label>일정구분</label>
+              <select value={form.schedule_type || 'A'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="(A)">(A)</option>
+                <option value="(B)">(B)</option>
+                <option value="(C)">(C)</option>
+              </select>
+              <div className="muted tiny-text">괄호 없는 값은 확정 일정, 괄호 값은 예상 일정이며 A/B/C 카운트는 동일하게 반영됩니다.</div>
             </div>
           </div>
           <div className="stack compact-gap">
@@ -5435,6 +5462,8 @@ function AdminModePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
+  const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'email', keys: [] }, status: { mode: 'email', keys: [] }, authority: { mode: 'email', keys: [] } })
+  const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
   const ACCOUNTS_PER_PAGE = 10
 
   function parseVehicleAvailable(value) {
@@ -5466,7 +5495,7 @@ function AdminModePage() {
       setBranchRows((response.branches || []).map(normalizeAdminRow))
       setEmployeeRows((response.employees || []).map(normalizeAdminRow))
       setAccountPage(1)
-      setAccountManagePages({ list: 1, edit: 1, delete: 1 })
+      setAccountManagePages({ list: 1, edit: 1, delete: 1, switch: 1 })
       setAccountListOpen({})
       setAccountEditOpen({})
       setAccountDeleteSelection({})
@@ -5734,31 +5763,87 @@ function AdminModePage() {
     setAccountEditOpen(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
+
+  function adminSortValue(item, key) {
+    if (key === 'account_type') return item?.account_type === 'business' ? '0-business' : '1-employee'
+    if (key === 'vehicle_available') return parseVehicleAvailable(item?.vehicle_available) ? '0-available' : '1-unavailable'
+    if (key === 'position_title') return defaultPositionForRow(item) || 'zzz'
+    if (key === 'role') return String(item?.role || '')
+    if (key === 'grade') return String(Number(item?.grade || 999)).padStart(3, '0')
+    if (key === 'email') return String(item?.email || '').toLowerCase()
+    return ''
+  }
+
+  function applyAdminSort(rows, sectionKey) {
+    const config = sortConfigs?.[sectionKey] || { mode: 'email', keys: [] }
+    const activeKeys = config.mode === 'custom'
+      ? (config.keys || []).filter(Boolean).slice(0, 5)
+      : [config.mode || 'email']
+    return [...rows].sort((left, right) => {
+      for (const sortKey of activeKeys) {
+        const av = adminSortValue(left, sortKey)
+        const bv = adminSortValue(right, sortKey)
+        if (av < bv) return -1
+        if (av > bv) return 1
+      }
+      return Number(left?.id || 0) - Number(right?.id || 0)
+    })
+  }
+
+  function openSortModal(section) {
+    const existing = sortConfigs?.[section]?.keys || []
+    setSortModal({ open: true, section, draftKeys: [...existing, '', '', '', ''].slice(0, 5) })
+  }
+
+  function applyCustomSort() {
+    const keys = (sortModal.draftKeys || []).filter(Boolean)
+    const uniqueKeys = Array.from(new Set(keys)).slice(0, 5)
+    if (uniqueKeys.length < 2) {
+      window.alert('사용자 지정 정렬은 최소 2개의 필터를 설정해야 합니다.')
+      return
+    }
+    setSortConfigs(prev => ({ ...prev, [sortModal.section]: { mode: 'custom', keys: uniqueKeys } }))
+    setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
+  }
+
+  function handleSortModeChange(section, mode) {
+    if (mode === 'custom') {
+      openSortModal(section)
+      return
+    }
+    setSortConfigs(prev => ({ ...prev, [section]: { mode, keys: [] } }))
+  }
+
+  const sortedAccountRows = useMemo(() => applyAdminSort(accountRows, 'manage'), [accountRows, sortConfigs])
+  const sortedAuthorityRows = useMemo(() => applyAdminSort(accountRows, 'authority'), [accountRows, sortConfigs])
+  const sortedBranchRows = useMemo(() => applyAdminSort(branchRows, 'status'), [branchRows, sortConfigs])
+  const sortedEmployeeRows = useMemo(() => applyAdminSort(employeeRows, 'status'), [employeeRows, sortConfigs])
+
   const pagedAccounts = useMemo(() => {
     const start = (accountPage - 1) * ACCOUNTS_PER_PAGE
-    return accountRows.slice(start, start + ACCOUNTS_PER_PAGE)
-  }, [accountRows, accountPage])
+    return sortedAuthorityRows.slice(start, start + ACCOUNTS_PER_PAGE)
+  }, [sortedAuthorityRows, accountPage])
 
-  const pageCount = Math.max(1, Math.ceil(accountRows.length / ACCOUNTS_PER_PAGE))
+  const pageCount = Math.max(1, Math.ceil(sortedAuthorityRows.length / ACCOUNTS_PER_PAGE))
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
-    return accountRows.filter(item => `${item.name || ''} ${item.nickname || ''} ${item.email || ''} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
-  }, [accountRows, searchQuery])
+    return sortedAuthorityRows.filter(item => `${item.name || ''} ${item.nickname || ''} ${item.email || ''} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
+  }, [sortedAuthorityRows, searchQuery])
 
   const actorGrade = Number(currentUser?.grade || 6)
   const actorRoleLimit = Number(configForm.role_assign_actor_max_grade || 1)
   const targetRoleFloor = Number(configForm.role_assign_target_min_grade || 7)
   const franchisePositionSet = new Set(['대표', '부대표', '호점대표'])
-  const franchiseRows = useMemo(() => branchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [branchRows])
+  const franchiseRows = useMemo(() => sortedBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [sortedBranchRows])
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseCount
   const deletableAccounts = useMemo(
-    () => accountRows.filter(item => Number(item.id) !== Number(currentUser?.id || 0)),
-    [accountRows, currentUser?.id],
+    () => sortedAccountRows.filter(item => Number(item.id) !== Number(currentUser?.id || 0)),
+    [sortedAccountRows, currentUser?.id],
   )
-  const selectedSwitchAccount = useMemo(() => accountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null, [accountRows, selectedSwitchAccountId])
+  const selectedSwitchAccount = useMemo(() => sortedAccountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null, [sortedAccountRows, selectedSwitchAccountId])
 
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
@@ -5822,10 +5907,10 @@ function AdminModePage() {
     )
   }
 
-  const pagedManageList = useMemo(() => getPagedRows(accountRows, 'list'), [accountRows, accountManagePages])
+  const pagedManageList = useMemo(() => getPagedRows(sortedAccountRows, 'list'), [sortedAccountRows, accountManagePages])
   const pagedManageDeleteRows = useMemo(() => getPagedRows(deletableAccounts, 'delete'), [deletableAccounts, accountManagePages])
-  const pagedManageEditRows = useMemo(() => getPagedRows(accountRows, 'edit'), [accountRows, accountManagePages])
-  const pagedManageSwitchRows = useMemo(() => getPagedRows(accountRows, 'switch'), [accountRows, accountManagePages])
+  const pagedManageEditRows = useMemo(() => getPagedRows(sortedAccountRows, 'edit'), [sortedAccountRows, accountManagePages])
+  const pagedManageSwitchRows = useMemo(() => getPagedRows(sortedAccountRows, 'switch'), [sortedAccountRows, accountManagePages])
 
   if (loading) return <div className="card">관리자 정보를 불러오는 중...</div>
   if (error) return <div className="card error">{error}</div>
@@ -5840,6 +5925,9 @@ function AdminModePage() {
           <div className="between admin-mode-section-head">
             <h2>계정관리</h2>
             <div className="inline-actions wrap">
+              <select className="small admin-sort-select" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
+                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
               <button type="button" className={accountManageOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageOpen(v => !v)}>{accountManageOpen ? '접기' : '펼치기'}</button>
               {accountManageOpen && accountManageTab === 'create' && (
                 <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
@@ -5917,7 +6005,7 @@ function AdminModePage() {
                       )
                     })}
                   </div>
-                  {renderPagination(accountRows.length, 'list')}
+                  {renderPagination(sortedAccountRows.length, 'list')}
                 </>
               )}
 
@@ -5977,9 +6065,9 @@ function AdminModePage() {
                         </button>
                       )
                     })}
-                    {!accountRows.length && <div className="muted">전환할 계정이 없습니다.</div>}
+                    {!sortedAccountRows.length && <div className="muted">전환할 계정이 없습니다.</div>}
                   </div>
-                  {renderPagination(accountRows.length, 'switch')}
+                  {renderPagination(sortedAccountRows.length, 'switch')}
                 </>
               )}
 
@@ -6045,7 +6133,7 @@ function AdminModePage() {
                       )
                     })}
                   </div>
-                  {renderPagination(accountRows.length, 'edit')}
+                  {renderPagination(sortedAccountRows.length, 'edit')}
                 </>
               )}
 
@@ -6074,6 +6162,9 @@ function AdminModePage() {
         <div className="between admin-mode-section-head">
           <h2>운영현황</h2>
           <div className="inline-actions wrap">
+            <select className="small admin-sort-select" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
+              {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
             {statusTab === 'branch'
               ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
               : renderActionButton('직원현황', '정보저장', saveEmployeeDetails)}
@@ -6098,7 +6189,7 @@ function AdminModePage() {
             </div>
             <div className="admin-subtitle">가맹현황/상세정보</div>
             <div className="list">
-              {branchRows.map(item => (
+              {sortedBranchRows.map(item => (
                 <div key={item.id} className="list-item block admin-detail-card compact-card">
                   <div className="between admin-detail-summary-row" onClick={() => toggleBranch(item.id)}>
                     <div className="admin-summary-lines branch-summary-lines">
@@ -6153,7 +6244,7 @@ function AdminModePage() {
             </div>
             <div className="admin-subtitle">직원현황/상세정보</div>
             <div className="list">
-              {employeeRows.map(item => (
+              {sortedEmployeeRows.map(item => (
                 <div key={item.id} className="list-item block admin-detail-card compact-card">
                   <div className="between admin-detail-summary-row" onClick={() => toggleEmployee(item.id)}>
                     <div className="admin-summary-lines employee-summary-lines">
@@ -6199,6 +6290,9 @@ function AdminModePage() {
         <div className="between admin-mode-section-head">
           <h2>계정권한</h2>
           <div className="inline-actions wrap">
+            <select className="small admin-sort-select" value={sortConfigs.authority.mode} onChange={e => handleSortModeChange('authority', e.target.value)}>
+              {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
             {renderActionButton('계정권한', '정보저장', saveAccounts)}
             {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
             <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
@@ -6245,6 +6339,39 @@ function AdminModePage() {
           ))}
         </div>
       </section>
+
+
+      {sortModal.open && createPortal(
+        <div className="modal-overlay" onClick={() => setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })}>
+          <div className="modal-card admin-sort-modal" onClick={e => e.stopPropagation()}>
+            <div className="between">
+              <strong>사용자 지정 정렬</strong>
+              <button type="button" className="small ghost" onClick={() => setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })}>닫기</button>
+            </div>
+            <div className="muted">최소 2개, 최대 5개 필터를 1순위부터 설정해 주세요.</div>
+            <div className="stack compact-gap admin-sort-modal-body">
+              {Array.from({ length: 5 }, (_, index) => (
+                <label key={`custom-sort-${index}`}>
+                  <span>{index + 1}순위</span>
+                  <select value={sortModal.draftKeys[index] || ''} onChange={e => {
+                    const next = [...sortModal.draftKeys]
+                    next[index] = e.target.value
+                    setSortModal(prev => ({ ...prev, draftKeys: next }))
+                  }}>
+                    <option value="">선택 안 함</option>
+                    {ADMIN_CUSTOM_SORT_FIELDS.map(option => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="inline-actions wrap end">
+              <button type="button" className="small ghost" onClick={() => setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })}>취소</button>
+              <button type="button" className="small" onClick={applyCustomSort}>적용</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {searchOpen && createPortal(
         <div className="modal-overlay" onClick={() => setSearchOpen(false)}>
