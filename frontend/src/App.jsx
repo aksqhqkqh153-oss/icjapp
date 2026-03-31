@@ -6272,7 +6272,8 @@ function AdminModePage() {
 
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
-    return { ...item, group_number: String(item?.group_number ?? '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
+    const rawGroupNumber = item?.group_number_text ?? item?.group_number ?? '0'
+    return { ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -6336,6 +6337,7 @@ function AdminModePage() {
   }
 
   function normalizeDetailPayload(row) {
+    const rawGroupNumber = String(row.group_number_text ?? row.group_number ?? '0')
     return {
       id: row.id,
       name: row.name || '',
@@ -6365,8 +6367,13 @@ function AdminModePage() {
       vehicle_available: parseVehicleAvailable(row.vehicle_available),
       show_in_branch_status: !!row.show_in_branch_status,
       show_in_employee_status: !!row.show_in_employee_status,
-      group_number: String(row.group_number ?? '0'),
+      group_number: rawGroupNumber,
+      group_number_text: rawGroupNumber,
     }
+  }
+
+  function groupNumberDisplay(item) {
+    return String(item?.group_number_text ?? item?.group_number ?? '0') || '0'
   }
 
   async function saveBranchDetails() {
@@ -6797,7 +6804,7 @@ function AdminModePage() {
                         <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
                           <button type="button" className="admin-account-summary-button admin-account-summary-button-list" onClick={() => toggleAccountListRow(item.id)} aria-expanded={isOpen}>
                             <div className="admin-account-summary-line admin-account-summary-line-primary">
-                              <span>[{item.group_number || '0'}]</span>
+                              <span>[{groupNumberDisplay(item)}]</span>
                               <span>[{item.name || '-'}]</span>
                               <span>[{item.email || '-'}]</span>
                               <span>[{defaultPositionForRow(item) || '미지정'}]</span>
@@ -6810,7 +6817,7 @@ function AdminModePage() {
                           </button>
                           {isOpen && (
                             <div className="admin-account-list-body">
-                              <div><strong>구분숫자</strong> {item.group_number || '0'}</div>
+                              <div><strong>구분숫자</strong> {groupNumberDisplay(item)}</div>
                               <div><strong>아이디</strong> {item.email || '-'}</div>
                               <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
                               <div><strong>이름</strong> {item.name || '-'}</div>
@@ -6917,7 +6924,7 @@ function AdminModePage() {
                       return (
                         <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
                           <button type="button" className="admin-account-summary-button admin-account-summary-button-edit" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
-                            <span>[{item.group_number || '0'}]</span>
+                            <span>[{groupNumberDisplay(item)}]</span>
                             <span>[{item.name || '-'}]</span>
                             <span>[{item.email || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
@@ -6925,7 +6932,7 @@ function AdminModePage() {
                           </button>
                           {isOpen && (
                             <div className="admin-inline-grid compact-inline-grid admin-edit-expanded-grid">
-                              <label>구분숫자 <input inputMode="numeric" value={item.group_number || '0'} onChange={e => updateAccountRow(item.id, { group_number: e.target.value.replace(/[^0-9]/g, '') || '0' })} /></label>
+                              <label>구분숫자 <input type="text" inputMode="numeric" pattern="[0-9]*" value={groupNumberDisplay(item)} onChange={e => { const nextValue = e.target.value.replace(/[^0-9]/g, ''); updateAccountRow(item.id, { group_number: nextValue === '' ? '0' : nextValue, group_number_text: nextValue === '' ? '0' : nextValue }) }} /></label>
                               <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
                               <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
                               <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
@@ -7057,7 +7064,7 @@ function AdminModePage() {
                   <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleBranch(item.id)}>
                     <div className="admin-summary-lines branch-summary-lines">
                       <div className="admin-summary-line admin-summary-line-primary">
-                        <span>[{item.group_number || '0'}]</span>
+                        <span>[{groupNumberDisplay(item)}]</span>
                         <span>[{item.branch_no || '-'}호점]</span>
                         <span>[{item.nickname || item.name || '이름 미입력'}]</span>
                         <span>[{item.phone || '연락처 미입력'}]</span>
@@ -7120,7 +7127,7 @@ function AdminModePage() {
                   <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleEmployee(item.id)}>
                     <div className="admin-summary-lines employee-summary-lines">
                       <div className="admin-summary-line admin-summary-line-primary">
-                        <span>[{item.group_number || '0'}]</span>
+                        <span>[{groupNumberDisplay(item)}]</span>
                         <span>[{item.nickname || item.name || '이름 미입력'}]</span>
                         <span>[{item.phone || '연락처 미입력'}]</span>
                         <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
