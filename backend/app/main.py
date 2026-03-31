@@ -884,19 +884,26 @@ def _material_overview_payload(conn, user: dict) -> dict:
     ]
     pending_requests = [row for row in request_rows if row.get('status') == 'pending']
     settled_requests = [row for row in request_rows if row.get('status') == 'settled']
-    history_rows = settled_requests[:]
+    rejected_requests = [row for row in request_rows if row.get('status') == 'rejected']
+    history_rows = settled_requests[:] + rejected_requests[:]
+    history_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
     my_request_rows = [row for row in request_rows if int(row.get('user_id') or 0) == int(user.get('id') or 0)]
     products = _material_products(conn)
     inventory_rows = _material_today_inventory_rows(conn, today_key)
     inventory_map = {int(row['product_id']): row for row in inventory_rows}
+    pending_qty_map = {}
+    for row in pending_requests:
+        for item in row.get('items', []):
+            product_id = int(item.get('product_id') or 0)
+            pending_qty_map[product_id] = pending_qty_map.get(product_id, 0) + max(0, int(item.get('quantity') or 0))
     effective_products = []
     for product in products:
         product_copy = dict(product)
+        base_stock = max(0, int(product_copy.get('current_stock') or 0))
         inventory_row = inventory_map.get(int(product_copy['id']))
         if inventory_row:
-            product_copy['current_stock'] = max(0, int(inventory_row.get('expected_stock') or 0))
-        else:
-            product_copy['current_stock'] = max(0, int(product_copy.get('current_stock') or 0))
+            base_stock = max(0, int(inventory_row.get('expected_stock') or 0))
+        product_copy['current_stock'] = max(0, base_stock - int(pending_qty_map.get(int(product_copy['id']), 0) or 0))
         effective_products.append(product_copy)
     return {
         'today': today_key,
@@ -3631,6 +3638,39 @@ def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user
             updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (row['id'],)).fetchone()
             settled_rows.append(_material_request_detail(conn, row_to_dict(updated)))
         return {'ok': True, 'settled_requests': settled_rows, 'share_text': _material_share_text(settled_rows)}
+
+
+@app.post('/api/materials/purchase-requests/reject')
+def reject_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'requesters')
+    request_ids = sorted({int(item) for item in payload.request_ids if int(item or 0) > 0})
+    if not request_ids:
+        raise HTTPException(status_code=400, detail='결산반려할 구매신청자를 선택해 주세요.')
+    placeholders = ','.join('?' for _ in request_ids)
+    with get_conn() as conn:
+        rows = [
+            row_to_dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM material_purchase_requests WHERE id IN ({placeholders}) ORDER BY created_at, id",
+                tuple(request_ids),
+            ).fetchall()
+        ]
+        if not rows:
+            raise HTTPException(status_code=404, detail='반려 대상 신청서를 찾을 수 없습니다.')
+        rejected_rows = []
+        for row in rows:
+            if str(row.get('status') or '') == 'settled':
+                raise HTTPException(status_code=400, detail='이미 결산완료된 신청건은 반려할 수 없습니다.')
+            if str(row.get('status') or '') == 'rejected':
+                rejected_rows.append(_material_request_detail(conn, row))
+                continue
+            conn.execute(
+                "UPDATE material_purchase_requests SET status = 'rejected', payment_confirmed = 0, settled_at = '', settled_by_user_id = NULL, share_snapshot_json = '' WHERE id = ?",
+                (row['id'],),
+            )
+            updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (row['id'],)).fetchone()
+            rejected_rows.append(_material_request_detail(conn, row_to_dict(updated)))
+        return {'ok': True, 'rejected_requests': rejected_rows}
 
 
 @app.put('/api/materials/purchase-requests')

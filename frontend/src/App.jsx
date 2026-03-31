@@ -8194,6 +8194,23 @@ function SettlementPage() {
   )
 }
 
+
+function clampMaterialsScale(value) {
+  const parsed = Number(value || 100)
+  if (!Number.isFinite(parsed)) return 100
+  return Math.min(140, Math.max(80, Math.round(parsed)))
+}
+
+function materialsStageStatusLabel(status) {
+  if (status === 'settled') return '결산완료'
+  if (status === 'rejected') return '반려됨'
+  return '신청접수'
+}
+
+function isMaterialsAdminUser(user) {
+  return Number(user?.grade || 6) <= 2
+}
+
 function MaterialsPage({ user }) {
 
   const isMobile = useIsMobile()
@@ -8214,14 +8231,29 @@ function MaterialsPage({ user }) {
   const [inventoryDraft, setInventoryDraft] = useState({})
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
+  const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, inventory: 100, requesters: 100 })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
+  const canEditMaterialTableSize = isMaterialsAdminUser(user)
 
   async function loadOverview(nextTab) {
     setLoading(true)
     try {
-      const result = await api('/api/materials/overview')
+      const [result, preferences] = await Promise.all([
+        api('/api/materials/overview'),
+        api('/api/preferences').catch(() => ({})),
+      ])
       setData(result)
+      const savedScale = preferences?.materialsTableScale || {}
+      setTableScaleSettings(prev => ({
+        sales: clampMaterialsScale(savedScale.sales ?? prev.sales),
+        confirm: clampMaterialsScale(savedScale.confirm ?? prev.confirm),
+        myRequests: clampMaterialsScale(savedScale.myRequests ?? prev.myRequests),
+        inventory: clampMaterialsScale(savedScale.inventory ?? prev.inventory),
+        requesters: clampMaterialsScale(savedScale.requesters ?? prev.requesters),
+      }))
       setInventoryDraft(Object.fromEntries((result.inventory_rows || []).map(row => [row.product_id, { incoming_qty: row.incoming_qty || 0, note: row.note || '' }])))
       const tabs = buildVisibleTabs(result?.permissions || {})
       setActiveTab(nextTab && tabs.some(item => item.id === nextTab) ? nextTab : (tabs[0]?.id || 'sales'))
@@ -8286,6 +8318,35 @@ function MaterialsPage({ user }) {
   const cartTotal = cartRows.reduce((sum, item) => sum + item.lineTotal, 0)
   const insufficientCartItem = cartRows.find(item => Number(item.quantity || 0) > Number(item.current_stock || 0))
 
+  function getActiveTableScaleKey() {
+    if (activeTab === 'sales') return salesStep === 2 ? 'confirm' : 'sales'
+    if (activeTab === 'myRequests') return 'myRequests'
+    if (activeTab === 'inventory') return 'inventory'
+    if (activeTab === 'requesters') return 'requesters'
+    return 'sales'
+  }
+
+  function getTableScaleStyle(key) {
+    const scale = clampMaterialsScale(tableScaleSettings[key])
+    return { '--materials-table-scale': String(scale / 100) }
+  }
+
+  async function saveTableScaleSetting(key, nextValue) {
+    const clamped = clampMaterialsScale(nextValue)
+    const nextSettings = { ...tableScaleSettings, [key]: clamped }
+    setTableScaleSettings(nextSettings)
+    setSettingsSaving(true)
+    try {
+      const prefs = await api('/api/preferences').catch(() => ({}))
+      await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: { ...prefs, materialsTableScale: nextSettings } }) })
+      setNotice('표 크기 설정이 저장되었습니다.')
+    } catch (error) {
+      setNotice(error.message || '표 크기 설정 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   function updateQuantity(productId, value) {
     const nextValue = String(value).replace(/[^\d]/g, '')
     setQuantities(prev => ({ ...prev, [productId]: nextValue ? Number(nextValue) : '' }))
@@ -8336,6 +8397,27 @@ function MaterialsPage({ user }) {
       await loadOverview('settlements')
     } catch (error) {
       setNotice(error.message || '결산등록 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function rejectSelectedRequests() {
+    if (selectedRequestIds.length === 0) {
+      setNotice('결산반려 처리할 구매신청자를 선택해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      const result = await api('/api/materials/purchase-requests/reject', {
+        method: 'POST',
+        body: JSON.stringify({ request_ids: selectedRequestIds }),
+      })
+      setSelectedRequestIds([])
+      setNotice(`${result.rejected_requests?.length || 0}건의 결산반려가 처리되었습니다.`)
+      await loadOverview('requesters')
+    } catch (error) {
+      setNotice(error.message || '결산반려 처리 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
     }
@@ -8421,7 +8503,7 @@ function MaterialsPage({ user }) {
 
     for (const requestId of mySelectedRequestIds) {
       const request = myRequests.find(item => item.id === requestId)
-      if (!request || String(request.status || '') === 'settled') continue
+      if (!request || ['settled','rejected'].includes(String(request.status || ''))) continue
       const rows = []
       let hasChanges = false
       for (const item of (request.items || [])) {
@@ -8676,24 +8758,48 @@ function MaterialsPage({ user }) {
     )
   }
 
+  function renderMaterialsPanelSettingsButton(key) {
+    if (!canEditMaterialTableSize) return null
+    const activeKey = key || getActiveTableScaleKey()
+    return (
+      <div className="materials-panel-settings-wrap">
+        <button type="button" className="ghost small" onClick={() => setSettingsOpen(prev => prev === activeKey ? '' : activeKey)}>설정</button>
+        {settingsOpen === activeKey ? (
+          <div className="materials-settings-popover">
+            <strong>표 크기 편집</strong>
+            <label className="stack compact-gap">
+              <span>표 가로 배율 (%)</span>
+              <input type="number" min="80" max="140" step="1" value={tableScaleSettings[activeKey] ?? 100} onChange={e => setTableScaleSettings(prev => ({ ...prev, [activeKey]: clampMaterialsScale(e.target.value) }))} />
+            </label>
+            <div className="row gap materials-settings-actions">
+              <button type="button" className="ghost small" onClick={() => setSettingsOpen('')}>닫기</button>
+              <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableScaleSetting(activeKey, tableScaleSettings[activeKey])}>저장</button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   function renderSalesContent() {
     if (salesStep === 2) {
       return (
         <section className="card materials-panel">
-          <div className="materials-summary-head">
-            <h3>자재구매(2/2)</h3>
-            <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div>
+          <div className="materials-summary-head materials-summary-head-inline">
+            <div><h3>자재구매(2/2)</h3>
+            <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div></div>
+            {renderMaterialsPanelSettingsButton('confirm')}
           </div>
           <div className="materials-account-box">
             <strong>자재 입금 계좌</strong>
             <div>{accountGuide}</div>
           </div>
-          <div className="materials-table">
+          <div className="materials-table materials-table-confirm" style={getTableScaleStyle('confirm')}>
             <div className="materials-row materials-row-head">
               <div>구분</div>
               <div>물품가</div>
               <div>구매수량</div>
-              <div>금액</div>
+              <div>합계금액</div>
             </div>
             {cartRows.map(item => (
               <div key={`confirm-${item.id}`} className="materials-row">
@@ -8728,9 +8834,9 @@ function MaterialsPage({ user }) {
             <h3>자재구매(1/2)</h3>
             <div className="muted">구매 수량을 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
           </div>
-          {renderSalesPurchaseButtons('materials-actions-top')}
+          {canEditMaterialTableSize ? renderMaterialsPanelSettingsButton('sales') : null}
         </div>
-        <div className="materials-table materials-table-sales">
+        <div className="materials-table materials-table-sales" style={getTableScaleStyle('sales')}>
           <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales">
             <div>구분</div>
             <div>물품가</div>
@@ -8810,7 +8916,7 @@ function MaterialsPage({ user }) {
                   <strong>{meta.name}</strong>
                 </div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
-                <div>{formatFullDateLabel(request.settled_at)}</div>
+                <div>{String(request.status || '') === 'rejected' ? '반려처리' : formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
               <div className="materials-request-items materials-request-items-sheet">
@@ -8835,6 +8941,7 @@ function MaterialsPage({ user }) {
     const grouped = groupedMyRequests()
     return (
       <section className="card materials-panel materials-panel-compact-head">
+        <div className="materials-summary-head-inline"><div><h3>신청현황</h3></div>{renderMaterialsPanelSettingsButton('myRequests')}</div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
@@ -8842,20 +8949,22 @@ function MaterialsPage({ user }) {
         <div className="materials-request-history-list">
           {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
             const isSettled = String(request.status || '') === 'settled'
+            const isRejected = String(request.status || '') === 'rejected'
+            const isLocked = isSettled || isRejected
             const isSelected = mySelectedRequestIds.includes(request.id)
             const shouldPulseDate = myPulseRequestIds.includes(request.id)
             return (
               <section key={`my-request-${request.id}`} className="card materials-request-history-card">
                 <div className="materials-request-history-date-row">
-                  <div className={`materials-request-history-date-left ${(shouldPulseDate || (isSelected && myEditing && !isSettled)) ? 'materials-soft-pulse' : ''}`.trim()}>
-                    {myEditing && !isSettled ? (
+                  <div className={`materials-request-history-date-left ${(shouldPulseDate || (isSelected && myEditing && !isLocked)) ? 'materials-soft-pulse' : ''}`.trim()}>
+                    {myEditing && !isLocked ? (
                       <label className="materials-checkbox">
                         <input type="checkbox" checked={isSelected} onChange={(event) => handleMyRequestSelection(request, event.target.checked)} />
                       </label>
                     ) : null}
                     <strong>{String(request.created_at || '').slice(0, 10)}</strong>
                   </div>
-                  <span className={`materials-status-pill ${isSettled ? 'settled' : 'pending'}`}>{isSettled ? '결산완료' : '신청접수'}</span>
+                  <span className={`materials-status-pill ${isSettled ? 'settled' : (isRejected ? 'rejected' : 'pending')}`}>{isSettled ? '결산완료' : (isRejected ? '반려됨' : '신청접수')}</span>
                 </div>
                 <div className="materials-request-history-table">
                   <div className="materials-request-history-row materials-request-history-head">
@@ -8870,9 +8979,9 @@ function MaterialsPage({ user }) {
                       <div key={key} className="materials-request-history-row">
                         <div>{displayMyRequestItemName(item)}</div>
                         <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
-                        <div>{myEditing && isSelected && !isSettled ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
+                        <div>{myEditing && isSelected && !isLocked ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
                         <div>{lineTotal.toLocaleString('ko-KR')}원</div>
-                        <div className={qty === 0 && !isSettled ? 'materials-cancel-text' : ''}>{isSettled ? '결산완료' : (qty === 0 ? '취소접수' : '신청접수')}</div>
+                        <div className={qty === 0 && !isSettled ? 'materials-cancel-text' : ''}>{isSettled ? '결산완료' : (String(request.status || '') === 'rejected' ? '반려됨' : (qty === 0 ? '취소접수' : '신청접수'))}</div>
                       </div>
                     )
                   })}
@@ -8892,7 +9001,11 @@ function MaterialsPage({ user }) {
   function renderInventoryContent() {
     return (
       <section className="card materials-panel materials-panel-compact-head">
-        <div className="materials-table materials-table-inventory">
+        <div className="materials-summary-head-inline materials-summary-head-inventory">
+          <div><h3>재고현황</h3></div>
+          {renderMaterialsPanelSettingsButton('inventory')}
+        </div>
+        <div className="materials-table materials-table-inventory" style={getTableScaleStyle('inventory')}>
           <div className="materials-row materials-row-head materials-row-inventory-header">
             <div>구분</div>
             <div>기존 개수</div>
@@ -8972,8 +9085,10 @@ function MaterialsPage({ user }) {
       {activeTab === 'inventory' && renderInventoryContent()}
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">
-          {renderRequestRows(pendingRequests, 'pending')}
+          <div className="materials-summary-head-inline"><div><h3>신청목록</h3></div>{renderMaterialsPanelSettingsButton('requesters')}</div>
+          <div style={getTableScaleStyle('requesters')}>{renderRequestRows(pendingRequests, 'pending')}</div>
           <div className="row gap wrap materials-actions-right materials-actions-bottom">
+            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={rejectSelectedRequests}>결산반려</button>
             <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
           </div>
         </section>
