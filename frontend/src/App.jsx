@@ -3071,6 +3071,13 @@ function renderExclusionText(items = [], emptyLabel = '-') {
   return normalized.map(item => `${item.name}(${item.reason || '-'})`).join(' / ')
 }
 
+function formatBusinessExceptionLabel(item = {}) {
+  const branchLabel = item?.branch_no ? `[${item.branch_no}호점]` : '[미지정]'
+  const nameLabel = item?.name ? `[${item.name}]` : '[이름미지정]'
+  const reasonLabel = `[${String(item?.reason || '').trim() || '-'}]`
+  return `${branchLabel} ${nameLabel} ${reasonLabel}`
+}
+
 function CalendarPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -3095,6 +3102,13 @@ function CalendarPage() {
   const [staffExclusionDraft, setStaffExclusionDraft] = useState(() => normalizeStaffExclusionDetails())
   const [legendOpen, setLegendOpen] = useState(false)
   const [vehicleListPopup, setVehicleListPopup] = useState({ open: false, title: '', items: [] })
+  const [exceptionManagerOpen, setExceptionManagerOpen] = useState(false)
+  const [exceptionAccounts, setExceptionAccounts] = useState([])
+  const [exceptionLoading, setExceptionLoading] = useState(false)
+  const [exceptionAction, setExceptionAction] = useState('add')
+  const [exceptionForm, setExceptionForm] = useState({ user_id: '', start_date: initialDate, end_date: initialDate, reason: '' })
+  const [exceptionItems, setExceptionItems] = useState([])
+  const [editingExceptionId, setEditingExceptionId] = useState(null)
   const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
@@ -3219,6 +3233,114 @@ function CalendarPage() {
     await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(payload) })
     closeCalendarStatusPopup()
     await load()
+  }
+
+  async function callVehicleExclusionManagerApi(accountId, action = 'list', payload = null, exclusionId = null) {
+    const primaryBase = `/api/admin/accounts/${accountId}/vehicle-exclusions`
+    const aliasBase = `/api/admin/vehicle-exclusions/${accountId}`
+    const attempt = async (path, options = {}) => api(path, options)
+    const isRetryable = error => {
+      const message = String(error?.message || '')
+      return message.includes('(404)') || message.includes('(405)') || message.includes('Not Found') || message.includes('Method Not Allowed')
+    }
+    try {
+      if (action === 'list') return await attempt(primaryBase)
+      if (action === 'create') return await attempt(primaryBase, { method: 'POST', body: JSON.stringify(payload || {}) })
+      if (action === 'update') return await attempt(`${primaryBase}/${exclusionId}`, { method: 'PUT', body: JSON.stringify(payload || {}) })
+      if (action === 'delete') return await attempt(`${primaryBase}/${exclusionId}`, { method: 'DELETE' })
+      throw new Error('지원하지 않는 차량열외 요청입니다.')
+    } catch (error) {
+      if (!isRetryable(error)) throw error
+      if (action === 'list') return await attempt(aliasBase)
+      if (action === 'create') return await attempt(aliasBase, { method: 'POST', body: JSON.stringify(payload || {}) })
+      if (action === 'update') return await attempt(`${aliasBase}/${exclusionId}`, { method: 'PUT', body: JSON.stringify(payload || {}) })
+      if (action === 'delete') return await attempt(`${aliasBase}/${exclusionId}`, { method: 'DELETE' })
+      throw error
+    }
+  }
+
+  async function openExceptionManager() {
+    if (Number(currentUser?.grade || 6) > 2) return
+    setExceptionManagerOpen(true)
+    setExceptionAction('add')
+    setEditingExceptionId(null)
+    setExceptionForm({ user_id: '', start_date: selectedDate, end_date: selectedDate, reason: '' })
+    setExceptionLoading(true)
+    try {
+      const adminData = await api('/api/admin-mode')
+      const accounts = (adminData?.accounts || [])
+        .filter(item => Number(item?.branch_no || 0) > 0)
+        .map(item => ({
+          id: item.id,
+          branch_no: item.branch_no,
+          name: item.nickname || item.name || item.email || `계정 ${item.id}`,
+          label: `[${item.branch_no}호점] ${item.nickname || item.name || item.email || `계정 ${item.id}`}`,
+        }))
+      setExceptionAccounts(accounts)
+      const dayItems = Array.isArray(selectedDaySummary?.auto_unavailable_business) ? selectedDaySummary.auto_unavailable_business : []
+      setExceptionItems(dayItems)
+      if (accounts.length) {
+        setExceptionForm(prev => ({ ...prev, user_id: prev.user_id || String(accounts[0].id) }))
+      }
+    } catch (error) {
+      window.alert(error.message || '열외관리 데이터를 불러오지 못했습니다.')
+      setExceptionManagerOpen(false)
+    } finally {
+      setExceptionLoading(false)
+    }
+  }
+
+  function startExceptionEdit(item) {
+    setExceptionAction('edit')
+    setEditingExceptionId(item?.exclusion_id || item?.id || null)
+    setExceptionForm({
+      user_id: String(item?.user_id || ''),
+      start_date: String(item?.start_date || selectedDate),
+      end_date: String(item?.end_date || selectedDate),
+      reason: String(item?.reason || ''),
+    })
+  }
+
+  async function submitExceptionAction() {
+    const userId = Number(exceptionForm.user_id || 0)
+    if (userId <= 0) {
+      window.alert('열외 계정을 선택해 주세요.')
+      return
+    }
+    const payload = { start_date: exceptionForm.start_date || selectedDate, end_date: exceptionForm.end_date || selectedDate, reason: exceptionForm.reason || '' }
+    setExceptionLoading(true)
+    try {
+      if (exceptionAction === 'edit' && editingExceptionId) {
+        await callVehicleExclusionManagerApi(userId, 'update', payload, editingExceptionId)
+      } else {
+        await callVehicleExclusionManagerApi(userId, 'create', payload)
+      }
+      await load()
+      const refreshed = (workDayMap.get(selectedDate)?.auto_unavailable_business || [])
+      setExceptionItems(refreshed)
+      setExceptionAction('add')
+      setEditingExceptionId(null)
+      setExceptionForm(prev => ({ ...prev, start_date: selectedDate, end_date: selectedDate, reason: '' }))
+    } catch (error) {
+      window.alert(error.message || '열외관리 저장에 실패했습니다.')
+    } finally {
+      setExceptionLoading(false)
+    }
+  }
+
+  async function deleteExceptionItem(item) {
+    const targetId = Number(item?.user_id || 0)
+    const exclusionId = Number(item?.exclusion_id || 0)
+    if (targetId <= 0 || exclusionId <= 0) return
+    setExceptionLoading(true)
+    try {
+      await callVehicleExclusionManagerApi(targetId, 'delete', null, exclusionId)
+      await load()
+    } catch (error) {
+      window.alert(error.message || '열외삭제에 실패했습니다.')
+    } finally {
+      setExceptionLoading(false)
+    }
   }
 
   return (
@@ -3382,8 +3504,16 @@ function CalendarPage() {
                     <span>A {String(calendarStatusForm.status_a_count ?? 0).padStart(2, '0')}건 · B {String(calendarStatusForm.status_b_count ?? 0).padStart(2, '0')}건 · C {String(calendarStatusForm.status_c_count ?? 0).padStart(2, '0')}건</span>
                   </div>
                   <div className="day-status-detail-row block">
-                    <strong>* 열외자 : {exclusionCount(businessExclusionDraft) + exclusionCount(staffExclusionDraft)}건</strong>
-                    <div className="muted">- 사업자 : {renderExclusionText(businessExclusionDraft)}</div>
+                    <div className="between day-status-exclusion-head">
+                      <strong>* 열외자 : {exclusionCount(businessExclusionDraft) + exclusionCount(staffExclusionDraft) + ((selectedDaySummary?.auto_unavailable_business || []).length)}건</strong>
+                      {Number(currentUser?.grade || 6) <= 2 ? <button type="button" className="small ghost" onClick={openExceptionManager}>열외관리</button> : null}
+                    </div>
+                    <div className="muted">- 사업자</div>
+                    <div className="day-status-exclusion-list">
+                      {(selectedDaySummary?.auto_unavailable_business || []).length ? (selectedDaySummary.auto_unavailable_business || []).map(item => (
+                        <div key={`auto-exclusion-${item.exclusion_id || item.user_id}-${item.start_date || ''}`} className="day-status-exclusion-item">{formatBusinessExceptionLabel(item)}</div>
+                      )) : <div className="muted">표시할 사업자 열외가 없습니다.</div>}
+                    </div>
                     <div className="muted">- 직원 : {renderExclusionText(staffExclusionDraft)}</div>
                   </div>
                   {calendarStatusForm.day_memo ? (
@@ -3445,6 +3575,51 @@ function CalendarPage() {
                 <div key={`${item.branch_no || 'x'}-${item.display_name || index}`} className="vehicle-list-row">{item.label}</div>
               ))}
               {!(vehicleListPopup.items || []).length && <div className="muted">표시할 가용차량 목록이 없습니다.</div>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {exceptionManagerOpen && (
+        <div className="schedule-popup-backdrop" onClick={() => setExceptionManagerOpen(false)}>
+          <section className="schedule-popup-card exception-manager-popup" onClick={event => event.stopPropagation()}>
+            <div className="between schedule-popup-head">
+              <div>
+                <strong>열외관리</strong>
+                <div className="muted">관리자 / 부관리자만 차량열외 데이터를 추가·편집·삭제할 수 있습니다.</div>
+              </div>
+              <button type="button" className="ghost small" onClick={() => setExceptionManagerOpen(false)}>닫기</button>
+            </div>
+            <div className="inline-actions wrap exception-manager-actions">
+              <button type="button" className={exceptionAction === 'add' ? 'small' : 'small ghost'} onClick={() => { setExceptionAction('add'); setEditingExceptionId(null); setExceptionForm(prev => ({ ...prev, start_date: selectedDate, end_date: selectedDate, reason: '' })) }}>열외추가</button>
+              <button type="button" className={exceptionAction === 'edit' ? 'small' : 'small ghost'} onClick={() => setExceptionAction('edit')}>열외편집</button>
+              <button type="button" className="small ghost" onClick={() => setExceptionAction('delete')}>열외삭제</button>
+            </div>
+            <div className="exception-manager-grid">
+              <label>사업자
+                <select value={exceptionForm.user_id} onChange={e => setExceptionForm(prev => ({ ...prev, user_id: e.target.value }))}>
+                  <option value="">선택</option>
+                  {exceptionAccounts.map(item => <option key={`exception-account-${item.id}`} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>시작일<input type="date" value={exceptionForm.start_date} onChange={e => setExceptionForm(prev => ({ ...prev, start_date: e.target.value }))} /></label>
+              <label>종료일<input type="date" value={exceptionForm.end_date} onChange={e => setExceptionForm(prev => ({ ...prev, end_date: e.target.value }))} /></label>
+              <label className="exception-reason-field">열외사유<textarea rows={2} value={exceptionForm.reason} onChange={e => setExceptionForm(prev => ({ ...prev, reason: e.target.value }))} placeholder="열외사유 입력" /></label>
+            </div>
+            <div className="inline-actions wrap end">
+              <button type="button" className="small" disabled={exceptionLoading} onClick={submitExceptionAction}>{exceptionAction === 'edit' ? '편집저장' : '열외추가'}</button>
+            </div>
+            <div className="day-status-exclusion-list exception-manager-list">
+              {(selectedDaySummary?.auto_unavailable_business || []).map(item => (
+                <div key={`manager-ex-${item.exclusion_id || item.user_id}-${item.start_date || ''}`} className="exception-manager-item">
+                  <div className="exception-manager-text">{formatBusinessExceptionLabel(item)}<div className="muted tiny-text">{item.start_date} ~ {item.end_date}</div></div>
+                  <div className="inline-actions wrap">
+                    <button type="button" className="small ghost" onClick={() => startExceptionEdit(item)}>열외편집</button>
+                    <button type="button" className="small ghost" onClick={() => deleteExceptionItem(item)}>열외삭제</button>
+                  </div>
+                </div>
+              ))}
+              {!(selectedDaySummary?.auto_unavailable_business || []).length && <div className="muted">선택한 날짜의 사업자 열외 데이터가 없습니다.</div>}
             </div>
           </section>
         </div>
@@ -3768,6 +3943,7 @@ function buildDayStatusForm(day) {
     excluded_staff_details: day?.excluded_staff_details || [],
     available_vehicle_count: Number(day?.available_vehicle_count || 0),
     available_vehicle_accounts: day?.available_vehicle_accounts || [],
+    auto_unavailable_business: day?.auto_unavailable_business || [],
     status_a_count: Number(day?.status_a_count || 0),
     status_b_count: Number(day?.status_b_count || 0),
     status_c_count: Number(day?.status_c_count || 0),

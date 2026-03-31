@@ -5280,3 +5280,138 @@ a:focus-visible {
     width: 100%;
   }
 }
+
+/* materials alignment optimization */
+.materials-page .materials-table {
+  overflow-x: auto;
+}
+.materials-table-sales {
+  display: grid;
+  gap: 6px;
+}
+.materials-table-sales .materials-row.materials-row-sales,
+.materials-table-sales .materials-row.materials-row-head.materials-row-head-sales {
+  grid-template-columns: max-content max-content max-content max-content max-content;
+  justify-content: end;
+  width: max-content;
+  min-width: 100%;
+}
+.materials-table-sales .materials-row > div,
+.materials-table-inventory .materials-row > div {
+  white-space: nowrap;
+}
+.materials-table-sales .materials-row > div:first-child,
+.materials-table-sales .materials-row-head > div:first-child,
+.materials-table-inventory .materials-row > div:first-child,
+.materials-table-inventory .materials-row-head > div:first-child {
+  text-align: right;
+  overflow: visible;
+  text-overflow: clip;
+}
+.materials-table-inventory .materials-row {
+  grid-template-columns: max-content max-content max-content max-content max-content minmax(180px, max-content);
+  justify-content: end;
+  width: max-content;
+  min-width: 100%;
+}
+.materials-table-inventory .materials-row > div:last-child {
+  text-align: right;
+}
+.materials-actions-right,
+.materials-myrequest-actions-bottom,
+.materials-actions-bottom {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* schedule detail and exception manager */
+.calendar-date-select,
+.calendar-handless-banner,
+.calendar-handless-pill {
+  transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.calendar-cell.handless-day-cell .calendar-date-select,
+.day-status-popup .calendar-handless-banner.handless,
+.calendar-handless-pill.active {
+  background: #9ed2ff;
+  color: #0f3f75;
+  box-shadow: inset 0 0 0 1px rgba(15,63,117,.18);
+}
+.calendar-cell .calendar-date-select,
+.day-status-popup .calendar-handless-banner.general,
+.calendar-handless-pill.inactive {
+  background: #eceff3;
+  color: #3f4b5a;
+}
+.day-status-exclusion-head {
+  width: 100%;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.day-status-exclusion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.day-status-exclusion-item,
+.exception-manager-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.exception-manager-popup {
+  width: min(760px, calc(100vw - 28px));
+  max-height: min(82vh, 760px);
+  overflow: auto;
+}
+.exception-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.exception-manager-grid .exception-reason-field {
+  grid-column: 1 / -1;
+}
+.exception-manager-actions {
+  margin-top: 8px;
+}
+.exception-manager-list {
+  margin-top: 14px;
+}
+.exception-manager-text {
+  min-width: 0;
+}
+.schedule-popup-card {
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(80vh, 760px);
+  overflow: auto;
+}
+.schedule-popup-list {
+  max-height: 56vh;
+  overflow: auto;
+}
+@media (max-width: 768px) {
+  .materials-table-sales .materials-row.materials-row-sales,
+  .materials-table-sales .materials-row.materials-row-head.materials-row-head-sales,
+  .materials-table-inventory .materials-row {
+    min-width: max-content;
+  }
+  .exception-manager-grid {
+    grid-template-columns: 1fr;
+  }
+  .exception-manager-item,
+  .day-status-exclusion-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .schedule-popup-card {
+    width: min(96vw, 520px);
+  }
+}

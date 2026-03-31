@@ -2579,9 +2579,12 @@ def _get_vehicle_base_and_auto_unavailable(conn, date_keys: list[str]) -> tuple[
                         display_name = f'{branch_value}호점' if branch_value not in (None, '') else f'계정 {user_id}'
                     result[key].append({
                         'user_id': user_id,
+                        'exclusion_id': entry.get('id') if (entry := exclusion) else None,
                         'branch_no': user_row.get('branch_no'),
                         'name': display_name,
                         'reason': str(exclusion.get('reason') or '').strip() or '차량열외',
+                        'start_date': exclusion.get('start_date'),
+                        'end_date': exclusion.get('end_date'),
                     })
                     break
     return len(active_users), result, available_vehicle_accounts
@@ -2631,6 +2634,42 @@ def _create_vehicle_exclusion_response(user_id: int, payload: VehicleExclusionIn
         rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
     return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
 
+
+
+
+def _update_vehicle_exclusion_response(user_id: int, exclusion_id: int, payload: VehicleExclusionIn):
+    start_date = str(payload.start_date or '').strip()
+    end_date = str(payload.end_date or '').strip()
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', start_date) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', end_date):
+        raise HTTPException(status_code=400, detail='열외 기간 날짜 형식이 올바르지 않습니다.')
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail='열외 종료일은 시작일보다 빠를 수 없습니다.')
+    with get_conn() as conn:
+        if not conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone():
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        existing = conn.execute("SELECT id FROM vehicle_exclusions WHERE id = ? AND user_id = ?", (exclusion_id, user_id)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail='열외 일정을 찾을 수 없습니다.')
+        now = utcnow()
+        conn.execute(
+            "UPDATE vehicle_exclusions SET start_date = ?, end_date = ?, reason = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+            (start_date, end_date, str(payload.reason or '').strip(), now, exclusion_id, user_id),
+        )
+        rows = conn.execute("SELECT * FROM vehicle_exclusions WHERE user_id = ? ORDER BY start_date DESC, end_date DESC, id DESC", (user_id,)).fetchall()
+    return {'ok': True, 'items': [row_to_dict(row) for row in rows]}
+
+
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}', methods=['PUT'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}/', methods=['PUT'])
+@app.api_route('/api/admin/accounts/{user_id}/vehicle_exclusions/{exclusion_id}', methods=['PUT'])
+def vehicle_exclusions_item_update(user_id: int, exclusion_id: int, payload: VehicleExclusionIn, request: Request = None, admin=Depends(require_admin_mode_user)):
+    return _update_vehicle_exclusion_response(user_id, exclusion_id, payload)
+
+
+@app.api_route('/api/admin/vehicle-exclusions/{user_id}/{exclusion_id}', methods=['PUT'])
+@app.api_route('/api/admin/vehicle_exclusions/{user_id}/{exclusion_id}', methods=['PUT'])
+def vehicle_exclusions_item_update_alias(user_id: int, exclusion_id: int, payload: VehicleExclusionIn, request: Request = None, admin=Depends(require_admin_mode_user)):
+    return _update_vehicle_exclusion_response(user_id, exclusion_id, payload)
 
 @app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}', methods=['DELETE'])
 @app.api_route('/api/admin/accounts/{user_id}/vehicle-exclusions/{exclusion_id}/', methods=['DELETE'])
@@ -2869,6 +2908,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             'entries': day_entries,
             'excluded_business': excluded_business,
             'excluded_business_names': excluded_business_names,
+            'auto_unavailable_business': auto_unavailable,
             'excluded_staff': excluded_staff,
             'excluded_staff_names': staff_display,
             'excluded_vehicle_count': excluded_vehicle_count,
