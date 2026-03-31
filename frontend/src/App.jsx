@@ -28,7 +28,8 @@ const PAGE_TITLES = {
   '/materials': '자재구매/현황',
   '/storage-status': '짐보관현황',
   '/menu-permissions': '메뉴권한',
-  '/quote-forms': '견적양식',
+  '/quotes': '견적',
+  '/quote-forms': '견적',
 }
 
 function pageTitle(pathname) {
@@ -83,7 +84,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'work-schedule', label: '근무스케줄', path: '/work-schedule' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
-      { id: 'quote-forms', label: '견적양식', path: '/quote-forms' },
+      { id: 'quotes', label: '견적', path: '/quotes' },
     ],
   },
   {
@@ -5000,9 +5001,11 @@ function QuoteCheckboxGroup({ values, options, onChange }) {
 }
 
 function QuoteFormsPage({ user }) {
+  const navigate = useNavigate()
   const isAdminUser = canAccessAdminMode(user)
   const [mode, setMode] = useState('same_day')
-  const [viewTab, setViewTab] = useState('customer')
+  const [pageTab, setPageTab] = useState('form')
+  const [listTypeTab, setListTypeTab] = useState('same_day')
   const [submitting, setSubmitting] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -5010,6 +5013,16 @@ function QuoteFormsPage({ user }) {
   const [error, setError] = useState('')
   const [adminItems, setAdminItems] = useState([])
   const [detailItem, setDetailItem] = useState(null)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [favoriteIds, setFavoriteIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem('icj_quote_favorites')
+      const parsed = raw ? JSON.parse(raw) : []
+      return Array.isArray(parsed) ? parsed.map(Number).filter(Boolean) : []
+    } catch (_) {
+      return []
+    }
+  })
   const baseForm = {
     privacy_agreed: false,
     customer_name: user?.name || user?.nickname || '',
@@ -5051,8 +5064,14 @@ function QuoteFormsPage({ user }) {
   const [form, setForm] = useState(baseForm)
 
   useEffect(() => {
-    if (viewTab === 'adminList' && isAdminUser) loadAdminList()
-  }, [viewTab, isAdminUser])
+    if (pageTab === 'list' && isAdminUser) loadAdminList()
+  }, [pageTab, isAdminUser])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('icj_quote_favorites', JSON.stringify(favoriteIds))
+    } catch (_) {}
+  }, [favoriteIds])
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -5093,8 +5112,12 @@ function QuoteFormsPage({ user }) {
     setSubmitting(true)
     try {
       await api('/api/quote-forms/submit', { method: 'POST', body: JSON.stringify(buildPayload()) })
-      setMessage('양식이 정상 접수되었습니다. 관리자는 작성된 양식목록에서 내용을 확인할 수 있습니다.')
+      setMessage('양식이 정상 접수되었습니다. 관리자는 견적목록에서 내용을 확인할 수 있습니다.')
       setForm({ ...baseForm, customer_name: user?.name || user?.nickname || '', contact_phone: user?.phone || '' })
+      if (isAdminUser) {
+        setPageTab('list')
+        loadAdminList()
+      }
     } catch (err) {
       setError(err.message || '양식 접수 중 오류가 발생했습니다.')
     } finally {
@@ -5107,10 +5130,16 @@ function QuoteFormsPage({ user }) {
     setError('')
     try {
       const result = await api('/api/admin/quote-forms')
-      setAdminItems(result.items || [])
-      if ((result.items || []).length > 0 && !detailItem) setDetailItem(result.items[0])
+      const nextItems = result.items || []
+      setAdminItems(nextItems)
+      if (nextItems.length > 0) {
+        const matched = detailItem ? nextItems.find(item => item.id === detailItem.id) : nextItems[0]
+        setDetailItem(matched || nextItems[0])
+      } else {
+        setDetailItem(null)
+      }
     } catch (err) {
-      setError(err.message || '작성된 양식목록을 불러오지 못했습니다.')
+      setError(err.message || '견적목록을 불러오지 못했습니다.')
     } finally {
       setListLoading(false)
     }
@@ -5121,7 +5150,6 @@ function QuoteFormsPage({ user }) {
     try {
       const result = await api(`/api/admin/quote-forms/${itemId}`)
       setDetailItem(result.item || null)
-      setViewTab('detail')
     } catch (err) {
       setError(err.message || '상세작성양식을 불러오지 못했습니다.')
     } finally {
@@ -5129,24 +5157,43 @@ function QuoteFormsPage({ user }) {
     }
   }
 
-  const currentDesiredLabel = mode === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
-  const adminDetailPayload = detailItem?.payload || {}
+  function toggleFavorite(itemId) {
+    setFavoriteIds(prev => prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId])
+  }
 
-  return <div className="stack-page quote-forms-page">
+  function toggleSelected(itemId) {
+    setSelectedIds(prev => prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId])
+  }
+
+  function toggleSelectAll(checked) {
+    if (!checked) {
+      setSelectedIds([])
+      return
+    }
+    setSelectedIds(filteredAdminItems.map(item => item.id))
+  }
+
+  const currentDesiredLabel = detailItem?.form_type === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
+  const adminDetailPayload = detailItem?.payload || {}
+  const filteredAdminItems = adminItems.filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
+  const allSelected = filteredAdminItems.length > 0 && filteredAdminItems.every(item => selectedIds.includes(item.id))
+
+  return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
       <div className="quote-form-title-block">
-        <h2>이청잘 견적서 신청</h2>
-        <div className="quote-form-note">(주말, 공휴일 접수된 경우 평일에 견적 발송이 진행됩니다.)</div>
+        <h2>견적</h2>
+        <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>
       </div>
-      <div className="quote-form-view-tabs">
-        <button type="button" className={viewTab === 'customer' ? 'active' : ''} onClick={() => setViewTab('customer')}>고객작성 양식폼</button>
-        {isAdminUser && <button type="button" className={viewTab === 'adminList' ? 'active' : ''} onClick={() => setViewTab('adminList')}>관리자용 작성된 양식목록</button>}
-        {isAdminUser && detailItem && <button type="button" className={viewTab === 'detail' ? 'active' : ''} onClick={() => setViewTab('detail')}>상세작성양식</button>}
+
+      <div className="quote-page-tabs">
+        <button type="button" className={pageTab === 'form' ? 'active' : ''} onClick={() => setPageTab('form')}>견적양식</button>
+        <button type="button" className={pageTab === 'list' ? 'active' : ''} onClick={() => setPageTab('list')}>견적목록</button>
       </div>
+
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      {viewTab === 'customer' && <>
+      {pageTab === 'form' && <>
         <div className="quote-form-mode-intro">
           <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
           <button type="button" className={`quote-mode-button ${mode === 'same_day' ? 'active' : ''}`} onClick={() => selectMode('same_day')}>당일 이사 👉</button>
@@ -5234,56 +5281,97 @@ function QuoteFormsPage({ user }) {
         </form>
       </>}
 
-      {isAdminUser && viewTab === 'adminList' && <div className="quote-admin-layout">
+      {pageTab === 'list' && !isAdminUser && <section className="card quote-admin-list-card"><div className="muted">견적목록은 관리자/부관리자 계정에서 확인할 수 있습니다.</div></section>}
+
+      {pageTab === 'list' && isAdminUser && <div className="quote-admin-layout">
         <section className="card quote-admin-list-card">
-          <div className="between"><h3>(관리자용) 작성된 양식목록</h3><button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button></div>
-          <div className="quote-admin-list">{adminItems.length === 0 ? <div className="muted">접수된 양식이 없습니다.</div> : adminItems.map(item => <button type="button" key={item.id} className={`quote-admin-list-item${detailItem?.id === item.id ? ' active' : ''}`} onClick={() => openDetail(item.id)}><div className="quote-admin-list-title">{item.summary_title || `${item.form_type === 'storage' ? '짐보관이사' : '당일이사'} · ${item.requester_name || '-'}`}</div><div className="quote-admin-list-meta">{item.requester_name || '-'} · {item.contact_phone || '-'} · {formatQuoteDesiredDate(item)}</div><div className="quote-admin-list-meta">접수일 {String(item.created_at || '').replace('T', ' ').slice(0, 16)}</div></button>)}</div>
+          <div className="between quote-list-toolbar">
+            <div className="quote-list-tabs">
+              <button type="button" className={listTypeTab === 'same_day' ? 'active' : ''} onClick={() => setListTypeTab('same_day')}>당일이사</button>
+              <button type="button" className={listTypeTab === 'storage' ? 'active' : ''} onClick={() => setListTypeTab('storage')}>짐보관이사</button>
+            </div>
+            <button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button>
+          </div>
+
+          <div className="quote-list-table-wrapper">
+            <table className="quote-list-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" checked={allSelected} onChange={e => toggleSelectAll(e.target.checked)} /></th>
+                  <th>즐겨찾기</th>
+                  <th>견적양식작성시각</th>
+                  <th>고객성함</th>
+                  <th>이사희망날짜</th>
+                  <th>출발지가구원</th>
+                  <th>댓글수</th>
+                  <th>메뉴</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAdminItems.length === 0 ? <tr><td colSpan="8" className="quote-list-empty">접수된 견적이 없습니다.</td></tr> : filteredAdminItems.map(item => {
+                  const payload = item.payload || {}
+                  const isFavorite = favoriteIds.includes(item.id)
+                  const isChecked = selectedIds.includes(item.id)
+                  return <tr key={item.id} className={detailItem?.id === item.id ? 'active' : ''} onClick={() => openDetail(item.id)}>
+                    <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isChecked} onChange={() => toggleSelected(item.id)} /></td>
+                    <td onClick={e => e.stopPropagation()}><button type="button" className={`quote-star-button ${isFavorite ? 'active' : ''}`} onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기">{isFavorite ? '★' : '☆'}</button></td>
+                    <td>{String(item.created_at || '').replace('T', ' ').slice(0, 16) || '-'}</td>
+                    <td>{item.requester_name || '-'}</td>
+                    <td>{formatQuoteDesiredDate(item)}</td>
+                    <td>{payload.household || '-'}</td>
+                    <td>{Number(payload.comment_count || 0)}</td>
+                    <td><button type="button" className="quote-menu-button" onClick={(e) => { e.stopPropagation(); openDetail(item.id) }}>⋮</button></td>
+                  </tr>
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="card quote-admin-detail-card">
+          <div className="between"><h3>상세작성양식</h3>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
+          {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body">
+            <div className="quote-detail-hero"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
+            <div className="quote-detail-grid">
+              <div className="quote-detail-section"><h4>기본 정보</h4><dl>{[
+                ['고객 성함', adminDetailPayload.customer_name],
+                [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
+                ['출발지 거주 가구원', adminDetailPayload.household],
+                ['출발지 구조', adminDetailPayload.structure],
+                ['출발지 평수', adminDetailPayload.area],
+                ['연락처', detailItem.contact_phone || adminDetailPayload.contact_phone],
+              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+              <div className="quote-detail-section"><h4>주소 / 이동 조건</h4><dl>{[
+                ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
+                ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
+                ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
+                ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
+                ['희망 이사 종류', adminDetailPayload.move_types],
+                ['동승 희망 여부', adminDetailPayload.companion_preference],
+              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+              <div className="quote-detail-section"><h4>가전/가구 / 옵션</h4><dl>{[
+                ['프리미엄 추가 옵션', adminDetailPayload.premium_options],
+                ['가전/가구 종류', adminDetailPayload.furniture_types],
+                ['가전/가구 별도 기재', adminDetailPayload.extra_furniture],
+                ['가전/가구 2개 이상', adminDetailPayload.duplicate_furniture],
+                ['분해/조립 필요 항목', adminDetailPayload.disassembly_types],
+                ['대형 가전/가구 / 폐기물', adminDetailPayload.large_item_types],
+                ['폐기물 신고 서비스', adminDetailPayload.waste_service],
+              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+              <div className="quote-detail-section"><h4>경유지 / 메모</h4><dl>{[
+                ['경유지 주소', [adminDetailPayload.via_address, adminDetailPayload.via_address_detail].filter(Boolean).join(' ')],
+                ['경유지 엘레베이터', adminDetailPayload.via_elevator],
+                ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
+                ['경유지 하차 물품', adminDetailPayload.via_drop_items],
+                ['추가 메모', adminDetailPayload.request_memo],
+                ['이사 제한 안내 확인', adminDetailPayload.move_scope_notice ? '확인' : '-'],
+                ['카카오톡 안내 확인', adminDetailPayload.kakao_notice ? '확인' : '-'],
+              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+            </div>
+            <div className="quote-detail-json"><h4>원본 접수 데이터</h4><pre>{JSON.stringify(adminDetailPayload, null, 2)}</pre></div>
+          </div>}
         </section>
       </div>}
-
-      {isAdminUser && viewTab === 'detail' && <section className="card quote-admin-detail-card">
-        <div className="between"><h3>상세작성양식</h3>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
-        {!detailItem ? <div className="muted">목록에서 양식을 선택해 주세요.</div> : <div className="quote-admin-detail-body">
-          <div className="quote-detail-hero"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
-          <div className="quote-detail-grid">
-            <div className="quote-detail-section"><h4>기본 정보</h4><dl>{[
-              ['고객 성함', adminDetailPayload.customer_name],
-              [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
-              ['출발지 거주 가구원', adminDetailPayload.household],
-              ['출발지 구조', adminDetailPayload.structure],
-              ['출발지 평수', adminDetailPayload.area],
-              ['연락처', detailItem.contact_phone || adminDetailPayload.contact_phone],
-            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-            <div className="quote-detail-section"><h4>주소 / 이동 조건</h4><dl>{[
-              ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
-              ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
-              ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
-              ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
-              ['희망 이사 종류', adminDetailPayload.move_types],
-              ['동승 희망 여부', adminDetailPayload.companion_preference],
-            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-            <div className="quote-detail-section"><h4>가전/가구 / 옵션</h4><dl>{[
-              ['프리미엄 추가 옵션', adminDetailPayload.premium_options],
-              ['가전/가구 종류', adminDetailPayload.furniture_types],
-              ['가전/가구 별도 기재', adminDetailPayload.extra_furniture],
-              ['가전/가구 2개 이상', adminDetailPayload.duplicate_furniture],
-              ['분해/조립 필요 항목', adminDetailPayload.disassembly_types],
-              ['대형 가전/가구 / 폐기물', adminDetailPayload.large_item_types],
-              ['폐기물 신고 서비스', adminDetailPayload.waste_service],
-            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-            <div className="quote-detail-section"><h4>경유지 / 메모</h4><dl>{[
-              ['경유지 주소', [adminDetailPayload.via_address, adminDetailPayload.via_address_detail].filter(Boolean).join(' ')],
-              ['경유지 엘레베이터', adminDetailPayload.via_elevator],
-              ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
-              ['경유지 하차 물품', adminDetailPayload.via_drop_items],
-              ['추가 메모', adminDetailPayload.request_memo],
-              ['이사 제한 안내 확인', adminDetailPayload.move_scope_notice ? '확인' : '-'],
-              ['카카오톡 안내 확인', adminDetailPayload.kakao_notice ? '확인' : '-'],
-            ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-          </div>
-          <div className="quote-detail-json"><h4>원본 접수 데이터</h4><pre>{JSON.stringify(adminDetailPayload, null, 2)}</pre></div>
-        </div>}
-      </section>}
     </section>
   </div>
 }
@@ -8583,7 +8671,8 @@ function App() {
         <Route path="/points" element={<PointsPage />} />
         <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/materials" element={<MaterialsPage user={user} />} />
-        <Route path="/quote-forms" element={<QuoteFormsPage user={user} />} />
+        <Route path="/quotes" element={<QuoteFormsPage user={user} />} />
+        <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />

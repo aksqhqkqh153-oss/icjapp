@@ -5116,3 +5116,66 @@ a:focus-visible {
 .admin-status-add-row select{
   flex:1;
 }
+
+.quote-page-tabs, .quote-list-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quote-page-tabs button, .quote-list-tabs button {
+  border-radius: 999px;
+  padding: 10px 16px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  font-weight: 700;
+}
+.quote-page-tabs button.active, .quote-list-tabs button.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+.quote-list-toolbar {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.quote-list-table-wrapper {
+  overflow-x: auto;
+}
+.quote-list-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+.quote-list-table th,
+.quote-list-table td {
+  border: 1px solid #e3e8ef;
+  padding: 10px 8px;
+  text-align: center;
+  background: #fff;
+}
+.quote-list-table thead th {
+  background: #f6f8fb;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.quote-list-table tbody tr {
+  cursor: pointer;
+}
+.quote-list-table tbody tr.active td {
+  background: #eef4ff;
+}
+.quote-list-empty {
+  color: #666;
+  padding: 32px 12px !important;
+}
+.quote-star-button,
+.quote-menu-button {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.quote-star-button.active {
+  color: #d4a000;
+}
