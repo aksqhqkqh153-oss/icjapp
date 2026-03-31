@@ -1726,6 +1726,8 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
         existing = conn.execute("SELECT id FROM users WHERE email = ? AND id != ?", (payload.email, user["id"])).fetchone()
         if existing:
             raise HTTPException(status_code=400, detail="이미 사용 중인 아이디입니다.")
+        if payload.branch_no != user.get('branch_no') and int(user.get('grade') or 6) != 1:
+            raise HTTPException(status_code=403, detail='호점은 관리자 권한에서만 본인 프로필로 변경할 수 있습니다.')
         assignments = [
             ("email", payload.email.strip()),
             ("nickname", payload.nickname.strip()),
@@ -1739,7 +1741,7 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
             ("gender", payload.gender.strip()),
             ("birth_year", int(payload.birth_year or 1990)),
             ("vehicle_number", payload.vehicle_number.strip()),
-            ("branch_no", payload.branch_no),
+            ("branch_no", payload.branch_no if int(user.get('grade') or 6) == 1 else user.get('branch_no')),
             ("marital_status", payload.marital_status.strip()),
             ("resident_address", payload.resident_address.strip()),
             ("business_name", payload.business_name.strip()),
@@ -3370,7 +3372,7 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
             raise HTTPException(status_code=403, detail='해당 권한을 수정할 수 없습니다.')
         approved = int(payload.approved) if payload.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
         next_position_title = str((payload.position_title if payload.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
-        if not next_position_title and existing['branch_no'] is not None:
+        if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
             next_position_title = '호점대표'
         conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
         _sync_all_day_note_available_vehicle_counts(conn)
@@ -3390,7 +3392,7 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
                 continue
             approved = int(item.approved) if item.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
             next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
-            if not next_position_title and existing['branch_no'] is not None:
+            if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
                 next_position_title = '호점대표'
             conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if item.vehicle_available else 0, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -3470,7 +3472,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                 dup_uid = conn.execute("SELECT id FROM users WHERE account_unique_id = ? AND id != ?", (data['account_unique_id'], item.id)).fetchone()
                 if dup_uid:
                     raise HTTPException(status_code=400, detail=f"{data['account_unique_id']} 고유ID값은 이미 사용 중입니다.")
-            if not data['position_title'] and data.get('branch_no') not in (None, ''):
+            if not data['position_title'] and data.get('branch_no') not in (None, '') and int(data.get('branch_no') or 0) > 0:
                 data['position_title'] = '호점대표'
             assignments = ', '.join(f"{field} = ?" for field in editable_fields)
             values = [data.get(field) for field in editable_fields] + [item.id]
@@ -3488,7 +3490,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
         generated_unique_id = generate_account_unique_id(conn, payload.email)
         position_title = str(payload.position_title or '').strip()
-        if not position_title and payload.branch_no is not None:
+        if not position_title and payload.branch_no not in (None, '') and int(payload.branch_no or 0) > 0:
             position_title = '호점대표'
         conn.execute(
             """

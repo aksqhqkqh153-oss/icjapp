@@ -118,7 +118,7 @@ function saveAlertShownMap(userId, channel, value) {
   } catch (_) {}
 }
 
-const BRANCH_NUMBER_OPTIONS = Array.from({ length: 50 }, (_, index) => index + 1)
+const BRANCH_NUMBER_OPTIONS = [0, ...Array.from({ length: 50 }, (_, index) => index + 1)]
 
 const ROLE_OPTIONS = [
   { value: 1, label: '관리자' },
@@ -134,6 +134,27 @@ const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부�
 
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
+
+function normalizeBranchNo(value) {
+  if (value === '' || value === null || value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function isAssignedBranchNo(value) {
+  return value !== '' && value !== null && value !== undefined && !Number.isNaN(Number(value))
+}
+
+function branchOptionLabel(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '본점 또는 미지정'
+  return num === 0 ? '0본점' : `${num}호점`
+}
+
+function branchDisplayLabel(value, fallback = '본점/미지정') {
+  if (!isAssignedBranchNo(value)) return fallback
+  return branchOptionLabel(value)
+}
 
 const ADMIN_SORT_OPTIONS = [
   { value: 'group_number', label: '구분 기준' },
@@ -681,7 +702,7 @@ function SignupPage({ onLogin }) {
         phone: form.phone.trim(),
         recovery_email: form.recovery_email.trim(),
         vehicle_number: form.vehicle_number.trim(),
-        branch_no: form.branch_no ? Number(form.branch_no) : null,
+        branch_no: normalizeBranchNo(form.branch_no),
       }
       const data = await api('/api/auth/signup', {
         method: 'POST',
@@ -711,7 +732,7 @@ function SignupPage({ onLogin }) {
           <input placeholder="차량번호 (선택)" value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value })} />
           <select value={form.branch_no} onChange={e => setForm({ ...form, branch_no: e.target.value })}>
             <option value="">호점 선택 (선택)</option>
-            {branchOptions.map(num => <option key={num} value={num}>{num}호점</option>)}
+            {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
           </select>
           <button>가입 후 로그인</button>
           {error && <div className="error">{error}</div>}
@@ -1001,7 +1022,7 @@ function ProfilePage({ onUserUpdate }) {
       gender: form.gender || '',
       birth_year: Number(form.birth_year || 1990),
       vehicle_number: form.vehicle_number || '',
-      branch_no: form.branch_no ? Number(form.branch_no) : null,
+      branch_no: normalizeBranchNo(form.branch_no),
       marital_status: form.marital_status || '',
       resident_address: form.resident_address || '',
       business_name: form.business_name || '',
@@ -1058,7 +1079,7 @@ function ProfilePage({ onUserUpdate }) {
         </div>
         <div className="profile-badges">
           <span className="profile-badge">{form.grade_label || '일반'}</span>
-          <span className="profile-badge ghost">{form.branch_no ? `${form.branch_no}호점` : '본점/미지정'}</span>
+          <span className="profile-badge ghost">{branchDisplayLabel(form.branch_no, '본점/미지정')}</span>
         </div>
       </div>
 
@@ -1091,9 +1112,9 @@ function ProfilePage({ onUserUpdate }) {
             </label>
             <label className="field-block">
               <span>호점</span>
-              <select value={form.branch_no || ''} onChange={e => updateField('branch_no', e.target.value)}>
+              <select value={isAssignedBranchNo(form.branch_no) ? String(form.branch_no) : ''} onChange={e => updateField('branch_no', e.target.value)} disabled={Number(form.grade || 6) !== 1} className={Number(form.grade || 6) !== 1 ? 'readonly-input' : ''}>
                 <option value="">본점 또는 미지정</option>
-                {branchOptions.map(num => <option key={num} value={num}>{num}호점</option>)}
+                {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
               </select>
             </label>
             <label className="field-block">
@@ -6261,7 +6282,7 @@ function AdminModePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
-  const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'email', keys: [] }, status: { mode: 'email', keys: [] }, authority: { mode: 'email', keys: [] } })
+  const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'group_number', keys: [] }, status: { mode: 'email', keys: [] }, authority: { mode: 'email', keys: [] } })
   const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
   const [statusAddPickerOpen, setStatusAddPickerOpen] = useState({ branch: false, employee: false })
   const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '' })
@@ -6432,7 +6453,7 @@ function AdminModePage() {
         birth_year: Number(createForm.birth_year || 1995),
         branch_no: createForm.branch_no ? Number(createForm.branch_no) : null,
         grade: Number(createForm.grade || 6),
-        position_title: createForm.branch_no ? '호점대표' : (createForm.position_title || ''),
+        position_title: Number(createForm.branch_no || '') > 0 ? '호점대표' : (createForm.position_title || ''),
         approved: !!createForm.approved,
         vehicle_available: parseVehicleAvailable(createForm.vehicle_available),
       }),
@@ -6832,7 +6853,7 @@ function AdminModePage() {
                               <div><strong>출생연도</strong> {item.birth_year || '-'}</div>
                               <div><strong>지역</strong> {item.region || '-'}</div>
                               <div><strong>차량번호</strong> {item.vehicle_number || '-'}</div>
-                              <div><strong>호점</strong> {item.branch_no || '-'}</div>
+                              <div><strong>호점</strong> {branchDisplayLabel(item.branch_no, '-')}</div>
                               <div><strong>결혼여부</strong> {item.marital_status || '-'}</div>
                               <div><strong>거주지주소</strong> {item.resident_address || '-'}</div>
                               <div><strong>사업자명</strong> {item.business_name || '-'}</div>
@@ -6872,7 +6893,7 @@ function AdminModePage() {
                     <label>호점
                       <select value={createForm.branch_no} onChange={e => setCreateForm({ ...createForm, branch_no: e.target.value })}>
                         <option value="">선택 안 함</option>
-                        {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
+                        {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
                       </select>
                     </label>
                     <label>권한등급
@@ -6881,7 +6902,7 @@ function AdminModePage() {
                       </select>
                     </label>
                     <label>직급
-                      <select value={createForm.branch_no ? '호점대표' : (createForm.position_title || '')} onChange={e => setCreateForm({ ...createForm, position_title: e.target.value })} disabled={!!createForm.branch_no}>
+                      <select value={Number(createForm.branch_no || '') > 0 ? '호점대표' : (createForm.position_title || '')} onChange={e => setCreateForm({ ...createForm, position_title: e.target.value })} disabled={Number(createForm.branch_no || '') > 0}>
                         <option value="">미지정</option>
                         {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                       </select>
@@ -6957,9 +6978,9 @@ function AdminModePage() {
                               <label>지역 <input value={item.region || ''} onChange={e => updateAccountRow(item.id, { region: e.target.value })} /></label>
                               <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateAccountRow(item.id, { vehicle_number: e.target.value })} /></label>
                               <label>호점
-                                <select value={item.branch_no || ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value ? Number(e.target.value) : '' })}>
+                                <select value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateAccountRow(item.id, { branch_no: normalizeBranchNo(e.target.value) })} disabled={actorGrade > 2}>
                                   <option value="">선택 안 함</option>
-                                  {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{num}호점</option>)}
+                                  {BRANCH_NUMBER_OPTIONS.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
                                 </select>
                               </label>
                               <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateAccountRow(item.id, { marital_status: e.target.value })} /></label>
@@ -7067,7 +7088,7 @@ function AdminModePage() {
                     <div className="admin-summary-lines branch-summary-lines">
                       <div className="admin-summary-line admin-summary-line-primary">
                         <span>[{groupNumberDisplay(item)}]</span>
-                        <span>[{item.branch_no || '-'}호점]</span>
+                        <span>[{branchDisplayLabel(item.branch_no, '-')}]</span>
                         <span>[{item.nickname || item.name || '이름 미입력'}]</span>
                         <span>[{item.phone || '연락처 미입력'}]</span>
                       </div>
@@ -7090,7 +7111,7 @@ function AdminModePage() {
                       <div className="admin-inline-grid compact-inline-grid">
                         <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
                         <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>호점 <input value={item.branch_no || ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
+                        <label>호점 <input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
                       </div>
                       <div className="admin-inline-grid compact-inline-grid">
                         <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} disabled={!branchEditMode} /></label>
