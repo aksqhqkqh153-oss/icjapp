@@ -4410,10 +4410,6 @@ button.danger:hover {
 
 
 /* 2026-03-28 schedule calendar capacity/status refresh */
-.schedule-page .schedule-cell.detail-cell.handless-day-cell {
-  background: linear-gradient(180deg, rgba(125, 211, 252, 0.68), rgba(239, 246, 255, 0.96));
-}
-
 .handless-picker-cell.selected,
 .handless-picker-cell.selected.handless-day-cell {
   background: linear-gradient(180deg, rgba(34, 197, 94, 0.22), rgba(220, 252, 231, 0.92));
@@ -4605,10 +4601,6 @@ button.danger:hover {
     line-height: 1;
     padding: 1px 3px;
     border-radius: 999px;
-  }
-
-  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell.handless-day-cell {
-    background: linear-gradient(180deg, rgba(125, 211, 252, 0.8), rgba(239, 246, 255, 0.98));
   }
 
   .handless-grid .calendar-cell {
@@ -5522,14 +5514,12 @@ a:focus-visible {
 .calendar-handless-pill {
   transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
 }
-.calendar-cell.handless-day-cell .calendar-date-select,
 .day-status-popup .calendar-handless-banner.handless,
 .calendar-handless-pill.active {
   background: #9ed2ff;
   color: #0f3f75;
   box-shadow: inset 0 0 0 1px rgba(15,63,117,.18);
 }
-.calendar-cell .calendar-date-select,
 .day-status-popup .calendar-handless-banner.general,
 .calendar-handless-pill.inactive {
   background: #eceff3;

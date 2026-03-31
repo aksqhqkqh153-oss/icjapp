@@ -3867,7 +3867,7 @@ function CalendarPage() {
             const dayCapacityClass = daySummary ? buildCalendarDayStatusClass(daySummary) : ''
             const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
             return (
-              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${daySummary?.is_handless_day ? ' handless-day-cell' : ''}${dayCapacityClass ? ` ${dayCapacityClass}` : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
+              <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${dayCapacityClass ? ` ${dayCapacityClass}` : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
@@ -3941,7 +3941,6 @@ function CalendarPage() {
           <div className="mobile-schedule-detail-panel">
             <div className="between">
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
-              {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate}`)}>일정등록</button>}
             </div>
             <div className={`calendar-handless-banner ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손없는날' : '일반'}</div>
             <div className="schedule-popup-list embedded">
@@ -4256,7 +4255,7 @@ function ScheduleLegendModal({ onClose }) {
           <button type="button" className="small ghost" onClick={onClose}>닫기</button>
         </div>
         <div className="stack compact-gap schedule-legend-body">
-          <div><strong>색상 의미</strong></div>
+          <div><strong>일자 칸 색상의미</strong></div>
           <div className="schedule-legend-list">
             <div><span className="schedule-legend-chip full">검정</span> 완전 마감</div>
             <div><span className="schedule-legend-chip critical">빨강</span> 완전 마감 직전(차량 1대 여유)</div>
@@ -4264,9 +4263,9 @@ function ScheduleLegendModal({ onClose }) {
             <div><span className="schedule-legend-chip normal">흰색</span> 여유(차량 3대 이상 여유)</div>
             <div><span className="schedule-legend-chip error">분홍</span> 일정 오류 또는 검토 필요</div>
           </div>
-          <div><strong>가용차량수</strong>는 기본 차량 수에서 차량열외/차량가용 불가 및 해당 날짜 열외 차량을 반영한 실제 출동 가능 수입니다.</div>
-          <div><strong>A / B / C</strong>는 각각 오후 재출동 가능 오전 일정, 오후 재출동 불가 오전 일정, 오후 2시 30분 이후 일정 수를 뜻합니다.</div>
-          <div><strong>손없음</strong>은 손없는날 등록이 된 날짜이고, <strong>일반</strong>은 일반 날짜입니다.</div>
+          <div><strong>가용 차량수</strong> : 실제 출동 가능한 차량 수입니다.<br />* [가맹점 총 차량수] - [열외차량] = [가용차량수]을 의미합니다.</div>
+          <div><strong>A</strong> : 오후 재출동 가능한 오전일정<br /><strong>B</strong> : 오후 재출동 불가한 오전일정<br /><strong>C</strong> : 오후 2시 30분 이후 일정</div>
+          <div><strong>손없음</strong> : 손 없는 날에 해당<br /><strong>일반</strong> : 일반 날짜</div>
         </div>
       </div>
     </div>,
