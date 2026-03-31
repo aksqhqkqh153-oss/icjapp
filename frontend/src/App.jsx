@@ -8273,9 +8273,11 @@ function MaterialsPage({ user }) {
   const [myPulseQtyKeys, setMyPulseQtyKeys] = useState([])
   const [myPulseSaveCue, setMyPulseSaveCue] = useState(false)
   const [inventoryDraft, setInventoryDraft] = useState({})
+  const [incomingDraft, setIncomingDraft] = useState({})
+  const [incomingEntryDate, setIncomingEntryDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
-  const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, inventory: 100, requesters: 100 })
+  const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100 })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
 
@@ -8295,10 +8297,13 @@ function MaterialsPage({ user }) {
         sales: clampMaterialsScale(savedScale.sales ?? prev.sales),
         confirm: clampMaterialsScale(savedScale.confirm ?? prev.confirm),
         myRequests: clampMaterialsScale(savedScale.myRequests ?? prev.myRequests),
+        incoming: clampMaterialsScale(savedScale.incoming ?? prev.incoming),
         inventory: clampMaterialsScale(savedScale.inventory ?? prev.inventory),
         requesters: clampMaterialsScale(savedScale.requesters ?? prev.requesters),
       }))
       setInventoryDraft(Object.fromEntries((result.inventory_rows || []).map(row => [row.product_id, { incoming_qty: row.incoming_qty || 0, note: row.note || '' }])))
+      setIncomingDraft(Object.fromEntries((result.products || []).map(row => [row.id, { incoming_qty: 0 } ])))
+      setIncomingEntryDate(result?.today || new Date().toISOString().slice(0, 10))
       const tabs = buildVisibleTabs(result?.permissions || {})
       setActiveTab(nextTab && tabs.some(item => item.id === nextTab) ? nextTab : (tabs[0]?.id || 'sales'))
     } catch (error) {
@@ -8332,6 +8337,7 @@ function MaterialsPage({ user }) {
     return [
       permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
       permissions.can_view_my_requests ? { id: 'myRequests', label: '신청현황' } : null,
+      permissions.can_manage_incoming ? { id: 'incoming', label: '자재입고' } : null,
       permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
       permissions.can_view_requesters ? { id: 'requesters', label: '신청목록' } : null,
       permissions.can_view_settlements ? { id: 'settlements', label: '구매결산' } : null,
@@ -8365,6 +8371,7 @@ function MaterialsPage({ user }) {
   function getActiveTableScaleKey() {
     if (activeTab === 'sales') return salesStep === 2 ? 'confirm' : 'sales'
     if (activeTab === 'myRequests') return 'myRequests'
+    if (activeTab === 'incoming') return 'incoming'
     if (activeTab === 'inventory') return 'inventory'
     if (activeTab === 'requesters') return 'requesters'
     return 'sales'
@@ -8462,6 +8469,29 @@ function MaterialsPage({ user }) {
       await loadOverview('requesters')
     } catch (error) {
       setNotice(error.message || '결산반려 처리 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveIncomingStock() {
+    const rows = Object.entries(incomingDraft)
+      .map(([productId, row]) => ({ product_id: Number(productId), incoming_qty: Number(row?.incoming_qty || 0) }))
+      .filter(row => row.product_id > 0 && row.incoming_qty > 0)
+    if (!rows.length) {
+      setNotice('입고수량을 1개 이상 입력해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      await api('/api/materials/incoming', {
+        method: 'POST',
+        body: JSON.stringify({ entry_date: incomingEntryDate, rows }),
+      })
+      setNotice('자재입고가 반영되었습니다.')
+      await loadOverview('settlements')
+    } catch (error) {
+      setNotice(error.message || '자재입고 처리 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
     }
@@ -9042,6 +9072,55 @@ function MaterialsPage({ user }) {
     )
   }
 
+  function renderIncomingContent() {
+    return (
+      <section className="card materials-panel materials-panel-compact-head">
+        <div className="materials-summary-head-inline materials-summary-head-inventory">
+          <div><h3>자재입고</h3></div>
+        </div>
+        <div className="materials-table materials-table-sales" style={getTableScaleStyle('incoming')}>
+          <div className="materials-row materials-row-head materials-row-confirm-header">
+            <div>구분</div>
+            <div>물품가</div>
+            <div>현재고</div>
+            <div>입고수량</div>
+            <div>입고 후 수량</div>
+          </div>
+          {productRows.map(product => {
+            const draftQty = Number(incomingDraft[product.id]?.incoming_qty || 0)
+            const afterQty = Number(product.current_stock || 0) + draftQty
+            return (
+              <div key={`incoming-${product.id}`} className="materials-row materials-row-confirm">
+                <div>{displayMaterialName(product, isMobile)}</div>
+                <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
+                <div>{Number(product.current_stock || 0)}</div>
+                <div>
+                  <input
+                    className="materials-qty-input"
+                    inputMode="numeric"
+                    value={draftQty || ''}
+                    onChange={(event) => {
+                      const raw = String(event.target.value).replace(/[^\d]/g, '')
+                      setIncomingDraft(prev => ({ ...prev, [product.id]: { incoming_qty: raw ? Number(raw) : 0 } }))
+                    }}
+                  />
+                </div>
+                <div>{afterQty}</div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="row gap wrap materials-actions-right materials-actions-bottom">
+          <label className="materials-date-inline-label">
+            <span>입고입력일</span>
+            <input type="date" value={incomingEntryDate} onChange={(e) => setIncomingEntryDate(e.target.value)} />
+          </label>
+          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={saveIncomingStock}>입고입력</button>
+        </div>
+      </section>
+    )
+  }
+
   function renderInventoryContent() {
     return (
       <section className="card materials-panel materials-panel-compact-head">
@@ -9126,6 +9205,7 @@ function MaterialsPage({ user }) {
 
       {activeTab === 'sales' && renderSalesContent()}
       {activeTab === 'myRequests' && renderMyRequests()}
+      {activeTab === 'incoming' && renderIncomingContent()}
       {activeTab === 'inventory' && renderInventoryContent()}
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">

@@ -333,6 +333,10 @@ class MaterialInventoryRowIn(BaseModel):
 class MaterialInventorySaveIn(BaseModel):
     rows: list[MaterialInventoryRowIn] = []
 
+class MaterialIncomingSaveIn(BaseModel):
+    entry_date: str = ''
+    rows: list[MaterialInventoryRowIn] = []
+
 class InquiryIn(BaseModel):
     category: str
     title: str
@@ -770,7 +774,7 @@ def _materials_scope_allowed(user: dict, scope: str) -> bool:
     if scope in {'requesters', 'settlements', 'history'}:
         return grade <= 2
     if scope == 'inventory_manage':
-        return grade <= 1
+        return grade <= 2
     return False
 
 def _require_materials_scope(user: dict, scope: str):
@@ -804,6 +808,7 @@ def _material_permissions(user: dict) -> dict:
         'can_view_settlements': _materials_scope_allowed(user, 'settlements'),
         'can_view_history': _materials_scope_allowed(user, 'history'),
         'can_manage_inventory': _materials_scope_allowed(user, 'inventory_manage'),
+        'can_manage_incoming': _materials_scope_allowed(user, 'inventory_manage'),
         'can_view_my_requests': _materials_scope_allowed(user, 'sales'),
     }
 
@@ -3756,6 +3761,55 @@ def save_material_inventory(payload: MaterialInventorySaveIn, user=Depends(requi
                 (target_date, product_id, incoming_qty, note, now, now),
             )
         return {'ok': True, 'inventory_rows': _material_today_inventory_rows(conn, target_date)}
+
+
+def _normalize_material_entry_date(value: str) -> str:
+    raw = str(value or '').strip()[:10]
+    if not raw:
+        return datetime.now().date().isoformat()
+    try:
+        return datetime.strptime(raw, '%Y-%m-%d').date().isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail='입고입력일 형식이 올바르지 않습니다.')
+
+@app.post('/api/materials/incoming')
+def save_material_incoming(payload: MaterialIncomingSaveIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'inventory_manage')
+    entry_date = _normalize_material_entry_date(payload.entry_date)
+    now = utcnow()
+    rows = []
+    for row in payload.rows:
+        qty = max(0, int(row.incoming_qty or 0))
+        product_id = int(row.product_id or 0)
+        if product_id > 0 and qty > 0:
+            rows.append({'product_id': product_id, 'incoming_qty': qty})
+    if not rows:
+        raise HTTPException(status_code=400, detail='입고수량을 1개 이상 입력해 주세요.')
+    with get_conn() as conn:
+        product_map = {int(r['id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+        valid_rows = [row for row in rows if row['product_id'] in product_map]
+        if not valid_rows:
+            raise HTTPException(status_code=400, detail='유효한 입고 품목이 없습니다.')
+        requester_name = '입고'
+        unique_id = f'incoming-{entry_date}-{int(user.get("id") or 0)}-{int(datetime.now().timestamp())}'
+        cur = conn.execute(
+            "INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, settled_by_user_id, share_snapshot_json) VALUES (?, ?, ?, ?, 0, 'settled', 1, ?, ?, ?, '')",
+            (user.get('id'), requester_name, unique_id, '자재입고', f'{entry_date}T00:00:00', now, user.get('id')),
+        )
+        request_id = int(cur.lastrowid)
+        for row in valid_rows:
+            product = product_map[row['product_id']]
+            qty = int(row['incoming_qty'])
+            conn.execute(
+                "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
+                (max(0, int(product.get('current_stock') or 0)) + qty, now, row['product_id']),
+            )
+            conn.execute(
+                "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, 0, ?)",
+                (request_id, row['product_id'], -qty, int(product.get('unit_price') or 0), '입고입력'),
+            )
+        created = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
+        return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(created)), 'inventory_rows': _material_today_inventory_rows(conn, datetime.now().date().isoformat())}
 
 @app.post('/api/materials/inventory/close')
 def close_material_inventory(user=Depends(require_admin_or_subadmin)):
