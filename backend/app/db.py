@@ -1934,6 +1934,8 @@ def init_db() -> None:
             'resident_id': "TEXT DEFAULT ''",
             'position_title': "TEXT DEFAULT ''",
             'vehicle_available': 'INTEGER NOT NULL DEFAULT 1',
+            'show_in_branch_status': 'INTEGER',
+            'show_in_employee_status': 'INTEGER',
             'name': "TEXT DEFAULT ''",
             'account_unique_id': "TEXT DEFAULT ''",
         })

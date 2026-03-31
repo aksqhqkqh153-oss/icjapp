@@ -23,6 +23,11 @@ def _pages_preview_origin_regex() -> str:
     return r"https://([a-z0-9-]+\.)*pages\.dev$"
 
 
+def _merge_default_origins(value: str | None, fallback: list[str]) -> list[str]:
+    merged = list(dict.fromkeys([*fallback, *_split_csv(value, [])]))
+    return merged
+
+
 logger = logging.getLogger("icj24app.settings")
 
 
@@ -76,7 +81,7 @@ class Settings:
     sqlite_db_path: str = field(default_factory=lambda: os.getenv("SQLITE_DB_PATH", ""))
     email_demo_mode: bool = field(default_factory=lambda: _as_bool(os.getenv("EMAIL_DEMO_MODE", "1"), True))
     seed_demo_data: bool = field(default_factory=lambda: _as_bool(os.getenv("SEED_DEMO_DATA", "1"), True))
-    allowed_origins: list[str] = field(default_factory=lambda: _split_csv(
+    allowed_origins: list[str] = field(default_factory=lambda: _merge_default_origins(
         os.getenv("ALLOWED_ORIGINS"),
         [
             "http://127.0.0.1:5173",

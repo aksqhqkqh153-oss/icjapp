@@ -2853,6 +2853,39 @@ const DEFAULT_DEPARTMENT_OPTIONS = [
   '이청잘 휴가',
 ]
 
+const DEPARTMENT_AUTO_ASSIGN_OPTIONS = [
+  '당일이사 1인 업무',
+  '당일이사 2인 업무',
+  '당일이사 3인 이상업무',
+  '짐보관이사 2인 업무',
+  '짐보관이사 3인 이상업무',
+]
+
+const DEFAULT_DEPARTMENT_COLOR_MAP = {
+  '본사업무': '#2563eb',
+  '당일이사 1인 업무': '#2563eb',
+  '당일이사 2인 업무': '#1d4ed8',
+  '당일이사 3인 이상업무': '#1e40af',
+  '짐보관이사 2인 업무': '#0ea5e9',
+  '짐보관이사 3인 이상업무': '#0369a1',
+  '연차': '#8b5cf6',
+  '월차': '#7c3aed',
+  '기타(예비군, 병가, 조사 등)': '#64748b',
+  '손 없는 날': '#16a34a',
+  '이청잘 휴가': '#f59e0b',
+}
+
+function getStoredDepartmentColorMap() {
+  if (typeof window === 'undefined') return { ...DEFAULT_DEPARTMENT_COLOR_MAP }
+  try {
+    const raw = window.localStorage.getItem('icj_department_color_map')
+    if (!raw) return { ...DEFAULT_DEPARTMENT_COLOR_MAP }
+    return { ...DEFAULT_DEPARTMENT_COLOR_MAP, ...JSON.parse(raw) }
+  } catch {
+    return { ...DEFAULT_DEPARTMENT_COLOR_MAP }
+  }
+}
+
 const PLATFORM_OPTIONS = ['숨고', '오늘', '공홈']
 const DEPOSIT_METHOD_OPTIONS = ['계약금입금전', '계좌이체', '숨고페이']
 const DEPOSIT_AMOUNT_OPTIONS = ['50,000원', '100,000원']
@@ -4207,6 +4240,9 @@ function ScheduleFormPage({ mode }) {
   const depositMethodSelectRef = useRef(null)
   const depositAmountSelectRef = useRef(null)
   const scheduleEditorFormRef = useRef(null)
+  const [titleLocked, setTitleLocked] = useState(true)
+  const [departmentColorConfigOpen, setDepartmentColorConfigOpen] = useState(false)
+  const [departmentColorMap, setDepartmentColorMap] = useState(() => getStoredDepartmentColorMap())
 
   function handleScheduleEditorKeyDown(e) {
     if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
@@ -4310,6 +4346,7 @@ function ScheduleFormPage({ mode }) {
         setVisitTimeText(data.visit_time && data.visit_time !== '미정' ? data.visit_time : '')
         setStartTimeText(data.start_time && data.start_time !== '미정' ? data.start_time : '')
         setEndTimeText(data.end_time && data.end_time !== '미정' ? data.end_time : '')
+        setTitleLocked(!(data.title || '').trim() || (data.title || '').trim() === buildScheduleTitle({ ...data, amount1: data.amount1 || '' }).trim())
       } catch (err) {
         setError(err.message)
       } finally {
@@ -4320,8 +4357,20 @@ function ScheduleFormPage({ mode }) {
   }, [mode, eventId, presetDate])
 
   useEffect(() => {
+    if (!titleLocked) return
     setForm(prev => ({ ...prev, title: buildScheduleTitle(prev) }))
-  }, [form.visit_time, form.platform, form.customer_name, form.amount1])
+  }, [form.visit_time, form.platform, form.customer_name, form.amount1, titleLocked])
+
+  useEffect(() => {
+    const mappedColor = departmentColorMap[form.department_info]
+    if (!mappedColor || mappedColor === form.color) return
+    setForm(prev => ({ ...prev, color: departmentColorMap[prev.department_info] || prev.color }))
+  }, [form.department_info, departmentColorMap])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('icj_department_color_map', JSON.stringify(departmentColorMap))
+  }, [departmentColorMap])
 
   useEffect(() => {
     if (form.visit_time === '미정') {
@@ -4464,7 +4513,7 @@ function ScheduleFormPage({ mode }) {
       status_a_count: normalizedScheduleGroup === 'A' ? 1 : 0,
       status_b_count: normalizedScheduleGroup === 'B' ? 1 : 0,
       status_c_count: normalizedScheduleGroup === 'C' ? 1 : 0,
-      title: buildScheduleTitle(form),
+      title: titleLocked ? buildScheduleTitle(form) : (form.title || buildScheduleTitle(form)),
       event_date: form.move_start_date || presetDate,
       move_start_date: form.move_start_date || presetDate,
       move_end_date: form.move_end_date || form.move_start_date || presetDate,
@@ -4485,7 +4534,7 @@ function ScheduleFormPage({ mode }) {
     }
   }
 
-  const titlePreview = buildScheduleTitle(form)
+  const titlePreview = titleLocked ? buildScheduleTitle(form) : (form.title || buildScheduleTitle(form))
 
   if (loading) return <div className="card">불러오는 중...</div>
 
@@ -4502,7 +4551,10 @@ function ScheduleFormPage({ mode }) {
             >
               ←
             </button>
-            <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
+            <div className="inline-actions wrap end">
+              <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(v => !v)}>설정</button>
+              <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
+            </div>
           </div>
           <div className="schedule-form-grid-1 schedule-type-row">
             <div className="stack compact-gap">
@@ -4517,13 +4569,42 @@ function ScheduleFormPage({ mode }) {
               </select>
               <div className="muted tiny-text">괄호 없는 값은 확정 일정, 괄호 값은 예상 일정이며 A/B/C 카운트는 동일하게 반영됩니다.</div>
             </div>
+            <div className="stack compact-gap schedule-locked-action">
+              <label>&nbsp;</label>
+              <button type="button" className="small ghost" onClick={() => window.alert('견적데이터연동 기능은 준비만 완료된 상태이며, 추후 견적 목록 연동 시 활성화됩니다.')} >견적데이터연동</button>
+            </div>
           </div>
+          {departmentColorConfigOpen && (
+            <div className="schedule-settings-panel">
+              <div className="between">
+                <strong>담당부서/인원 표시색상 설정</strong>
+                <button type="button" className="ghost small" onClick={() => setDepartmentColorMap({ ...DEFAULT_DEPARTMENT_COLOR_MAP })}>기본값</button>
+              </div>
+              <div className="schedule-settings-grid">
+                {DEFAULT_DEPARTMENT_OPTIONS.map(option => (
+                  <label key={`dept-color-${option}`}>{option}<input type="color" value={departmentColorMap[option] || '#2563eb'} onChange={e => setDepartmentColorMap(prev => ({ ...prev, [option]: e.target.value }))} /></label>
+                ))}
+              </div>
+              <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 견적데이터 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
+            </div>
+          )}
           <div className="stack compact-gap">
             <label>일정 제목</label>
-            <input value={titlePreview} placeholder="자동 생성 제목" readOnly className="readonly-input" />
+            <div className="schedule-title-edit-row">
+              <input value={titlePreview} placeholder="자동 생성 제목" readOnly={titleLocked} className={`readonly-input ${titleLocked ? '' : 'editable-title-input'}`.trim()} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} />
+              <button type="button" className="ghost small" onClick={() => {
+                if (titleLocked) {
+                  setTitleLocked(false)
+                  setForm(prev => ({ ...prev, title: prev.title || buildScheduleTitle(prev) }))
+                  return
+                }
+                setTitleLocked(true)
+                setForm(prev => ({ ...prev, title: buildScheduleTitle(prev) }))
+              }}>{titleLocked ? '편집' : '저장'}</button>
+            </div>
           </div>
           <div className="schedule-form-grid-2 visit-platform-row">
-            <div className="stack compact-gap">
+            <div className="stack compact-gap highlight-blue-field">
               <label>출발지 이사방문시각</label>
               <div className="inline-actions visit-time-actions">
                 <input
@@ -4539,7 +4620,7 @@ function ScheduleFormPage({ mode }) {
                 <button type="button" tabIndex={-1} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
-            <div className="stack compact-gap platform-select-field">
+            <div className="stack compact-gap platform-select-field highlight-blue-field">
               <label>플랫폼</label>
               <select
                 ref={desktopPlatformSelectRef}
@@ -4557,11 +4638,11 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           <div className="schedule-form-grid-2">
-            <div className="stack compact-gap">
+            <div className="stack compact-gap highlight-blue-field">
               <label>고객성함</label>
               <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객 성함" onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
-            <div className="stack compact-gap">
+            <div className="stack compact-gap highlight-blue-field">
               <label>이사금액</label>
               <input ref={amountInputRef} inputMode="numeric" value={form.amount1} placeholder="예: 150000" onChange={e => setForm({ ...form, amount1: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositMethodSelectRef) } }} />
             </div>
@@ -4586,7 +4667,7 @@ function ScheduleFormPage({ mode }) {
               <textarea value={form.content} placeholder="일정 메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box" />
             </div>
             <div className="memo-side-controls">
-              <div className="stack compact-gap memo-side-control upload-control-field">
+              <div className="stack compact-gap memo-side-control upload-control-field highlight-blue-field">
                 <label>사진파일첨부</label>
                 <div className="schedule-upload-row compact-upload-row">
                   <label className={`icon-upload-trigger${uploadingImage ? ' disabled' : ''}`}>
@@ -4602,9 +4683,9 @@ function ScheduleFormPage({ mode }) {
                   )}
                 </div>
               </div>
-              <div className="stack compact-gap memo-side-control">
+              <div className="stack compact-gap memo-side-control highlight-blue-field">
                 <label>담당부서/인원</label>
-                <select value={form.department_info} onChange={e => setForm({ ...form, department_info: e.target.value })}>
+                <select value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
                   {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
               </div>
@@ -5466,6 +5547,8 @@ function AdminModePage() {
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
   const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'email', keys: [] }, status: { mode: 'email', keys: [] }, authority: { mode: 'email', keys: [] } })
   const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
+  const [statusAddPickerOpen, setStatusAddPickerOpen] = useState({ branch: false, employee: false })
+  const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '' })
   const ACCOUNTS_PER_PAGE = 10
 
   function parseVehicleAvailable(value) {
@@ -5564,6 +5647,8 @@ function AdminModePage() {
       resident_id: row.resident_id || '',
       position_title: row.position_title || '',
       vehicle_available: parseVehicleAvailable(row.vehicle_available),
+      show_in_branch_status: !!row.show_in_branch_status,
+      show_in_employee_status: !!row.show_in_employee_status,
     }
   }
 
@@ -6140,6 +6225,8 @@ function AdminModePage() {
                               <label>MBTI <input value={item.mbti || ''} onChange={e => updateAccountRow(item.id, { mbti: e.target.value })} /></label>
                               <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateAccountRow(item.id, { google_email: e.target.value })} /></label>
                               <label>주민등록번호 <input value={item.resident_id || ''} onChange={e => updateAccountRow(item.id, { resident_id: e.target.value })} /></label>
+                              <label className="check"><input type="checkbox" checked={!!item.show_in_branch_status} onChange={e => updateAccountRow(item.id, { show_in_branch_status: e.target.checked })} /> 가맹현황 포함</label>
+                              <label className="check"><input type="checkbox" checked={!!item.show_in_employee_status} onChange={e => updateAccountRow(item.id, { show_in_employee_status: e.target.checked })} /> 직원현황 포함</label>
                               <label className="check"><input type="checkbox" checked={!!item.approved} onChange={e => updateAccountRow(item.id, { approved: e.target.checked })} /> 승인됨</label>
                             </div>
                           )}
@@ -6199,9 +6286,24 @@ function AdminModePage() {
                 {actorGrade === 1 && <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
                   if (statusTab === 'branch') setBranchEditMode(v => !v)
                   else setEmployeeEditMode(v => !v)
-                }}>편집</button>}
+                }}>수정</button>}
+                {actorGrade === 1 && <button type="button" className={statusAddPickerOpen[statusTab] ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusAddPickerOpen(prev => ({ ...prev, [statusTab]: !prev[statusTab] }))}>추가</button>}
+                {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => setMessage(statusTab === 'branch' ? '가맹현황에서 삭제할 계정은 펼침 카드의 삭제 버튼으로 제외할 수 있습니다.' : '직원현황에서 삭제할 계정은 펼침 카드의 삭제 버튼으로 제외할 수 있습니다.')}>삭제</button>}
               </div>
             </div>
+            {statusAddPickerOpen[statusTab] && actorGrade === 1 && (
+              <div className="admin-status-add-row">
+                <select value={statusAddSelection[statusTab]} onChange={e => setStatusAddSelection(prev => ({ ...prev, [statusTab]: e.target.value }))}>
+                  <option value="">추가할 계정 선택</option>
+                  {(statusTab === 'branch' ? branchStatusCandidates : employeeStatusCandidates).map(item => (
+                    <option key={`${statusTab}-candidate-${item.id}`} value={item.id}>
+                      {(item.name || item.nickname || '이름 미입력')} / {item.email || '-'} / {item.account_unique_id || '-'}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="small" onClick={() => addAccountToStatus(statusTab)}>추가확인</button>
+              </div>
+            )}
             {statusTab === 'branch' ? (
           <>
             <div className="admin-inline-grid compact-inline-grid three-col summary-grid summary-grid-inline-labels">
@@ -6228,6 +6330,8 @@ function AdminModePage() {
                   </div>
                   {branchOpen[item.id] && (
                     <div className="stack compact-gap admin-detail-stack">
+                      {employeeEditMode && <div className="inline-actions end"><button type="button" className="small ghost" onClick={() => removeAccountFromStatus('employee', item)}>삭제</button></div>}
+                      {branchEditMode && <div className="inline-actions end"><button type="button" className="small ghost" onClick={() => removeAccountFromStatus('branch', item)}>삭제</button></div>}
                       <div className="admin-inline-grid compact-inline-grid">
                         <label>이름 <input value={item.name || ''} onChange={e => updateBranchRow(item.id, { name: e.target.value })} disabled={!branchEditMode} /></label>
                         <label>닉네임 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} disabled={!branchEditMode} /></label>

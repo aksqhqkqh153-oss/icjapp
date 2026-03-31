@@ -277,6 +277,8 @@ class AdminUserDetailIn(BaseModel):
     google_email: str = ''
     resident_id: str = ''
     vehicle_available: bool = True
+    show_in_branch_status: bool = False
+    show_in_employee_status: bool = False
 class AdminUserDetailsBulkIn(BaseModel):
     users: list[AdminUserDetailIn] = []
 class AdminCreateAccountIn(BaseModel):
@@ -413,6 +415,10 @@ def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     item['approved'] = bool(item.get('approved', 1))
     item['vehicle_available'] = bool(item.get('vehicle_available', 1))
     item['account_type'] = _normalize_account_type(item)
+    branch_flag = item.get('show_in_branch_status')
+    employee_flag = item.get('show_in_employee_status')
+    item['show_in_branch_status'] = bool(branch_flag) if branch_flag is not None else item['account_type'] == 'business'
+    item['show_in_employee_status'] = bool(employee_flag) if employee_flag is not None else item['account_type'] == 'employee'
     return item
 
 
@@ -3079,14 +3085,14 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available
+                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
         ).fetchall()
     user_dicts = [_serialize_admin_user_row(row) for row in users]
-    branches = [item for item in user_dicts if item.get('branch_no') is not None]
-    employees = [item for item in user_dicts if item.get('branch_no') is None]
+    branches = [item for item in user_dicts if item.get('show_in_branch_status')]
+    employees = [item for item in user_dicts if item.get('show_in_employee_status')]
     return {
         'config': {'total_vehicle_count': total_vehicle_count, 'branch_count_override': branch_count_override},
         'permission_config': permission_config,
@@ -3191,7 +3197,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -3213,6 +3219,8 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                 data['birth_year'] = 1995
             data['position_title'] = str(data.get('position_title') or '')
             data['vehicle_available'] = 1 if bool(data.get('vehicle_available', True)) else 0
+            data['show_in_branch_status'] = 1 if bool(data.get('show_in_branch_status', False)) else 0
+            data['show_in_employee_status'] = 1 if bool(data.get('show_in_employee_status', False)) else 0
             data['name'] = str(data.get('name') or '').strip()
             data['nickname'] = str(data.get('nickname') or '').strip()
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()

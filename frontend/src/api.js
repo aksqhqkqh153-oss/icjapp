@@ -85,11 +85,19 @@ export async function api(path, options = {}) {
   if (token && shouldAttachAuthHeader(path, options)) {
     headers.Authorization = `Bearer ${token}`
   }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  })
+  let res
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    })
+  } catch (err) {
+    const message = API_BASE
+      ? `서버 연결에 실패했습니다. CORS 또는 네트워크 설정을 확인해주세요. (${API_BASE}${path})`
+      : '서버 연결에 실패했습니다. 로컬 백엔드 실행 상태를 확인해주세요.'
+    throw new Error(message)
+  }
   const data = await res.json().catch(() => ({}))
   if (res.status === 401 && !PUBLIC_AUTH_PATHS.has(path)) {
     clearSession({ preserveRemember: true })
