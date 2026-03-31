@@ -1940,6 +1940,7 @@ def init_db() -> None:
             'name': "TEXT DEFAULT ''",
             'account_unique_id': "TEXT DEFAULT ''",
             'group_number': 'INTEGER NOT NULL DEFAULT 0',
+            'group_number_text': "TEXT DEFAULT '0'",
         })
         default_admin_settings = {
             'total_vehicle_count': '',
@@ -2304,7 +2305,7 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'name': row['name'] if 'name' in row.keys() else row['nickname'],
         'nickname': row['nickname'],
         'account_unique_id': row['account_unique_id'] if 'account_unique_id' in row.keys() else '',
-        'group_number': int(row['group_number'] or 0) if 'group_number' in row.keys() else 0,
+        'group_number': str((row['group_number_text'] if 'group_number_text' in row.keys() and row['group_number_text'] not in (None, '') else row['group_number'] if 'group_number' in row.keys() else '0') or '0'),
         'role': row['role'],
         'grade': grade,
         'grade_label': grade_label(grade),
