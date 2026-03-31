@@ -2173,6 +2173,43 @@ CREATE TABLE IF NOT EXISTS material_inventory_daily (
 );
 """
         conn.executescript(material_schema_sql)
+        _ensure_columns(conn, 'material_products', {
+            'short_name': "TEXT NOT NULL DEFAULT ''",
+            'unit_label': "TEXT NOT NULL DEFAULT '개'",
+            'unit_price': 'INTEGER NOT NULL DEFAULT 0',
+            'current_stock': 'INTEGER NOT NULL DEFAULT 0',
+            'display_order': 'INTEGER NOT NULL DEFAULT 0',
+            'is_active': 'INTEGER NOT NULL DEFAULT 1',
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'material_purchase_requests', {
+            'requester_name': "TEXT NOT NULL DEFAULT ''",
+            'requester_unique_id': "TEXT NOT NULL DEFAULT ''",
+            'request_note': "TEXT NOT NULL DEFAULT ''",
+            'total_amount': 'INTEGER NOT NULL DEFAULT 0',
+            'status': "TEXT NOT NULL DEFAULT 'pending'",
+            'payment_confirmed': 'INTEGER NOT NULL DEFAULT 0',
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'settled_at': "TEXT NOT NULL DEFAULT ''",
+            'settled_by_user_id': 'INTEGER',
+            'share_snapshot_json': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'material_purchase_request_items', {
+            'quantity': 'INTEGER NOT NULL DEFAULT 0',
+            'unit_price': 'INTEGER NOT NULL DEFAULT 0',
+            'line_total': 'INTEGER NOT NULL DEFAULT 0',
+            'memo': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'material_inventory_daily', {
+            'incoming_qty': 'INTEGER NOT NULL DEFAULT 0',
+            'note': "TEXT NOT NULL DEFAULT ''",
+            'outgoing_qty': 'INTEGER NOT NULL DEFAULT 0',
+            'is_closed': 'INTEGER NOT NULL DEFAULT 0',
+            'closed_at': "TEXT NOT NULL DEFAULT ''",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
         _ensure_unique_index(conn, 'material_inventory_daily', 'uq_material_inventory_daily_date_product', ['inventory_date', 'product_id'])
         for _platform_name in ('숨고', '오늘', '공홈'):
             conn.execute("INSERT OR IGNORE INTO settlement_platform_metrics(platform, metric_key, metric_value, detail_json, sync_status, sync_message, updated_at) VALUES (?, 'platform_send_count', 0, '[]', 'idle', '', ?)", (_platform_name, utcnow()))

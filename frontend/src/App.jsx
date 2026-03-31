@@ -991,18 +991,80 @@ function HomePage() {
 
 function ProfilePage({ onUserUpdate }) {
   const [form, setForm] = useState(null)
+  const [originalForm, setOriginalForm] = useState(null)
   const [message, setMessage] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const branchOptions = BRANCH_NUMBER_OPTIONS
 
   useEffect(() => {
-    api('/api/profile').then(data => setForm({ ...data.user, new_password: '' }))
+    api('/api/profile').then(data => {
+      const nextForm = { ...data.user, new_password: '' }
+      setForm(nextForm)
+      setOriginalForm(nextForm)
+    })
   }, [])
 
   if (!form) return <div className="card">불러오는 중...</div>
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function profileFieldValueLabel(key, value) {
+    if (key === 'branch_no') {
+      return branchOptions.find(option => Number(option.value) === Number(normalizeBranchNo(value)))?.label || String(value || '-')
+    }
+    if (key === 'birth_year') return String(value || '')
+    if (key === 'interests') {
+      if (Array.isArray(value)) return value.join(', ') || '-'
+      return String(value || '').trim() || '-'
+    }
+    return String(value ?? '').trim() || '-'
+  }
+
+  function buildProfileChangeSummary(payload) {
+    const source = originalForm || {}
+    const rows = []
+    const fieldLabels = [
+      ['email', '아이디'],
+      ['nickname', '닉네임'],
+      ['phone', '연락처'],
+      ['recovery_email', '복구이메일'],
+      ['region', '지역'],
+      ['gender', '성별'],
+      ['birth_year', '출생연도'],
+      ['vehicle_number', '차량번호'],
+      ['branch_no', '호점'],
+      ['marital_status', '결혼여부'],
+      ['resident_address', '주민등록주소'],
+      ['business_name', '상호'],
+      ['business_number', '사업자번호'],
+      ['business_type', '업태'],
+      ['business_item', '종목'],
+      ['business_address', '사업장주소'],
+      ['bank_name', '은행명'],
+      ['bank_account', '계좌번호'],
+      ['mbti', 'MBTI'],
+      ['google_email', '구글이메일'],
+      ['resident_id', '주민번호'],
+      ['one_liner', '한줄소개'],
+      ['bio', '프로필소개'],
+      ['photo_url', '프로필이미지URL'],
+      ['interests', '관심사'],
+    ]
+    for (const [key, label] of fieldLabels) {
+      const beforeValue = key === 'branch_no' ? normalizeBranchNo(source[key]) : source[key]
+      const afterValue = key === 'branch_no' ? normalizeBranchNo(payload[key]) : payload[key]
+      const beforeLabel = profileFieldValueLabel(key, beforeValue)
+      const afterLabel = profileFieldValueLabel(key, afterValue)
+      if (beforeLabel !== afterLabel) {
+        rows.push(`- ${label}를 [${beforeLabel}]에서 [${afterLabel}]로 변경합니다.`)
+      }
+    }
+    if (String(payload.new_password || '').trim()) {
+      rows.push(`- 비밀번호를 [현재 값 확인 불가]에서 [${String(payload.new_password)}]로 변경합니다.`)
+    }
+    return rows
   }
 
   async function save(e) {
@@ -1037,8 +1099,17 @@ function ProfilePage({ onUserUpdate }) {
       resident_id: form.resident_id || '',
       new_password: form.new_password || '',
     }
+    const changeSummary = buildProfileChangeSummary(payload)
+    if (!changeSummary.length) {
+      setMessage('변경된 항목이 없습니다.')
+      return
+    }
+    const confirmed = window.confirm(`아래 내용으로 프로필을 변경하시겠습니까?\n\n${changeSummary.join('\n')}`)
+    if (!confirmed) return
     const data = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
-    setForm({ ...data.user, new_password: '' })
+    const nextForm = { ...data.user, new_password: '' }
+    setForm(nextForm)
+    setOriginalForm(nextForm)
     onUserUpdate(data.user)
     setMessage('프로필이 저장되었습니다.')
   }

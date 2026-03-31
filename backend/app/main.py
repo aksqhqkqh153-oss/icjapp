@@ -844,7 +844,7 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
         SELECT i.product_id, COALESCE(SUM(i.quantity), 0) AS total_qty
         FROM material_purchase_request_items i
         JOIN material_purchase_requests r ON r.id = i.request_id
-        WHERE r.status = 'settled' AND COALESCE(substr(r.settled_at, 1, 10), '') = ?
+        WHERE r.status = 'settled' AND COALESCE(substr(r.settled_at, 1, 10), '') = ? AND COALESCE(i.quantity, 0) > 0
         GROUP BY i.product_id
         ''',
         (target_date,),
@@ -3820,31 +3820,37 @@ def save_material_incoming(payload: MaterialIncomingSaveIn, user=Depends(require
             rows.append({'product_id': product_id, 'incoming_qty': qty})
     if not rows:
         raise HTTPException(status_code=400, detail='입고수량을 1개 이상 입력해 주세요.')
-    with get_conn() as conn:
-        product_map = {int(r['id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
-        valid_rows = [row for row in rows if row['product_id'] in product_map]
-        if not valid_rows:
-            raise HTTPException(status_code=400, detail='유효한 입고 품목이 없습니다.')
-        requester_name = '입고'
-        unique_id = f'incoming-{entry_date}-{int(user.get("id") or 0)}-{int(datetime.now().timestamp())}'
-        cur = conn.execute(
-            "INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, settled_by_user_id, share_snapshot_json) VALUES (?, ?, ?, ?, 0, 'settled', 1, ?, ?, ?, '')",
-            (user.get('id'), requester_name, unique_id, '자재입고', f'{entry_date}T00:00:00', now, user.get('id')),
-        )
-        request_id = int(cur.lastrowid)
-        for row in valid_rows:
-            product = product_map[row['product_id']]
-            qty = int(row['incoming_qty'])
-            conn.execute(
-                "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
-                (max(0, int(product.get('current_stock') or 0)) + qty, now, row['product_id']),
+    try:
+        with get_conn() as conn:
+            product_map = {int(r['id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+            valid_rows = [row for row in rows if row['product_id'] in product_map]
+            if not valid_rows:
+                raise HTTPException(status_code=400, detail='유효한 입고 품목이 없습니다.')
+            requester_name = '입고'
+            unique_id = f'incoming-{entry_date}-{int(user.get("id") or 0)}-{int(datetime.now().timestamp())}'
+            cur = conn.execute(
+                "INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, settled_by_user_id, share_snapshot_json) VALUES (?, ?, ?, ?, 0, 'settled', 1, ?, ?, ?, '')",
+                (user.get('id'), requester_name, unique_id, '자재입고', f'{entry_date}T00:00:00', now, user.get('id')),
             )
-            conn.execute(
-                "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, 0, ?)",
-                (request_id, row['product_id'], -qty, int(product.get('unit_price') or 0), '입고입력'),
-            )
-        created = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
-        return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(created)), 'inventory_rows': _material_today_inventory_rows(conn, datetime.now().date().isoformat())}
+            request_id = int(cur.lastrowid)
+            for row in valid_rows:
+                product = product_map[row['product_id']]
+                qty = int(row['incoming_qty'])
+                conn.execute(
+                    "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
+                    (max(0, int(product.get('current_stock') or 0)) + qty, now, row['product_id']),
+                )
+                conn.execute(
+                    "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, ?, ?)",
+                    (request_id, row['product_id'], -qty, int(product.get('unit_price') or 0), 0, '입고입력'),
+                )
+            created = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
+            return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(created)), 'inventory_rows': _material_today_inventory_rows(conn, datetime.now().date().isoformat())}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception('save_material_incoming failed: %s', exc)
+        raise HTTPException(status_code=500, detail='자재입고 처리 중 서버 오류가 발생했습니다.')
 
 @app.post('/api/materials/inventory/close')
 def close_material_inventory(user=Depends(require_admin_or_subadmin)):
