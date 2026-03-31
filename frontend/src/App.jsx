@@ -2936,12 +2936,19 @@ function buildCostTitlePart(form) {
   return `((${buildCostSummary(form)}))`
 }
 
+function buildScheduleTypeTitlePart(scheduleType) {
+  const normalized = String(scheduleType || '').trim()
+  if (!normalized || normalized === '선택') return ''
+  return normalized
+}
+
 function buildScheduleTitle(form) {
   const startDisplay = resolveScheduleStartTime(form.visit_time || form.start_time)
+  const scheduleTypeDisplay = buildScheduleTypeTitlePart(form.schedule_type)
   const platformDisplay = form.platform || '플랫폼미정'
   const customerDisplay = resolveScheduleCustomerName(form.customer_name)
   const costDisplay = buildCostTitlePart(form)
-  return [startDisplay, platformDisplay, customerDisplay, costDisplay].join(' ').trim()
+  return [startDisplay, scheduleTypeDisplay, platformDisplay, customerDisplay, costDisplay].filter(Boolean).join(' ').trim()
 }
 
 function normalizeShortDateInput(value) {
@@ -4271,7 +4278,7 @@ function ScheduleFormPage({ mode }) {
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
     department_info: DEFAULT_DEPARTMENT_OPTIONS[0],
-    schedule_type: 'A',
+    schedule_type: '선택',
     status_a_count: 0,
     status_b_count: 0,
     status_c_count: 0,
@@ -4326,7 +4333,7 @@ function ScheduleFormPage({ mode }) {
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
           department_info: data.department_info || DEFAULT_DEPARTMENT_OPTIONS[0],
-          schedule_type: data.schedule_type || (Number(data.status_b_count || 0) > 0 ? 'B' : Number(data.status_c_count || 0) > 0 ? 'C' : 'A'),
+          schedule_type: data.schedule_type || (Number(data.status_b_count || 0) > 0 ? 'B' : Number(data.status_c_count || 0) > 0 ? 'C' : Number(data.status_a_count || 0) > 0 ? 'A' : '선택'),
           status_a_count: Number(data.status_a_count || 0),
           status_b_count: Number(data.status_b_count || 0),
           status_c_count: Number(data.status_c_count || 0),
@@ -4506,7 +4513,7 @@ function ScheduleFormPage({ mode }) {
   async function submit(e) {
     e.preventDefault()
     setError('')
-    const normalizedScheduleType = String(form.schedule_type || 'A')
+    const normalizedScheduleType = String(form.schedule_type || '선택')
     const normalizedScheduleGroup = normalizedScheduleType.replace(/[()]/g, '')
     const payload = {
       ...form,
@@ -4560,7 +4567,8 @@ function ScheduleFormPage({ mode }) {
           <div className="schedule-form-grid-1 schedule-type-row">
             <div className="stack compact-gap">
               <label>일정구분</label>
-              <select value={form.schedule_type || 'A'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
+              <select value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
+                <option value="선택">선택</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
                 <option value="C">C</option>

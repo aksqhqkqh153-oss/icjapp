@@ -2368,7 +2368,7 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
                 platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount,
                 representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
