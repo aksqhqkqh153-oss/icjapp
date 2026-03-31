@@ -5543,3 +5543,118 @@ a:focus-visible {
     gap: 4px;
   }
 }
+
+
+.quote-guest-intro-card {
+  max-width: 760px;
+}
+.quote-guest-intro-topbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+.quote-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  font-size: 22px;
+  line-height: 1;
+}
+.quote-guest-intro-layout {
+  gap: 16px;
+}
+.quote-guest-intro-description {
+  padding: 16px 18px;
+  border: 1px solid #dbe4ee;
+  background: #f8fbff;
+  border-radius: 16px;
+  line-height: 1.6;
+  color: #334155;
+}
+.quote-guest-intro-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.quote-guest-intro-help-list {
+  padding: 0 2px;
+  line-height: 1.5;
+}
+.quote-mode-select-compact {
+  max-width: 620px;
+}
+.quote-mode-choice-row {
+  display: flex;
+  justify-content: center;
+}
+.quote-mode-button.compact {
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+  border-radius: 12px;
+  padding: 12px 18px;
+}
+.quote-form-flow-topbar.align-left {
+  justify-content: flex-start;
+}
+.quote-move-type-table-wrapper.compact {
+  max-width: 780px;
+  margin: 0 auto;
+}
+.quote-move-type-table.compact-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.quote-move-type-table.compact-table th,
+.quote-move-type-table.compact-table td {
+  padding: 8px 6px;
+  word-break: keep-all;
+}
+.quote-privacy-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.quote-privacy-modal {
+  max-width: 720px;
+  width: min(92vw, 720px);
+}
+.quote-privacy-modal h3 {
+  margin: 0;
+}
+.quote-privacy-modal-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  line-height: 1.6;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 12px;
+  font-family: inherit;
+}
+@media (max-width: 768px) {
+  .quote-guest-intro-fields {
+    grid-template-columns: 1fr;
+  }
+  .quote-move-type-table-wrapper.compact {
+    max-width: 100%;
+  }
+  .quote-move-type-table.compact-table {
+    font-size: 12px;
+  }
+  .quote-move-type-table.compact-table th,
+  .quote-move-type-table.compact-table td {
+    padding: 7px 5px;
+  }
+}
