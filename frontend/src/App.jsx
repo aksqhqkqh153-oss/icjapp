@@ -409,6 +409,7 @@ function saveChatPinnedOrder(userId, order) {
 function Layout({ children, user, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const menuRef = useRef(null)
@@ -5718,12 +5719,12 @@ function QuoteFormsPage({ user, guestMode = false }) {
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
             <div className="quote-step-header centered">
-              <button type="button" className="quote-step-nav-text" onClick={() => navigate('/login')}>로그인 화면으로 이동</button>
-              <div className="quote-step-title">로그인 없이 견적받기(비회원)(1단계)</div>
-              <span className="quote-step-nav-spacer" aria-hidden="true">로그인 화면으로 이동</span>
+              <button type="button" className="quote-step-nav-text" onClick={() => navigate('/login')}>로그인이동</button>
+              <div className="quote-step-title quote-step-title-two-line"><span>로그인 없이 견적받기</span><span>(비회원)(1단계)</span></div>
+              <span className="quote-step-nav-spacer" aria-hidden="true">로그인이동</span>
             </div>
             <div className="quote-form-mode-intro quote-guest-intro-layout refined">
-              <div className="quote-guest-intro-title">로그인 없이 견적 받기</div>
+              <div className="quote-guest-intro-title">이름과 연락처 입력</div>
               <div className="quote-guest-intro-help emphasis">※ 안내 : 이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
               <form className="quote-guest-intro-form" onSubmit={proceedGuestIntro}>
                 <label className="quote-input-block">
@@ -5753,9 +5754,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
           <section className="quote-mode-select-card quote-mode-select-compact">
             {guestMode && (
               <div className="quote-step-header centered">
-                <button type="button" className="quote-step-nav-text" onClick={() => setGuestIntroCompleted(false)}>1단계로 이동</button>
-                <div className="quote-step-title">로그인 없이 견적받기(비회원)(2단계)</div>
-                <span className="quote-step-nav-spacer" aria-hidden="true">1단계로 이동</span>
+                <button type="button" className="quote-step-nav-text" onClick={() => setGuestIntroCompleted(false)}>이전</button>
+                <div className="quote-step-title quote-step-title-two-line"><span>로그인 없이 견적받기</span><span>(비회원)(2단계)</span></div>
+                <span className="quote-step-nav-spacer" aria-hidden="true">이전</span>
               </div>
             )}
             <div className="quote-form-mode-intro quote-step-body">
@@ -5775,12 +5776,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
         {!submittedSummary && (!!mode) && <>
         {guestMode && (
           <div className="quote-step-card stage-three">
-            <div className="quote-step-header centered">
-              <button type="button" className="quote-step-nav-text" onClick={resetModeSelection}>2단계로 이동</button>
-              <div className="quote-step-title">로그인 없이 견적받기(비회원)(3단계)</div>
-              <span className="quote-step-nav-spacer" aria-hidden="true">2단계로 이동</span>
+            <div className="quote-step-header centered quote-step-header-boxed">
+              <button type="button" className="quote-step-nav-text" onClick={resetModeSelection}>이전</button>
+              <div className="quote-step-heading-group">
+                <div className="quote-step-title quote-step-title-two-line"><span>로그인 없이 견적받기</span><span>(비회원)(3단계)</span></div>
+                <div className="quote-step-subtitle centered">{mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}</div>
+              </div>
+              <span className="quote-step-nav-spacer" aria-hidden="true">이전</span>
             </div>
-            <div className="quote-step-subtitle centered">{mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}</div>
           </div>
         )}
         <div className="quote-move-type-table-wrapper compact integrated">
