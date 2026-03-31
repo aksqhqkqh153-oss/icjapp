@@ -136,6 +136,7 @@ const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부�
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
 const ADMIN_SORT_OPTIONS = [
+  { value: 'group_number', label: '구분 기준' },
   { value: 'account_type', label: '사업자 / 직원 분류' },
   { value: 'vehicle_available', label: '차량가용여부기준' },
   { value: 'position_title', label: '직급별 기준' },
@@ -146,6 +147,7 @@ const ADMIN_SORT_OPTIONS = [
 ]
 
 const ADMIN_CUSTOM_SORT_FIELDS = [
+  { value: 'group_number', label: '구분 기준' },
   { value: 'account_type', label: '사업자 / 직원 분류' },
   { value: 'vehicle_available', label: '차량가용여부기준' },
   { value: 'position_title', label: '직급별 기준' },
@@ -6242,6 +6244,7 @@ function AdminModePage() {
     menu_permissions_json: '',
   })
   const [accountRows, setAccountRows] = useState([])
+  const [accountRowsSortBase, setAccountRowsSortBase] = useState([])
   const [branchRows, setBranchRows] = useState([])
   const [employeeRows, setEmployeeRows] = useState([])
   const [branchOpen, setBranchOpen] = useState({})
@@ -6269,7 +6272,7 @@ function AdminModePage() {
 
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
-    return { ...item, vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
+    return { ...item, group_number: Number(item?.group_number || 0), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -6287,7 +6290,9 @@ function AdminModePage() {
         branch_count_override: String(response.config?.branch_count_override || response.branch_count || ''),
         ...response.permission_config,
       })
-      setAccountRows((response.accounts || []).map(normalizeAdminRow))
+      const normalizedAccounts = (response.accounts || []).map(normalizeAdminRow)
+      setAccountRows(normalizedAccounts)
+      setAccountRowsSortBase(normalizedAccounts)
       setBranchRows((response.branches || []).map(normalizeAdminRow))
       setEmployeeRows((response.employees || []).map(normalizeAdminRow))
       setAccountPage(1)
@@ -6360,6 +6365,7 @@ function AdminModePage() {
       vehicle_available: parseVehicleAvailable(row.vehicle_available),
       show_in_branch_status: !!row.show_in_branch_status,
       show_in_employee_status: !!row.show_in_employee_status,
+      group_number: Number(row.group_number || 0),
     }
   }
 
@@ -6563,6 +6569,7 @@ function AdminModePage() {
 
 
   function adminSortValue(item, key) {
+    if (key === 'group_number') return String(Number(item?.group_number || 0)).padStart(6, '0')
     if (key === 'account_type') return item?.account_type === 'business' ? '0-business' : '1-employee'
     if (key === 'vehicle_available') return parseVehicleAvailable(item?.vehicle_available) ? '0-available' : '1-unavailable'
     if (key === 'position_title') return defaultPositionForRow(item) || 'zzz'
@@ -6613,6 +6620,7 @@ function AdminModePage() {
   }
 
   const sortedAccountRows = useMemo(() => applyAdminSort(accountRows, 'manage'), [accountRows, sortConfigs])
+  const sortedAccountBaseRows = useMemo(() => applyAdminSort(accountRowsSortBase, 'manage'), [accountRowsSortBase, sortConfigs])
   const sortedAuthorityRows = useMemo(() => applyAdminSort(accountRows, 'authority'), [accountRows, sortConfigs])
   const sortedBranchRows = useMemo(() => applyAdminSort(branchRows, 'status'), [branchRows, sortConfigs])
   const sortedEmployeeRows = useMemo(() => applyAdminSort(employeeRows, 'status'), [employeeRows, sortConfigs])
@@ -6712,7 +6720,11 @@ function AdminModePage() {
 
   const pagedManageList = useMemo(() => getPagedRows(sortedAccountRows, 'list'), [sortedAccountRows, accountManagePages])
   const pagedManageDeleteRows = useMemo(() => getPagedRows(deletableAccounts, 'delete'), [deletableAccounts, accountManagePages])
-  const pagedManageEditRows = useMemo(() => getPagedRows(sortedAccountRows, 'edit'), [sortedAccountRows, accountManagePages])
+  const pagedManageEditRows = useMemo(() => {
+    const liveMap = new Map(accountRows.map(item => [Number(item.id), item]))
+    const stableRows = sortedAccountBaseRows.map(item => liveMap.get(Number(item.id)) || item)
+    return getPagedRows(stableRows, 'edit')
+  }, [sortedAccountBaseRows, accountRows, accountManagePages])
   const pagedManageSwitchRows = useMemo(() => getPagedRows(sortedAccountRows, 'switch'), [sortedAccountRows, accountManagePages])
 
   if (loading) return <div className="card">관리자 정보를 불러오는 중...</div>
@@ -6744,9 +6756,11 @@ function AdminModePage() {
                   <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
                   <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>계정전환</button>
                   <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
-                  <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
-                    {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  {accountManageTab !== 'create' && (
+                    <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
+                      {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div className="inline-actions wrap admin-section-save-actions">
                   {accountManageTab === 'create' && actorGrade <= 2 && (
@@ -6775,14 +6789,15 @@ function AdminModePage() {
                       return (
                         <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
                           <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountListRow(item.id)} aria-expanded={isOpen}>
+                            <span>[{item.group_number || 0}]</span>
                             <span>[{item.name || '-'}]</span>
                             <span>[{item.email || '-'}]</span>
-                            <span>[{item.account_unique_id || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
                             <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
                           </button>
                           {isOpen && (
                             <div className="admin-account-list-body">
+                              <div><strong>구분숫자</strong> {item.group_number || 0}</div>
                               <div><strong>아이디</strong> {item.email || '-'}</div>
                               <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
                               <div><strong>이름</strong> {item.name || '-'}</div>
@@ -6889,14 +6904,15 @@ function AdminModePage() {
                       return (
                         <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
                           <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
+                            <span>[{item.group_number || 0}]</span>
                             <span>[{item.name || '-'}]</span>
                             <span>[{item.email || '-'}]</span>
-                            <span>[{item.account_unique_id || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
                             <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
                           </button>
                           {isOpen && (
                             <div className="admin-inline-grid compact-inline-grid admin-edit-expanded-grid">
+                              <label>구분숫자 <input value={item.group_number || 0} onChange={e => updateAccountRow(item.id, { group_number: Number(e.target.value.replace(/[^0-9]/g, '') || 0) })} /></label>
                               <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
                               <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
                               <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>

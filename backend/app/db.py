@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS users (
     position_title TEXT DEFAULT '',
     vehicle_available INTEGER NOT NULL DEFAULT 1,
     account_unique_id TEXT DEFAULT '',
+    group_number INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -1938,6 +1939,7 @@ def init_db() -> None:
             'show_in_employee_status': 'INTEGER',
             'name': "TEXT DEFAULT ''",
             'account_unique_id': "TEXT DEFAULT ''",
+            'group_number': 'INTEGER NOT NULL DEFAULT 0',
         })
         default_admin_settings = {
             'total_vehicle_count': '',
@@ -2302,6 +2304,7 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'name': row['name'] if 'name' in row.keys() else row['nickname'],
         'nickname': row['nickname'],
         'account_unique_id': row['account_unique_id'] if 'account_unique_id' in row.keys() else '',
+        'group_number': int(row['group_number'] or 0) if 'group_number' in row.keys() else 0,
         'role': row['role'],
         'grade': grade,
         'grade_label': grade_label(grade),

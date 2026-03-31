@@ -252,6 +252,7 @@ class AdminAccountTypeSwitchIn(BaseModel):
 
 class AdminUserDetailIn(BaseModel):
     id: int
+    group_number: int = 0
     name: str = ''
     nickname: str = ''
     account_unique_id: str = ''
@@ -285,6 +286,7 @@ class AdminCreateAccountIn(BaseModel):
     email: str
     password: str
     name: str = ''
+    group_number: int = 0
     position_title: str = ''
     nickname: str
     gender: str = ''
@@ -411,6 +413,7 @@ def _normalize_account_type(row: Any) -> str:
 
 def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     item = row_to_dict(row)
+    item['group_number'] = int(item.get('group_number') or 0)
     item['grade_label'] = grade_label(item.get('grade'))
     item['approved'] = bool(item.get('approved', 1))
     item['vehicle_available'] = bool(item.get('vehicle_available', 1))
@@ -3280,7 +3283,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
         permission_config = _get_permission_config(conn)
         users = conn.execute(
             """
-            SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, created_at,
+            SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
                    bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status
             FROM users
@@ -3391,7 +3394,7 @@ def switch_admin_account_type(payload: AdminAccountTypeSwitchIn, admin=Depends(r
 @app.post("/api/admin/users/details-bulk")
 def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depends(require_admin_or_subadmin)):
     editable_fields = [
-        'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
+        'group_number', 'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
         'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status',
@@ -3414,6 +3417,10 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                 data['birth_year'] = int(data.get('birth_year') or 1995)
             except Exception:
                 data['birth_year'] = 1995
+            try:
+                data['group_number'] = int(data.get('group_number') or 0)
+            except Exception:
+                data['group_number'] = 0
             data['position_title'] = str(data.get('position_title') or '')
             data['vehicle_available'] = 1 if bool(data.get('vehicle_available', True)) else 0
             data['show_in_branch_status'] = 1 if bool(data.get('show_in_branch_status', False)) else 0
@@ -3453,10 +3460,10 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             position_title = '호점대표'
         conn.execute(
             """
-            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, created_at)
-            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, created_at)
+            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 1 if payload.vehicle_available else 0, generated_unique_id, utcnow()),
+            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 1 if payload.vehicle_available else 0, generated_unique_id, int(payload.group_number or 0), utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
