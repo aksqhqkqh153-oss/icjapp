@@ -220,6 +220,9 @@ class WorkScheduleDayNoteIn(BaseModel):
     status_c_count: int = 0
     day_memo: str = ""
     is_handless_day: bool = False
+class WorkdayToggleIn(BaseModel):
+    action: str = ''
+
 class HandlessBulkIn(BaseModel):
     month: str = ""
     visible_dates: list[str] = []
@@ -280,6 +283,7 @@ class AdminUserDetailIn(BaseModel):
     vehicle_available: bool = True
     show_in_branch_status: bool = False
     show_in_employee_status: bool = False
+    archived_in_branch_status: bool = False
 class AdminUserDetailsBulkIn(BaseModel):
     users: list[AdminUserDetailIn] = []
 class AdminCreateAccountIn(BaseModel):
@@ -380,10 +384,7 @@ def _get_permission_config(conn) -> dict:
         'menu_permissions_json': _get_admin_setting(conn, 'menu_permissions_json', ''),
     }
 def _get_admin_total_vehicle_count(conn) -> int:
-    raw = _get_admin_setting(conn, 'total_vehicle_count', '')
-    if raw.isdigit():
-        return int(raw)
-    row = conn.execute("SELECT COUNT(*) FROM users WHERE grade = 4 AND approved = 1").fetchone()
+    row = conn.execute("SELECT COUNT(*) FROM users WHERE COALESCE(vehicle_available, 1) = 1 AND approved = 1").fetchone()
     return int(row[0] or 0)
 def _get_branch_count_override(conn) -> int:
     raw = _get_admin_setting(conn, 'branch_count_override', '')
@@ -414,7 +415,10 @@ def _can_actor_apply(actor: dict, actor_key: str, target_key: str, target_grade:
 def _normalize_account_type(row: Any) -> str:
     data = row_to_dict(row)
     role_value = str(data.get('role') or '').strip().lower()
+    position_title = str(data.get('position_title') or '').strip()
     if role_value in {'business', 'owner', 'franchise', 'branch'}:
+        return 'business'
+    if position_title in {'대표', '부대표', '호점대표'}:
         return 'business'
     if data.get('branch_no') not in (None, ''):
         return 'business'
@@ -432,8 +436,18 @@ def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     employee_flag = item.get('show_in_employee_status')
     item['show_in_branch_status'] = bool(branch_flag) if branch_flag is not None else item['account_type'] == 'business'
     item['show_in_employee_status'] = bool(employee_flag) if employee_flag is not None else item['account_type'] == 'employee'
+    item['archived_in_branch_status'] = bool(item.get('archived_in_branch_status', 0))
     return item
 
+
+
+def _is_head_office_staff(item: dict) -> bool:
+    email = str(item.get('email') or '').strip()
+    name = str(item.get('name') or '').strip()
+    nickname = str(item.get('nickname') or '').strip()
+    head_office_emails = {'이청잘A', '이청잘B', '이청잘C'}
+    head_office_names = {'최성규', '이준희', '손지민'}
+    return email in head_office_emails or name in head_office_names or nickname in head_office_names
 
 def _split_names_for_match(*values: str) -> list[str]:
     tokens: list[str] = []
@@ -2344,6 +2358,60 @@ def home_upcoming_schedules(days: int = Query(default=7, ge=1, le=31), user=Depe
         })
     return {'days': grouped}
 
+
+@app.get('/api/workday/status')
+def get_workday_status(user=Depends(require_user)):
+    today = datetime.now().strftime('%Y-%m-%d')
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
+        if not row:
+            return {'active': False, 'today': None}
+        data = row_to_dict(row)
+        return {
+            'active': bool(data.get('start_time')) and not bool(data.get('end_time')),
+            'today': data,
+        }
+
+@app.get('/api/workday/logs')
+def get_workday_logs(limit: int = Query(default=60, ge=1, le=365), user=Depends(require_user)):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM workday_logs WHERE user_id = ? ORDER BY work_date DESC, id DESC LIMIT ?",
+            (user['id'], int(limit)),
+        ).fetchall()
+        return {'items': [row_to_dict(row) for row in rows]}
+
+@app.post('/api/workday/toggle')
+def toggle_workday(payload: WorkdayToggleIn, user=Depends(require_user)):
+    now_dt = datetime.now()
+    today = now_dt.strftime('%Y-%m-%d')
+    current_time = now_dt.strftime('%H:%M')
+    action = str(payload.action or '').strip().lower()
+    if action not in {'start', 'end'}:
+        raise HTTPException(status_code=400, detail='action 값은 start 또는 end 이어야 합니다.')
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
+        if action == 'start':
+            if row and row['start_time']:
+                raise HTTPException(status_code=409, detail='이미 오늘 일시작이 기록되어 있습니다.')
+            now = utcnow()
+            if row:
+                conn.execute("UPDATE workday_logs SET start_time = ?, started_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, row['id']))
+            else:
+                conn.execute(
+                    "INSERT INTO workday_logs(user_id, work_date, start_time, end_time, started_at, ended_at, created_at, updated_at) VALUES (?, ?, ?, '', ?, '', ?, ?)",
+                    (user['id'], today, current_time, now, now, now),
+                )
+        else:
+            if not row or not row['start_time']:
+                raise HTTPException(status_code=409, detail='오늘 시작 기록이 없어 종료할 수 없습니다.')
+            if row['end_time']:
+                raise HTTPException(status_code=409, detail='이미 오늘 일종료가 기록되어 있습니다.')
+            now = utcnow()
+            conn.execute("UPDATE workday_logs SET end_time = ?, ended_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, row['id']))
+        updated = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
+        return {'ok': True, 'item': row_to_dict(updated)}
+
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):
     with get_conn() as conn:
@@ -2368,8 +2436,8 @@ def map_users(user=Depends(require_user)):
                     upcoming_item = item
             display_item = active_item or upcoming_item
             current_location = str(public.get('region') or public.get('resident_address') or '위치 확인중').strip()
-            destination_address = str((display_item or {}).get('end_address') or '').strip()
-            is_moving = bool(destination_address)
+            destination_address = str((active_item or {}).get('end_address') or '').strip()
+            is_moving = bool(active_item and destination_address)
             status_text = f"현위치 {current_location}에 있고 정차 중"
             if is_moving:
                 status_text = f"현위치 {current_location}에 있고, {destination_address}로 이동중"
@@ -3342,21 +3410,25 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status
+                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status, archived_in_branch_status
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
         ).fetchall()
     user_dicts = [_serialize_admin_user_row(row) for row in users]
     branches = [item for item in user_dicts if item.get('show_in_branch_status')]
+    active_branches = [item for item in branches if not item.get('archived_in_branch_status')]
     employees = [item for item in user_dicts if item.get('show_in_employee_status')]
+    head_office_staff = [item for item in user_dicts if _is_head_office_staff(item)]
     return {
         'config': {'total_vehicle_count': total_vehicle_count, 'branch_count_override': branch_count_override},
         'permission_config': permission_config,
-        'branch_count': branch_count_override,
+        'branch_count': len(active_branches),
         'branches': branches,
         'employee_count': len(employees),
         'employees': employees,
+        'head_office_count': len(head_office_staff),
+        'head_office_staff': head_office_staff,
         'accounts': user_dicts,
     }
 @app.post('/api/admin-mode/config')
@@ -3456,7 +3528,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'group_number', 'group_number_text', 'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'archived_in_branch_status',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -3488,6 +3560,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             data['vehicle_available'] = 0 if _is_staff_grade(current_or_next_grade) else (1 if bool(data.get('vehicle_available', True)) else 0)
             data['show_in_branch_status'] = 1 if bool(data.get('show_in_branch_status', False)) else 0
             data['show_in_employee_status'] = 1 if bool(data.get('show_in_employee_status', False)) else 0
+            data['archived_in_branch_status'] = 1 if bool(data.get('archived_in_branch_status', False)) else 0
             data['name'] = str(data.get('name') or '').strip()
             data['nickname'] = str(data.get('nickname') or '').strip()
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()

@@ -6096,3 +6096,44 @@ a:focus-visible {
 .admin-status-toolbar-spacer {
   min-height: 1px;
 }
+
+.workday-hold-card.workday-idle {
+  background: #9ca3af;
+  color: #fff;
+}
+.workday-hold-card.workday-active {
+  background: #f59e0b;
+  color: #111827;
+}
+.branch-marker.stopped {
+  background: #9ca3af;
+}
+.branch-marker.moving {
+  background: #bbf7d0;
+  color: #14532d;
+}
+.vehicle-list-item.stopped {
+  border-left: 4px solid #9ca3af;
+}
+.vehicle-list-item.moving {
+  border-left: 4px solid #86efac;
+}
+.admin-status-category-tabs {
+  margin: 8px 0 12px;
+}
+.authority-grid-8 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+@media (max-width: 768px) {
+  .authority-grid-8 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-status-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .admin-status-category-tabs {
+    width: 100%;
+  }
+}

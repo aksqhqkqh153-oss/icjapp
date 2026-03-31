@@ -256,6 +256,7 @@ CREATE TABLE IF NOT EXISTS users (
     vehicle_available INTEGER NOT NULL DEFAULT 1,
     account_unique_id TEXT DEFAULT '',
     group_number INTEGER NOT NULL DEFAULT 0,
+    archived_in_branch_status INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -1969,6 +1970,7 @@ def init_db() -> None:
             'account_unique_id': "TEXT DEFAULT ''",
             'group_number': 'INTEGER NOT NULL DEFAULT 0',
             'group_number_text': "TEXT DEFAULT '0'",
+            'archived_in_branch_status': 'INTEGER NOT NULL DEFAULT 0',
         })
         default_admin_settings = {
             'total_vehicle_count': '',
@@ -2004,6 +2006,17 @@ def init_db() -> None:
             'reply_to_id': 'INTEGER',
             'mention_user_id': 'INTEGER',
             'reactions': "TEXT DEFAULT '[]'",
+        })
+        workday_logs_sql = "CREATE TABLE IF NOT EXISTS workday_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, work_date TEXT NOT NULL, start_time TEXT NOT NULL DEFAULT '', end_time TEXT NOT NULL DEFAULT '', started_at TEXT NOT NULL DEFAULT '', ended_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(workday_logs_sql) if DB_ENGINE == 'postgresql' else workday_logs_sql)
+        _ensure_unique_index(conn, 'workday_logs', 'idx_workday_logs_user_date', ['user_id', 'work_date'])
+        _ensure_columns(conn, 'workday_logs', {
+            'start_time': "TEXT NOT NULL DEFAULT ''",
+            'end_time': "TEXT NOT NULL DEFAULT ''",
+            'started_at': "TEXT NOT NULL DEFAULT ''",
+            'ended_at': "TEXT NOT NULL DEFAULT ''",
+            'created_at': 'TEXT NOT NULL',
+            'updated_at': 'TEXT NOT NULL',
         })
         _ensure_columns(conn, 'group_room_messages', {
             'attachment_name': "TEXT DEFAULT ''",

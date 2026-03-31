@@ -22,6 +22,7 @@ const PAGE_TITLES = {
   '/settings': '설정',
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
+  '/workday-history': '일시작종료',
   '/settlements': '결산자료',
   '/soomgo-review-finder': '숨고리뷰찾기',
   '/warehouse': '창고현황',
@@ -186,6 +187,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
       { id: 'quotes', label: '견적', path: '/quotes' },
+      { id: 'workday-history', label: '일시작종료', path: '/workday-history' },
     ],
   },
   {
@@ -353,7 +355,7 @@ function getHomeSettings(userId) {
   const fallback = {
     sectionOrder: [...HOME_SECTION_ORDER_DEFAULT],
     workday: { holdSeconds: HOME_HOLD_SECONDS_DEFAULT, enabled: true, hideOnHome: false },
-    activeWorkState: { started: false, updatedAt: '' },
+    activeWorkState: { started: false, updatedAt: '', startTime: '', endTime: '', workDate: '' },
   }
   try {
     const raw = localStorage.getItem(homeSettingsStorageKey(userId))
@@ -374,6 +376,9 @@ function getHomeSettings(userId) {
       activeWorkState: {
         started: !!activeWorkState.started,
         updatedAt: String(activeWorkState.updatedAt || ''),
+        startTime: String(activeWorkState.startTime || ''),
+        endTime: String(activeWorkState.endTime || ''),
+        workDate: String(activeWorkState.workDate || ''),
       },
     }
   } catch (_) {
@@ -897,6 +902,58 @@ function ResetPasswordPage() {
   )
 }
 
+function WorkdayHistoryPage() {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let ignore = false
+    async function loadLogs() {
+      try {
+        const response = await api('/api/workday/logs')
+        if (!ignore) setItems(Array.isArray(response?.items) ? response.items : [])
+      } catch (err) {
+        if (!ignore) setError(err.message || '기록을 불러오지 못했습니다.')
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    loadLogs()
+    return () => { ignore = true }
+  }, [])
+
+  return (
+    <div className="stack-page">
+      <section className="card">
+        <div className="between align-center">
+          <h2>일시작종료</h2>
+          <div className="muted small-text">일자별 시작/종료 기록</div>
+        </div>
+        {loading && <div className="muted">불러오는 중...</div>}
+        {error && <div className="error">{error}</div>}
+        {!loading && !error && (
+          <div className="list">
+            {items.map(item => (
+              <div key={`${item.work_date}-${item.id}`} className="list-item block">
+                <div className="between">
+                  <strong>{item.work_date}</strong>
+                  <span className="muted">{item.end_time ? '종료완료' : item.start_time ? '진행중' : '대기'}</span>
+                </div>
+                <div className="admin-summary-line admin-summary-line-primary">
+                  <span>[시작 {item.start_time || '-'}]</span>
+                  <span>[종료 {item.end_time || '-'}]</span>
+                </div>
+              </div>
+            ))}
+            {items.length === 0 && <div className="muted">기록이 없습니다.</div>}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 function HomePage() {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
@@ -906,6 +963,7 @@ function HomePage() {
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
   const [homeSettings, setHomeSettings] = useState(() => getHomeSettings(currentUser?.id))
   const [holdProgress, setHoldProgress] = useState(false)
+  const [workdayStatus, setWorkdayStatus] = useState(null)
   const holdTimerRef = useRef(null)
 
   useEffect(() => {
@@ -937,6 +995,32 @@ function HomePage() {
     setHomeSettings(getHomeSettings(currentUser?.id))
   }, [currentUser?.id])
 
+  useEffect(() => {
+    let ignore = false
+    async function loadWorkdayStatus() {
+      try {
+        const response = await api('/api/workday/status')
+        if (ignore) return
+        const item = response?.today || null
+        setWorkdayStatus(response || null)
+        if (item) {
+          updateHomeSettings({
+            ...getHomeSettings(currentUser?.id),
+            activeWorkState: {
+              started: !!response?.active,
+              updatedAt: item.updated_at || item.ended_at || item.started_at || '',
+              startTime: item.start_time || '',
+              endTime: item.end_time || '',
+              workDate: item.work_date || '',
+            },
+          })
+        }
+      } catch (_) {}
+    }
+    loadWorkdayStatus()
+    return () => { ignore = true }
+  }, [currentUser?.id])
+
   function updateQuickState(nextState) {
     setQuickState(nextState)
     saveQuickActionState(currentUser?.id, nextState)
@@ -960,15 +1044,29 @@ function HomePage() {
     if (!homeSettings.workday.enabled) return
     const holdMs = Math.max(1, Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)) * 1000
     setHoldProgress(true)
-    holdTimerRef.current = window.setTimeout(() => {
-      const nextStarted = !homeSettings.activeWorkState?.started
-      const nextState = {
-        ...homeSettings,
-        activeWorkState: { started: nextStarted, updatedAt: new Date().toISOString() },
+    holdTimerRef.current = window.setTimeout(async () => {
+      const nextAction = homeSettings.activeWorkState?.started ? 'end' : 'start'
+      try {
+        const response = await api('/api/workday/toggle', { method: 'POST', body: JSON.stringify({ action: nextAction }) })
+        const item = response?.item || {}
+        const nextState = {
+          ...homeSettings,
+          activeWorkState: {
+            started: nextAction === 'start',
+            updatedAt: item.updated_at || item.ended_at || item.started_at || new Date().toISOString(),
+            startTime: item.start_time || '',
+            endTime: item.end_time || '',
+            workDate: item.work_date || '',
+          },
+        }
+        updateHomeSettings(nextState)
+        setWorkdayStatus({ active: nextAction === 'start', today: item })
+        window.alert(nextAction === 'start' ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
+      } catch (err) {
+        window.alert(err.message || '일시작/일종료 저장 중 오류가 발생했습니다.')
+      } finally {
+        setHoldProgress(false)
       }
-      updateHomeSettings(nextState)
-      setHoldProgress(false)
-      window.alert(nextStarted ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
     }, holdMs)
   }
 
@@ -1125,7 +1223,7 @@ function HomePage() {
           <div className="stack compact">
             <button
               type="button"
-              className={`quick-check-card workday-hold-card ${holdProgress ? 'holding' : ''}`.trim()}
+              className={`quick-check-card workday-hold-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
               onMouseDown={startHoldAction}
               onMouseUp={stopHoldAction}
               onMouseLeave={stopHoldAction}
@@ -1136,6 +1234,12 @@ function HomePage() {
               <strong>{homeSettings.activeWorkState?.started ? '일종료' : '일시작'}</strong>
               <span>{homeSettings.activeWorkState?.started ? '현재 근무 진행중' : '현재 근무 대기중'}</span>
             </button>
+            {(homeSettings.activeWorkState?.startTime || homeSettings.activeWorkState?.endTime) && (
+              <div className="admin-summary-line admin-summary-line-primary">
+                <span>[시작 {homeSettings.activeWorkState.startTime || '-'}]</span>
+                <span>[종료 {homeSettings.activeWorkState.endTime || '-'}]</span>
+              </div>
+            )}
             {homeSettings.activeWorkState?.updatedAt && <div className="muted small-text">최근 변경: {new Date(homeSettings.activeWorkState.updatedAt).toLocaleString('ko-KR')}</div>}
           </div>
         </section>
@@ -3020,7 +3124,8 @@ function MapPage() {
     const bounds = []
     users.forEach(item => {
       const label = ENCLOSED_NUMBERS[item.branch_no] || String(item.branch_no || '?')
-      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="branch-marker">${label}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] })
+      const markerClass = item.map_status?.is_moving ? 'branch-marker moving' : 'branch-marker stopped'
+      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${label}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] })
       L.marker([item.latitude, item.longitude], { icon })
         .bindPopup(`<strong>${item.branch_no || '-'}호점</strong><br/>${item.nickname}<br/>${item.vehicle_number || '-'}<br/>${item.region}`)
         .addTo(markerLayerRef.current)
@@ -3049,7 +3154,7 @@ function MapPage() {
             {users.map(item => {
               const statusText = item.map_status?.status_text || `현위치 ${item.map_status?.current_location || item.region || '-'}에 있고 정차 중`
               return (
-                <div key={item.id} className="vehicle-list-item">
+                <div key={item.id} className={`vehicle-list-item ${item.map_status?.is_moving ? 'moving' : 'stopped'}`}>
                   <div className="vehicle-list-line primary">
                     <strong>[{item.branch_no}호점]</strong>
                     <span>[{statusText}]</span>
@@ -6538,7 +6643,10 @@ function AdminModePage() {
   const [accountEditOpen, setAccountEditOpen] = useState({})
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusTab, setStatusTab] = useState('branch')
+  const [statusTab, setStatusTab] = useState('all')
+  const [branchArchiveModalOpen, setBranchArchiveModalOpen] = useState(false)
+  const [branchArchiveMode, setBranchArchiveMode] = useState('archive')
+  const [branchArchiveSelection, setBranchArchiveSelection] = useState('')
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
   const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'group_number', keys: [] }, status: { mode: 'group_number', keys: [] }, authority: { mode: 'group_number', keys: [] } })
   const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
@@ -6660,6 +6768,7 @@ function AdminModePage() {
       vehicle_available: isStaffGradeValue(row?.grade) ? false : parseVehicleAvailable(row.vehicle_available),
       show_in_branch_status: !!row.show_in_branch_status,
       show_in_employee_status: !!row.show_in_employee_status,
+      archived_in_branch_status: !!row.archived_in_branch_status,
       group_number: rawGroupNumber,
       group_number_text: rawGroupNumber,
     }
@@ -6887,8 +6996,37 @@ function AdminModePage() {
     setBranchOpen(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  function toggleEmployee(id) {
-    setEmployeeOpen(prev => ({ ...prev, [id]: !prev[id] }))
+  function isHeadOfficeRow(item) {
+    const email = String(item?.email || '').trim()
+    const name = String(item?.name || '').trim()
+    const nickname = String(item?.nickname || '').trim()
+    return ['이청잘A', '이청잘B', '이청잘C'].includes(email) || ['최성규', '이준희', '손지민'].includes(name) || ['최성규', '이준희', '손지민'].includes(nickname)
+  }
+
+  function addAccountToStatus(target) {
+    const selectedId = Number(statusAddSelection[target] || 0)
+    if (!selectedId) return
+    const source = accountRows.find(item => Number(item.id) === selectedId)
+    if (!source) return
+    if (target === 'branch') {
+      const nextRow = { ...source, show_in_branch_status: true, archived_in_branch_status: false }
+      setBranchRows(prev => prev.some(item => item.id === selectedId) ? prev.map(item => item.id === selectedId ? nextRow : item) : [...prev, nextRow])
+      setAccountRows(prev => prev.map(item => item.id === selectedId ? { ...item, show_in_branch_status: true, archived_in_branch_status: false } : item))
+    }
+    if (target === 'employee') {
+      const nextRow = { ...source, show_in_employee_status: true }
+      setEmployeeRows(prev => prev.some(item => item.id === selectedId) ? prev.map(item => item.id === selectedId ? nextRow : item) : [...prev, nextRow])
+      setAccountRows(prev => prev.map(item => item.id === selectedId ? { ...item, show_in_employee_status: true } : item))
+    }
+    setStatusAddSelection(prev => ({ ...prev, [target]: '' }))
+  }
+
+  function toggleBranchArchive(flag) {
+    const selectedId = Number(branchArchiveSelection || 0)
+    if (!selectedId) return
+    setBranchRows(prev => prev.map(item => item.id === selectedId ? { ...item, archived_in_branch_status: flag } : item))
+    setAccountRows(prev => prev.map(item => item.id === selectedId ? { ...item, archived_in_branch_status: flag } : item))
+    setBranchArchiveSelection('')
   }
 
   function toggleAccountListRow(id) {
@@ -6974,9 +7112,16 @@ function AdminModePage() {
   const actorRoleLimit = Number(configForm.role_assign_actor_max_grade || 1)
   const targetRoleFloor = Number(configForm.role_assign_target_min_grade || 7)
   const franchisePositionSet = new Set(['대표', '부대표', '호점대표'])
-  const franchiseRows = useMemo(() => sortedBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [sortedBranchRows])
+  const visibleBranchRows = useMemo(() => sortedBranchRows.filter(item => !item.archived_in_branch_status), [sortedBranchRows])
+  const archivedBranchRows = useMemo(() => sortedBranchRows.filter(item => item.archived_in_branch_status), [sortedBranchRows])
+  const franchiseRows = useMemo(() => visibleBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [visibleBranchRows])
+  const fieldEmployeeRows = useMemo(() => sortedEmployeeRows.filter(item => !isHeadOfficeRow(item)), [sortedEmployeeRows])
+  const headOfficeRows = useMemo(() => applyAdminSort(accountRows.filter(item => isHeadOfficeRow(item)), 'status'), [accountRows, sortConfigs])
+  const combinedStatusRows = useMemo(() => applyAdminSort([...visibleBranchRows, ...fieldEmployeeRows, ...headOfficeRows.filter(item => !fieldEmployeeRows.some(emp => emp.id === item.id))], 'status'), [visibleBranchRows, fieldEmployeeRows, headOfficeRows, sortConfigs])
   const franchiseCount = franchiseRows.length
-  const derivedTotalVehicleCount = franchiseCount
+  const derivedTotalVehicleCount = franchiseRows.filter(item => parseVehicleAvailable(item?.vehicle_available)).length
+  const branchStatusCandidates = useMemo(() => sortedAccountRows.filter(item => !branchRows.some(row => row.id === item.id)), [sortedAccountRows, branchRows])
+  const employeeStatusCandidates = useMemo(() => sortedAccountRows.filter(item => !employeeRows.some(row => row.id === item.id)), [sortedAccountRows, employeeRows])
   const deletableAccounts = useMemo(
     () => sortedAccountRows.filter(item => {
       if (Number(item.id) === Number(currentUser?.id || 0)) return false
@@ -7331,10 +7476,12 @@ function AdminModePage() {
         }}>
           <div className="inline-actions wrap admin-status-title-row">
             <h2>운영현황</h2>
-            {statusOpen && (
-              <div className="inline-actions wrap status-tab-actions admin-status-tab-actions-inline" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
-                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
+            {statusOpen && !useIsMobile() && (
+              <div className="inline-actions wrap admin-status-category-tabs" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
+                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
+                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>현장직원</button>
+                <button type="button" className={statusTab === 'hq' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('hq')}>본사직원</button>
               </div>
             )}
           </div>
@@ -7343,20 +7490,29 @@ function AdminModePage() {
         {statusOpen && (
           <>
             <div className="between admin-section-toolbar admin-status-toolbar">
-              <div className="inline-actions wrap status-tab-actions admin-status-toolbar-spacer" />
+              <div className="inline-actions wrap admin-status-toolbar-spacer" />
               <div className="inline-actions wrap admin-section-save-actions">
-                {actorGrade === 1 && (statusTab === 'branch'
+                {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
                   ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
-                  : renderActionButton('직원현황', '정보저장', saveEmployeeDetails))}
-                {actorGrade === 1 && <button type="button" className={(statusTab === 'branch' ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
-                  if (statusTab === 'branch') setBranchEditMode(v => !v)
+                  : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '정보저장', saveEmployeeDetails))}
+                {actorGrade === 1 && <button type="button" className={((statusTab === 'all' || statusTab === 'branch') ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+                  if (statusTab === 'all' || statusTab === 'branch') setBranchEditMode(v => !v)
                   else setEmployeeEditMode(v => !v)
                 }}>수정</button>}
-                {actorGrade === 1 && <button type="button" className={statusAddPickerOpen[statusTab] ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusAddPickerOpen(prev => ({ ...prev, [statusTab]: !prev[statusTab] }))}>추가</button>}
-                {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => setMessage(statusTab === 'branch' ? '가맹현황에서 삭제할 계정은 펼침 카드의 삭제 버튼으로 제외할 수 있습니다.' : '직원현황에서 삭제할 계정은 펼침 카드의 삭제 버튼으로 제외할 수 있습니다.')}>삭제</button>}
+                {actorGrade === 1 && (statusTab === 'branch' || statusTab === 'employee') && <button type="button" className={statusAddPickerOpen[statusTab] ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusAddPickerOpen(prev => ({ ...prev, [statusTab]: !prev[statusTab] }))}>추가</button>}
+                {actorGrade === 1 && statusTab === 'branch' && <button type="button" className="small ghost" onClick={() => { setBranchArchiveModalOpen(true); setBranchArchiveMode('archive') }}>보관</button>}
+                {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => setMessage('삭제할 계정은 펼침 카드 또는 계정관리 영역에서 제외해 주세요.')}>삭제</button>}
               </div>
             </div>
-            {statusAddPickerOpen[statusTab] && actorGrade === 1 && (
+            {useIsMobile() && (
+              <div className="inline-actions wrap admin-status-category-tabs">
+                <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
+                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
+                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>현장직원</button>
+                <button type="button" className={statusTab === 'hq' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('hq')}>본사직원</button>
+              </div>
+            )}
+            {(statusTab === 'branch' || statusTab === 'employee') && statusAddPickerOpen[statusTab] && actorGrade === 1 && (
               <div className="admin-status-add-row">
                 <select value={statusAddSelection[statusTab]} onChange={e => setStatusAddSelection(prev => ({ ...prev, [statusTab]: e.target.value }))}>
                   <option value="">추가할 계정 선택</option>
@@ -7369,125 +7525,120 @@ function AdminModePage() {
                 <button type="button" className="small" onClick={() => addAccountToStatus(statusTab)}>추가확인</button>
               </div>
             )}
-            {statusTab === 'branch' ? (
-          <>
-            <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
-              <label>가맹현황수 <input value={String(franchiseCount || 0)} readOnly /></label>
-              <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
-            </div>
-            <div className="between admin-subtitle-row">
-              <div className="admin-subtitle">가맹현황/상세정보</div>
-              <select className="small admin-sort-select admin-sort-select-inline admin-status-sort-beside-subtitle" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
-                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </div>
-            <div className="list">
-              {sortedBranchRows.map(item => (
-                <div key={item.id} className="list-item block admin-detail-card compact-card">
-                  <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleBranch(item.id)}>
-                    <div className="admin-summary-lines branch-summary-lines">
-                      <div className="admin-summary-line admin-summary-line-primary">
-                        <span>[{groupNumberDisplay(item)}]</span>
-                        <span>[{branchDisplayLabel(item.branch_no, '-')}]</span>
-                        <span>[{item.nickname || item.name || '이름 미입력'}]</span>
-                        <span>[{item.phone || '연락처 미입력'}]</span>
-                      </div>
-                      <div className="admin-summary-line admin-summary-line-secondary">
-                        <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
-                        <span>[{item.bank_account || '계좌번호 미입력'}]</span>
-                        <span>[{item.bank_name || '은행명 미입력'}]</span>
-                      </div>
-                    </div>
-                  </div>
-                  {branchOpen[item.id] && (
-                    <div className="stack compact-gap admin-detail-stack">
-                      {employeeEditMode && <div className="inline-actions end"><button type="button" className="small ghost" onClick={() => removeAccountFromStatus('employee', item)}>삭제</button></div>}
-                      {branchEditMode && <div className="inline-actions end"><button type="button" className="small ghost" onClick={() => removeAccountFromStatus('branch', item)}>삭제</button></div>}
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>이름 <input value={item.name || ''} onChange={e => updateBranchRow(item.id, { name: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>닉네임 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>연락처 <input value={item.phone || ''} onChange={e => updateBranchRow(item.id, { phone: e.target.value })} disabled={!branchEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>호점 <input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>사업자명 <input value={item.business_name || ''} onChange={e => updateBranchRow(item.id, { business_name: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>사업자번호 <input value={item.business_number || ''} onChange={e => updateBranchRow(item.id, { business_number: e.target.value })} disabled={!branchEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>업태 <input value={item.business_type || ''} onChange={e => updateBranchRow(item.id, { business_type: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>종목 <input value={item.business_item || ''} onChange={e => updateBranchRow(item.id, { business_item: e.target.value })} disabled={!branchEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>사업장주소 <input value={item.business_address || ''} onChange={e => updateBranchRow(item.id, { business_address: e.target.value })} disabled={!branchEditMode} /></label>
-                        <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateBranchRow(item.id, { resident_address: e.target.value })} disabled={!branchEditMode} /></label>
-                      </div>
-                      <label>MBTI <input value={item.mbti || ''} onChange={e => updateBranchRow(item.id, { mbti: e.target.value })} disabled={!branchEditMode} /></label>
-                    </div>
-                  )}
+            {(statusTab === 'all' || statusTab === 'branch') && (
+              <>
+                <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
+                  <label>가맹현황수 <input value={String(franchiseCount || 0)} readOnly /></label>
+                  <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
                 </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
-              <label>직원현황수 <input value={String(employeeRows.length || 0)} readOnly /></label>
-              <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
-            </div>
-            <div className="between admin-subtitle-row">
-              <div className="admin-subtitle">직원현황/상세정보</div>
-              <select className="small admin-sort-select admin-sort-select-inline admin-status-sort-beside-subtitle" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
-                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </div>
-            <div className="list">
-              {sortedEmployeeRows.map(item => (
-                <div key={item.id} className="list-item block admin-detail-card compact-card">
-                  <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleEmployee(item.id)}>
-                    <div className="admin-summary-lines employee-summary-lines">
-                      <div className="admin-summary-line admin-summary-line-primary">
-                        <span>[{groupNumberDisplay(item)}]</span>
-                        <span>[{item.nickname || item.name || '이름 미입력'}]</span>
-                        <span>[{item.phone || '연락처 미입력'}]</span>
-                        <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
+                <div className="admin-subtitle">가맹현황/상세정보</div>
+                <div className="list">
+                  {(statusTab === 'all' ? combinedStatusRows.filter(item => franchiseRows.some(branch => branch.id === item.id)) : franchiseRows).map(item => (
+                    <div key={item.id} className="list-item block admin-detail-card compact-card">
+                      <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleBranch(item.id)}>
+                        <div className="admin-summary-lines branch-summary-lines">
+                          <div className="admin-summary-line admin-summary-line-primary">
+                            <span>[{groupNumberDisplay(item)}]</span>
+                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                            <span>[{branchDisplayLabel(item.branch_no)}]</span>
+                            <span>[{item.name || item.nickname || '이름 미입력'}]</span>
+                            <span>[{item.phone || '연락처 미입력'}]</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="admin-summary-line admin-summary-line-secondary">
-                        <span>[{item.bank_account || '계좌번호 미입력'}]</span>
-                        <span>[{item.bank_name || '은행명 미입력'}]</span>
-                      </div>
+                      {branchOpen[item.id] && (
+                        <div className="stack compact-gap admin-detail-stack">
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>이름 <input value={item.name || ''} onChange={e => updateBranchRow(item.id, { name: e.target.value })} disabled={!branchEditMode} /></label>
+                            <label>닉네임 <input value={item.nickname || ''} onChange={e => updateBranchRow(item.id, { nickname: e.target.value })} disabled={!branchEditMode} /></label>
+                            <label>연락처 <input value={item.phone || ''} onChange={e => updateBranchRow(item.id, { phone: e.target.value })} disabled={!branchEditMode} /></label>
+                          </div>
+                          <div className="admin-inline-grid compact-inline-grid">
+                            <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
+                            <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
+                            <label>호점 <input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  {employeeOpen[item.id] && (
-                    <div className="stack compact-gap admin-detail-stack">
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>이름 <input value={item.name || ''} onChange={e => updateEmployeeRow(item.id, { name: e.target.value })} disabled={!employeeEditMode} /></label>
-                        <label>닉네임 <input value={item.nickname || ''} onChange={e => updateEmployeeRow(item.id, { nickname: e.target.value })} disabled={!employeeEditMode} /></label>
-                        <label>연락처 <input value={item.phone || ''} onChange={e => updateEmployeeRow(item.id, { phone: e.target.value })} disabled={!employeeEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateEmployeeRow(item.id, { vehicle_number: e.target.value })} disabled={!employeeEditMode} /></label>
-                        <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateEmployeeRow(item.id, { position_title: e.target.value })} disabled={!employeeEditMode} /></label>
-                      </div>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>결혼여부 <input value={item.marital_status || ''} onChange={e => updateEmployeeRow(item.id, { marital_status: e.target.value })} disabled={!employeeEditMode} /></label>
-                        <label>주이메일 <input value={item.email || ''} onChange={e => updateEmployeeRow(item.id, { email: e.target.value })} disabled={!employeeEditMode} /></label>
-                      </div>
-                      <label>거주지주소 <input value={item.resident_address || ''} onChange={e => updateEmployeeRow(item.id, { resident_address: e.target.value })} disabled={!employeeEditMode} /></label>
-                      <div className="admin-inline-grid compact-inline-grid">
-                        <label>MBTI <input value={item.mbti || ''} onChange={e => updateEmployeeRow(item.id, { mbti: e.target.value })} disabled={!employeeEditMode} /></label>
-                        <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateEmployeeRow(item.id, { google_email: e.target.value })} disabled={!employeeEditMode} /></label>
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
-          </>
-        )}
+              </>
+            )}
+            {(statusTab === 'all' || statusTab === 'employee') && (
+              <>
+                <div className="admin-subtitle">현장직원</div>
+                <div className="list">
+                  {(statusTab === 'all' ? fieldEmployeeRows : fieldEmployeeRows).map(item => (
+                    <div key={item.id} className="list-item block admin-detail-card compact-card">
+                      <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleEmployee(item.id)}>
+                        <div className="admin-summary-lines employee-summary-lines">
+                          <div className="admin-summary-line admin-summary-line-primary">
+                            <span>[{groupNumberDisplay(item)}]</span>
+                            <span>[{item.nickname || item.name || '이름 미입력'}]</span>
+                            <span>[{item.phone || '연락처 미입력'}]</span>
+                            <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {(statusTab === 'all' || statusTab === 'hq') && (
+              <>
+                <div className="admin-subtitle">본사직원</div>
+                <div className="list">
+                  {headOfficeRows.map(item => (
+                    <div key={item.id} className="list-item block admin-detail-card compact-card">
+                      <div className="between admin-detail-summary-row">
+                        <div className="admin-summary-lines employee-summary-lines">
+                          <div className="admin-summary-line admin-summary-line-primary">
+                            <span>[{groupNumberDisplay(item)}]</span>
+                            <span>[{item.name || item.nickname || '이름 미입력'}]</span>
+                            <span>[{item.email || '-'}]</span>
+                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {branchArchiveModalOpen && createPortal(
+              <div className="modal-overlay" onClick={() => setBranchArchiveModalOpen(false)}>
+                <div className="modal-card" onClick={e => e.stopPropagation()}>
+                  <div className="between">
+                    <strong>보관함</strong>
+                    <button type="button" className="small ghost" onClick={() => setBranchArchiveModalOpen(false)}>닫기</button>
+                  </div>
+                  <div className="inline-actions wrap">
+                    <button type="button" className={branchArchiveMode === 'archive' ? 'small selected-toggle' : 'small ghost'} onClick={() => setBranchArchiveMode('archive')}>보관하기</button>
+                    <button type="button" className={branchArchiveMode === 'restore' ? 'small selected-toggle' : 'small ghost'} onClick={() => setBranchArchiveMode('restore')}>불러오기</button>
+                  </div>
+                  <div className="admin-status-add-row">
+                    <select value={branchArchiveSelection} onChange={e => setBranchArchiveSelection(e.target.value)}>
+                      <option value="">{branchArchiveMode === 'archive' ? '보관할 가맹 선택' : '불러올 가맹 선택'}</option>
+                      {(branchArchiveMode === 'archive' ? franchiseRows : archivedBranchRows).map(item => (
+                        <option key={`archive-${item.id}`} value={item.id}>{item.name || item.nickname || '이름 미입력'} / {item.phone || '-'} / {branchDisplayLabel(item.branch_no)}</option>
+                      ))}
+                    </select>
+                    <button type="button" className="small" onClick={() => toggleBranchArchive(branchArchiveMode === 'archive')}>{branchArchiveMode === 'archive' ? '보관하기' : '불러오기'}</button>
+                  </div>
+                  <div className="stack compact-gap">
+                    {(archivedBranchRows.length ? archivedBranchRows : []).map(item => (
+                      <div key={`archived-row-${item.id}`} className="quick-edit-row">
+                        <span>{item.name || item.nickname || '이름 미입력'} / {item.phone || '-'} / {branchDisplayLabel(item.branch_no)}</span>
+                      </div>
+                    ))}
+                    {archivedBranchRows.length === 0 && <div className="muted">보관된 가맹 정보가 없습니다.</div>}
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
           </>
         )}
       </section>
@@ -7518,12 +7669,11 @@ function AdminModePage() {
             </div>
             <div className="admin-account-table">
           {pagedAccounts.map(item => (
-            <div key={item.id} className="admin-account-grid compact labeled-account-grid">
-              <div>
-                <strong>{item.nickname}</strong>
-                <div className="muted tiny-text">{item.account_unique_id || '-'}</div>
-              </div>
-              <div>{item.email}</div>
+            <div key={item.id} className="admin-account-grid compact labeled-account-grid authority-grid-8">
+              <div className="admin-select-field"><span>구분숫자</span><input value={groupNumberDisplay(item)} onChange={e => updateAccountRow(item.id, { group_number: e.target.value, group_number_text: e.target.value })} /></div>
+              <div className="admin-select-field"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value })} /></div>
+              <div className="admin-select-field"><span>이름</span><input value={item.name || item.nickname || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></div>
+              <div className="admin-select-field"><span>아이디</span><input value={item.email || ''} readOnly /></div>
               <label className="admin-select-field">
                 <span>차량가용여부</span>
                 <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
@@ -9936,6 +10086,7 @@ function App() {
         <Route path="/settlements" element={<SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
+        <Route path="/workday-history" element={<WorkdayHistoryPage />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
         <Route path="/menu-permissions" element={isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
