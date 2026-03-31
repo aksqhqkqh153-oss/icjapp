@@ -7009,13 +7009,10 @@ function AdminModePage() {
         </div>
         {statusOpen && (
           <>
-            <div className="between admin-section-toolbar">
+            <div className="between admin-section-toolbar admin-status-toolbar">
               <div className="inline-actions wrap status-tab-actions">
                 <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
                 <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
-                <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
-                  {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
               </div>
               <div className="inline-actions wrap admin-section-save-actions">
                 {actorGrade === 1 && (statusTab === 'branch'
@@ -7044,27 +7041,33 @@ function AdminModePage() {
             )}
             {statusTab === 'branch' ? (
           <>
-            <div className="admin-inline-grid compact-inline-grid three-col summary-grid summary-grid-inline-labels">
+            <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
               <label>가맹현황수 <input value={String(franchiseCount || 0)} readOnly /></label>
-              <label>지점수 <input value={configForm.branch_count_override} onChange={e => setConfigForm({ ...configForm, branch_count_override: e.target.value.replace(/[^0-9]/g, '') })} /></label>
               <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
             </div>
-            <div className="admin-subtitle">가맹현황/상세정보</div>
+            <div className="between admin-subtitle-row">
+              <div className="admin-subtitle">가맹현황/상세정보</div>
+              <select className="small admin-sort-select admin-sort-select-inline admin-status-sort-beside-subtitle" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
+                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
             <div className="list">
               {sortedBranchRows.map(item => (
                 <div key={item.id} className="list-item block admin-detail-card compact-card">
-                  <div className="between admin-detail-summary-row" onClick={() => toggleBranch(item.id)}>
+                  <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleBranch(item.id)}>
                     <div className="admin-summary-lines branch-summary-lines">
                       <div className="admin-summary-line admin-summary-line-primary">
+                        <span>[{item.group_number || '0'}]</span>
                         <span>[{item.branch_no || '-'}호점]</span>
                         <span>[{item.nickname || item.name || '이름 미입력'}]</span>
                         <span>[{item.phone || '연락처 미입력'}]</span>
+                      </div>
+                      <div className="admin-summary-line admin-summary-line-secondary">
                         <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
                         <span>[{item.bank_account || '계좌번호 미입력'}]</span>
                         <span>[{item.bank_name || '은행명 미입력'}]</span>
                       </div>
                     </div>
-                    <button type="button" className="small ghost">{branchOpen[item.id] ? '접기' : '보기'}</button>
                   </div>
                   {branchOpen[item.id] && (
                     <div className="stack compact-gap admin-detail-stack">
@@ -7101,25 +7104,32 @@ function AdminModePage() {
           </>
         ) : (
           <>
-            <div className="admin-inline-grid compact-inline-grid three-col summary-grid summary-grid-inline-labels">
+            <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
               <label>직원현황수 <input value={String(employeeRows.length || 0)} readOnly /></label>
               <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
-              <label>지점수 <input value={configForm.branch_count_override} readOnly /></label>
             </div>
-            <div className="admin-subtitle">직원현황/상세정보</div>
+            <div className="between admin-subtitle-row">
+              <div className="admin-subtitle">직원현황/상세정보</div>
+              <select className="small admin-sort-select admin-sort-select-inline admin-status-sort-beside-subtitle" value={sortConfigs.status.mode} onChange={e => handleSortModeChange('status', e.target.value)}>
+                {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
             <div className="list">
               {sortedEmployeeRows.map(item => (
                 <div key={item.id} className="list-item block admin-detail-card compact-card">
-                  <div className="between admin-detail-summary-row" onClick={() => toggleEmployee(item.id)}>
+                  <div className="between admin-detail-summary-row admin-detail-summary-row-clickable" onClick={() => toggleEmployee(item.id)}>
                     <div className="admin-summary-lines employee-summary-lines">
                       <div className="admin-summary-line admin-summary-line-primary">
+                        <span>[{item.group_number || '0'}]</span>
                         <span>[{item.nickname || item.name || '이름 미입력'}]</span>
                         <span>[{item.phone || '연락처 미입력'}]</span>
+                        <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
+                      </div>
+                      <div className="admin-summary-line admin-summary-line-secondary">
                         <span>[{item.bank_account || '계좌번호 미입력'}]</span>
                         <span>[{item.bank_name || '은행명 미입력'}]</span>
                       </div>
                     </div>
-                    <button type="button" className="small ghost">{employeeOpen[item.id] ? '접기' : '보기'}</button>
                   </div>
                   {employeeOpen[item.id] && (
                     <div className="stack compact-gap admin-detail-stack">

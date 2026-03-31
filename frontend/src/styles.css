@@ -3793,6 +3793,30 @@ button.selected-toggle:hover,
   margin-bottom: 10px;
 }
 
+.admin-status-toolbar {
+  align-items: flex-start;
+}
+
+.admin-subtitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.admin-status-sort-beside-subtitle {
+  min-width: 112px;
+}
+
+.admin-detail-summary-row-clickable {
+  cursor: pointer;
+}
+
+.admin-summary-line-secondary {
+  margin-top: 4px;
+}
+
 .status-tab-actions {
   justify-content: flex-start;
 }
@@ -3850,16 +3874,76 @@ button.selected-toggle:hover,
     grid-template-columns: 1fr;
   }
 
+  .branch-summary-grid-mobile-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .summary-grid-inline-labels label {
+    width: 100%;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .summary-grid-inline-labels label input {
+    font-size: 12px;
+    min-width: 0;
+  }
+
+  .admin-status-toolbar {
+    align-items: flex-end;
+  }
+
+  .status-tab-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .admin-subtitle-row {
+    align-items: flex-start;
+  }
+
+  .admin-subtitle-row .admin-subtitle {
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .admin-status-sort-beside-subtitle {
+    width: auto;
+    max-width: 132px;
+    font-size: 12px;
+    padding: 5px 8px;
+  }
+
+  .branch-summary-lines,
+  .employee-summary-lines {
     width: 100%;
   }
 
-  .branch-summary-lines .admin-summary-line span {
-    width: calc(33.333% - 8px);
+  .branch-summary-lines .admin-summary-line,
+  .employee-summary-lines .admin-summary-line {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px 8px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 
+  .branch-summary-lines .admin-summary-line-secondary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .employee-summary-lines .admin-summary-line-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .branch-summary-lines .admin-summary-line span,
   .employee-summary-lines .admin-summary-line span {
-    width: calc(50% - 8px);
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
