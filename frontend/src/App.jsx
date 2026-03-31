@@ -183,7 +183,6 @@ const MENU_PERMISSION_SECTIONS = [
     id: 'common',
     label: '공용',
     items: [
-      { id: 'work-schedule', label: '근무스케줄', path: '/work-schedule' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
       { id: 'quotes', label: '견적', path: '/quotes' },
@@ -8727,6 +8726,41 @@ function isMaterialsAdminUser(user) {
   return Number(user?.grade || 6) <= 2
 }
 
+const MATERIALS_TABLE_WIDTH_DEFAULTS = {
+  sales: [150, 104, 90, 108, 124],
+  confirm: [150, 104, 108, 124],
+  incoming: [150, 104, 90, 108, 124],
+  inventory: [150, 88, 96, 96, 104, 180],
+  myRequests: [180, 108, 108, 124, 120],
+  requesters: [112, 108, 150, 148, 148, 124],
+  history: [108, 150, 148, 148, 124],
+}
+
+function getMaterialsDeviceType(isMobile) {
+  return isMobile ? 'mobile' : 'desktop'
+}
+
+function clampMaterialsColumnWidth(value) {
+  const num = Number(value || 0)
+  if (!Number.isFinite(num)) return 80
+  return Math.min(360, Math.max(56, Math.round(num)))
+}
+
+function normalizeMaterialsColumnWidths(key, values, isMobile) {
+  const defaults = MATERIALS_TABLE_WIDTH_DEFAULTS[key] || []
+  const minWidth = isMobile ? 52 : 64
+  return defaults.map((fallback, index) => {
+    const raw = Array.isArray(values) ? values[index] : undefined
+    const base = raw == null || raw === '' ? fallback : raw
+    return Math.max(minWidth, clampMaterialsColumnWidth(base))
+  })
+}
+
+function buildMaterialsGridTemplate(key, widths, isMobile) {
+  const normalized = normalizeMaterialsColumnWidths(key, widths, isMobile)
+  return normalized.map(width => `${width}px`).join(' ')
+}
+
 function MaterialsPage({ user }) {
 
   const isMobile = useIsMobile()
@@ -8750,9 +8784,12 @@ function MaterialsPage({ user }) {
   const [incomingEntryDate, setIncomingEntryDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
-  const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100 })
+  const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100, history: 100, settlements: 100 })
+  const [tableColumnSettings, setTableColumnSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
+  const [columnEditKey, setColumnEditKey] = useState('')
+  const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
   const canEditMaterialTableSize = isMaterialsAdminUser(user)
@@ -8760,9 +8797,10 @@ function MaterialsPage({ user }) {
   async function loadOverview(nextTab) {
     setLoading(true)
     try {
-      const [result, preferences] = await Promise.all([
+      const [result, preferences, layoutResult] = await Promise.all([
         api('/api/materials/overview'),
         api('/api/preferences').catch(() => ({})),
+        api(`/api/materials/table-layout?device=${getMaterialsDeviceType(isMobile)}`).catch(() => ({ layouts: {} })),
       ])
       setData(result)
       const savedScale = preferences?.materialsTableScale || {}
@@ -8773,7 +8811,11 @@ function MaterialsPage({ user }) {
         incoming: clampMaterialsScale(savedScale.incoming ?? prev.incoming),
         inventory: clampMaterialsScale(savedScale.inventory ?? prev.inventory),
         requesters: clampMaterialsScale(savedScale.requesters ?? prev.requesters),
+        history: clampMaterialsScale(savedScale.history ?? prev.history),
+        settlements: clampMaterialsScale(savedScale.settlements ?? prev.settlements),
       }))
+      const savedLayouts = layoutResult?.layouts || {}
+      setTableColumnSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, savedLayouts[key] ?? prev[key] ?? MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
       setInventoryDraft(Object.fromEntries((result.inventory_rows || []).map(row => [row.product_id, { incoming_qty: row.incoming_qty || 0, note: row.note || '' }])))
       setIncomingDraft(Object.fromEntries((result.products || []).map(row => [row.id, { incoming_qty: 0 } ])))
       setIncomingEntryDate(result?.today || new Date().toISOString().slice(0, 10))
@@ -8853,6 +8895,77 @@ function MaterialsPage({ user }) {
   function getTableScaleStyle(key) {
     const scale = clampMaterialsScale(tableScaleSettings[key])
     return { '--materials-table-scale': String(scale / 100) }
+  }
+
+  function getTableGridStyle(key) {
+    return { gridTemplateColumns: buildMaterialsGridTemplate(key, tableColumnSettings[key], isMobile) }
+  }
+
+  function getRequestSheetGridStyle(key) {
+    return { gridTemplateColumns: buildMaterialsGridTemplate(key, tableColumnSettings[key], isMobile) }
+  }
+
+  function beginColumnResize(key, index, event) {
+    if (columnEditKey !== key) return
+    const point = 'touches' in event ? event.touches?.[0] : event
+    if (!point) return
+    event.preventDefault()
+    const current = normalizeMaterialsColumnWidths(key, tableColumnSettings[key], isMobile)
+    resizeStateRef.current = { key, index, startX: point.clientX, startWidth: current[index] || 80 }
+  }
+
+  useEffect(() => {
+    function handleMove(event) {
+      const state = resizeStateRef.current
+      if (!state) return
+      const point = event.touches?.[0] || event
+      if (!point) return
+      if (event.cancelable) event.preventDefault()
+      const delta = point.clientX - state.startX
+      setTableColumnSettings(prev => ({
+        ...prev,
+        [state.key]: normalizeMaterialsColumnWidths(state.key, (prev[state.key] || []).map((width, idx) => idx === state.index ? state.startWidth + delta : width), isMobile),
+      }))
+    }
+    function handleUp() {
+      resizeStateRef.current = null
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    window.addEventListener('touchmove', handleMove, { passive: false })
+    window.addEventListener('touchend', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+      window.removeEventListener('touchmove', handleMove)
+      window.removeEventListener('touchend', handleUp)
+    }
+  }, [isMobile])
+
+  async function saveTableColumnSetting(key) {
+    const nextLayouts = { ...tableColumnSettings, [key]: normalizeMaterialsColumnWidths(key, tableColumnSettings[key], isMobile) }
+    setTableColumnSettings(nextLayouts)
+    setSettingsSaving(true)
+    try {
+      await api('/api/materials/table-layout', { method: 'POST', body: JSON.stringify({ data: { device: getMaterialsDeviceType(isMobile), layouts: nextLayouts } }) })
+      setNotice('표 가로 사이즈가 저장되었습니다.')
+      setColumnEditKey('')
+      setSettingsOpen('')
+    } catch (error) {
+      setNotice(error.message || '표 가로 사이즈 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
+  function renderResizableRowCells(labels, key) {
+    const editable = columnEditKey === key
+    return labels.map((label, index) => (
+      <div key={`${key}-head-${index}`} className={editable ? 'materials-resize-cell editable' : 'materials-resize-cell'}>
+        <span>{label}</span>
+        {editable && index < labels.length - 1 ? <button type="button" className="materials-col-resizer" aria-label="표 가로 사이즈 조절" onMouseDown={(event) => beginColumnResize(key, index, event)} onTouchStart={(event) => beginColumnResize(key, index, event)} /> : null}
+      </div>
+    ))
   }
 
   async function saveTableScaleSetting(key, nextValue) {
@@ -9236,7 +9349,7 @@ function MaterialsPage({ user }) {
     return (
       <section className="materials-settlement-sheet">
         <div className="materials-sheet-banner">◆ 일일 본사 자재 출고 / 입금 현황</div>
-        <div className="materials-sheet-table-wrap">
+        <div className="materials-sheet-table-wrap" style={getTableScaleStyle('settlements')}>
           <table className="materials-sheet-table">
             <thead>
               <tr>
@@ -9308,19 +9421,22 @@ function MaterialsPage({ user }) {
   function renderMaterialsPanelSettingsButton(key) {
     if (!canEditMaterialTableSize) return null
     const activeKey = key || getActiveTableScaleKey()
+    const columnEditable = Object.prototype.hasOwnProperty.call(MATERIALS_TABLE_WIDTH_DEFAULTS, activeKey)
     return (
       <div className="materials-panel-settings-wrap">
         <button type="button" className="ghost small" onClick={() => setSettingsOpen(prev => prev === activeKey ? '' : activeKey)}>설정</button>
         {settingsOpen === activeKey ? (
           <div className="materials-settings-popover">
-            <strong>표 크기 편집</strong>
+            <strong>설정</strong>
+            {columnEditable ? <button type="button" className={`ghost small materials-setting-subbutton ${columnEditKey === activeKey ? 'active' : ''}`.trim()} onClick={() => setColumnEditKey(prev => prev === activeKey ? '' : activeKey)}>표 가로 사이즈 편집</button> : null}
             <label className="stack compact-gap">
               <span>표 가로 배율 (%)</span>
               <input type="number" min="80" max="140" step="1" value={tableScaleSettings[activeKey] ?? 100} onChange={e => setTableScaleSettings(prev => ({ ...prev, [activeKey]: clampMaterialsScale(e.target.value) }))} />
             </label>
             <div className="row gap materials-settings-actions">
-              <button type="button" className="ghost small" onClick={() => setSettingsOpen('')}>닫기</button>
-              <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableScaleSetting(activeKey, tableScaleSettings[activeKey])}>저장</button>
+              <button type="button" className="ghost small" onClick={() => { setSettingsOpen(''); setColumnEditKey('') }}>닫기</button>
+              {columnEditable && columnEditKey === activeKey ? <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableColumnSetting(activeKey)}>표크기 저장</button> : null}
+              <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableScaleSetting(activeKey, tableScaleSettings[activeKey])}>배율 저장</button>
             </div>
           </div>
         ) : null}
@@ -9342,21 +9458,18 @@ function MaterialsPage({ user }) {
             <div>{accountGuide}</div>
           </div>
           <div className="materials-table materials-table-confirm" style={getTableScaleStyle('confirm')}>
-            <div className="materials-row materials-row-head">
-              <div>구분</div>
-              <div>물품가</div>
-              <div>구매수량</div>
-              <div>합계금액</div>
+            <div className="materials-row materials-row-head" style={getTableGridStyle('confirm')}>
+              {renderResizableRowCells(['구분', '물품가', '구매수량', '합계금액'], 'confirm')}
             </div>
             {cartRows.map(item => (
-              <div key={`confirm-${item.id}`} className="materials-row">
+              <div key={`confirm-${item.id}`} className="materials-row" style={getTableGridStyle('confirm')}>
                 <div>{displayMaterialName(item, isMobile)}</div>
                 <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{item.quantity}</div>
                 <div>{item.lineTotal.toLocaleString('ko-KR')}원</div>
               </div>
             ))}
-            <div className="materials-row materials-row-total">
+            <div className="materials-row materials-row-total" style={getTableGridStyle('confirm')}>
               <div>합계</div>
               <div />
               <div>{cartRows.reduce((sum, item) => sum + item.quantity, 0)}</div>
@@ -9384,18 +9497,14 @@ function MaterialsPage({ user }) {
           {canEditMaterialTableSize ? renderMaterialsPanelSettingsButton('sales') : null}
         </div>
         <div className="materials-table materials-table-sales" style={getTableScaleStyle('sales')}>
-          <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales">
-            <div>구분</div>
-            <div>물품가</div>
-            <div>현재고</div>
-            <div>구매수량</div>
-            <div>합계금액</div>
+          <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales" style={getTableGridStyle('sales')}>
+            {renderResizableRowCells(['구분', '물품가', '현재고', '구매수량', '합계금액'], 'sales')}
           </div>
           {productRows.map(product => {
             const quantity = Number(quantities[product.id] || 0)
             const stock = Number(product.current_stock || 0)
             return (
-              <div key={product.id} className="materials-row materials-row-sales">
+              <div key={product.id} className="materials-row materials-row-sales" style={getTableGridStyle('sales')}>
                 <div>{displayMaterialName(product, isMobile)}</div>
                 <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{stock}</div>
@@ -9418,7 +9527,7 @@ function MaterialsPage({ user }) {
               </div>
             )
           })}
-          <div className="materials-row materials-row-total materials-row-sales">
+          <div className="materials-row materials-row-total materials-row-sales" style={getTableGridStyle('sales')}>
             <div>합계</div>
             <div />
             <div>{cartRows.reduce((sum, item) => sum + Number(item.current_stock || 0), 0)}</div>
@@ -9436,16 +9545,17 @@ function MaterialsPage({ user }) {
     if (!requests.length) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
+    const requestGridKey = mode === 'pending' ? 'requesters' : 'history'
     return (
       <div className="materials-request-sheet">
-        {renderRequestListHeader(mode)}
+        {renderRequestListHeader(mode, getRequestSheetGridStyle(requestGridKey), requestGridKey)}
         {requests.map(request => {
           const checked = selectedRequestIds.includes(request.id)
           const meta = parseRequesterMeta(request)
           const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
           return (
             <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
-              <div className={`materials-request-sheet-row ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
+              <div className={`materials-request-sheet-row ${mode === 'pending' ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
                 {mode === 'pending' ? (
                   <label className="materials-checkbox materials-request-checkbox-cell">
                     <input
@@ -9511,11 +9621,11 @@ function MaterialsPage({ user }) {
                     ) : null}
                     <strong>{String(request.created_at || '').slice(0, 10)}</strong>
                   </div>
-                  <span className={`materials-status-pill ${isSettled ? 'settled' : (isRejected ? 'rejected' : 'pending')}`}>{isSettled ? '결산완료' : (isRejected ? '반려됨' : '신청접수')}</span>
+                  <span className={`materials-status-pill ${isSettled ? 'settled' : (isRejected ? 'rejected materials-status-pill-clickable' : 'pending')}`.trim()} onClick={() => { if (isRejected) window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{isSettled ? '결산완료' : (isRejected ? '반려됨' : '신청접수')}</span>
                 </div>
                 <div className="materials-request-history-table">
-                  <div className="materials-request-history-row materials-request-history-head">
-                    <div>구매물품</div><div>구매가격</div><div>구매수량</div><div>합계가격</div><div>결산처리상태</div>
+                  <div className="materials-request-history-row materials-request-history-head" style={getTableGridStyle('myRequests')}>
+                    {renderResizableRowCells(['구매물품', '구매가격', '구매수량', '합계가격', '결산처리상태'], 'myRequests')}
                   </div>
                   {(request.visibleItems || []).map(item => {
                     const key = `${request.id}-${item.product_id}`
@@ -9523,12 +9633,12 @@ function MaterialsPage({ user }) {
                     const lineTotal = qty * Number(item.unit_price || 0)
                     const shouldPulseQty = myPulseQtyKeys.includes(key) || (isSelected && myEditing && !isSettled)
                     return (
-                      <div key={key} className="materials-request-history-row">
+                      <div key={key} className="materials-request-history-row" style={getTableGridStyle('myRequests')}>
                         <div>{displayMyRequestItemName(item)}</div>
                         <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                         <div>{myEditing && isSelected && !isLocked ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
                         <div>{lineTotal.toLocaleString('ko-KR')}원</div>
-                        <div className={qty === 0 && !isSettled ? 'materials-cancel-text' : ''}>{isSettled ? '결산완료' : (String(request.status || '') === 'rejected' ? '반려됨' : (qty === 0 ? '취소접수' : '신청접수'))}</div>
+                        <div className={`${qty === 0 && !isSettled ? 'materials-cancel-text' : ''} ${String(request.status || '') === 'rejected' ? 'materials-rejected-help-trigger' : ''}`.trim()} onClick={() => { if (String(request.status || '') === 'rejected') window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{isSettled ? '결산완료' : (String(request.status || '') === 'rejected' ? '반려됨' : (qty === 0 ? '취소접수' : '신청접수'))}</div>
                       </div>
                     )
                   })}
@@ -9550,20 +9660,17 @@ function MaterialsPage({ user }) {
       <section className="card materials-panel materials-panel-compact-head">
         <div className="materials-summary-head-inline materials-summary-head-inventory">
           <div><h3>자재입고</h3></div>
+          {renderMaterialsPanelSettingsButton('incoming')}
         </div>
         <div className="materials-table materials-table-sales" style={getTableScaleStyle('incoming')}>
-          <div className="materials-row materials-row-head materials-row-confirm-header">
-            <div>구분</div>
-            <div>물품가</div>
-            <div>현재고</div>
-            <div>입고수량</div>
-            <div>입고 후 수량</div>
+          <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
+            {renderResizableRowCells(['구분', '물품가', '현재고', '입고수량', '입고 후 수량'], 'incoming')}
           </div>
           {productRows.map(product => {
             const draftQty = Number(incomingDraft[product.id]?.incoming_qty || 0)
             const afterQty = Number(product.current_stock || 0) + draftQty
             return (
-              <div key={`incoming-${product.id}`} className="materials-row materials-row-confirm">
+              <div key={`incoming-${product.id}`} className="materials-row materials-row-confirm materials-row-sales" style={getTableGridStyle('incoming')}>
                 <div>{displayMaterialName(product, isMobile)}</div>
                 <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{Number(product.current_stock || 0)}</div>
@@ -9602,20 +9709,15 @@ function MaterialsPage({ user }) {
           {renderMaterialsPanelSettingsButton('inventory')}
         </div>
         <div className="materials-table materials-table-inventory" style={getTableScaleStyle('inventory')}>
-          <div className="materials-row materials-row-head materials-row-inventory-header">
-            <div>구분</div>
-            <div>기존 개수</div>
-            <div>당일 입고</div>
-            <div>당일 출고</div>
-            <div>현재고</div>
-            <div>현황 비고</div>
+          <div className="materials-row materials-row-head materials-row-inventory-header" style={getTableGridStyle('inventory')}>
+            {renderResizableRowCells(['구분', '기존 개수', '당일 입고', '당일 출고', '현재고', '현황 비고'], 'inventory')}
           </div>
           {inventoryRows.map(row => {
             const draft = inventoryDraft[row.product_id] || { incoming_qty: row.incoming_qty || 0, note: row.note || '' }
             const expected = Number(row.current_stock || 0) + Number(draft.incoming_qty || 0) - Number(row.outgoing_qty || 0)
             const readonlyNote = (draft.note || '').trim()
             return (
-              <div key={`inventory-${row.product_id}`} className={`materials-row materials-row-inventory${!isInventoryManager ? ' materials-row-inventory-readonly' : ''}`}>
+              <div key={`inventory-${row.product_id}`} className={`materials-row materials-row-inventory${!isInventoryManager ? ' materials-row-inventory-readonly' : ''}`} style={getTableGridStyle('inventory')}>
                 <div>{displayMaterialName(row, isMobile)}</div>
                 <div>{Number(row.current_stock || 0)}</div>
                 <div>
@@ -9692,6 +9794,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'settlements' && (
         <section className="card materials-panel materials-panel-compact-head">
+          <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div>{renderMaterialsPanelSettingsButton('settlements')}</div>
           {renderSettlementTable(settledRequests)}
           <div className="row gap wrap materials-actions-center">
             <button type="button" className="ghost" onClick={() => setActiveTab(visibleTabs[0]?.id || 'sales')}>확인(돌아가기)</button>
@@ -9701,6 +9804,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'history' && (
         <section className="card materials-panel materials-panel-compact-head">
+          <div className="materials-summary-head-inline"><div><h3>구매목록</h3></div>{renderMaterialsPanelSettingsButton('history')}</div>
           {renderRequestRows(historyRequests, 'history')}
         </section>
       )}

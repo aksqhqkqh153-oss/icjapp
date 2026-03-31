@@ -937,13 +937,23 @@ def _material_overview_payload(conn, user: dict) -> dict:
     history_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
     my_request_rows = [row for row in request_rows if int(row.get('user_id') or 0) == int(user.get('id') or 0)]
     products = _material_products(conn)
-    inventory_rows = _material_today_inventory_rows(conn, today_key)
-    inventory_map = {int(row['product_id']): row for row in inventory_rows}
+    raw_inventory_rows = _material_today_inventory_rows(conn, today_key)
+    inventory_map = {int(row['product_id']): row for row in raw_inventory_rows}
     pending_qty_map = {}
     for row in pending_requests:
         for item in row.get('items', []):
             product_id = int(item.get('product_id') or 0)
             pending_qty_map[product_id] = pending_qty_map.get(product_id, 0) + max(0, int(item.get('quantity') or 0))
+    inventory_rows = []
+    for row in raw_inventory_rows:
+        pending_qty = int(pending_qty_map.get(int(row['product_id']), 0) or 0)
+        adjusted_current_stock = max(0, int(row.get('current_stock') or 0) - pending_qty)
+        inventory_rows.append({
+            **row,
+            'pending_qty': pending_qty,
+            'current_stock': adjusted_current_stock,
+            'expected_stock': max(0, adjusted_current_stock + int(row.get('incoming_qty') or 0) - int(row.get('outgoing_qty') or 0)),
+        })
     effective_products = []
     for product in products:
         product_copy = dict(product)
@@ -3714,6 +3724,41 @@ def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
         conn.execute("INSERT OR REPLACE INTO preferences(user_id, data) VALUES (?, ?)", (user["id"], json.dumps(payload.data, ensure_ascii=False)))
         return {"ok": True}
 
+
+
+def _normalize_materials_table_device(value: str) -> str:
+    raw = str(value or '').strip().lower()
+    return 'mobile' if raw == 'mobile' else 'desktop'
+
+def _get_materials_table_layout_key(device: str) -> str:
+    return f'materials_table_layout_{_normalize_materials_table_device(device)}_json'
+
+@app.get('/api/materials/table-layout')
+def get_materials_table_layout(device: str = 'desktop', user=Depends(require_user)):
+    normalized = _normalize_materials_table_device(device)
+    with get_conn() as conn:
+        raw = _get_admin_setting(conn, _get_materials_table_layout_key(normalized), '{}')
+    try:
+        layouts = json.loads(raw or '{}')
+        if not isinstance(layouts, dict):
+            layouts = {}
+    except Exception:
+        layouts = {}
+    return {'device': normalized, 'layouts': layouts}
+
+@app.post('/api/materials/table-layout')
+def save_materials_table_layout(payload: PreferenceIn, user=Depends(require_admin_or_subadmin)):
+    device = _normalize_materials_table_device((payload.data or {}).get('device', 'desktop'))
+    layouts = (payload.data or {}).get('layouts', {})
+    if not isinstance(layouts, dict):
+        raise HTTPException(status_code=400, detail='표 레이아웃 데이터 형식이 올바르지 않습니다.')
+    with get_conn() as conn:
+        now = utcnow()
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (_get_materials_table_layout_key(device), json.dumps(layouts, ensure_ascii=False), now),
+        )
+    return {'ok': True, 'device': device, 'layouts': layouts}
 @app.get('/api/materials/overview')
 def get_materials_overview(user=Depends(require_user)):
     with get_conn() as conn:

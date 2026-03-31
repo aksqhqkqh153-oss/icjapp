@@ -6127,3 +6127,65 @@ a:focus-visible {
     width: 100%;
   }
 }
+
+
+.materials-setting-subbutton {
+  width: 100%;
+  justify-content: center;
+}
+.materials-setting-subbutton.active {
+  background: #eef6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.materials-resize-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  min-width: 0;
+}
+.materials-resize-cell > span {
+  display: inline-block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.materials-col-resizer {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  width: 14px;
+  height: calc(100% + 12px);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(29, 155, 240, 0.18);
+  cursor: col-resize;
+}
+.materials-resize-cell.editable {
+  padding-right: 12px;
+}
+.materials-status-pill-clickable,
+.materials-rejected-help-trigger {
+  cursor: pointer;
+}
+.materials-rejected-help-trigger {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.materials-request-sheet-row,
+.materials-request-history-row,
+.materials-table .materials-row {
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 768px) {
+  .materials-col-resizer {
+    right: -7px;
+    width: 12px;
+  }
+}
