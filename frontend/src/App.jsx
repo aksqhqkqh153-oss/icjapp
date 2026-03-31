@@ -342,6 +342,48 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
 ]
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus', 'settlements']
+const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
+const HOME_HOLD_SECONDS_DEFAULT = 2
+
+function homeSettingsStorageKey(userId) {
+  return `icj_home_settings_${userId || 'guest'}`
+}
+
+function getHomeSettings(userId) {
+  const fallback = {
+    sectionOrder: [...HOME_SECTION_ORDER_DEFAULT],
+    workday: { holdSeconds: HOME_HOLD_SECONDS_DEFAULT, enabled: true, hideOnHome: false },
+    activeWorkState: { started: false, updatedAt: '' },
+  }
+  try {
+    const raw = localStorage.getItem(homeSettingsStorageKey(userId))
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    const knownIds = new Set(HOME_SECTION_ORDER_DEFAULT)
+    const sectionOrder = Array.isArray(parsed?.sectionOrder) ? parsed.sectionOrder.filter(item => knownIds.has(item)) : fallback.sectionOrder
+    const workday = parsed?.workday && typeof parsed.workday === 'object' ? parsed.workday : {}
+    const activeWorkState = parsed?.activeWorkState && typeof parsed.activeWorkState === 'object' ? parsed.activeWorkState : {}
+    const missing = HOME_SECTION_ORDER_DEFAULT.filter(item => !sectionOrder.includes(item))
+    return {
+      sectionOrder: [...sectionOrder, ...missing],
+      workday: {
+        holdSeconds: Math.max(1, Math.min(10, Number(workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT))),
+        enabled: workday.enabled !== false,
+        hideOnHome: !!workday.hideOnHome,
+      },
+      activeWorkState: {
+        started: !!activeWorkState.started,
+        updatedAt: String(activeWorkState.updatedAt || ''),
+      },
+    }
+  } catch (_) {
+    return fallback
+  }
+}
+
+function saveHomeSettings(userId, nextState) {
+  localStorage.setItem(homeSettingsStorageKey(userId), JSON.stringify(nextState))
+}
 
 function quickActionStorageKey(userId) {
   return `icj_quick_actions_${userId || 'guest'}`
@@ -861,6 +903,10 @@ function HomePage() {
   const [summary, setSummary] = useState(null)
   const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
   const [editingQuick, setEditingQuick] = useState(false)
+  const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
+  const [homeSettings, setHomeSettings] = useState(() => getHomeSettings(currentUser?.id))
+  const [holdProgress, setHoldProgress] = useState(false)
+  const holdTimerRef = useRef(null)
 
   useEffect(() => {
     async function load() {
@@ -868,9 +914,17 @@ function HomePage() {
         api('/api/friends'),
         api('/api/home/upcoming-schedules'),
       ])
+      let pendingMaterialsSettlementCount = 0
+      try {
+        if (Number(currentUser?.grade || 6) <= 2) {
+          const materials = await api('/api/materials/overview')
+          pendingMaterialsSettlementCount = Array.isArray(materials?.pending_requests) ? materials.pending_requests.length : 0
+        }
+      } catch (_) {}
       setSummary({
         friendCount: friends.friends.length,
         requestCount: friends.received_requests.length,
+        pendingMaterialsSettlementCount,
         upcomingCount: (upcoming.days || []).reduce((acc, day) => acc + (day.items?.length || 0), 0),
         upcomingDays: upcoming.days || [],
       })
@@ -880,11 +934,50 @@ function HomePage() {
 
   useEffect(() => {
     setQuickState(getQuickActionState(currentUser?.id))
+    setHomeSettings(getHomeSettings(currentUser?.id))
   }, [currentUser?.id])
 
   function updateQuickState(nextState) {
     setQuickState(nextState)
     saveQuickActionState(currentUser?.id, nextState)
+  }
+
+  function updateHomeSettings(nextState) {
+    setHomeSettings(nextState)
+    saveHomeSettings(currentUser?.id, nextState)
+  }
+
+  function moveHomeSection(sectionId, direction) {
+    const order = [...homeSettings.sectionOrder]
+    const index = order.indexOf(sectionId)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= order.length) return
+    ;[order[index], order[target]] = [order[target], order[index]]
+    updateHomeSettings({ ...homeSettings, sectionOrder: order })
+  }
+
+  function startHoldAction() {
+    if (!homeSettings.workday.enabled) return
+    const holdMs = Math.max(1, Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)) * 1000
+    setHoldProgress(true)
+    holdTimerRef.current = window.setTimeout(() => {
+      const nextStarted = !homeSettings.activeWorkState?.started
+      const nextState = {
+        ...homeSettings,
+        activeWorkState: { started: nextStarted, updatedAt: new Date().toISOString() },
+      }
+      updateHomeSettings(nextState)
+      setHoldProgress(false)
+      window.alert(nextStarted ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
+    }, holdMs)
+  }
+
+  function stopHoldAction() {
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+    setHoldProgress(false)
   }
 
   function moveQuickAction(index, direction) {
@@ -908,6 +1001,10 @@ function HomePage() {
   }
 
   function handleQuickActionClick(item) {
+    if (item.id === 'materialsPendingSettlement') {
+      navigate('/materials?tab=requesters')
+      return
+    }
     if (item.path?.includes('?')) {
       navigate(item.path)
       return
@@ -919,72 +1016,158 @@ function HomePage() {
     window.alert(`${item.label} 기능은 다음 업데이트에서 연결할 예정입니다.`)
   }
 
-  const activeQuickItems = quickState.active.map(id => QUICK_ACTION_LIBRARY.find(item => item.id === id)).filter(Boolean)
-  const archivedQuickItems = quickState.archived.map(id => QUICK_ACTION_LIBRARY.find(item => item.id === id)).filter(Boolean)
+  const quickLibrary = useMemo(() => {
+    const base = [...QUICK_ACTION_LIBRARY]
+    if (Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0) {
+      base.push({ id: 'materialsPendingSettlement', label: '자재신청\n목록결산', kind: 'metric', metricKey: 'pendingMaterialsSettlementCount', path: '/materials' })
+    }
+    return base
+  }, [currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+
+  const activeQuickItems = useMemo(() => {
+    const activeIds = [...quickState.active]
+    if (Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0 && !activeIds.includes('materialsPendingSettlement')) {
+      activeIds.unshift('materialsPendingSettlement')
+    }
+    return activeIds.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean)
+  }, [quickState.active, quickLibrary, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+  const archivedQuickItems = useMemo(() => quickState.archived.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean), [quickState.archived, quickLibrary])
+
+  const homeSections = useMemo(() => {
+    const sections = {
+      quick: (
+        <section className="card" key="quick">
+          <div className="between quick-check-head">
+            <h2>빠른 확인</h2>
+            <div className="inline-actions wrap">
+              <div className="dropdown-wrap">
+                <button type="button" className="small ghost" onClick={() => setHomeSettingsOpen(v => !v)}>설정</button>
+                {homeSettingsOpen && (
+                  <div className="dropdown-menu right home-settings-menu">
+                    <div className="menu-category-block">
+                      <div className="menu-category-title">홈 구조 변경</div>
+                      <div className="stack compact">
+                        <strong className="small-text">항목위치변경</strong>
+                        {homeSettings.sectionOrder.map(sectionId => (
+                          <div key={`section-order-${sectionId}`} className="quick-edit-row">
+                            <span>{sectionId === 'quick' ? '빠른 확인' : sectionId === 'workday' ? '일시작~일종료' : '다가오는 일정'}</span>
+                            <div className="inline-actions wrap end">
+                              <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, -1)}>위로</button>
+                              <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, 1)}>아래로</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="menu-category-block">
+                      <div className="menu-category-title">시작종료설정</div>
+                      <div className="stack compact">
+                        <label>누르는 시간 : <input type="number" min="1" max="10" value={Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, holdSeconds: Math.max(1, Math.min(10, Number(e.target.value || HOME_HOLD_SECONDS_DEFAULT))) } })} /></label>
+                        <label>
+                          <select value={homeSettings.workday.enabled ? '사용' : '미사용'} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, enabled: e.target.value === '사용' } })}>
+                            <option value="사용">사용</option>
+                            <option value="미사용">미사용</option>
+                          </select>
+                        </label>
+                        <label className="check"><input type="checkbox" checked={!!homeSettings.workday.hideOnHome} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, hideOnHome: e.target.checked } })} /> 홈 화면 제외</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
+            </div>
+          </div>
+          <div className="quick-check-grid">
+            {activeQuickItems.map(item => (
+              <button key={item.id} type="button" className="quick-check-card" onClick={() => handleQuickActionClick(item)}>
+                <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '준비중'}</strong>
+                <span style={item.id === 'materialsPendingSettlement' ? { whiteSpace: 'pre-line' } : undefined}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+          {editingQuick && (
+            <div className="quick-check-editor card inset-card">
+              <strong>빠른 확인 편집</strong>
+              <div className="stack compact">
+                {activeQuickItems.map((item, index) => (
+                  <div key={`active-${item.id}`} className="quick-edit-row">
+                    <span>{String(item.label || '').replace('\n', ' ')}</span>
+                    <div className="inline-actions wrap end">
+                      <button type="button" className="small ghost" onClick={() => moveQuickAction(index, -1)}>위로</button>
+                      <button type="button" className="small ghost" onClick={() => moveQuickAction(index, 1)}>아래로</button>
+                      {item.id !== 'materialsPendingSettlement' && <button type="button" className="small ghost" onClick={() => archiveQuickAction(item.id)}>보관</button>}
+                    </div>
+                  </div>
+                ))}
+                {activeQuickItems.length === 0 && <div className="muted">배치된 버튼이 없습니다.</div>}
+              </div>
+              <div className="friends-section-label">보관함</div>
+              <div className="stack compact">
+                {archivedQuickItems.map(item => (
+                  <div key={`archived-${item.id}`} className="quick-edit-row">
+                    <span>{String(item.label || '').replace('\n', ' ')}</span>
+                    <button type="button" className="small" onClick={() => restoreQuickAction(item.id)}>추가</button>
+                  </div>
+                ))}
+                {archivedQuickItems.length === 0 && <div className="muted">보관된 버튼이 없습니다.</div>}
+              </div>
+            </div>
+          )}
+        </section>
+      ),
+      workday: (!homeSettings.workday.hideOnHome && homeSettings.workday.enabled) ? (
+        <section className="card" key="workday">
+          <div className="between align-center">
+            <h2>일시작 ~ 일종료</h2>
+            <div className="muted small-text">{Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)}초 이상 길게 누르기</div>
+          </div>
+          <div className="stack compact">
+            <button
+              type="button"
+              className={`quick-check-card workday-hold-card ${holdProgress ? 'holding' : ''}`.trim()}
+              onMouseDown={startHoldAction}
+              onMouseUp={stopHoldAction}
+              onMouseLeave={stopHoldAction}
+              onTouchStart={startHoldAction}
+              onTouchEnd={stopHoldAction}
+              onTouchCancel={stopHoldAction}
+            >
+              <strong>{homeSettings.activeWorkState?.started ? '일종료' : '일시작'}</strong>
+              <span>{homeSettings.activeWorkState?.started ? '현재 근무 진행중' : '현재 근무 대기중'}</span>
+            </button>
+            {homeSettings.activeWorkState?.updatedAt && <div className="muted small-text">최근 변경: {new Date(homeSettings.activeWorkState.updatedAt).toLocaleString('ko-KR')}</div>}
+          </div>
+        </section>
+      ) : null,
+      upcoming: (
+        <section className="card" key="upcoming">
+          <div className="between"><h2>다가오는 일정</h2><Link to="/work-schedule" className="ghost-link">스케줄로 이동</Link></div>
+          <div className="list upcoming-schedule-list">
+            {(summary?.upcomingDays || []).map(day => (
+              <div className="list-item block upcoming-day-group" key={day.date}>
+                <strong>{day.label}</strong>
+                <div className="stack compact">
+                  {day.items.map((item, index) => (
+                    <div key={`${day.date}-${index}`} className="upcoming-line">
+                      <div> - [{item.time_text}] [{item.customer_name}] [{item.representative_text}] [{item.staff_text}] [{item.start_address}]</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {summary && summary.upcomingDays.length === 0 && <div className="muted">내 계정에 배정된 다가오는 스케줄이 없습니다.</div>}
+            {!summary && <div className="muted">불러오는 중...</div>}
+          </div>
+        </section>
+      ),
+    }
+    return homeSettings.sectionOrder.map(sectionId => sections[sectionId]).filter(Boolean)
+  }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, holdProgress, homeSettings, homeSettingsOpen, quickState.active, summary])
 
   return (
     <div className="stack-page">
-      <section className="card">
-        <div className="between quick-check-head">
-          <h2>빠른 확인</h2>
-          <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
-        </div>
-        <div className="quick-check-grid">
-          {activeQuickItems.map(item => (
-            <button key={item.id} type="button" className="quick-check-card" onClick={() => handleQuickActionClick(item)}>
-              <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '준비중'}</strong>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-        {editingQuick && (
-          <div className="quick-check-editor card inset-card">
-            <strong>빠른 확인 편집</strong>
-            <div className="stack compact">
-              {activeQuickItems.map((item, index) => (
-                <div key={`active-${item.id}`} className="quick-edit-row">
-                  <span>{item.label}</span>
-                  <div className="inline-actions wrap end">
-                    <button type="button" className="small ghost" onClick={() => moveQuickAction(index, -1)}>위로</button>
-                    <button type="button" className="small ghost" onClick={() => moveQuickAction(index, 1)}>아래로</button>
-                    <button type="button" className="small ghost" onClick={() => archiveQuickAction(item.id)}>보관</button>
-                  </div>
-                </div>
-              ))}
-              {activeQuickItems.length === 0 && <div className="muted">배치된 버튼이 없습니다.</div>}
-            </div>
-            <div className="friends-section-label">보관함</div>
-            <div className="stack compact">
-              {archivedQuickItems.map(item => (
-                <div key={`archived-${item.id}`} className="quick-edit-row">
-                  <span>{item.label}</span>
-                  <button type="button" className="small" onClick={() => restoreQuickAction(item.id)}>추가</button>
-                </div>
-              ))}
-              {archivedQuickItems.length === 0 && <div className="muted">보관된 버튼이 없습니다.</div>}
-            </div>
-          </div>
-        )}
-      </section>
-      <section className="card">
-        <div className="between"><h2>다가오는 일정</h2><Link to="/work-schedule" className="ghost-link">스케줄로 이동</Link></div>
-        <div className="list upcoming-schedule-list">
-          {(summary?.upcomingDays || []).map(day => (
-            <div className="list-item block upcoming-day-group" key={day.date}>
-              <strong>{day.label}</strong>
-              <div className="stack compact">
-                {day.items.map((item, index) => (
-                  <div key={`${day.date}-${index}`} className="upcoming-line">
-                    <div> - [{item.time_text}] [{item.customer_name}] [{item.representative_text}] [{item.staff_text}] [{item.start_address}]</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          {summary && summary.upcomingDays.length === 0 && <div className="muted">내 계정에 배정된 다가오는 스케줄이 없습니다.</div>}
-          {!summary && <div className="muted">불러오는 중...</div>}
-        </div>
-      </section>
+      {homeSections}
     </div>
   )
 }
@@ -5310,6 +5493,10 @@ function NotificationsPage({ user }) {
       navigate('/friends?panel=requests')
       return
     }
+    if (item?.type === 'materials_pending_settlement') {
+      navigate('/materials?tab=requesters')
+      return
+    }
     await load().catch(() => {})
   }
 
@@ -6353,7 +6540,7 @@ function AdminModePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusTab, setStatusTab] = useState('branch')
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
-  const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'group_number', keys: [] }, status: { mode: 'email', keys: [] }, authority: { mode: 'email', keys: [] } })
+  const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'group_number', keys: [] }, status: { mode: 'group_number', keys: [] }, authority: { mode: 'group_number', keys: [] } })
   const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
   const [statusAddPickerOpen, setStatusAddPickerOpen] = useState({ branch: false, employee: false })
   const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '' })
@@ -6725,10 +6912,10 @@ function AdminModePage() {
   }
 
   function applyAdminSort(rows, sectionKey) {
-    const config = sortConfigs?.[sectionKey] || { mode: 'email', keys: [] }
+    const config = sortConfigs?.[sectionKey] || { mode: 'group_number', keys: [] }
     const activeKeys = config.mode === 'custom'
       ? (config.keys || []).filter(Boolean).slice(0, 5)
-      : [config.mode || 'email']
+      : [config.mode || 'group_number']
     return [...rows].sort((left, right) => {
       for (const sortKey of activeKeys) {
         const av = adminSortValue(left, sortKey)
@@ -6988,14 +7175,14 @@ function AdminModePage() {
               {accountManageTab === 'create' && (
                 <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
                   <div className="admin-inline-grid compact-inline-grid">
-                    <label>이름 <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
+                    <label>이름 <input autoComplete="name" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
                     <label>아이디 <input autoComplete="username" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
                     <label>비밀번호 <input type="password" autoComplete="new-password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
-                    <label>닉네임 <input value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
+                    <label>닉네임 <input autoComplete="nickname" value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
                     <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
                     <label>출생연도 <input value={createForm.birth_year} onChange={e => setCreateForm({ ...createForm, birth_year: e.target.value })} /></label>
                     <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
-                    <label>연락처 <input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
+                    <label>연락처 <input autoComplete="tel" value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
                     <label>복구이메일 <input value={createForm.recovery_email} onChange={e => setCreateForm({ ...createForm, recovery_email: e.target.value })} /></label>
                     <label>차량번호 <input value={createForm.vehicle_number} onChange={e => setCreateForm({ ...createForm, vehicle_number: e.target.value })} /></label>
                     <label>호점
@@ -8394,6 +8581,7 @@ function isMaterialsAdminUser(user) {
 function MaterialsPage({ user }) {
 
   const isMobile = useIsMobile()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState(null)
@@ -8451,8 +8639,8 @@ function MaterialsPage({ user }) {
   }
 
   useEffect(() => {
-    loadOverview()
-  }, [])
+    loadOverview(searchParams.get('tab') || undefined)
+  }, [searchParams])
 
   useEffect(() => {
     const nextDraft = {}

@@ -887,6 +887,26 @@ def _material_share_text(requests: list[dict]) -> str:
         lines.append(f"  · 합계: {int(request.get('total_amount') or 0):,}원")
     return '\n'.join(lines)
 
+
+
+def _pending_material_settlement_info(conn, user: dict) -> dict:
+    if _grade_of(user) > 2:
+        return {'count': 0, 'body': '', 'latest_date': ''}
+    rows = conn.execute(
+        "SELECT created_at FROM material_purchase_requests WHERE status = 'pending' ORDER BY created_at DESC, id DESC"
+    ).fetchall()
+    count = len(rows)
+    if count <= 0:
+        return {'count': 0, 'body': '', 'latest_date': ''}
+    created_at = str(rows[0]['created_at'] or '')
+    date_text = str(created_at)[:10]
+    try:
+        dt = datetime.strptime(date_text, '%Y-%m-%d')
+        label = f"{dt.month}월 {dt.day}일 신청한 미결제한 자재결산이 있습니다."
+    except Exception:
+        label = '미결제한 자재결산이 있습니다.'
+    return {'count': count, 'body': label, 'latest_date': date_text}
+
 def _material_overview_payload(conn, user: dict) -> dict:
     today_key = datetime.now().date().isoformat()
     permissions = _material_permissions(user)
@@ -3493,25 +3513,39 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         raise HTTPException(status_code=400, detail='허용되지 않는 권한입니다.')
     if int(admin.get('grade') or 6) == 2 and int(payload.grade or 6) <= 2:
         raise HTTPException(status_code=403, detail='부관리자는 관리자/부관리자 계정을 생성할 수 없습니다.')
-    with get_conn() as conn:
-        exists = conn.execute('SELECT id FROM users WHERE email = ?', (payload.email,)).fetchone()
-        if exists:
-            raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
-        generated_unique_id = generate_account_unique_id(conn, payload.email)
-        position_title = str(payload.position_title or '').strip()
-        if not position_title and payload.branch_no not in (None, '') and int(payload.branch_no or 0) > 0:
-            position_title = '호점대표'
-        conn.execute(
-            """
-            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, created_at)
-            VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 0 if _is_staff_grade(payload.grade) else (1 if payload.vehicle_available else 0), generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
-        )
-        user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-        conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
-        row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
-    return {'ok': True, 'user': user_public_dict(row)}
+    if not str(payload.name or '').strip():
+        raise HTTPException(status_code=400, detail='이름을 입력해주세요.')
+    if not str(payload.email or '').strip():
+        raise HTTPException(status_code=400, detail='아이디를 입력해주세요.')
+    if not str(payload.password or '').strip():
+        raise HTTPException(status_code=400, detail='비밀번호를 입력해주세요.')
+    if not str(payload.nickname or '').strip():
+        raise HTTPException(status_code=400, detail='닉네임을 입력해주세요.')
+    try:
+        with get_conn() as conn:
+            exists = conn.execute('SELECT id FROM users WHERE email = ?', (str(payload.email).strip(),)).fetchone()
+            if exists:
+                raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
+            generated_unique_id = generate_account_unique_id(conn, payload.email)
+            position_title = str(payload.position_title or '').strip()
+            if not position_title and payload.branch_no not in (None, '') and int(payload.branch_no or 0) > 0:
+                position_title = '호점대표'
+            conn.execute(
+                """
+                INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, created_at)
+                VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(payload.email).strip(), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 0 if _is_staff_grade(payload.grade) else (1 if payload.vehicle_available else 0), generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
+            )
+            user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
+            row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        return {'ok': True, 'user': user_public_dict(row)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception('create_admin_account failed: %s', exc)
+        raise HTTPException(status_code=500, detail='계정 생성 중 서버 오류가 발생했습니다.')
 @app.post('/api/admin/accounts/delete')
 def delete_admin_accounts(payload: AdminDeleteAccountsIn, admin=Depends(require_admin_or_subadmin)):
     target_ids = [int(item) for item in (payload.ids or []) if int(item or 0) > 0]
