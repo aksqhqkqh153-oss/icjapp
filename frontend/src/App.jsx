@@ -5515,17 +5515,26 @@ function QuoteFormsPage({ user, guestMode = false }) {
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
             <div className="quote-guest-intro-topbar">
-              <button type="button" className="quote-back-button" onClick={() => navigate('/login')}>←</button>
+              <button type="button" className="quote-back-button" aria-label="로그인 화면으로 돌아가기" onClick={() => navigate('/login')}>←</button>
             </div>
             <div className="quote-form-mode-intro quote-guest-intro-layout">
+              <div className="quote-flow-step">1단계</div>
               <div className="quote-form-mode-title">로그인 없이 견적 받기</div>
               <div className="quote-guest-intro-description">이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
               <form className="quote-guest-intro-form" onSubmit={proceedGuestIntro}>
                 <div className="quote-guest-intro-fields">
-                  <QuoteField label="이름(또는 닉네임)" required><input className="quote-form-input" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} /></QuoteField>
+                  <QuoteField label="이름(또는 닉네임)" required><input className="quote-form-input" placeholder="예: 성규 / 규A1 / mover01" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} /></QuoteField>
                   <QuoteField label="연락처" required><input className="quote-form-input" placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', e.target.value)} /></QuoteField>
                 </div>
-                <div className="quote-guest-intro-help-list muted tiny-text">이름은 특수문자 없이 입력해 주세요. 한글은 2자리 이상, 영문/숫자는 4자리 이상이면 다음 단계로 이동할 수 있습니다.</div>
+                <div className="quote-guest-intro-help-panel">
+                  <div className="quote-guest-intro-help-title">입력 조건</div>
+                  <ul className="quote-guest-intro-help-list muted tiny-text">
+                    <li>이름에는 특수문자를 사용할 수 없습니다.</li>
+                    <li>한글은 완성형 2자리 이상 입력해야 합니다. 예: 성규</li>
+                    <li>영문만 또는 숫자만 입력하는 경우 4자리 이상이어야 합니다.</li>
+                    <li>한글과 영문/숫자를 함께 입력하는 경우 2자리 이상이면 가능합니다. 예: 성01, 규A1</li>
+                  </ul>
+                </div>
                 <div className="quote-submit-bar guest-intro-submit"><button type="submit">다음 단계</button></div>
               </form>
             </div>
@@ -5535,6 +5544,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
           <section className="quote-mode-select-card quote-mode-select-compact">
             <div className="quote-form-mode-intro">
+              {guestMode && <div className="quote-flow-step">2단계</div>}
               <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
               <div className="quote-mode-choice-row">
                 <button type="button" className="quote-mode-button compact" onClick={() => selectMode('same_day')}>당일이사</button>
@@ -5549,6 +5559,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         )}
 
         {!submittedSummary && (!!mode) && <>
+        {guestMode && <div className="quote-flow-step quote-flow-step-inline">3단계</div>}
         <div className="quote-form-flow-topbar align-left">
           <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
           <div className="quote-form-flow-badge">{mode === 'storage' ? '짐보관이사' : '당일이사'} 양식</div>
