@@ -805,6 +805,14 @@ def _require_write_access(user: dict, area: str):
         raise HTTPException(status_code=403, detail='현재 권한으로는 사용할 수 없습니다.')
     if grade == 6 and area in {'schedule', 'work_schedule'}:
         raise HTTPException(status_code=403, detail='일반 등급은 해당 기능을 관람만 할 수 있습니다.')
+def get_optional_user(authorization: Optional[str] = Header(default=None)):
+    token = _bearer_token(authorization)
+    if not token:
+        return None
+    with get_conn() as conn:
+        user = get_user_by_token(conn, token)
+        return row_to_dict(user) if user else None
+
 def require_user(authorization: Optional[str] = Header(default=None)):
     token = _bearer_token(authorization)
     if not token:
@@ -3010,7 +3018,7 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                 )
         return {'ok': True, 'saved_count': len(visible_dates)}
 @app.post("/api/quote-forms/submit")
-def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(require_user)):
+def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(get_optional_user)):
     if not payload.privacy_agreed:
         raise HTTPException(status_code=400, detail='개인정보 수집 및 이용 동의가 필요합니다.')
     requester_name = str(payload.requester_name or '').strip()
@@ -3027,7 +3035,7 @@ def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(require_user)):
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO quote_form_submissions(form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'received', ?, ?, ?)",
-            (form_type, user['id'], requester_name, contact_phone, desired_date, summary_title, payload_json, now, now),
+            (form_type, user['id'] if user else None, requester_name, contact_phone, desired_date, summary_title, payload_json, now, now),
         )
         return {'ok': True}
 

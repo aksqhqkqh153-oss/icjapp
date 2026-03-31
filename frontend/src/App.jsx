@@ -5008,9 +5008,10 @@ function QuoteCheckboxGroup({ values, options, onChange }) {
   return <div className="quote-choice-list">{options.map(option => <label key={option} className="quote-choice quote-choice-check"><input type="checkbox" checked={current.includes(option)} onChange={() => toggle(option)} /><span>{option}</span></label>)}</div>
 }
 
-function QuoteFormsPage({ user }) {
+
+function QuoteFormsPage({ user, guestMode = false }) {
   const navigate = useNavigate()
-  const isAdminUser = canAccessAdminMode(user)
+  const isAdminUser = !guestMode && canAccessAdminMode(user)
   const [mode, setMode] = useState('')
   const [pageTab, setPageTab] = useState('form')
   const [listTypeTab, setListTypeTab] = useState('same_day')
@@ -5022,6 +5023,12 @@ function QuoteFormsPage({ user }) {
   const [adminItems, setAdminItems] = useState([])
   const [detailItem, setDetailItem] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
+  const [guestIntro, setGuestIntro] = useState({
+    customer_name: user?.name || user?.nickname || '',
+    contact_phone: user?.phone || '',
+  })
+  const [guestIntroCompleted, setGuestIntroCompleted] = useState(!guestMode)
+  const [submittedSummary, setSubmittedSummary] = useState(null)
   const [favoriteIds, setFavoriteIds] = useState(() => {
     try {
       const raw = localStorage.getItem('icj_quote_favorites')
@@ -5031,9 +5038,9 @@ function QuoteFormsPage({ user }) {
       return []
     }
   })
-  const baseForm = {
+  const buildBaseForm = (nameValue = user?.name || user?.nickname || '', phoneValue = user?.phone || '') => ({
     privacy_agreed: false,
-    customer_name: user?.name || user?.nickname || '',
+    customer_name: nameValue,
     move_date: '',
     storage_start_date: '',
     storage_end_date: '',
@@ -5047,7 +5054,7 @@ function QuoteFormsPage({ user }) {
     destination_address_detail: '',
     destination_elevator: '',
     move_types: [],
-    contact_phone: user?.phone || '',
+    contact_phone: phoneValue,
     premium_options: [],
     furniture_types: [],
     extra_furniture: '',
@@ -5068,8 +5075,8 @@ function QuoteFormsPage({ user }) {
     move_scope_notice: false,
     kakao_notice: false,
     request_memo: '',
-  }
-  const [form, setForm] = useState(baseForm)
+  })
+  const [form, setForm] = useState(() => buildBaseForm())
 
   useEffect(() => {
     if (pageTab === 'list' && isAdminUser) loadAdminList()
@@ -5085,16 +5092,59 @@ function QuoteFormsPage({ user }) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
+  function handleGuestIntroChange(key, value) {
+    setGuestIntro(prev => ({ ...prev, [key]: value }))
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function proceedGuestIntro(e) {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    if (!String(guestIntro.customer_name || '').trim()) {
+      setError('이름(또는 닉네임)을 입력해 주세요.')
+      return
+    }
+    if (!String(guestIntro.contact_phone || '').trim()) {
+      setError('연락처를 입력해 주세요.')
+      return
+    }
+    const trimmedName = String(guestIntro.customer_name || '').trim()
+    const trimmedPhone = String(guestIntro.contact_phone || '').trim()
+    setGuestIntro({ customer_name: trimmedName, contact_phone: trimmedPhone })
+    setForm(prev => ({ ...prev, customer_name: trimmedName, contact_phone: trimmedPhone }))
+    setGuestIntroCompleted(true)
+  }
+
   function selectMode(nextMode) {
     setMode(nextMode)
     setMessage('')
     setError('')
+    setSubmittedSummary(null)
   }
 
   function resetModeSelection() {
     setMode('')
     setMessage('')
     setError('')
+    setSubmittedSummary(null)
+  }
+
+  function resetFormForCurrentUser() {
+    const nextName = guestMode ? guestIntro.customer_name : (user?.name || user?.nickname || '')
+    const nextPhone = guestMode ? guestIntro.contact_phone : (user?.phone || '')
+    setForm(buildBaseForm(nextName, nextPhone))
+  }
+
+  function restartGuestFlow() {
+    setSubmittedSummary(null)
+    setMode('')
+    setMessage('')
+    setError('')
+    if (guestMode) {
+      setGuestIntroCompleted(false)
+    }
+    resetFormForCurrentUser()
   }
 
   function buildPayload() {
@@ -5126,8 +5176,18 @@ function QuoteFormsPage({ user }) {
     setSubmitting(true)
     try {
       await api('/api/quote-forms/submit', { method: 'POST', body: JSON.stringify(buildPayload()) })
+      const summaryDate = mode === 'storage'
+        ? [form.storage_start_date, form.storage_end_date].filter(Boolean).join(' ~ ')
+        : form.move_date
+      setSubmittedSummary({
+        customer_name: form.customer_name,
+        contact_phone: form.contact_phone,
+        desired_date: summaryDate || '-',
+        origin_address: [form.origin_address, form.origin_address_detail].filter(Boolean).join(' '),
+        destination_address: [form.destination_address, form.destination_address_detail].filter(Boolean).join(' '),
+      })
       setMessage('양식이 정상 접수되었습니다. 관리자는 견적목록에서 내용을 확인할 수 있습니다.')
-      setForm({ ...baseForm, customer_name: user?.name || user?.nickname || '', contact_phone: user?.phone || '' })
+      resetFormForCurrentUser()
       if (isAdminUser) {
         setPageTab('list')
         loadAdminList()
@@ -5196,19 +5256,35 @@ function QuoteFormsPage({ user }) {
     <section className="card quote-form-shell">
       <div className="quote-form-title-block">
         <h2>견적</h2>
-        <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>
+        <div className="quote-form-note">{guestMode ? '로그인 없이도 견적 접수를 진행할 수 있습니다.' : '견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.'}</div>
       </div>
 
-      <div className="quote-page-tabs">
+      {!guestMode && <div className="quote-page-tabs">
         <button type="button" className={pageTab === 'form' ? 'active' : ''} onClick={() => setPageTab('form')}>견적양식</button>
         <button type="button" className={pageTab === 'list' ? 'active' : ''} onClick={() => setPageTab('list')}>견적목록</button>
-      </div>
+      </div>}
 
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      {pageTab === 'form' && <>
-        {!mode && (
+      {(pageTab === 'form' || guestMode) && <>
+        {guestMode && !guestIntroCompleted && !submittedSummary && (
+          <section className="quote-mode-select-card quote-guest-intro-card">
+            <div className="quote-form-mode-intro">
+              <div className="quote-form-mode-title">로그인 없이 견적 받기</div>
+              <div className="quote-mode-help quote-guest-intro-help">이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
+              <form className="quote-guest-intro-form" onSubmit={proceedGuestIntro}>
+                <div className="quote-inline-grid two">
+                  <QuoteField label="이름(또는 닉네임)" required><input className="quote-form-input" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} /></QuoteField>
+                  <QuoteField label="연락처" required><input className="quote-form-input" placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', e.target.value)} /></QuoteField>
+                </div>
+                <div className="quote-submit-bar guest-intro-submit"><button type="submit">다음 단계</button></div>
+              </form>
+            </div>
+          </section>
+        )}
+
+        {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
           <section className="quote-mode-select-card">
             <div className="quote-form-mode-intro">
               <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
@@ -5220,10 +5296,13 @@ function QuoteFormsPage({ user }) {
           </section>
         )}
 
-        {!!mode && <>
+        {!submittedSummary && (!!mode) && <>
         <div className="quote-form-flow-topbar">
           <div className="quote-form-flow-badge">{mode === 'storage' ? '짐보관이사' : '당일이사'} 양식</div>
-          <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
+          <div className="row gap wrap">
+            {guestMode && <button type="button" className="ghost small" onClick={() => { setMode(''); setGuestIntroCompleted(false); }}>기본정보 수정</button>}
+            <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
+          </div>
         </div>
 
         <div className="quote-move-type-table-wrapper">
@@ -5245,19 +5324,18 @@ function QuoteFormsPage({ user }) {
               <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.privacy_agreed} onChange={e => updateField('privacy_agreed', e.target.checked)} /><span>개인정보 수집 및 이용에 동의합니다.</span></label>
             </QuoteField>
             <QuoteField label="고객 성함" required><input className="quote-form-input" value={form.customer_name} onChange={e => updateField('customer_name', e.target.value)} /></QuoteField>
-            {mode === 'storage' ? <div className="quote-inline-grid two"><QuoteField label="짐보관 시작 일자" required><input type="date" className="quote-form-input" value={form.storage_start_date} onChange={e => updateField('storage_start_date', e.target.value)} /></QuoteField><QuoteField label="짐보관 종료 일자" required><input type="date" className="quote-form-input" value={form.storage_end_date} onChange={e => updateField('storage_end_date', e.target.value)} /></QuoteField></div> : <QuoteField label="이사 희망 날짜" required><input type="date" className="quote-form-input quote-date-input" value={form.move_date} onChange={e => updateField('move_date', e.target.value)} /></QuoteField>}
-            <QuoteField label="출발지 거주 가구원" required><QuoteRadioGroup name="household" value={form.household} options={QUOTE_FORM_RADIO_OPTIONS.household} onChange={value => updateField('household', value)} /></QuoteField>
-            <QuoteField label="출발지 구조" required><QuoteRadioGroup name="structure" value={form.structure} options={QUOTE_FORM_RADIO_OPTIONS.structure} onChange={value => updateField('structure', value)} /></QuoteField>
-            <QuoteField label="출발지 평수" required><QuoteRadioGroup name="area" value={form.area} options={QUOTE_FORM_RADIO_OPTIONS.area} onChange={value => updateField('area', value)} /></QuoteField>
-          </section>
-
-          <section className="quote-form-section">
+            {mode === 'storage' ? <div className="quote-inline-grid two"><QuoteField label="짐보관 시작 희망일" required><input type="date" className="quote-form-input" value={form.storage_start_date} onChange={e => updateField('storage_start_date', e.target.value)} /></QuoteField><QuoteField label="짐보관 종료 희망일" required><input type="date" className="quote-form-input" value={form.storage_end_date} onChange={e => updateField('storage_end_date', e.target.value)} /></QuoteField></div> : <QuoteField label="이사 희망 날짜" required><input type="date" className="quote-form-input" value={form.move_date} onChange={e => updateField('move_date', e.target.value)} /></QuoteField>}
+            <div className="quote-inline-grid three">
+              <QuoteField label="출발지 거주 가구원" required><QuoteRadioGroup name="household" value={form.household} options={QUOTE_FORM_RADIO_OPTIONS.household} onChange={value => updateField('household', value)} /></QuoteField>
+              <QuoteField label="출발지 구조" required><QuoteRadioGroup name="structure" value={form.structure} options={QUOTE_FORM_RADIO_OPTIONS.structure} onChange={value => updateField('structure', value)} /></QuoteField>
+              <QuoteField label="출발지 평수" required><QuoteRadioGroup name="area" value={form.area} options={QUOTE_FORM_RADIO_OPTIONS.area} onChange={value => updateField('area', value)} /></QuoteField>
+            </div>
             <div className="quote-inline-grid two">
-              <QuoteField label="출발지 주소 선택" required><input className="quote-form-input" placeholder="주소" value={form.origin_address} onChange={e => updateField('origin_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.origin_address_detail} onChange={e => updateField('origin_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="출발지 주소" required><input className="quote-form-input" placeholder="주소" value={form.origin_address} onChange={e => updateField('origin_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.origin_address_detail} onChange={e => updateField('origin_address_detail', e.target.value)} /></QuoteField>
               <QuoteField label="출발지 엘레베이터" required><QuoteRadioGroup name="originElevator" value={form.origin_elevator} options={QUOTE_FORM_RADIO_OPTIONS.elevator} onChange={value => updateField('origin_elevator', value)} /></QuoteField>
             </div>
             <div className="quote-inline-grid two">
-              <QuoteField label="도착지 상세 주소" required><input className="quote-form-input" placeholder="주소" value={form.destination_address} onChange={e => updateField('destination_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.destination_address_detail} onChange={e => updateField('destination_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="도착지 주소" required><input className="quote-form-input" placeholder="주소" value={form.destination_address} onChange={e => updateField('destination_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.destination_address_detail} onChange={e => updateField('destination_address_detail', e.target.value)} /></QuoteField>
               <QuoteField label="도착지 엘레베이터" required><QuoteRadioGroup name="destinationElevator" value={form.destination_elevator} options={QUOTE_FORM_RADIO_OPTIONS.destinationElevator} onChange={value => updateField('destination_elevator', value)} /></QuoteField>
             </div>
             <QuoteField label="희망 이사 종류" required><QuoteCheckboxGroup values={form.move_types} options={QUOTE_FORM_MOVE_TYPES} onChange={value => updateField('move_types', value)} /></QuoteField>
@@ -5304,9 +5382,20 @@ function QuoteFormsPage({ user }) {
           <div className="quote-submit-bar"><button type="submit" disabled={submitting}>{submitting ? '접수 중...' : '신청 보내기'}</button></div>
         </form>
         </>}
+
+        {submittedSummary && <section className="quote-mode-select-card quote-completion-card">
+          <div className="quote-form-mode-intro">
+            <div className="quote-form-mode-title">최종 접수 완료</div>
+            <div className="quote-completion-message">{submittedSummary.customer_name} {submittedSummary.contact_phone} {submittedSummary.desired_date} {submittedSummary.origin_address || '-'} {submittedSummary.destination_address || '-'} 이사 견적요청 접수가 완료되었습니다.</div>
+            <div className="quote-completion-actions row gap wrap">
+              <button type="button" onClick={restartGuestFlow}>새 견적 다시 작성</button>
+              {guestMode ? <button type="button" className="ghost" onClick={() => navigate('/login')}>로그인 화면으로 이동</button> : <button type="button" className="ghost" onClick={() => { setSubmittedSummary(null); setMode(''); }}>견적 화면으로 돌아가기</button>}
+            </div>
+          </div>
+        </section>}
       </>}
 
-      {pageTab === 'list' && !isAdminUser && <section className="card quote-admin-list-card"><div className="muted">견적목록은 관리자/부관리자 계정에서 확인할 수 있습니다.</div></section>}
+      {pageTab === 'list' && !isAdminUser && !guestMode && <section className="card quote-admin-list-card"><div className="muted">견적목록은 관리자/부관리자 계정에서 확인할 수 있습니다.</div></section>}
 
       {pageTab === 'list' && isAdminUser && <div className="quote-admin-layout">
         <section className="card quote-admin-list-card">
@@ -5364,41 +5453,57 @@ function QuoteFormsPage({ user }) {
                 ['출발지 거주 가구원', adminDetailPayload.household],
                 ['출발지 구조', adminDetailPayload.structure],
                 ['출발지 평수', adminDetailPayload.area],
-                ['연락처', detailItem.contact_phone || adminDetailPayload.contact_phone],
-              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-              <div className="quote-detail-section"><h4>주소 / 이동 조건</h4><dl>{[
                 ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
                 ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
                 ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
                 ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
-                ['희망 이사 종류', adminDetailPayload.move_types],
+                ['연락처', adminDetailPayload.contact_phone || detailItem.contact_phone],
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+              <div className="quote-detail-section"><h4>세부 옵션</h4><dl>{[
+                ['희망 이사 종류', joinQuoteValue(adminDetailPayload.move_types)],
+                ['프리미엄 추가 옵션', joinQuoteValue(adminDetailPayload.premium_options)],
+                ['가전/가구 종류', joinQuoteValue(adminDetailPayload.furniture_types)],
+                ['추가 가전/가구', joinQuoteValue([adminDetailPayload.extra_furniture, adminDetailPayload.duplicate_furniture])],
+                ['분해/조립 필요 가전/가구', joinQuoteValue(adminDetailPayload.disassembly_types)],
+                ['추가 분해/조립', joinQuoteValue([adminDetailPayload.extra_disassembly, adminDetailPayload.duplicate_disassembly])],
+                ['대형 가전/가구 / 폐기물', joinQuoteValue(adminDetailPayload.large_item_types)],
+                ['대형 추가기재', joinQuoteValue([adminDetailPayload.extra_large_items, adminDetailPayload.duplicate_large_items])],
+                ['폐기물 원스탑 신고 서비스 접수 희망', adminDetailPayload.waste_service],
                 ['동승 희망 여부', adminDetailPayload.companion_preference],
-              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
-              <div className="quote-detail-section"><h4>가전/가구 / 옵션</h4><dl>{[
-                ['프리미엄 추가 옵션', adminDetailPayload.premium_options],
-                ['가전/가구 종류', adminDetailPayload.furniture_types],
-                ['가전/가구 별도 기재', adminDetailPayload.extra_furniture],
-                ['가전/가구 2개 이상', adminDetailPayload.duplicate_furniture],
-                ['분해/조립 필요 항목', adminDetailPayload.disassembly_types],
-                ['대형 가전/가구 / 폐기물', adminDetailPayload.large_item_types],
-                ['폐기물 신고 서비스', adminDetailPayload.waste_service],
-              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
               <div className="quote-detail-section"><h4>경유지 / 메모</h4><dl>{[
-                ['경유지 주소', [adminDetailPayload.via_address, adminDetailPayload.via_address_detail].filter(Boolean).join(' ')],
+                ['경유지 주소', joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
                 ['경유지 엘레베이터', adminDetailPayload.via_elevator],
                 ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
                 ['경유지 하차 물품', adminDetailPayload.via_drop_items],
                 ['추가 메모', adminDetailPayload.request_memo],
-                ['이사 제한 안내 확인', adminDetailPayload.move_scope_notice ? '확인' : '-'],
-                ['카카오톡 안내 확인', adminDetailPayload.kakao_notice ? '확인' : '-'],
-              ].map(([label, value]) => <div key={label} className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>)}</dl></div>
+                ['원룸/투룸/소형이사 고지 확인', boolLabel(adminDetailPayload.move_scope_notice)],
+                ['카카오톡 친구 추가 고지 확인', boolLabel(adminDetailPayload.kakao_notice)],
+                ['개인정보 수집 이용 동의', boolLabel(adminDetailPayload.privacy_agreed)],
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             </div>
-            <div className="quote-detail-json"><h4>원본 접수 데이터</h4><pre>{JSON.stringify(adminDetailPayload, null, 2)}</pre></div>
           </div>}
         </section>
       </div>}
     </section>
   </div>
+}
+
+
+
+function joinQuoteValue(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+  return value
+}
+
+function boolLabel(value) {
+  return value ? '확인' : '-'
+}
+
+function QuoteDetailRow({ label, value }) {
+  return <div className="quote-detail-row"><dt>{label}</dt><dd>{formatQuoteFieldValue(value)}</dd></div>
 }
 
 function PlaceholderFeaturePage({ title, description }) {
@@ -8662,6 +8767,7 @@ function App() {
     return (
       <Routes>
         <Route path="/login" element={<AuthPage onLogin={setUser} />} />
+        <Route path="/guest-quote" element={<QuoteFormsPage user={null} guestMode />} />
         <Route path="/signup" element={<SignupPage onLogin={setUser} />} />
         <Route path="/find-account" element={<FindAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
