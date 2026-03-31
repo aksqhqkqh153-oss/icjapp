@@ -7086,49 +7086,46 @@ function AdminModePage() {
     setSortConfigs(prev => ({ ...prev, [section]: { mode, keys: [] } }))
   }
 
-  const sortedAccountRows = useMemo(() => applyAdminSort(accountRows, 'manage'), [accountRows, sortConfigs])
-  const sortedAccountBaseRows = useMemo(() => applyAdminSort(accountRowsSortBase, 'manage'), [accountRowsSortBase, sortConfigs])
-  const sortedAuthorityRows = useMemo(() => applyAdminSort(accountRows, 'authority'), [accountRows, sortConfigs])
-  const sortedBranchRows = useMemo(() => applyAdminSort(branchRows, 'status'), [branchRows, sortConfigs])
-  const sortedEmployeeRows = useMemo(() => applyAdminSort(employeeRows, 'status'), [employeeRows, sortConfigs])
+  const sortedAccountRows = applyAdminSort(accountRows, 'manage')
+  const sortedAccountBaseRows = applyAdminSort(accountRowsSortBase, 'manage')
+  const sortedAuthorityRows = applyAdminSort(accountRows, 'authority')
+  const sortedBranchRows = applyAdminSort(branchRows, 'status')
+  const sortedEmployeeRows = applyAdminSort(employeeRows, 'status')
 
-  const pagedAccounts = useMemo(() => {
+  const pagedAccounts = (() => {
     const start = (accountPage - 1) * ACCOUNTS_PER_PAGE
     return sortedAuthorityRows.slice(start, start + ACCOUNTS_PER_PAGE)
-  }, [sortedAuthorityRows, accountPage])
+  })()
 
   const pageCount = Math.max(1, Math.ceil(sortedAuthorityRows.length / ACCOUNTS_PER_PAGE))
 
-  const searchResults = useMemo(() => {
+  const searchResults = (() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
     return sortedAuthorityRows.filter(item => `${item.name || ''} ${item.nickname || ''} ${item.email || ''} ${item.account_unique_id || ''} ${item.phone || ''}`.toLowerCase().includes(q))
-  }, [sortedAuthorityRows, searchQuery])
+  })()
 
   const actorGrade = Number(currentUser?.grade || 6)
   const actorRoleLimit = Number(configForm.role_assign_actor_max_grade || 1)
   const targetRoleFloor = Number(configForm.role_assign_target_min_grade || 7)
   const franchisePositionSet = new Set(['대표', '부대표', '호점대표'])
-  const visibleBranchRows = useMemo(() => sortedBranchRows.filter(item => !item.archived_in_branch_status), [sortedBranchRows])
-  const archivedBranchRows = useMemo(() => sortedBranchRows.filter(item => item.archived_in_branch_status), [sortedBranchRows])
-  const franchiseRows = useMemo(() => visibleBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item))), [visibleBranchRows])
-  const fieldEmployeeRows = useMemo(() => sortedEmployeeRows.filter(item => !isHeadOfficeRow(item)), [sortedEmployeeRows])
-  const headOfficeRows = useMemo(() => applyAdminSort(accountRows.filter(item => isHeadOfficeRow(item)), 'status'), [accountRows, sortConfigs])
-  const combinedStatusRows = useMemo(() => applyAdminSort([...visibleBranchRows, ...fieldEmployeeRows, ...headOfficeRows.filter(item => !fieldEmployeeRows.some(emp => emp.id === item.id))], 'status'), [visibleBranchRows, fieldEmployeeRows, headOfficeRows, sortConfigs])
+  const visibleBranchRows = sortedBranchRows.filter(item => !item.archived_in_branch_status)
+  const archivedBranchRows = sortedBranchRows.filter(item => item.archived_in_branch_status)
+  const franchiseRows = visibleBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item)))
+  const fieldEmployeeRows = sortedEmployeeRows.filter(item => !isHeadOfficeRow(item))
+  const headOfficeRows = applyAdminSort(accountRows.filter(item => isHeadOfficeRow(item)), 'status')
+  const combinedStatusRows = applyAdminSort([...visibleBranchRows, ...fieldEmployeeRows, ...headOfficeRows.filter(item => !fieldEmployeeRows.some(emp => emp.id === item.id))], 'status')
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseRows.filter(item => parseVehicleAvailable(item?.vehicle_available)).length
-  const branchStatusCandidates = useMemo(() => sortedAccountRows.filter(item => !branchRows.some(row => row.id === item.id)), [sortedAccountRows, branchRows])
-  const employeeStatusCandidates = useMemo(() => sortedAccountRows.filter(item => !employeeRows.some(row => row.id === item.id)), [sortedAccountRows, employeeRows])
-  const deletableAccounts = useMemo(
-    () => sortedAccountRows.filter(item => {
-      if (Number(item.id) === Number(currentUser?.id || 0)) return false
-      if (actorGrade === 1) return true
-      if (actorGrade === 2) return Number(item.grade || 6) > 2
-      return false
-    }),
-    [sortedAccountRows, currentUser?.id, actorGrade],
-  )
-  const selectedSwitchAccount = useMemo(() => sortedAccountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null, [sortedAccountRows, selectedSwitchAccountId])
+  const branchStatusCandidates = sortedAccountRows.filter(item => !branchRows.some(row => row.id === item.id))
+  const employeeStatusCandidates = sortedAccountRows.filter(item => !employeeRows.some(row => row.id === item.id))
+  const deletableAccounts = sortedAccountRows.filter(item => {
+    if (Number(item.id) === Number(currentUser?.id || 0)) return false
+    if (actorGrade === 1) return true
+    if (actorGrade === 2) return Number(item.grade || 6) > 2
+    return false
+  })
+  const selectedSwitchAccount = sortedAccountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null
 
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
@@ -7192,14 +7189,14 @@ function AdminModePage() {
     )
   }
 
-  const pagedManageList = useMemo(() => getPagedRows(sortedAccountRows, 'list'), [sortedAccountRows, accountManagePages])
-  const pagedManageDeleteRows = useMemo(() => getPagedRows(deletableAccounts, 'delete'), [deletableAccounts, accountManagePages])
-  const pagedManageEditRows = useMemo(() => {
+  const pagedManageList = getPagedRows(sortedAccountRows, 'list')
+  const pagedManageDeleteRows = getPagedRows(deletableAccounts, 'delete')
+  const pagedManageEditRows = (() => {
     const liveMap = new Map(accountRows.map(item => [Number(item.id), item]))
     const stableRows = sortedAccountBaseRows.map(item => liveMap.get(Number(item.id)) || item)
     return getPagedRows(stableRows, 'edit')
-  }, [sortedAccountBaseRows, accountRows, accountManagePages])
-  const pagedManageSwitchRows = useMemo(() => getPagedRows(sortedAccountRows, 'switch'), [sortedAccountRows, accountManagePages])
+  })()
+  const pagedManageSwitchRows = getPagedRows(sortedAccountRows, 'switch')
 
   if (loading) return <div className="card">관리자 정보를 불러오는 중...</div>
   if (error) return <div className="card error">{error}</div>
@@ -7666,11 +7663,11 @@ function AdminModePage() {
             </div>
             <div className="admin-account-table">
           {pagedAccounts.map(item => (
-            <div key={item.id} className="admin-account-grid compact labeled-account-grid authority-grid-8">
-              <div className="admin-select-field"><span>구분숫자</span><input value={groupNumberDisplay(item)} onChange={e => updateAccountRow(item.id, { group_number: e.target.value, group_number_text: e.target.value })} /></div>
-              <div className="admin-select-field"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateAccountRow(item.id, { branch_no: e.target.value })} /></div>
-              <div className="admin-select-field"><span>이름</span><input value={item.name || item.nickname || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></div>
-              <div className="admin-select-field"><span>아이디</span><input value={item.email || ''} readOnly /></div>
+            <div key={item.id} className="admin-account-grid compact labeled-account-grid authority-grid-8 authority-grid-responsive">
+              <div className="admin-select-field locked-field"><span>구분숫자</span><input value={groupNumberDisplay(item)} readOnly disabled /></div>
+              <div className="admin-select-field locked-field"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} readOnly disabled /></div>
+              <div className="admin-select-field locked-field"><span>이름</span><input value={item.name || item.nickname || ''} readOnly disabled /></div>
+              <div className="admin-select-field locked-field"><span>아이디</span><input value={item.email || ''} readOnly disabled /></div>
               <label className="admin-select-field">
                 <span>차량가용여부</span>
                 <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
@@ -8180,13 +8177,48 @@ function formatSettlementSyncDetail(metric, label) {
   return `${label} 최신 합계: ${metric?.value ?? 0}건${updated}`
 }
 
-function SettlementRecordBoard({ recordsByType }) {
+function SettlementRecordBoard({ recordsByType, onSaveDailyRecord, canEdit = false }) {
   const [recordTab, setRecordTab] = useState('daily')
+  const [editingDate, setEditingDate] = useState('')
+  const [editDraft, setEditDraft] = useState(null)
+  const [saving, setSaving] = useState(false)
   const current = recordTab === 'weekly'
     ? (recordsByType.weekly_records || [])
     : recordTab === 'monthly'
       ? (recordsByType.monthly_records || [])
       : (recordsByType.daily_records || [])
+
+  function openEditRecord(record) {
+    setEditingDate(String(record?.settlement_date || ''))
+    setEditDraft(cloneSettlementBlock(record?.block || {}))
+  }
+
+  function cancelEditRecord() {
+    setEditingDate('')
+    setEditDraft(null)
+  }
+
+  function updateDraft(path, value) {
+    setEditDraft(prev => {
+      const next = cloneSettlementBlock(prev || {})
+      if (path[0] === 'summaryRows') next.summaryRows[path[1]][path[2]] = value
+      else if (path[0] === 'branchRows') next.branchRows[path[1]][path[2]] = value
+      else if (path[0] === 'total') next.total[path[1]] = value
+      else next[path[0]] = value
+      return next
+    })
+  }
+
+  async function saveEditRecord(record) {
+    if (!onSaveDailyRecord || !editDraft) return
+    setSaving(true)
+    try {
+      await onSaveDailyRecord(record, editDraft)
+      cancelEditRecord()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <section className="card settlement-record-board">
@@ -8206,22 +8238,63 @@ function SettlementRecordBoard({ recordsByType }) {
 
       <div className="settlement-record-list">
         {recordTab === 'daily' && current.map(record => {
-          const block = record.block || {}
+          const isEditing = editingDate === String(record.settlement_date || '') && !!editDraft
+          const block = isEditing ? editDraft : (record.block || {})
           return (
             <section key={`daily-${record.settlement_date}`} className="settlement-record-card card">
               <div className="between settlement-record-card-head">
                 <strong>{formatSettlementDateKeyLabel(record.settlement_date)}</strong>
-                <span className="muted">반영 {String(record.reflected_at || '').replace('T', ' ').slice(0, 16)}</span>
+                <div className="inline-actions wrap end">
+                  <span className="muted">반영 {String(record.reflected_at || '').replace('T', ' ').slice(0, 16)}</span>
+                  {canEdit && !isEditing && <button type="button" className="small ghost" onClick={() => openEditRecord(record)}>편집</button>}
+                  {canEdit && isEditing && <>
+                    <button type="button" className="small ghost" onClick={cancelEditRecord}>취소</button>
+                    <button type="button" className="small" onClick={() => saveEditRecord(record)} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+                  </>}
+                </div>
               </div>
               <div className="muted">반영자 {record.reflected_by_name || '-'}</div>
-              <div className="settlement-record-summary-grid">
+              <div className="muted settlement-record-card-title">{block.title || record.title || ''}</div>
+              {!isEditing && <div className="settlement-record-summary-grid">
                 {(block.summaryRows || []).map((row, index) => (
                   <div key={`daily-summary-${record.settlement_date}-${index}`} className="settlement-record-mini-stat">
                     <span>{row.source || row.label || '-'}</span>
-                    <strong>{formatSettlementValue(row.label, row.count)}</strong></div>
+                    <strong>{formatSettlementValue(row.label, row.count || row.value)}</strong>
+                  </div>
                 ))}
-              </div>
-              <div className="muted settlement-record-card-title">{block.title || record.title || ''}</div>
+              </div>}
+              {isEditing && (
+                <div className="settlement-edit-stack">
+                  <label>제목<input value={block.title || ''} onChange={e => updateDraft(['title'], e.target.value)} /></label>
+                  <label>날짜표기<input value={block.date || ''} onChange={e => updateDraft(['date'], e.target.value)} /></label>
+                  <div className="settlement-edit-grid">
+                    {(block.summaryRows || []).map((row, index) => (
+                      <div key={`edit-summary-${record.settlement_date}-${index}`} className="settlement-edit-row">
+                        <strong>{row.source || row.label || '-'}</strong>
+                        <input value={row.count || ''} onChange={e => updateDraft(['summaryRows', index, 'count'], e.target.value)} placeholder="건수" />
+                        <input value={row.value || ''} onChange={e => updateDraft(['summaryRows', index, 'value'], e.target.value)} placeholder="값" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="settlement-edit-grid">
+                    {(block.branchRows || []).map((row, index) => (
+                      <div key={`edit-branch-${record.settlement_date}-${index}`} className="settlement-edit-row settlement-edit-row-wide">
+                        <strong>{row.branch || row.platform || `행 ${index + 1}`}</strong>
+                        <input value={row.platformCount || ''} onChange={e => updateDraft(['branchRows', index, 'platformCount'], e.target.value)} placeholder="플랫폼리뷰" />
+                        <input value={row.branchCount || ''} onChange={e => updateDraft(['branchRows', index, 'branchCount'], e.target.value)} placeholder="호점리뷰" />
+                        <input value={row.issues || ''} onChange={e => updateDraft(['branchRows', index, 'issues'], e.target.value)} placeholder="이슈" />
+                        <input value={row.score || ''} onChange={e => updateDraft(['branchRows', index, 'score'], e.target.value)} placeholder="점수" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="settlement-edit-grid settlement-edit-grid-total">
+                    <label>플랫폼 리뷰<input value={block.total?.platformReview || ''} onChange={e => updateDraft(['total', 'platformReview'], e.target.value)} /></label>
+                    <label>호점 리뷰<input value={block.total?.branchReview || ''} onChange={e => updateDraft(['total', 'branchReview'], e.target.value)} /></label>
+                    <label>이슈<input value={block.total?.issues || ''} onChange={e => updateDraft(['total', 'issues'], e.target.value)} /></label>
+                    <label>점수<input value={block.total?.score || ''} onChange={e => updateDraft(['total', 'score'], e.target.value)} /></label>
+                  </div>
+                </div>
+              )}
             </section>
           )
         })}
@@ -8279,7 +8352,7 @@ function SettlementPage() {
   const [recordsLoading, setRecordsLoading] = useState(false)
   const [reflectLoading, setReflectLoading] = useState(false)
   const [monthlySummaryLoading, setMonthlySummaryLoading] = useState(false)
-  const [dailyWeekIndex, setDailyWeekIndex] = useState(0)
+  const [dailyIndex, setDailyIndex] = useState(0)
   const [weeklyIndex, setWeeklyIndex] = useState(0)
   const [monthlyIndex, setMonthlyIndex] = useState(0)
   const [monthlyOverrideMap, setMonthlyOverrideMap] = useState({})
@@ -8398,7 +8471,7 @@ function SettlementPage() {
     () => applySettlementPlatformMetrics(SETTLEMENT_DATA.daily || [], syncStatus.platforms, { reflectionMap }),
     [syncStatus.platforms, reflectionMap],
   )
-  const dailyWeekPages = useMemo(() => buildSettlementWeeklyPages(dailyBlocks), [dailyBlocks])
+  const sortedDailyBlocks = useMemo(() => [...dailyBlocks].sort((left, right) => String(getSettlementBlockDateKey(left)).localeCompare(String(getSettlementBlockDateKey(right)))), [dailyBlocks])
   const weeklyBlocks = useMemo(
     () => (SETTLEMENT_DATA.weekly || []).map((block, index) => ({
       ...applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0],
@@ -8417,12 +8490,12 @@ function SettlementPage() {
   )
 
   useEffect(() => {
-    setDailyWeekIndex(prev => {
-      if (!dailyWeekPages.length) return 0
-      if (prev >= 0 && prev < dailyWeekPages.length) return prev
-      return findPreferredSettlementWeekIndex(dailyWeekPages)
+    setDailyIndex(prev => {
+      if (!sortedDailyBlocks.length) return 0
+      if (prev >= 0 && prev < sortedDailyBlocks.length) return prev
+      return findPreferredSettlementIndex(sortedDailyBlocks)
     })
-  }, [dailyWeekPages])
+  }, [sortedDailyBlocks])
 
   useEffect(() => {
     setWeeklyIndex(prev => {
@@ -8451,7 +8524,8 @@ function SettlementPage() {
   const activeEmail = activePlatform === '오늘' ? ohouEmail : soomgoEmail
   const activePassword = activePlatform === '오늘' ? ohouPassword : soomgoPassword
   const activeAuthStateText = activePlatform === '오늘' ? ohouAuthStateText : soomgoAuthStateText
-  const selectedDailyWeekPage = dailyWeekPages[dailyWeekIndex] || null
+  const selectedDailyBlock = sortedDailyBlocks[dailyIndex] || null
+  const selectedDailyBlockDateKey = getSettlementBlockDateKey(selectedDailyBlock)
 
   const selectedWeeklyBlock = weeklyBlocks[weeklyIndex] || null
   const selectedMonthlyBlock = monthlyBlocks[monthlyIndex] || null
@@ -8529,34 +8603,49 @@ function SettlementPage() {
     else setSoomgoAuthStateText(value)
   }
 
+
+  async function handleSaveDailyRecord(record, blockDraft) {
+    const targetDateKey = String(record?.settlement_date || getSettlementBlockDateKey(blockDraft) || '').trim()
+    if (!targetDateKey) {
+      window.alert('저장할 결산 날짜를 찾을 수 없습니다.')
+      return
+    }
+    await api('/api/settlement/records/reflect', {
+      method: 'POST',
+      body: JSON.stringify({
+        category: 'daily',
+        settlement_date: targetDateKey,
+        title: blockDraft?.title || record?.title || '',
+        block: blockDraft,
+      }),
+    })
+    await loadRecords()
+    window.alert(`${formatSettlementDateKeyLabel(targetDateKey)} 일일결산이 저장되었습니다.`)
+  }
+
   let content = null
   if (activeCategory === 'records') {
-    content = <SettlementRecordBoard recordsByType={recordsData} />
+    content = <SettlementRecordBoard recordsByType={recordsData} onSaveDailyRecord={handleSaveDailyRecord} canEdit={true} />
   } else if (activeCategory === 'daily') {
-    content = selectedDailyWeekPage ? (
+    content = selectedDailyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <button type="button" className="ghost small" onClick={() => setDailyWeekIndex(prev => Math.max(0, prev - 1))} disabled={dailyWeekIndex <= 0}>◀</button>
+          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{formatSettlementDateKeyLabel(selectedDailyWeekPage.start)} ~ {formatSettlementDateKeyLabel(selectedDailyWeekPage.end)}</strong>
-            <span className="muted">{dailyWeekIndex + 1} / {dailyWeekPages.length} · 토요일 ~ 금요일</span>
+            <strong>{formatSettlementDateKeyLabel(selectedDailyBlockDateKey)}</strong>
+            <span className="muted">{dailyIndex + 1} / {sortedDailyBlocks.length} · 토요일 ~ 금요일 일일결산</span>
           </div>
-          <button type="button" className="ghost small" onClick={() => setDailyWeekIndex(prev => Math.min(dailyWeekPages.length - 1, prev + 1))} disabled={dailyWeekIndex >= dailyWeekPages.length - 1}>▶</button>
+          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
         </div>
-        <div className="settlement-sheet-grid settlement-sheet-grid-weekly-daily">
-          {selectedDailyWeekPage.blocks.map(block => {
-            const dateKey = getSettlementBlockDateKey(block)
-            return (
-              <div key={`daily-week-${dateKey}`} className="settlement-daily-week-card-wrap">
-                <SettlementSheetCard block={block} />
-                <div className="settlement-inline-actions">
-                  <button type="button" onClick={() => handleReflectSettlement(block)} disabled={reflectLoading}>
-                    {reflectLoading ? '반영중...' : `${formatSettlementDateKeyLabel(dateKey)} 결산반영`}
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+        <div className="settlement-sheet-grid settlement-sheet-grid-single">
+          <div className="settlement-daily-week-card-wrap">
+            <SettlementSheetCard block={selectedDailyBlock} />
+            <div className="settlement-inline-actions">
+              <button type="button" onClick={() => handleReflectSettlement(selectedDailyBlock)} disabled={reflectLoading}>
+                {reflectLoading ? '반영중...' : `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} 결산반영`}
+              </button>
+            </div>
+          </div>
         </div>
       </>
     ) : <div className="card muted">표시할 일일결산 데이터가 없습니다.</div>

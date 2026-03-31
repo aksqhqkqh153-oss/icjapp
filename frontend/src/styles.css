@@ -6200,3 +6200,91 @@ a:focus-visible {
     width: 12px;
   }
 }
+
+
+/* admin authority responsive layout */
+.authority-grid-responsive {
+  grid-template-columns: repeat(8, minmax(72px, 1fr));
+  gap: 6px;
+  align-items: end;
+}
+.authority-grid-responsive .admin-select-field {
+  min-width: 0;
+}
+.authority-grid-responsive .admin-select-field > span {
+  font-size: 11px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.authority-grid-responsive input,
+.authority-grid-responsive select,
+.authority-grid-responsive button {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  height: 34px;
+}
+.authority-grid-responsive .admin-action-field button {
+  white-space: nowrap;
+}
+.authority-grid-responsive .locked-field input {
+  background: #f3f4f6;
+  color: #4b5563;
+  cursor: not-allowed;
+}
+@media (max-width: 768px) {
+  .authority-grid-responsive {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* account switch basic ui */
+.admin-account-switch-row,
+.admin-account-switch-row.selected {
+  border-radius: 0;
+  background: #fff;
+  border-color: #d1d5db;
+  box-shadow: none;
+}
+.admin-account-switch-row.selected {
+  outline: 1px solid #111827;
+  outline-offset: -1px;
+}
+.admin-account-switch-main strong { font-weight: 700; }
+
+/* settlement record edit */
+.settlement-edit-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.settlement-edit-stack label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settlement-edit-grid {
+  display: grid;
+  gap: 8px;
+}
+.settlement-edit-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) repeat(2, minmax(90px, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+.settlement-edit-row-wide {
+  grid-template-columns: minmax(120px, 1.2fr) repeat(4, minmax(80px, 1fr));
+}
+.settlement-edit-grid-total {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 768px) {
+  .settlement-edit-row,
+  .settlement-edit-row-wide,
+  .settlement-edit-grid-total {
+    grid-template-columns: 1fr;
+  }
+}
