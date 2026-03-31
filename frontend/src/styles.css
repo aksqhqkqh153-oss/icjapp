@@ -5703,3 +5703,52 @@ a:focus-visible {
   }
 }
 
+
+.notification-page-topbar,
+.notification-settings-header{
+  gap:12px;
+}
+.notification-settings-menu{
+  min-width:140px;
+}
+.notification-back-button{
+  min-width:40px;
+}
+.notification-type-settings{
+  border:1px solid #d7dce5;
+  padding:12px;
+  border-radius:0;
+  background:#fff;
+}
+.compact-grid label{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.app-alert-toast-stack{
+  position:fixed;
+  top:88px;
+  right:16px;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-width:360px;
+}
+.app-alert-toast-card{
+  border:1px solid #93c5fd;
+  background:#eff6ff;
+  color:#1e293b;
+  padding:12px 14px;
+  box-shadow:0 6px 18px rgba(15,23,42,.12);
+  font-size:13px;
+  line-height:1.5;
+}
+@media (max-width: 768px){
+  .app-alert-toast-stack{
+    left:12px;
+    right:12px;
+    max-width:none;
+    top:74px;
+  }
+}

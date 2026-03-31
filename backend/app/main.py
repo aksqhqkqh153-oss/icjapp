@@ -539,6 +539,117 @@ def _notify_work_schedule_assignments(conn, actor: dict, schedule_date: str, sch
         insert_notification(conn, user_id, 'work_schedule_assignment', '스케줄 배정', body)
 
 
+
+
+def _format_notice_date(date_value: str) -> str:
+    try:
+        dt = datetime.strptime(str(date_value), '%Y-%m-%d')
+        return f"{dt.month}월 {dt.day}일"
+    except Exception:
+        return str(date_value or '')
+
+
+def _join_assignment_names(*values: str) -> str:
+    names: list[str] = []
+    for value in values:
+        for token in _split_names_for_match(value):
+            if token and token not in names:
+                names.append(token)
+    return ' / '.join(names) if names else '-'
+
+
+def _notify_schedule_change(conn, target_ids: set[int], type_: str, title: str, body: str, actor_id: int | None = None):
+    for user_id in sorted({int(item) for item in target_ids if int(item or 0) > 0}):
+        if actor_id is not None and user_id == int(actor_id):
+            continue
+        insert_notification(conn, user_id, type_, title, body)
+
+
+def _calendar_assignment_names(row: dict) -> tuple[str, str]:
+    reps = _join_assignment_names(row.get('representative1'), row.get('representative2'), row.get('representative3'))
+    staffs = _join_assignment_names(row.get('staff1'), row.get('staff2'), row.get('staff3'))
+    return reps, staffs
+
+
+def _schedule_assignment_notice_payload(date_value: str, time_value: str, customer_name: str, before_text: str, after_text: str) -> tuple[str, str]:
+    date_text = _format_notice_date(date_value)
+    time_text = str(time_value or '미정').strip() or '미정'
+    customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    title = '담당자 변경'
+    body = f"{date_text} {time_text} {customer} 고객님의 담당자 변경([{before_text}] → [{after_text}])되었습니다."
+    return title, body
+
+
+def _schedule_time_notice_payload(date_value: str, before_time: str, after_time: str, customer_name: str, representative_names: str, staff_names: str) -> tuple[str, str]:
+    date_text = _format_notice_date(date_value)
+    customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    before_text = str(before_time or '미정').strip() or '미정'
+    after_text = str(after_time or '미정').strip() or '미정'
+    reps = representative_names or '-'
+    staffs = staff_names or '-'
+    title = '이사시간 변경'
+    body = f"{date_text} {after_text} {customer} 고객님의 이사시간 변경([{before_text}] → [{after_text}])되었습니다.\n* 투입되는 인원[{reps}][{staffs}]은 {after_text}에 맞춰 출발지로 방문드려주세요."
+    return title, body
+
+
+def _schedule_address_notice_payload(date_value: str, time_value: str, before_address: str, after_address: str, customer_name: str, representative_names: str, staff_names: str) -> tuple[str, str]:
+    date_text = _format_notice_date(date_value)
+    time_text = str(time_value or '미정').strip() or '미정'
+    customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    before_text = str(before_address or '-').strip() or '-'
+    after_text = str(after_address or '-').strip() or '-'
+    reps = representative_names or '-'
+    staffs = staff_names or '-'
+    title = '출발지 주소변경'
+    body = f"{date_text} {time_text} {customer} 고객님의 출발지 주소변경([{before_text}] → [{after_text}])되었습니다.\n* 투입되는 인원[{reps}][{staffs}]은 {after_text}에 맞춰 출발지로 방문드려주세요."
+    return title, body
+
+
+def _notify_work_schedule_entry_changes(conn, actor: dict, previous_row: dict, next_row: dict):
+    previous_ids = set(_work_assignment_target_ids(conn, previous_row.get('representative_names') or '', previous_row.get('staff_names') or '', None))
+    next_ids = set(_work_assignment_target_ids(conn, next_row.get('representative_names') or '', next_row.get('staff_names') or '', None))
+    target_ids = previous_ids | next_ids
+    if not target_ids:
+        return
+    previous_assignment = f"대표 {previous_row.get('representative_names') or '-'} / 직원 {previous_row.get('staff_names') or '-'}"
+    next_assignment = f"대표 {next_row.get('representative_names') or '-'} / 직원 {next_row.get('staff_names') or '-'}"
+    if previous_assignment != next_assignment:
+        title, body = _schedule_assignment_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', next_row.get('schedule_time') or previous_row.get('schedule_time') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', previous_assignment, next_assignment)
+        _notify_schedule_change(conn, target_ids, 'work_schedule_assignment_change', title, body, actor.get('id'))
+    if (previous_row.get('schedule_time') or '') != (next_row.get('schedule_time') or ''):
+        title, body = _schedule_time_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', previous_row.get('schedule_time') or '', next_row.get('schedule_time') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', next_row.get('representative_names') or '', next_row.get('staff_names') or '')
+        _notify_schedule_change(conn, target_ids, 'work_schedule_time_change', title, body, actor.get('id'))
+    if (previous_row.get('start_address') or '') != (next_row.get('start_address') or '') and ((previous_row.get('start_address') or '') or (next_row.get('start_address') or '')):
+        title, body = _schedule_address_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', next_row.get('schedule_time') or previous_row.get('schedule_time') or '', previous_row.get('start_address') or '', next_row.get('start_address') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', next_row.get('representative_names') or '', next_row.get('staff_names') or '')
+        _notify_schedule_change(conn, target_ids, 'work_schedule_address_change', title, body, actor.get('id'))
+
+
+def _notify_calendar_event_changes(conn, actor: dict, previous_row: dict, next_row: dict):
+    prev_reps, prev_staffs = _calendar_assignment_names(previous_row)
+    next_reps, next_staffs = _calendar_assignment_names(next_row)
+    previous_ids = set(_work_assignment_target_ids(conn, prev_reps, prev_staffs, None))
+    next_ids = set(_work_assignment_target_ids(conn, next_reps, next_staffs, None))
+    target_ids = previous_ids | next_ids
+    if not target_ids:
+        return
+    previous_assignment = f"대표 {prev_reps} / 직원 {prev_staffs}"
+    next_assignment = f"대표 {next_reps} / 직원 {next_staffs}"
+    event_date = next_row.get('event_date') or previous_row.get('event_date') or ''
+    event_time = next_row.get('start_time') or next_row.get('visit_time') or previous_row.get('start_time') or previous_row.get('visit_time') or ''
+    customer_name = next_row.get('customer_name') or previous_row.get('customer_name') or next_row.get('title') or previous_row.get('title') or ''
+    if previous_assignment != next_assignment:
+        title, body = _schedule_assignment_notice_payload(event_date, event_time, customer_name, previous_assignment, next_assignment)
+        _notify_schedule_change(conn, target_ids, 'calendar_assignment_change', title, body, actor.get('id'))
+    prev_time = previous_row.get('start_time') or previous_row.get('visit_time') or ''
+    next_time = next_row.get('start_time') or next_row.get('visit_time') or ''
+    if prev_time != next_time:
+        title, body = _schedule_time_notice_payload(event_date, prev_time, next_time, customer_name, next_reps, next_staffs)
+        _notify_schedule_change(conn, target_ids, 'calendar_time_change', title, body, actor.get('id'))
+    prev_address = previous_row.get('start_address') or previous_row.get('location') or ''
+    next_address = next_row.get('start_address') or next_row.get('location') or ''
+    if prev_address != next_address and (prev_address or next_address):
+        title, body = _schedule_address_notice_payload(event_date, event_time, prev_address, next_address, customer_name, next_reps, next_staffs)
+        _notify_schedule_change(conn, target_ids, 'calendar_address_change', title, body, actor.get('id'))
 def _calendar_row_summary(user: dict, row: dict) -> dict:
     rep_list = [str(row.get(key) or '').strip() for key in ['representative1', 'representative2', 'representative3'] if str(row.get(key) or '').strip()]
     staff_list = [str(row.get(key) or '').strip() for key in ['staff1', 'staff2', 'staff3'] if str(row.get(key) or '').strip()]
@@ -2387,6 +2498,19 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             ),
         )
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
+        next_row = conn.execute("SELECT * FROM calendar_events WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user["id"],)).fetchone()
+        if next_row:
+            next_data = row_to_dict(next_row)
+            reps, staffs = _calendar_assignment_names(next_data)
+            _notify_work_schedule_assignments(
+                conn,
+                actor=user,
+                schedule_date=next_data.get('event_date') or '',
+                schedule_time=next_data.get('start_time') or next_data.get('visit_time') or '',
+                customer_name=next_data.get('customer_name') or next_data.get('title') or '',
+                representative_names=reps,
+                staff_names=staffs,
+            )
         return {"ok": True}
 @app.put("/api/calendar/events/{event_id}")
 def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(require_user)):
@@ -2412,8 +2536,24 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
                 payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
             ),
         )
+        previous_data = row_to_dict(row)
         _sync_work_schedule_day_note_counts(conn, user["id"], previous_event_date)
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
+        next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        if next_row:
+            next_data = row_to_dict(next_row)
+            reps, staffs = _calendar_assignment_names(next_data)
+            _notify_work_schedule_assignments(
+                conn,
+                actor=user,
+                schedule_date=next_data.get('event_date') or '',
+                schedule_time=next_data.get('start_time') or next_data.get('visit_time') or '',
+                customer_name=next_data.get('customer_name') or next_data.get('title') or '',
+                representative_names=reps,
+                staff_names=staffs,
+                previous_ids=set(_work_assignment_target_ids(conn, *_calendar_assignment_names(previous_data), user.get('id'))),
+            )
+            _notify_calendar_event_changes(conn, user, previous_data, next_data)
         return {"ok": True}
 @app.delete("/api/calendar/events/{event_id}")
 def delete_calendar_event(event_id: int, user=Depends(require_user)):
@@ -2967,6 +3107,7 @@ def update_work_schedule_entry(entry_id: int, payload: WorkScheduleEntryIn, user
             (payload.schedule_date, payload.schedule_time, payload.customer_name, payload.representative_names, payload.staff_names, payload.memo, utcnow(), entry_id, user['id']),
         )
         row = conn.execute("SELECT * FROM work_schedule_entries WHERE id = ?", (entry_id,)).fetchone()
+        next_data = row_to_dict(row) if row else {}
         _notify_work_schedule_assignments(
             conn,
             actor=user,
@@ -2977,7 +3118,8 @@ def update_work_schedule_entry(entry_id: int, payload: WorkScheduleEntryIn, user
             staff_names=payload.staff_names,
             previous_ids=previous_ids,
         )
-        return row_to_dict(row)
+        _notify_work_schedule_entry_changes(conn, user, row_to_dict(existing), next_data)
+        return next_data
 @app.delete("/api/work-schedule/entries/{entry_id}")
 def delete_work_schedule_entry(entry_id: int, user=Depends(require_user)):
     _require_write_access(user, 'work_schedule')

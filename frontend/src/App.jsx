@@ -40,6 +40,84 @@ function pageTitle(pathname) {
   return PAGE_TITLES[pathname] || '앱'
 }
 
+const DEFAULT_ALERT_SETTINGS = {
+  mobileEnabled: true,
+  appEnabled: true,
+  repeatHours: 1,
+  quietHoursEnabled: false,
+  quietStart: '22:00',
+  quietEnd: '07:00',
+  mobileTypes: { assignment: true, time: true, address: true },
+  appTypes: { assignment: true, time: true, address: true },
+}
+
+function deepMerge(base, extra) {
+  const output = Array.isArray(base) ? [...base] : { ...base }
+  if (!extra || typeof extra !== 'object') return output
+  Object.entries(extra).forEach(([key, value]) => {
+    if (value && typeof value === 'object' && !Array.isArray(value) && output[key] && typeof output[key] === 'object' && !Array.isArray(output[key])) {
+      output[key] = deepMerge(output[key], value)
+    } else {
+      output[key] = value
+    }
+  })
+  return output
+}
+
+function normalizeAlertSettings(rawPrefs) {
+  return deepMerge(DEFAULT_ALERT_SETTINGS, rawPrefs?.alertSettings || {})
+}
+
+function scheduleNotificationCategory(type) {
+  const value = String(type || '')
+  if (value.includes('assignment')) return 'assignment'
+  if (value.includes('time')) return 'time'
+  if (value.includes('address')) return 'address'
+  return 'assignment'
+}
+
+function isScheduleAlertNotification(item) {
+  return ['work_schedule_assignment', 'work_schedule_assignment_change', 'work_schedule_time_change', 'work_schedule_address_change', 'calendar_assignment_change', 'calendar_time_change', 'calendar_address_change'].includes(String(item?.type || ''))
+}
+
+function parseTimeToMinutes(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
+function isNowInQuietHours(settings) {
+  if (!settings?.quietHoursEnabled) return false
+  const start = parseTimeToMinutes(settings.quietStart)
+  const end = parseTimeToMinutes(settings.quietEnd)
+  if (start == null || end == null) return false
+  const now = new Date()
+  const current = now.getHours() * 60 + now.getMinutes()
+  if (start === end) return true
+  if (start < end) return current >= start && current < end
+  return current >= start || current < end
+}
+
+function alertStorageKey(userId, channel) {
+  return `icj_alert_state_${channel}_${userId || 'guest'}`
+}
+
+function loadAlertShownMap(userId, channel) {
+  try {
+    const raw = localStorage.getItem(alertStorageKey(userId, channel))
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function saveAlertShownMap(userId, channel, value) {
+  try {
+    localStorage.setItem(alertStorageKey(userId, channel), JSON.stringify(value || {}))
+  } catch (_) {}
+}
+
 const BRANCH_NUMBER_OPTIONS = Array.from({ length: 50 }, (_, index) => index + 1)
 
 const ROLE_OPTIONS = [
@@ -5081,13 +5159,20 @@ function ScheduleDetailPage() {
   )
 }
 
-function NotificationsPage() {
+function NotificationsPage({ user }) {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
+  const [prefs, setPrefs] = useState({})
+  const [settingsView, setSettingsView] = useState('list')
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const alertSettings = useMemo(() => normalizeAlertSettings(prefs), [prefs])
 
   async function load() {
-    const n = await api('/api/notifications')
+    const [n, p] = await Promise.all([api('/api/notifications'), api('/api/preferences')])
     setItems((n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || ''))))
+    setPrefs(p || {})
   }
 
   useEffect(() => {
@@ -5107,35 +5192,120 @@ function NotificationsPage() {
     await load().catch(() => {})
   }
 
-  const scheduleItems = items.filter(item => String(item?.type || '') === 'work_schedule_assignment')
-  const generalItems = items.filter(item => String(item?.type || '') !== 'work_schedule_assignment')
+  function updateAlertSettings(path, value) {
+    setPrefs(prev => {
+      const nextSettings = deepMerge(normalizeAlertSettings(prev), {})
+      if (path.length === 1) {
+        nextSettings[path[0]] = value
+      } else if (path.length === 2) {
+        nextSettings[path[0]] = { ...(nextSettings[path[0]] || {}), [path[1]]: value }
+      }
+      return { ...prev, alertSettings: nextSettings }
+    })
+  }
+
+  async function saveAlertSettings() {
+    setSaving(true)
+    try {
+      await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: { ...prefs, alertSettings } }) })
+      setPrefs(prev => ({ ...prev, alertSettings }))
+      setSettingsMenuOpen(false)
+      window.alert('알림 설정이 저장되었습니다.')
+    } catch (error) {
+      window.alert(error.message || '알림 설정 저장에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function requestBrowserPermission() {
+    if (typeof Notification === 'undefined') {
+      window.alert('현재 환경에서는 휴대폰 알림 권한 요청을 지원하지 않습니다.')
+      return
+    }
+    try {
+      const result = await Notification.requestPermission()
+      window.alert(result === 'granted' ? '휴대폰 알림 권한이 허용되었습니다.' : '휴대폰 알림 권한이 허용되지 않았습니다.')
+    } catch (_) {
+      window.alert('알림 권한 요청 중 오류가 발생했습니다.')
+    }
+  }
+
+  const scheduleItems = items.filter(item => isScheduleAlertNotification(item))
+  const generalItems = items.filter(item => !isScheduleAlertNotification(item))
+
+  function renderAlertSettings(channel) {
+    const isMobile = channel === 'mobile'
+    const typeMap = isMobile ? alertSettings.mobileTypes : alertSettings.appTypes
+    return (
+      <section className="card">
+        <div className="between align-center notification-settings-header">
+          <button type="button" className="ghost small notification-back-button" onClick={() => setSettingsView('list')}>←</button>
+          <h2>{isMobile ? '휴대폰 알림' : '앱 내 알림'}</h2>
+          <span />
+        </div>
+        <div className="stack">
+          <label className="check"><input type="checkbox" checked={isMobile ? !!alertSettings.mobileEnabled : !!alertSettings.appEnabled} onChange={e => updateAlertSettings([isMobile ? 'mobileEnabled' : 'appEnabled'], e.target.checked)} /> {isMobile ? '휴대폰 알림 사용' : '앱 내 알림 사용'}</label>
+          <div className="quote-inline-grid three compact-grid">
+            <label>반복 알림 간격(시간)<input type="number" min="1" max="24" className="quote-form-input" value={alertSettings.repeatHours} onChange={e => updateAlertSettings(['repeatHours'], Math.max(1, Math.min(24, Number(e.target.value || 1))))} /></label>
+            <label>조용한 시간 시작<input type="time" className="quote-form-input" value={alertSettings.quietStart} onChange={e => updateAlertSettings(['quietStart'], e.target.value)} /></label>
+            <label>조용한 시간 종료<input type="time" className="quote-form-input" value={alertSettings.quietEnd} onChange={e => updateAlertSettings(['quietEnd'], e.target.value)} /></label>
+          </div>
+          <label className="check"><input type="checkbox" checked={!!alertSettings.quietHoursEnabled} onChange={e => updateAlertSettings(['quietHoursEnabled'], e.target.checked)} /> 지정한 시간에는 알림 울리지 않기</label>
+          <div className="stack notification-type-settings">
+            <strong>알림 유형</strong>
+            <label className="check"><input type="checkbox" checked={!!typeMap.assignment} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'assignment'], e.target.checked)} /> 담당자 변경 알림</label>
+            <label className="check"><input type="checkbox" checked={!!typeMap.time} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'time'], e.target.checked)} /> 이사시간 변경 알림</label>
+            <label className="check"><input type="checkbox" checked={!!typeMap.address} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'address'], e.target.checked)} /> 출발지 주소변경 알림</label>
+          </div>
+          {isMobile && <div className="inline-actions wrap"><button type="button" className="ghost" onClick={requestBrowserPermission}>권한 허용 요청</button><div className="muted small-text">브라우저/앱 환경에서 지원되는 경우 시스템 알림으로 표시됩니다.</div></div>}
+          <div className="inline-actions wrap"><button type="button" onClick={saveAlertSettings} disabled={saving}>{saving ? '저장 중...' : '설정 저장'}</button></div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <div className="grid2 notifications-page-grid notifications-page-grid-stacked">
-      <section className="card">
-        <h2>스케줄 알림</h2>
-        <div className="list">
-          {scheduleItems.map(item => (
-            <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
-              <strong>{item.title}</strong>
-              <div>{item.body}</div>
-            </button>
-          ))}
-          {scheduleItems.length === 0 && <div className="muted">스케줄 알림이 없습니다.</div>}
-        </div>
-      </section>
-      <section className="card">
-        <h2>일반 알림</h2>
-        <div className="list">
-          {generalItems.map(item => (
-            <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
-              <strong>{item.title}</strong>
-              <div>{item.body}</div>
-            </button>
-          ))}
-          {generalItems.length === 0 && <div className="muted">알림이 없습니다.</div>}
-        </div>
-      </section>
+      {settingsView === 'mobile' ? renderAlertSettings('mobile') : settingsView === 'app' ? renderAlertSettings('app') : (
+        <>
+          <section className="card">
+            <div className="between align-center notification-page-topbar">
+              <h2>스케줄 알림</h2>
+              <div className="dropdown-wrap">
+                <button type="button" className="ghost small" onClick={() => setSettingsMenuOpen(v => !v)}>설정</button>
+                {settingsMenuOpen && (
+                  <div className="dropdown-menu right notification-settings-menu">
+                    <button type="button" className="dropdown-item" onClick={() => { setSettingsView('mobile'); setSettingsMenuOpen(false) }}>휴대폰 알림</button>
+                    <button type="button" className="dropdown-item" onClick={() => { setSettingsView('app'); setSettingsMenuOpen(false) }}>앱 내 알림</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="list">
+              {scheduleItems.map(item => (
+                <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
+                  <strong>{item.title}</strong>
+                  <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
+                </button>
+              ))}
+              {scheduleItems.length === 0 && <div className="muted">스케줄 알림이 없습니다.</div>}
+            </div>
+          </section>
+          <section className="card">
+            <h2>일반 알림</h2>
+            <div className="list">
+              {generalItems.map(item => (
+                <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
+                  <strong>{item.title}</strong>
+                  <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
+                </button>
+              ))}
+              {generalItems.length === 0 && <div className="muted">알림이 없습니다.</div>}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }
@@ -8993,10 +9163,82 @@ function SoomgoReviewFinderPage() {
 
 
 function AppAssignmentNotificationWatcher({ user }) {
+  const [toastItems, setToastItems] = useState([])
+
   useEffect(() => {
-    return undefined
-  }, [user])
-  return null
+    if (!user?.id) return undefined
+    let stopped = false
+
+    async function tick() {
+      try {
+        const [prefsRaw, notifications] = await Promise.all([api('/api/preferences'), api('/api/notifications')])
+        if (stopped) return
+        const settings = normalizeAlertSettings(prefsRaw || {})
+        const scheduleItems = (notifications || []).filter(item => !item?.is_read && isScheduleAlertNotification(item))
+        const nextAppState = loadAlertShownMap(user.id, 'app')
+        const nextMobileState = loadAlertShownMap(user.id, 'mobile')
+        const repeatMs = Math.max(1, Number(settings.repeatHours || 1)) * 60 * 60 * 1000
+        const quietNow = isNowInQuietHours(settings)
+        const newToasts = []
+
+        for (const item of scheduleItems) {
+          const category = scheduleNotificationCategory(item.type)
+          const now = Date.now()
+          if (settings.appEnabled && settings.appTypes?.[category] && !quietNow) {
+            const lastShown = Number(nextAppState[item.id] || 0)
+            if (!lastShown || now - lastShown >= repeatMs) {
+              newToasts.push({ id: `app-${item.id}-${now}`, title: item.title, body: item.body })
+              nextAppState[item.id] = now
+            }
+          }
+          if (settings.mobileEnabled && settings.mobileTypes?.[category] && !quietNow && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            const lastShown = Number(nextMobileState[item.id] || 0)
+            if (!lastShown || now - lastShown >= repeatMs) {
+              try {
+                const n = new Notification(item.title, { body: item.body })
+                window.setTimeout(() => n.close(), 10000)
+              } catch (_) {}
+              nextMobileState[item.id] = now
+            }
+          }
+        }
+
+        if (newToasts.length) {
+          setToastItems(prev => [...prev, ...newToasts].slice(-6))
+        }
+        saveAlertShownMap(user.id, 'app', nextAppState)
+        saveAlertShownMap(user.id, 'mobile', nextMobileState)
+      } catch (_) {}
+    }
+
+    tick()
+    const timer = window.setInterval(tick, 60000)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!toastItems.length) return undefined
+    const timer = window.setTimeout(() => {
+      setToastItems(prev => prev.slice(1))
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [toastItems])
+
+  if (!toastItems.length) return null
+  return createPortal(
+    <div className="app-alert-toast-stack">
+      {toastItems.map(item => (
+        <div key={item.id} className="app-alert-toast-card">
+          <strong>{item.title}</strong>
+          <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
+        </div>
+      ))}
+    </div>,
+    document.body,
+  )
 }
 
 function App() {
@@ -9070,7 +9312,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage onUserUpdate={(u) => { setUser(u); localStorage.setItem('icj_user', JSON.stringify(u)) }} />} />
         <Route path="/meetups" element={<MeetupsPage />} />
         <Route path="/boards" element={<BoardsPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/notifications" element={<NotificationsPage user={user} />} />
         <Route path="/points" element={<PointsPage />} />
         <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/materials" element={<MaterialsPage user={user} />} />
