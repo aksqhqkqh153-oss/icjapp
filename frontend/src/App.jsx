@@ -457,7 +457,7 @@ function Layout({ children, user, onLogout }) {
       document.removeEventListener('mousedown', handleOutside)
       document.removeEventListener('touchstart', handleOutside)
     }
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     let ignore = false
@@ -2611,12 +2611,30 @@ function MapPage() {
     shareToastTimerRef.current = window.setTimeout(() => setShareNotice(''), 2600)
   }
 
+  function buildMapUsersWithDemo(list) {
+    const base = Array.isArray(list) ? [...list] : []
+    const hasDemo = base.some(item => String(item?.id) === 'demo-vehicle')
+    if (!hasDemo) {
+      base.push({
+        id: 'demo-vehicle',
+        nickname: '테스트 차량',
+        branch_no: 99,
+        vehicle_number: '테스트-0000',
+        region: '서울 테스트위치',
+        latitude: 37.5665,
+        longitude: 126.978,
+        map_status: { status_text: '현위치 서울 테스트위치에 있고 정차 중', current_location: '서울 테스트위치', is_moving: false },
+      })
+    }
+    return base
+  }
+
   async function loadMapUsers() {
     try {
       const list = await api('/api/map-users')
-      setUsers(list || [])
+      setUsers(buildMapUsersWithDemo(list || []))
     } catch (_) {
-      setUsers([])
+      setUsers(buildMapUsersWithDemo([]))
     }
   }
 
@@ -2650,6 +2668,9 @@ function MapPage() {
       window.alert('차량번호와 호점이 등록된 계정에서만 사용할 수 있습니다.')
       return
     }
+    if (!isMobile) {
+      window.alert('내 위치 공유는 모바일에서만 실제 위치가 갱신됩니다. PC 로그인 상태에서는 위치가 업데이트되지 않습니다.')
+    }
     const approved = window.confirm('배정된 일정 시간대(시작 1시간 전 ~ 종료 30분 후)에만 위치를 공유합니다. 계속하시겠습니까?')
     if (!approved) return
     await api('/api/location-sharing/consent', { method: 'POST', body: JSON.stringify({ enabled: true }) })
@@ -2664,7 +2685,7 @@ function MapPage() {
         const status = await api('/api/location-sharing/status')
         if (cancelled) return
         setShareStatus(status || {})
-        if (!status?.sharing_enabled || !navigator.geolocation) {
+        if (!status?.sharing_enabled || !Array.isArray(status?.today_assignments) || status.today_assignments.length === 0 || !navigator.geolocation || !isMobile) {
           if (watchIdRef.current !== null && navigator.geolocation) {
             navigator.geolocation.clearWatch(watchIdRef.current)
             watchIdRef.current = null
@@ -3176,7 +3197,7 @@ function CalendarPage() {
   const [workDays, setWorkDays] = useState([])
   const [monthCursor, setMonthCursor] = useState(initialMonth)
   const [selectedDate, setSelectedDate] = useState(initialDate)
-  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [], title: '' })
+  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [], title: '', x: 0, y: 0 })
   const [calendarStatusDate, setCalendarStatusDate] = useState('')
   const [calendarStatusForm, setCalendarStatusForm] = useState(buildDayStatusForm(null))
   const [mobileStatusPopup, setMobileStatusPopup] = useState(null)
@@ -3257,11 +3278,14 @@ function CalendarPage() {
 
   function openOverflowPopup(date, dayItems, event) {
     if (event) event.stopPropagation()
-    setOverflowPopup({ dateKey: fmtDate(date), items: dayItems, title: '일정목록' })
+    const rect = event?.currentTarget?.getBoundingClientRect?.()
+    const anchorX = rect ? Math.min(window.innerWidth - 320, Math.max(12, rect.left - 120)) : 24
+    const anchorY = rect ? Math.min(window.innerHeight - 260, rect.bottom + 8) : 120
+    setOverflowPopup({ dateKey: fmtDate(date), items: dayItems, title: '일정목록', x: anchorX, y: anchorY })
   }
 
   function closeOverflowPopup() {
-    setOverflowPopup({ dateKey: '', items: [], title: '' })
+    setOverflowPopup({ dateKey: '', items: [], title: '', x: 0, y: 0 })
   }
 
   function openCalendarStatus(daySummary) {
@@ -3709,8 +3733,8 @@ function CalendarPage() {
       )}
 
       {overflowPopup.items.length > 0 && (
-        <div className="schedule-popup-backdrop" onClick={closeOverflowPopup}>
-          <section className="schedule-popup-card" onClick={event => event.stopPropagation()}>
+        <div className="schedule-inline-overlay" onClick={closeOverflowPopup}>
+          <section className="schedule-inline-popup-card" style={{ left: overflowPopup.x, top: overflowPopup.y }} onClick={event => event.stopPropagation()}>
             <div className="between schedule-popup-head">
               <div>
                 <strong>{formatSelectedDateLabel(overflowPopup.dateKey)}</strong>
@@ -5379,8 +5403,10 @@ function validateGuestCustomerName(rawValue) {
   return ''
 }
 
-function formatGuestPhoneInput(rawValue) {
-  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 11)
+
+
+function formatPhoneDigits(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 11)
   if (digits.length <= 3) return digits
   if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
@@ -5504,9 +5530,8 @@ function QuoteFormsPage({ user, guestMode = false }) {
   }
 
   function handleGuestIntroChange(key, value) {
-    const nextValue = key === 'contact_phone' ? formatGuestPhoneInput(value) : value
-    setGuestIntro(prev => ({ ...prev, [key]: nextValue }))
-    setForm(prev => ({ ...prev, [key]: nextValue }))
+    setGuestIntro(prev => ({ ...prev, [key]: value }))
+    setForm(prev => ({ ...prev, [key]: value }))
   }
 
   function proceedGuestIntro(e) {
@@ -5676,10 +5701,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
-      {!guestMode && <div className="quote-form-title-block">
-        <h2>견적</h2>
-        <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>
-      </div>}
+      <div className="quote-form-title-block">
+        <h2>{guestMode && mode ? `${mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}` : guestMode && !mode ? '' : '견적'}</h2>
+        {!guestMode && <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>}
+      </div>
 
       {!guestMode && <div className="quote-page-tabs">
         <button type="button" className={pageTab === 'form' ? 'active' : ''} onClick={() => setPageTab('form')}>견적양식</button>
@@ -5692,20 +5717,23 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {(pageTab === 'form' || guestMode) && <>
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
-            <div className="quote-guest-stage-header">
-              <button type="button" className="quote-back-button" aria-label="로그인 화면으로 돌아가기" onClick={() => navigate('/login')}><span aria-hidden="true">←</span></button>
-              <div className="quote-guest-stage-title-row">
-                <div className="quote-form-mode-title inline">로그인 없이 견적받기</div>
-                <div className="quote-flow-step inline">(1단계)</div>
-              </div>
+            <div className="quote-step-header centered">
+              <button type="button" className="quote-step-nav-text" onClick={() => navigate('/login')}>로그인 화면으로 이동</button>
+              <div className="quote-step-title">로그인 없이 견적받기(비회원)(1단계)</div>
+              <span className="quote-step-nav-spacer" aria-hidden="true">로그인 화면으로 이동</span>
             </div>
-            <div className="quote-form-mode-intro quote-guest-intro-layout">
-              <div className="quote-guest-intro-description emphasis">※ 안내 : 이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
+            <div className="quote-form-mode-intro quote-guest-intro-layout refined">
+              <div className="quote-guest-intro-title">로그인 없이 견적 받기</div>
+              <div className="quote-guest-intro-help emphasis">※ 안내 : 이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
               <form className="quote-guest-intro-form" onSubmit={proceedGuestIntro}>
-                <div className="quote-guest-intro-fields single-column">
-                  <QuoteField label="이름(또는 닉네임)" required><input className="quote-form-input" placeholder="예: 성규 / 규A1 / mover01" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} /></QuoteField>
-                  <QuoteField label="연락처" required><input inputMode="numeric" pattern="[0-9-]*" className="quote-form-input" placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', e.target.value)} /></QuoteField>
-                </div>
+                <label className="quote-input-block">
+                  <span>＊ 이름(또는 닉네임)</span>
+                  <input className="quote-form-input" placeholder="예: 성규 / 규A1 / mover01" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} />
+                </label>
+                <label className="quote-input-block">
+                  <span>＊ 연락처</span>
+                  <input className="quote-form-input" inputMode="numeric" maxLength={13} placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', formatPhoneDigits(e.target.value))} />
+                </label>
                 <div className="quote-guest-intro-help-panel">
                   <div className="quote-guest-intro-help-title">입력 조건</div>
                   <ul className="quote-guest-intro-help-list muted tiny-text">
@@ -5713,7 +5741,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
                     <li>한글은 완성형 2자리 이상 입력해야 합니다. 예: 성규</li>
                     <li>영문만 또는 숫자만 입력하는 경우 4자리 이상이어야 합니다.</li>
                     <li>한글과 영문/숫자를 함께 입력하는 경우 2자리 이상이면 가능합니다. 예: 성01, 규A1</li>
-                    <li>연락처는 숫자만 입력하면 하이픈(-)이 자동으로 들어갑니다.</li>
                   </ul>
                 </div>
                 <div className="quote-submit-bar guest-intro-submit"><button type="submit">다음 단계</button></div>
@@ -5724,31 +5751,39 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
         {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
           <section className="quote-mode-select-card quote-mode-select-compact">
-            <div className="quote-form-mode-intro">
-              {guestMode && <div className="quote-guest-stage-header stage-2"><button type="button" className="quote-back-button" aria-label="1단계로 돌아가기" onClick={() => setGuestIntroCompleted(false)}><span aria-hidden="true">←</span></button><div className="quote-guest-stage-title-row"><div className="quote-form-mode-title inline">로그인 없이 견적받기</div><div className="quote-flow-step inline">(2단계)</div></div></div>}
-              {guestMode && <div className="quote-form-mode-subtitle">이사 방법 선택(비회원)</div>}
-              {!guestMode && <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>}
-              <div className="quote-mode-choice-row">
-                <button type="button" className="quote-mode-button compact" onClick={() => selectMode('same_day')}>당일이사</button>
+            {guestMode && (
+              <div className="quote-step-header centered">
+                <button type="button" className="quote-step-nav-text" onClick={() => setGuestIntroCompleted(false)}>1단계로 이동</button>
+                <div className="quote-step-title">로그인 없이 견적받기(비회원)(2단계)</div>
+                <span className="quote-step-nav-spacer" aria-hidden="true">1단계로 이동</span>
               </div>
-              <div className="quote-mode-help">짐 보관 필요 없이 바로 입주 가능한 경우</div>
-              <div className="quote-mode-choice-row">
-                <button type="button" className="quote-mode-button compact" onClick={() => selectMode('storage')}>짐보관이사</button>
+            )}
+            <div className="quote-form-mode-intro quote-step-body">
+              <div className="quote-form-mode-title centered">이사방법 선택</div>
+              <div className="quote-mode-choice-row style-ref">
+                <button type="button" className="quote-mode-button compact styled-choice" onClick={() => selectMode('same_day')}><span className="choice-name">당일이사</span><span className="choice-arrow">→</span></button>
               </div>
-              <div className="quote-mode-help">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
+              <div className="quote-mode-help centered">짐 보관 필요 없이 바로 입주 가능한 경우</div>
+              <div className="quote-mode-choice-row style-ref">
+                <button type="button" className="quote-mode-button compact styled-choice" onClick={() => selectMode('storage')}><span className="choice-name">짐보관이사</span><span className="choice-arrow">→</span></button>
+              </div>
+              <div className="quote-mode-help centered">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
             </div>
           </section>
         )}
 
         {!submittedSummary && (!!mode) && <>
-        <section className="quote-mode-select-card quote-guest-detail-shell">
-        {guestMode ? <div className="quote-guest-stage-header stage-3"><button type="button" className="quote-back-button" aria-label="2단계로 돌아가기" onClick={resetModeSelection}><span aria-hidden="true">←</span></button><div className="quote-guest-stage-title-row stacked"><div className="quote-form-mode-title inline">로그인 없이 견적받기</div><div className="quote-flow-step inline">(3단계)</div></div></div> : null}
-        <div className="quote-form-flow-topbar align-left guest-detail-topbar">
-          <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
-        </div>
-        <div className="quote-form-detail-heading">{mode === 'storage' ? '짐보관' : '당일'}이사 상세 견적요청서{guestMode ? '(비회원)' : ''}</div>
-
-        <div className="quote-move-type-table-wrapper compact">
+        {guestMode && (
+          <div className="quote-step-card stage-three">
+            <div className="quote-step-header centered">
+              <button type="button" className="quote-step-nav-text" onClick={resetModeSelection}>2단계로 이동</button>
+              <div className="quote-step-title">로그인 없이 견적받기(비회원)(3단계)</div>
+              <span className="quote-step-nav-spacer" aria-hidden="true">2단계로 이동</span>
+            </div>
+            <div className="quote-step-subtitle centered">{mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}</div>
+          </div>
+        )}
+        <div className="quote-move-type-table-wrapper compact integrated">
           <table className="quote-move-type-table compact-table">
             <tbody>
               <tr><th></th><th></th><th>일반이사</th><th className="blue">반포장이사(추천)</th><th className="red">포장이사</th></tr>
@@ -5784,7 +5819,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
               <QuoteField label="도착지 엘레베이터" required><QuoteRadioGroup name="destinationElevator" value={form.destination_elevator} options={QUOTE_FORM_RADIO_OPTIONS.destinationElevator} onChange={value => updateField('destination_elevator', value)} /></QuoteField>
             </div>
             <QuoteField label="희망 이사 종류" required><QuoteCheckboxGroup values={form.move_types} options={QUOTE_FORM_MOVE_TYPES} onChange={value => updateField('move_types', value)} /></QuoteField>
-            <QuoteField label="견적 받으실 연락처" required><input className="quote-form-input" placeholder="010-0000-0000" value={form.contact_phone} onChange={e => updateField('contact_phone', e.target.value)} /></QuoteField>
+            <QuoteField label="견적 받으실 연락처" required><input className="quote-form-input" inputMode="numeric" maxLength={13} placeholder="010-0000-0000" value={form.contact_phone} onChange={e => updateField('contact_phone', formatPhoneDigits(e.target.value))} /></QuoteField>
           </section>
 
           <section className="quote-form-section">
@@ -5826,7 +5861,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
           <div className="quote-submit-bar"><button type="submit" disabled={submitting}>{submitting ? '접수 중...' : '신청 보내기'}</button></div>
         </form>
-        </section>
         </>}
 
         {privacyModalOpen && <div className="modal-overlay" onClick={() => closePrivacyModal(true)}>
