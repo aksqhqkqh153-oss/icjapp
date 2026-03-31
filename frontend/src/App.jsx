@@ -6512,7 +6512,14 @@ function AdminModePage() {
   }
 
   function updateAccountRow(userId, patch) {
-    setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...patch } : item))
+    const normalizedPatch = { ...patch }
+    if (Object.prototype.hasOwnProperty.call(normalizedPatch, 'grade')) {
+      normalizedPatch.grade = Number(normalizedPatch.grade || 6)
+      normalizedPatch.grade_label = gradeLabel(normalizedPatch.grade)
+    }
+    setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
+    setBranchRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
+    setEmployeeRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
   }
 
   async function openVehicleExceptionModal(account) {
@@ -6788,12 +6795,18 @@ function AdminModePage() {
                       const isOpen = !!accountListOpen[item.id]
                       return (
                         <div key={`account-manage-list-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
-                          <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountListRow(item.id)} aria-expanded={isOpen}>
-                            <span>[{item.group_number || 0}]</span>
-                            <span>[{item.name || '-'}]</span>
-                            <span>[{item.email || '-'}]</span>
-                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
-                            <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
+                          <button type="button" className="admin-account-summary-button admin-account-summary-button-list" onClick={() => toggleAccountListRow(item.id)} aria-expanded={isOpen}>
+                            <div className="admin-account-summary-line admin-account-summary-line-primary">
+                              <span>[{item.group_number || 0}]</span>
+                              <span>[{item.name || '-'}]</span>
+                              <span>[{item.email || '-'}]</span>
+                              <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                              <span>[{gradeLabel(item.grade)}]</span>
+                            </div>
+                            <div className="admin-account-summary-line admin-account-summary-line-secondary">
+                              <span>[{item.account_unique_id || '-'}]</span>
+                              <span>[{item.recovery_email || '-'}]</span>
+                            </div>
                           </button>
                           {isOpen && (
                             <div className="admin-account-list-body">
@@ -6803,7 +6816,7 @@ function AdminModePage() {
                               <div><strong>이름</strong> {item.name || '-'}</div>
                               <div><strong>닉네임</strong> {item.nickname || '-'}</div>
                               <div><strong>직급</strong> {defaultPositionForRow(item) || '미지정'}</div>
-                              <div><strong>권한등급</strong> {item.grade_label || gradeLabel(item.grade)}</div>
+                              <div><strong>권한등급</strong> {gradeLabel(item.grade)}</div>
                               <div><strong>연락처</strong> {item.phone || '-'}</div>
                               <div><strong>복구이메일</strong> {item.recovery_email || '-'}</div>
                               <div><strong>성별</strong> {item.gender || '-'}</div>
@@ -6885,7 +6898,7 @@ function AdminModePage() {
                           <div className="admin-account-switch-sub muted">
                             <span>현재유형 : {item.account_type === 'business' ? '사업자' : '직원'}</span>
                             <span>직급 : {defaultPositionForRow(item) || '미지정'}</span>
-                            <span>권한 : {item.grade_label || gradeLabel(item.grade)}</span>
+                            <span>권한 : {gradeLabel(item.grade)}</span>
                           </div>
                         </button>
                       )
@@ -6903,12 +6916,12 @@ function AdminModePage() {
                       const isOpen = !!accountEditOpen[item.id]
                       return (
                         <div key={`account-edit-${item.id}`} className="list-item block admin-detail-card compact-card collapsible-account-card">
-                          <button type="button" className="admin-account-summary-button" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
+                          <button type="button" className="admin-account-summary-button admin-account-summary-button-edit" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
                             <span>[{item.group_number || 0}]</span>
                             <span>[{item.name || '-'}]</span>
                             <span>[{item.email || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
-                            <span>[{item.grade_label || gradeLabel(item.grade)}]</span>
+                            <span>[{gradeLabel(item.grade)}]</span>
                           </button>
                           {isOpen && (
                             <div className="admin-inline-grid compact-inline-grid admin-edit-expanded-grid">
@@ -6971,9 +6984,7 @@ function AdminModePage() {
                     {pagedManageDeleteRows.map(item => (
                       <label key={`delete-${item.id}`} className="admin-delete-row">
                         <input type="checkbox" checked={!!accountDeleteSelection[item.id]} onChange={() => toggleDeleteSelection(item.id)} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2} />
-                        <span>[{item.name || item.nickname || '이름 미입력'}]</span>
-                        <span>[{item.email || '-'}]</span>
-                        <span>[{item.account_unique_id || '-'}]</span>
+                        <span className="admin-delete-row-text">[{item.name || item.nickname || '이름 미입력'}] [{item.email || '-'}] [{item.account_unique_id || '-'}]</span>
                       </label>
                     ))}
                     {!deletableAccounts.length && <div className="muted">삭제 가능한 계정이 없습니다.</div>}

@@ -5871,3 +5871,78 @@ a:focus-visible {
     margin-right: 0;
   }
 }
+
+
+.admin-account-summary-button-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-account-summary-line {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-account-summary-line-primary {
+  grid-template-columns: minmax(42px, 72px) minmax(72px, 1fr) minmax(120px, 1.2fr) minmax(72px, 0.9fr) minmax(72px, 0.9fr);
+}
+
+.admin-account-summary-line-secondary {
+  grid-template-columns: minmax(140px, 1fr) minmax(160px, 1fr);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-delete-row-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .admin-account-summary-button.admin-account-summary-button-edit {
+    grid-template-columns: minmax(34px, 44px) minmax(54px, 0.8fr) minmax(78px, 1fr) minmax(58px, 0.8fr) minmax(58px, 0.9fr);
+    gap: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .admin-account-summary-button.admin-account-summary-button-edit span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-account-summary-button.admin-account-summary-button-list {
+    gap: 4px;
+    padding: 6px 0;
+  }
+
+  .admin-account-summary-line-primary {
+    grid-template-columns: minmax(34px, 44px) minmax(54px, 0.8fr) minmax(78px, 1fr) minmax(58px, 0.8fr) minmax(58px, 0.9fr);
+    font-size: 12px;
+  }
+
+  .admin-account-summary-line-secondary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    font-size: 12px;
+  }
+
+  .admin-account-summary-line span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-delete-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+
+  .admin-delete-row-text {
+    font-size: 12px;
+  }
+}
