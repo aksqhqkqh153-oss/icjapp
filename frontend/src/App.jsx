@@ -5011,7 +5011,7 @@ function QuoteCheckboxGroup({ values, options, onChange }) {
 function QuoteFormsPage({ user }) {
   const navigate = useNavigate()
   const isAdminUser = canAccessAdminMode(user)
-  const [mode, setMode] = useState('same_day')
+  const [mode, setMode] = useState('')
   const [pageTab, setPageTab] = useState('form')
   const [listTypeTab, setListTypeTab] = useState('same_day')
   const [submitting, setSubmitting] = useState(false)
@@ -5087,6 +5087,12 @@ function QuoteFormsPage({ user }) {
 
   function selectMode(nextMode) {
     setMode(nextMode)
+    setMessage('')
+    setError('')
+  }
+
+  function resetModeSelection() {
+    setMode('')
     setMessage('')
     setError('')
   }
@@ -5202,12 +5208,22 @@ function QuoteFormsPage({ user }) {
       {error && <div className="error-banner">{error}</div>}
 
       {pageTab === 'form' && <>
-        <div className="quote-form-mode-intro">
-          <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
-          <button type="button" className={`quote-mode-button ${mode === 'same_day' ? 'active' : ''}`} onClick={() => selectMode('same_day')}>당일 이사 👉</button>
-          <div className="quote-mode-help">짐 보관 필요 없이 바로 입주 가능한 경우</div>
-          <button type="button" className={`quote-mode-button ${mode === 'storage' ? 'active' : ''}`} onClick={() => selectMode('storage')}>짐보관이사 👉</button>
-          <div className="quote-mode-help">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
+        {!mode && (
+          <section className="quote-mode-select-card">
+            <div className="quote-form-mode-intro">
+              <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
+              <button type="button" className="quote-mode-button" onClick={() => selectMode('same_day')}>당일 이사 👉</button>
+              <div className="quote-mode-help">짐 보관 필요 없이 바로 입주 가능한 경우</div>
+              <button type="button" className="quote-mode-button" onClick={() => selectMode('storage')}>짐보관이사 👉</button>
+              <div className="quote-mode-help">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
+            </div>
+          </section>
+        )}
+
+        {!!mode && <>
+        <div className="quote-form-flow-topbar">
+          <div className="quote-form-flow-badge">{mode === 'storage' ? '짐보관이사' : '당일이사'} 양식</div>
+          <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
         </div>
 
         <div className="quote-move-type-table-wrapper">
@@ -5287,6 +5303,7 @@ function QuoteFormsPage({ user }) {
 
           <div className="quote-submit-bar"><button type="submit" disabled={submitting}>{submitting ? '접수 중...' : '신청 보내기'}</button></div>
         </form>
+        </>}
       </>}
 
       {pageTab === 'list' && !isAdminUser && <section className="card quote-admin-list-card"><div className="muted">견적목록은 관리자/부관리자 계정에서 확인할 수 있습니다.</div></section>}
