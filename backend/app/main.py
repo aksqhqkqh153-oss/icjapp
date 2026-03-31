@@ -332,6 +332,7 @@ class MaterialRequestUpdateIn(BaseModel):
 class MaterialInventoryRowIn(BaseModel):
     product_id: int
     incoming_qty: int = 0
+    outgoing_qty: int = 0
     note: str = ''
 
 class MaterialInventorySaveIn(BaseModel):
@@ -880,11 +881,12 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
             'unit_price': int(product.get('unit_price') or 0),
             'current_stock': int(product.get('current_stock') or 0),
             'incoming_qty': int(row.get('incoming_qty') or 0),
-            'outgoing_qty': int(outgoing_map.get(int(product['id']), 0) or 0),
+            'outgoing_qty': int(outgoing_map.get(int(product['id']), 0) or 0) + int(row.get('outgoing_qty') or 0),
+            'manual_outgoing_qty': int(row.get('outgoing_qty') or 0),
             'note': row.get('note', '') or '',
             'is_closed': bool(int(row.get('is_closed') or 0)) if row else False,
             'closed_at': row.get('closed_at', '') or '',
-            'expected_stock': int(product.get('current_stock') or 0) + int(row.get('incoming_qty') or 0) - int(outgoing_map.get(int(product['id']), 0) or 0),
+            'expected_stock': int(product.get('current_stock') or 0),
         })
     return output
 
@@ -3842,6 +3844,37 @@ def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user
         return {'ok': True, 'settled_requests': settled_rows, 'share_text': _material_share_text(settled_rows)}
 
 
+@app.post('/api/materials/purchase-requests/unsettle')
+def unsettle_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'requesters')
+    request_ids = sorted({int(item) for item in payload.request_ids if int(item or 0) > 0})
+    if not request_ids:
+        raise HTTPException(status_code=400, detail='결산취소할 신청건을 선택해 주세요.')
+    placeholders = ','.join('?' for _ in request_ids)
+    with get_conn() as conn:
+        rows = [
+            row_to_dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM material_purchase_requests WHERE id IN ({placeholders}) ORDER BY created_at DESC, id DESC",
+                tuple(request_ids),
+            ).fetchall()
+        ]
+        if not rows:
+            raise HTTPException(status_code=404, detail='결산취소 대상 신청건을 찾을 수 없습니다.')
+        updated_rows = []
+        for row in rows:
+            if str(row.get('status') or '') != 'settled':
+                updated_rows.append(_material_request_detail(conn, row))
+                continue
+            conn.execute(
+                "UPDATE material_purchase_requests SET status = 'pending', payment_confirmed = 0, settled_at = '', settled_by_user_id = NULL, share_snapshot_json = '' WHERE id = ?",
+                (row['id'],),
+            )
+            updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (row['id'],)).fetchone()
+            updated_rows.append(_material_request_detail(conn, row_to_dict(updated)))
+        return {'ok': True, 'requests': updated_rows}
+
+
 @app.post('/api/materials/purchase-requests/reject')
 def reject_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
     _require_materials_scope(user, 'requesters')
@@ -3938,14 +3971,15 @@ def save_material_inventory(payload: MaterialInventorySaveIn, user=Depends(requi
             if product_id not in valid_product_ids:
                 continue
             incoming_qty = max(0, int(row.incoming_qty or 0))
+            outgoing_qty = max(0, int(getattr(row, 'outgoing_qty', 0) or 0))
             note = str(row.note or '').strip()
             conn.execute(
                 '''
                 INSERT INTO material_inventory_daily(inventory_date, product_id, incoming_qty, note, outgoing_qty, is_closed, closed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 0, 0, '', ?, ?)
-                ON CONFLICT(inventory_date, product_id) DO UPDATE SET incoming_qty = excluded.incoming_qty, note = excluded.note, updated_at = excluded.updated_at
+                VALUES (?, ?, ?, ?, ?, 0, '', ?, ?)
+                ON CONFLICT(inventory_date, product_id) DO UPDATE SET incoming_qty = excluded.incoming_qty, outgoing_qty = excluded.outgoing_qty, note = excluded.note, updated_at = excluded.updated_at
                 ''',
-                (target_date, product_id, incoming_qty, note, now, now),
+                (target_date, product_id, incoming_qty, note, outgoing_qty, now, now),
             )
         return {'ok': True, 'inventory_rows': _material_today_inventory_rows(conn, target_date)}
 
@@ -3966,38 +4000,41 @@ def save_material_incoming(payload: MaterialIncomingSaveIn, user=Depends(require
     now = utcnow()
     rows = []
     for row in payload.rows:
-        qty = max(0, int(row.incoming_qty or 0))
+        incoming_qty = max(0, int(row.incoming_qty or 0))
+        outgoing_qty = max(0, int(getattr(row, 'outgoing_qty', 0) or 0))
         product_id = int(row.product_id or 0)
-        if product_id > 0 and qty > 0:
-            rows.append({'product_id': product_id, 'incoming_qty': qty})
+        note = str(getattr(row, 'note', '') or '').strip()
+        if product_id > 0 and (incoming_qty > 0 or outgoing_qty > 0 or note):
+            rows.append({'product_id': product_id, 'incoming_qty': incoming_qty, 'outgoing_qty': outgoing_qty, 'note': note})
     if not rows:
-        raise HTTPException(status_code=400, detail='입고수량을 1개 이상 입력해 주세요.')
+        raise HTTPException(status_code=400, detail='입고수량 또는 출고수량을 1개 이상 입력해 주세요.')
     try:
         with get_conn() as conn:
             product_map = {int(r['id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
             valid_rows = [row for row in rows if row['product_id'] in product_map]
             if not valid_rows:
-                raise HTTPException(status_code=400, detail='유효한 입고 품목이 없습니다.')
-            requester_name = '입고'
-            unique_id = f'incoming-{entry_date}-{int(user.get("id") or 0)}-{int(datetime.now().timestamp())}'
-            cur = conn.execute(
-                "INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, settled_by_user_id, share_snapshot_json) VALUES (?, ?, ?, ?, 0, 'settled', 1, ?, ?, ?, '')",
-                (user.get('id'), requester_name, unique_id, '자재입고', f'{entry_date}T00:00:00', now, user.get('id')),
-            )
-            request_id = int(cur.lastrowid)
+                raise HTTPException(status_code=400, detail='유효한 입출고 품목이 없습니다.')
+            existing_rows = {int(r['product_id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_inventory_daily WHERE inventory_date = ?", (entry_date,)).fetchall()}
             for row in valid_rows:
                 product = product_map[row['product_id']]
-                qty = int(row['incoming_qty'])
+                existing = existing_rows.get(row['product_id'], {})
+                prev_incoming = int(existing.get('incoming_qty') or 0)
+                prev_outgoing = int(existing.get('outgoing_qty') or 0)
+                delta = int(row['incoming_qty']) - prev_incoming - (int(row['outgoing_qty']) - prev_outgoing)
+                next_stock = max(0, int(product.get('current_stock') or 0) + delta)
                 conn.execute(
                     "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
-                    (max(0, int(product.get('current_stock') or 0)) + qty, now, row['product_id']),
+                    (next_stock, now, row['product_id']),
                 )
                 conn.execute(
-                    "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, ?, ?)",
-                    (request_id, row['product_id'], -qty, int(product.get('unit_price') or 0), 0, '입고입력'),
+                    '''
+                    INSERT INTO material_inventory_daily(inventory_date, product_id, incoming_qty, note, outgoing_qty, is_closed, closed_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 0, '', ?, ?)
+                    ON CONFLICT(inventory_date, product_id) DO UPDATE SET incoming_qty = excluded.incoming_qty, outgoing_qty = excluded.outgoing_qty, note = excluded.note, updated_at = excluded.updated_at
+                    ''',
+                    (entry_date, row['product_id'], int(row['incoming_qty']), row['note'], int(row['outgoing_qty']), now, now),
                 )
-            created = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
-            return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(created)), 'inventory_rows': _material_today_inventory_rows(conn, datetime.now().date().isoformat())}
+            return {'ok': True, 'inventory_rows': _material_today_inventory_rows(conn, datetime.now().date().isoformat())}
     except HTTPException:
         raise
     except Exception as exc:

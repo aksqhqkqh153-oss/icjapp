@@ -338,11 +338,10 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
   { id: 'materials', label: '자재구매/현황', kind: 'link', path: '/materials' },
   { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials' },
-  { id: 'workShift', label: '근무스케줄', kind: 'placeholder' },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'workShift', 'storageStatus', 'settlements']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'storageStatus', 'settlements']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 2
 
@@ -3889,7 +3888,7 @@ function CalendarPage() {
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack">
                           <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없음' : '일반'}</span>
+                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
                         </div>
                       ) : (
                         <>
@@ -3900,7 +3899,7 @@ function CalendarPage() {
                         </>
                       )}
                     </button>
-                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</div>}
+                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>}
 
                     {!isMobile && (
                       <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
@@ -3941,7 +3940,7 @@ function CalendarPage() {
             <div className="between">
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
             </div>
-            <div className={`calendar-handless-banner ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손없는날' : '일반'}</div>
+            <div className={`calendar-handless-banner ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}><span>{selectedDaySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>
             <div className="schedule-popup-list embedded">
               {detailItems.map(item => (
                 <button
@@ -8729,7 +8728,7 @@ function isMaterialsAdminUser(user) {
 const MATERIALS_TABLE_WIDTH_DEFAULTS = {
   sales: [150, 104, 90, 108, 124],
   confirm: [150, 104, 108, 124],
-  incoming: [150, 104, 90, 108, 124],
+  incoming: [150, 104, 90, 96, 96, 120, 180],
   inventory: [150, 88, 96, 96, 104, 180],
   myRequests: [180, 108, 108, 124, 120],
   requesters: [112, 108, 150, 148, 148, 124],
@@ -8784,6 +8783,7 @@ function MaterialsPage({ user }) {
   const [incomingEntryDate, setIncomingEntryDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
+  const [settlementFilterDate, setSettlementFilterDate] = useState('')
   const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100, history: 100, settlements: 100 })
   const [tableColumnSettings, setTableColumnSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -8817,7 +8817,10 @@ function MaterialsPage({ user }) {
       const savedLayouts = layoutResult?.layouts || {}
       setTableColumnSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, savedLayouts[key] ?? prev[key] ?? MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
       setInventoryDraft(Object.fromEntries((result.inventory_rows || []).map(row => [row.product_id, { incoming_qty: row.incoming_qty || 0, note: row.note || '' }])))
-      setIncomingDraft(Object.fromEntries((result.products || []).map(row => [row.id, { incoming_qty: 0 } ])))
+      setIncomingDraft(Object.fromEntries((result.products || []).map(row => {
+        const inventoryRow = (result.inventory_rows || []).find(item => Number(item.product_id) === Number(row.id)) || {}
+        return [row.id, { incoming_qty: 0, outgoing_qty: Number(inventoryRow.manual_outgoing_qty || 0), note: inventoryRow.note || '' }]
+      })))
       setIncomingEntryDate(result?.today || new Date().toISOString().slice(0, 10))
       const tabs = buildVisibleTabs(result?.permissions || {})
       setActiveTab(nextTab && tabs.some(item => item.id === nextTab) ? nextTab : (tabs[0]?.id || 'sales'))
@@ -8852,9 +8855,8 @@ function MaterialsPage({ user }) {
     return [
       permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
       permissions.can_view_my_requests ? { id: 'myRequests', label: '신청현황' } : null,
-      permissions.can_manage_incoming ? { id: 'incoming', label: '자재입고' } : null,
-      permissions.can_view_inventory ? { id: 'inventory', label: '재고현황' } : null,
       permissions.can_view_requesters ? { id: 'requesters', label: '신청목록' } : null,
+      permissions.can_manage_incoming ? { id: 'incoming', label: '자재입고' } : null,
       permissions.can_view_settlements ? { id: 'settlements', label: '구매결산' } : null,
       permissions.can_view_history ? { id: 'history', label: '구매목록' } : null,
     ].filter(Boolean)
@@ -8868,6 +8870,7 @@ function MaterialsPage({ user }) {
   const myRequests = data?.my_requests || []
   const inventoryRows = data?.inventory_rows || []
   const isInventoryManager = Boolean(data?.permissions?.can_manage_inventory)
+  const filteredSettledRequests = settlementFilterDate ? settledRequests.filter(request => String(request.created_at || '').slice(0, 10) === settlementFilterDate) : settledRequests
 
   const cartRows = productRows
     .map(product => {
@@ -8887,7 +8890,6 @@ function MaterialsPage({ user }) {
     if (activeTab === 'sales') return salesStep === 2 ? 'confirm' : 'sales'
     if (activeTab === 'myRequests') return 'myRequests'
     if (activeTab === 'incoming') return 'incoming'
-    if (activeTab === 'inventory') return 'inventory'
     if (activeTab === 'requesters') return 'requesters'
     return 'sales'
   }
@@ -9060,12 +9062,33 @@ function MaterialsPage({ user }) {
     }
   }
 
+  async function unsettleSelectedRequests() {
+    if (selectedRequestIds.length === 0) {
+      setNotice('결산취소할 신청건을 선택해 주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      const result = await api('/api/materials/purchase-requests/unsettle', {
+        method: 'POST',
+        body: JSON.stringify({ request_ids: selectedRequestIds }),
+      })
+      setSelectedRequestIds([])
+      setNotice(`${result.requests?.length || 0}건의 결산이 취소되었습니다.`)
+      await loadOverview('settlements')
+    } catch (error) {
+      setNotice(error.message || '결산취소 처리 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function saveIncomingStock() {
     const rows = Object.entries(incomingDraft)
-      .map(([productId, row]) => ({ product_id: Number(productId), incoming_qty: Number(row?.incoming_qty || 0) }))
-      .filter(row => row.product_id > 0 && row.incoming_qty > 0)
+      .map(([productId, row]) => ({ product_id: Number(productId), incoming_qty: Number(row?.incoming_qty || 0), outgoing_qty: Number(row?.outgoing_qty || 0), note: row?.note || '' }))
+      .filter(row => row.product_id > 0 && (row.incoming_qty > 0 || row.outgoing_qty > 0 || String(row.note || '').trim()))
     if (!rows.length) {
-      setNotice('입고수량을 1개 이상 입력해 주세요.')
+      setNotice('입고수량 또는 출고수량을 1개 이상 입력해 주세요.')
       return
     }
     setSaving(true)
@@ -9074,8 +9097,8 @@ function MaterialsPage({ user }) {
         method: 'POST',
         body: JSON.stringify({ entry_date: incomingEntryDate, rows }),
       })
-      setNotice('자재입고가 반영되었습니다.')
-      await loadOverview('settlements')
+      setNotice('자재입출고가 반영되었습니다.')
+      await loadOverview('incoming')
     } catch (error) {
       setNotice(error.message || '자재입고 처리 중 오류가 발생했습니다.')
     } finally {
@@ -9259,9 +9282,10 @@ function MaterialsPage({ user }) {
   }
 
   function renderRequestListHeader(mode) {
+    const selectable = mode === 'pending' || mode === 'settled'
     return (
-      <div className={`materials-request-sheet-row materials-request-sheet-head ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
-        {mode === 'pending' ? <div className="materials-request-sheet-check">입금확인</div> : null}
+      <div className={`materials-request-sheet-row materials-request-sheet-head ${selectable ? 'with-check' : ''}`.trim()}>
+        {selectable ? <div className="materials-request-sheet-check">선택</div> : null}
         <div>호점</div>
         <div>이름</div>
         <div>구매신청일자</div>
@@ -9546,26 +9570,28 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     const requestGridKey = mode === 'pending' ? 'requesters' : 'history'
+    const selectable = mode === 'pending' || mode === 'settled'
     return (
       <div className="materials-request-sheet">
-        {renderRequestListHeader(mode, getRequestSheetGridStyle(requestGridKey), requestGridKey)}
+        {renderRequestListHeader(mode)}
         {requests.map(request => {
           const checked = selectedRequestIds.includes(request.id)
           const meta = parseRequesterMeta(request)
           const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
+          const isRejected = String(request.status || '') === 'rejected'
           return (
-            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card ${mode === 'pending' ? 'with-check' : ''}`.trim()}>
-              <div className={`materials-request-sheet-row ${mode === 'pending' ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
-                {mode === 'pending' ? (
+            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card ${selectable ? 'with-check' : ''}`.trim()}>
+              <div className={`materials-request-sheet-row ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
+                {selectable ? (
                   <label className="materials-checkbox materials-request-checkbox-cell">
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={(event) => {
-                        setSelectedRequestIds(prev => event.target.checked ? [...prev, request.id] : prev.filter(id => id !== request.id))
+                        setSelectedRequestIds(prev => event.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))
                       }}
                     />
-                    <span>입금확인</span>
+                    <span>{mode === 'pending' ? '입금확인' : '결산취소'}</span>
                   </label>
                 ) : null}
                 <div>{meta.branch}</div>
@@ -9573,7 +9599,7 @@ function MaterialsPage({ user }) {
                   <strong>{meta.name}</strong>
                 </div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
-                <div>{String(request.status || '') === 'rejected' ? '반려처리' : formatFullDateLabel(request.settled_at)}</div>
+                <div>{isRejected ? <button type="button" className="ghost small" onClick={() => window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.')}>반려됨</button> : formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
               <div className="materials-request-items materials-request-items-sheet">
@@ -9664,11 +9690,15 @@ function MaterialsPage({ user }) {
         </div>
         <div className="materials-table materials-table-sales" style={getTableScaleStyle('incoming')}>
           <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
-            {renderResizableRowCells(['구분', '물품가', '현재고', '입고수량', '입고 후 수량'], 'incoming')}
+            {renderResizableRowCells(['구분', '물품가', '현재고', '입고수량', '출고수량', '입고 후 수량', '비고'], 'incoming')}
           </div>
           {productRows.map(product => {
-            const draftQty = Number(incomingDraft[product.id]?.incoming_qty || 0)
-            const afterQty = Number(product.current_stock || 0) + draftQty
+            const inventoryRow = inventoryRows.find(row => Number(row.product_id) === Number(product.id)) || {}
+            const draftRow = incomingDraft[product.id] || {}
+            const draftIncoming = Number(draftRow.incoming_qty || 0)
+            const draftOutgoing = Number(draftRow.outgoing_qty || 0)
+            const note = draftRow.note || ''
+            const afterQty = Math.max(0, Number(product.current_stock || 0) + draftIncoming - draftOutgoing)
             return (
               <div key={`incoming-${product.id}`} className="materials-row materials-row-confirm materials-row-sales" style={getTableGridStyle('incoming')}>
                 <div>{displayMaterialName(product, isMobile)}</div>
@@ -9678,14 +9708,33 @@ function MaterialsPage({ user }) {
                   <input
                     className="materials-qty-input"
                     inputMode="numeric"
-                    value={draftQty || ''}
+                    value={draftIncoming || ''}
                     onChange={(event) => {
                       const raw = String(event.target.value).replace(/[^\d]/g, '')
-                      setIncomingDraft(prev => ({ ...prev, [product.id]: { incoming_qty: raw ? Number(raw) : 0 } }))
+                      setIncomingDraft(prev => ({ ...prev, [product.id]: { ...prev[product.id], incoming_qty: raw ? Number(raw) : 0, outgoing_qty: Number(prev[product.id]?.outgoing_qty || 0), note: prev[product.id]?.note || '' } }))
+                    }}
+                  />
+                </div>
+                <div>
+                  <input
+                    className="materials-qty-input"
+                    inputMode="numeric"
+                    value={draftOutgoing || ''}
+                    onChange={(event) => {
+                      const raw = String(event.target.value).replace(/[^\d]/g, '')
+                      setIncomingDraft(prev => ({ ...prev, [product.id]: { ...prev[product.id], incoming_qty: Number(prev[product.id]?.incoming_qty || 0), outgoing_qty: raw ? Number(raw) : 0, note: prev[product.id]?.note || '' } }))
                     }}
                   />
                 </div>
                 <div>{afterQty}</div>
+                <div>
+                  <input
+                    className="materials-note-input"
+                    value={note}
+                    onChange={(event) => setIncomingDraft(prev => ({ ...prev, [product.id]: { ...prev[product.id], incoming_qty: Number(prev[product.id]?.incoming_qty || 0), outgoing_qty: Number(prev[product.id]?.outgoing_qty || 0), note: event.target.value } }))}
+                    placeholder="비고"
+                  />
+                </div>
               </div>
             )
           })}
@@ -9702,69 +9751,10 @@ function MaterialsPage({ user }) {
   }
 
   function renderInventoryContent() {
-    return (
-      <section className="card materials-panel materials-panel-compact-head">
-        <div className="materials-summary-head-inline materials-summary-head-inventory">
-          <div><h3>재고현황</h3></div>
-          {renderMaterialsPanelSettingsButton('inventory')}
-        </div>
-        <div className="materials-table materials-table-inventory" style={getTableScaleStyle('inventory')}>
-          <div className="materials-row materials-row-head materials-row-inventory-header" style={getTableGridStyle('inventory')}>
-            {renderResizableRowCells(['구분', '기존 개수', '당일 입고', '당일 출고', '현재고', '현황 비고'], 'inventory')}
-          </div>
-          {inventoryRows.map(row => {
-            const draft = inventoryDraft[row.product_id] || { incoming_qty: row.incoming_qty || 0, note: row.note || '' }
-            const expected = Number(row.current_stock || 0) + Number(draft.incoming_qty || 0) - Number(row.outgoing_qty || 0)
-            const readonlyNote = (draft.note || '').trim()
-            return (
-              <div key={`inventory-${row.product_id}`} className={`materials-row materials-row-inventory${!isInventoryManager ? ' materials-row-inventory-readonly' : ''}`} style={getTableGridStyle('inventory')}>
-                <div>{displayMaterialName(row, isMobile)}</div>
-                <div>{Number(row.current_stock || 0)}</div>
-                <div>
-                  {isInventoryManager ? (
-                    <input
-                      className="materials-qty-input"
-                      inputMode="numeric"
-                      value={draft.incoming_qty ?? ''}
-                      disabled={!isInventoryManager || row.is_closed}
-                      onChange={(event) => {
-                        const raw = String(event.target.value).replace(/[^\d]/g, '')
-                        setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: raw ? Number(raw) : 0, note: prev[row.product_id]?.note || '' } }))
-                      }}
-                    />
-                  ) : (
-                    <span className="materials-static-value">{Number(draft.incoming_qty || 0)}</span>
-                  )}
-                </div>
-                <div>{Number(row.outgoing_qty || 0)}</div>
-                <div>{expected}</div>
-                <div>
-                  {isInventoryManager ? (
-                    <textarea
-                      className="materials-note-input"
-                      rows={1}
-                      value={draft.note || ''}
-                      disabled={!isInventoryManager || row.is_closed}
-                      onChange={(event) => setInventoryDraft(prev => ({ ...prev, [row.product_id]: { ...prev[row.product_id], incoming_qty: prev[row.product_id]?.incoming_qty ?? row.incoming_qty ?? 0, note: event.target.value } }))}
-                      placeholder="메모"
-                    />
-                  ) : (
-                    <span className={`materials-static-note${readonlyNote ? '' : ' empty'}`}>{readonlyNote || '-'}</span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        {isInventoryManager && (
-          <div className="row gap wrap materials-actions-right materials-actions-bottom">
-            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={saveInventoryDraft}>임시저장</button>
-            <button type="button" className="ghost active materials-bottom-button" disabled={saving || inventoryRows.some(row => row.is_closed)} onClick={closeInventoryDay}>결산처리</button>
-          </div>
-        )}
-      </section>
-    )
+    return null
   }
+
+
 
 
   if (loading) return <div className="card">자재 데이터를 불러오는 중입니다...</div>
@@ -9781,7 +9771,6 @@ function MaterialsPage({ user }) {
       {activeTab === 'sales' && renderSalesContent()}
       {activeTab === 'myRequests' && renderMyRequests()}
       {activeTab === 'incoming' && renderIncomingContent()}
-      {activeTab === 'inventory' && renderInventoryContent()}
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">
           <div className="materials-summary-head-inline"><div><h3>신청목록</h3></div>{renderMaterialsPanelSettingsButton('requesters')}</div>
@@ -9795,11 +9784,16 @@ function MaterialsPage({ user }) {
       {activeTab === 'settlements' && (
         <section className="card materials-panel materials-panel-compact-head">
           <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div>{renderMaterialsPanelSettingsButton('settlements')}</div>
-          {renderSettlementTable(settledRequests)}
-          <div className="row gap wrap materials-actions-center">
-            <button type="button" className="ghost" onClick={() => setActiveTab(visibleTabs[0]?.id || 'sales')}>확인(돌아가기)</button>
-            <button type="button" className="ghost active" onClick={shareSettlements}>카톡공유</button>
+          <div className="row gap wrap materials-actions-right materials-actions-bottom">
+            <label className="materials-date-inline-label">
+              <span>구매신청일자</span>
+              <input type="date" value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)} />
+            </label>
+            <button type="button" className="ghost materials-bottom-button" onClick={() => setSettlementFilterDate('')}>필터초기화</button>
+            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
+            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
           </div>
+          {renderRequestRows(filteredSettledRequests, 'settled')}
         </section>
       )}
       {activeTab === 'history' && (

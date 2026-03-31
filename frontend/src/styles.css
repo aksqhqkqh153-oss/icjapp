@@ -2865,7 +2865,17 @@ label { font-size: 14px; color: #4f6f8c; }
 .calendar-handless-banner {
   text-align: center;
   justify-content: center;
+  align-items: center;
   display: flex;
+}
+.calendar-handless-banner.handless {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  box-shadow: inset 0 0 0 1px rgba(29,78,216,.16);
+}
+.calendar-handless-banner.general {
+  background: #e5e7eb !important;
+  color: #374151 !important;
 }
 
 .handless-inline-pill {
@@ -3964,12 +3974,13 @@ button.selected-toggle:hover,
   gap: 12px;
 }
 .materials-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
 }
 button.materials-tab {
-  min-width: 108px;
+  min-width: 0;
+  width: 100%;
   white-space: normal;
   line-height: 1.2;
 }
