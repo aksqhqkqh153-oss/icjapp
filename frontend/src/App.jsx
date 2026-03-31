@@ -615,14 +615,16 @@ function AuthPage({ onLogin }) {
         </div>
         <div className="demo-box">
           <strong>등록 계정</strong>
-          <div className="demo-list">
+          <div className="demo-list demo-list-accounts">
             {accounts.map(acc => (
               <button
                 key={acc.email}
-                className="demo-item"
+                className="demo-item demo-item-account"
                 onClick={() => setForm({ email: acc.email, password: Number(acc.grade || 6) === 1 ? 'admin1234' : 'demo1234' })}
               >
-                {acc.nickname} ({acc.email})
+                <span className="demo-account-group">{acc.group_number || '0'}</span>
+                <span className="demo-account-name">{acc.name || acc.nickname || '-'}</span>
+                <span className="demo-account-id">{acc.email}</span>
               </button>
             ))}
           </div>

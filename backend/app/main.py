@@ -1455,8 +1455,32 @@ async def upload_file(request: Request, file: UploadFile = File(...), category: 
 @app.get("/api/demo-accounts")
 def demo_accounts():
     with get_conn() as conn:
-        rows = conn.execute("SELECT email, nickname, role, grade FROM users ORDER BY id").fetchall()
-        return [{"email": r["email"], "nickname": r["nickname"], "role": r["role"], "grade": r["grade"], "grade_label": grade_label(r["grade"])} for r in rows]
+        rows = conn.execute(
+            """
+            SELECT email, nickname, name, role, grade, group_number, group_number_text
+            FROM users
+            ORDER BY
+                CASE
+                    WHEN NULLIF(TRIM(COALESCE(group_number_text, '')), '') IS NULL THEN 1
+                    ELSE 0
+                END,
+                LENGTH(COALESCE(NULLIF(TRIM(group_number_text), ''), CAST(COALESCE(group_number, 0) AS TEXT))),
+                COALESCE(NULLIF(TRIM(group_number_text), ''), CAST(COALESCE(group_number, 0) AS TEXT)),
+                id
+            """
+        ).fetchall()
+        return [
+            {
+                "email": r["email"],
+                "nickname": r["nickname"],
+                "name": r["name"],
+                "role": r["role"],
+                "grade": r["grade"],
+                "grade_label": grade_label(r["grade"]),
+                "group_number": str((r["group_number_text"] if r["group_number_text"] not in (None, '') else r["group_number"]) or '0'),
+            }
+            for r in rows
+        ]
 @app.post("/api/auth/signup")
 def signup(payload: SignupIn):
     account_id = payload.email.strip()
