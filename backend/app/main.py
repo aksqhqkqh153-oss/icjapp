@@ -393,6 +393,12 @@ def _get_branch_count_override(conn) -> int:
     return int(row[0] or 0)
 def _grade_of(user: dict) -> int:
     return int(user.get('grade') or 6)
+
+def _is_staff_grade(grade_value) -> bool:
+    try:
+        return int(grade_value or 0) == 5
+    except Exception:
+        return False
 def _can_access_admin_mode(user: dict, conn) -> bool:
     return _grade_of(user) <= 2 or _grade_of(user) <= _get_permission_config(conn)['admin_mode_access_grade']
 def _can_manage_grade(actor: dict, target_grade: int, conn) -> bool:
@@ -420,7 +426,7 @@ def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     item['group_number'] = str((item.get('group_number_text') if item.get('group_number_text') not in (None, '') else item.get('group_number')) or '0')
     item['grade_label'] = grade_label(item.get('grade'))
     item['approved'] = bool(item.get('approved', 1))
-    item['vehicle_available'] = bool(item.get('vehicle_available', 1))
+    item['vehicle_available'] = False if _is_staff_grade(item.get('grade')) else bool(item.get('vehicle_available', 1))
     item['account_type'] = _normalize_account_type(item)
     branch_flag = item.get('show_in_branch_status')
     employee_flag = item.get('show_in_employee_status')
@@ -3374,7 +3380,8 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
         next_position_title = str((payload.position_title if payload.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
         if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
             next_position_title = '호점대표'
-        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if payload.vehicle_available else 0, user_id))
+        vehicle_available_value = 0 if _is_staff_grade(target_grade) else (1 if payload.vehicle_available else 0)
+        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, vehicle_available_value, user_id))
         _sync_all_day_note_available_vehicle_counts(conn)
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
@@ -3394,7 +3401,8 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
             next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
             if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
                 next_position_title = '호점대표'
-            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, 1 if item.vehicle_available else 0, user_id))
+            vehicle_available_value = 0 if _is_staff_grade(target_grade) else (1 if item.vehicle_available else 0)
+            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, vehicle_available_value, user_id))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
         _sync_all_day_note_available_vehicle_counts(conn)
@@ -3456,7 +3464,8 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             except Exception:
                 data['group_number'] = 0
             data['position_title'] = str(data.get('position_title') or '')
-            data['vehicle_available'] = 1 if bool(data.get('vehicle_available', True)) else 0
+            current_or_next_grade = int(data.get('grade') or existing['grade'] or 6)
+            data['vehicle_available'] = 0 if _is_staff_grade(current_or_next_grade) else (1 if bool(data.get('vehicle_available', True)) else 0)
             data['show_in_branch_status'] = 1 if bool(data.get('show_in_branch_status', False)) else 0
             data['show_in_employee_status'] = 1 if bool(data.get('show_in_employee_status', False)) else 0
             data['name'] = str(data.get('name') or '').strip()
@@ -3497,7 +3506,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, created_at)
             VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 1 if payload.vehicle_available else 0, generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
+            (payload.email, hash_password(payload.password), payload.name or '', payload.nickname, int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 0 if _is_staff_grade(payload.grade) else (1 if payload.vehicle_available else 0), generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
         )
         user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

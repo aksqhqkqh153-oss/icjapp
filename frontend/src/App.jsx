@@ -6288,6 +6288,18 @@ function AdminModePage() {
   const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '' })
   const ACCOUNTS_PER_PAGE = 10
 
+  function isStaffGradeValue(value) {
+    return Number(value || 0) === 5
+  }
+
+  function enforceVehicleRules(item) {
+    const next = { ...item }
+    if (isStaffGradeValue(next?.grade)) {
+      next.vehicle_available = false
+    }
+    return next
+  }
+
   function parseVehicleAvailable(value) {
     if (value === false || value === 0 || value === '0' || value === 'false' || value === 'False' || value === '불가') return false
     return true
@@ -6296,7 +6308,7 @@ function AdminModePage() {
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
     const rawGroupNumber = item?.group_number_text ?? item?.group_number ?? '0'
-    return { ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType }
+    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType })
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -6387,7 +6399,7 @@ function AdminModePage() {
       google_email: row.google_email || '',
       resident_id: row.resident_id || '',
       position_title: row.position_title || '',
-      vehicle_available: parseVehicleAvailable(row.vehicle_available),
+      vehicle_available: isStaffGradeValue(row?.grade) ? false : parseVehicleAvailable(row.vehicle_available),
       show_in_branch_status: !!row.show_in_branch_status,
       show_in_employee_status: !!row.show_in_employee_status,
       group_number: rawGroupNumber,
@@ -6436,7 +6448,7 @@ function AdminModePage() {
           grade: Number(row.grade || 6),
           approved: !!row.approved,
           position_title: row.position_title || '',
-          vehicle_available: parseVehicleAvailable(row.vehicle_available),
+          vehicle_available: isStaffGradeValue(row?.grade) ? false : parseVehicleAvailable(row.vehicle_available),
         })),
       }),
     })
@@ -6455,7 +6467,7 @@ function AdminModePage() {
         grade: Number(createForm.grade || 6),
         position_title: Number(createForm.branch_no || '') > 0 ? '호점대표' : (createForm.position_title || ''),
         approved: !!createForm.approved,
-        vehicle_available: parseVehicleAvailable(createForm.vehicle_available),
+        vehicle_available: isStaffGradeValue(createForm.grade) ? false : parseVehicleAvailable(createForm.vehicle_available),
       }),
     })
     setMessage('계정이 생성되었습니다.')
@@ -6547,12 +6559,16 @@ function AdminModePage() {
       normalizedPatch.grade = Number(normalizedPatch.grade || 6)
       normalizedPatch.grade_label = gradeLabel(normalizedPatch.grade)
     }
-    setAccountRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
-    setBranchRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
-    setEmployeeRows(prev => prev.map(item => item.id === userId ? { ...item, ...normalizedPatch } : item))
+    setAccountRows(prev => prev.map(item => item.id === userId ? enforceVehicleRules({ ...item, ...normalizedPatch }) : item))
+    setBranchRows(prev => prev.map(item => item.id === userId ? enforceVehicleRules({ ...item, ...normalizedPatch }) : item))
+    setEmployeeRows(prev => prev.map(item => item.id === userId ? enforceVehicleRules({ ...item, ...normalizedPatch }) : item))
   }
 
   async function openVehicleExceptionModal(account) {
+    if (isStaffGradeValue(account?.grade)) {
+      setMessage('직원 권한 계정은 차량열외를 설정할 수 없습니다.')
+      return
+    }
     setVehicleExceptionModal({ open: true, account, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: true })
     try {
       const response = await callVehicleExclusionApi(account.id, 'list')
@@ -7226,14 +7242,14 @@ function AdminModePage() {
               <div>{item.email}</div>
               <label className="admin-select-field">
                 <span>차량가용여부</span>
-                <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
                   <option value="가용">가용</option>
                   <option value="불가">불가</option>
                 </select>
               </label>
               <label className="admin-select-field admin-action-field">
                 <span>차량열외</span>
-                <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)}>차량열외</button>
+                <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)} disabled={isStaffGradeValue(item?.grade)}>차량열외</button>
               </label>
               <label className="admin-select-field">
                 <span>직급</span>
@@ -7306,11 +7322,11 @@ function AdminModePage() {
                 <div key={item.id} className="admin-account-grid compact">
                   <div>{item.name || item.nickname}<div className="muted tiny-text">{item.account_unique_id || '-'}</div></div>
                   <div>{item.email}</div>
-                  <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })}>
+                  <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
                     <option value="가용">가용</option>
                     <option value="불가">불가</option>
                   </select>
-                  <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)}>차량열외</button>
+                  <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)} disabled={isStaffGradeValue(item?.grade)}>차량열외</button>
                   <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                     <option value="">미지정</option>
                     {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}

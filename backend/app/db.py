@@ -1609,6 +1609,29 @@ IMPORTED_EMPLOYEE_ACCOUNTS = [{'email': 'staff004',
   'position_title': '직원'}]
 SEEDED_ACCOUNT_EMAILS = {account['email'] for account in (IMPORTED_ACCOUNTS + IMPORTED_EMPLOYEE_ACCOUNTS)}
 
+FORCE_REMOVED_SEED_ACCOUNT_EMAILS = {
+    '1ghwja',
+    '2ghwja',
+    '3ghwja',
+    '4ghwja',
+    '5ghwja',
+    '6ghwja',
+    '7ghwja',
+    '8ghwja',
+    '9ghwja',
+    'qhswja',
+    'staff023',
+    'staff024',
+    'staff025',
+    'staff026',
+    'staff027',
+    'staff028',
+    'staff031',
+    'staff032',
+    'staff034',
+}
+
+
 LEGACY_DEMO_ACCOUNT_IDS = (
     'admin@example.com',
     'mina@example.com',
@@ -1624,7 +1647,12 @@ def seed_imported_accounts(conn) -> None:
     all_seed_accounts = IMPORTED_ACCOUNTS + IMPORTED_EMPLOYEE_ACCOUNTS
     for legacy_id in LEGACY_DEMO_ACCOUNT_IDS:
         conn.execute("DELETE FROM users WHERE email = ?", (legacy_id,))
+    for removed_email in FORCE_REMOVED_SEED_ACCOUNT_EMAILS:
+        conn.execute("DELETE FROM deleted_imported_accounts WHERE email = ?", (removed_email,))
+        conn.execute("DELETE FROM users WHERE email = ?", (removed_email,))
     for account in all_seed_accounts:
+        if account['email'] in FORCE_REMOVED_SEED_ACCOUNT_EMAILS:
+            continue
         if account['email'] in deleted_emails:
             continue
         exists = conn.execute("SELECT id, account_unique_id FROM users WHERE email = ?", (account['email'],)).fetchone()
