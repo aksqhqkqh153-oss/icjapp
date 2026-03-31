@@ -6076,3 +6076,23 @@ a:focus-visible {
     font-size: 13px;
   }
 }
+
+
+.admin-status-head {
+  align-items: center;
+}
+.admin-status-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-status-title-row h2 {
+  margin: 0;
+}
+.admin-status-tab-actions-inline {
+  align-items: center;
+}
+.admin-status-toolbar-spacer {
+  min-height: 1px;
+}

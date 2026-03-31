@@ -6529,14 +6529,35 @@ function AdminModePage() {
 
   async function submitCreateAccount(e) {
     e.preventDefault()
+    const requiredFields = [
+      ['name', '이름'],
+      ['email', '아이디'],
+      ['password', '비밀번호'],
+      ['nickname', '닉네임'],
+    ]
+    for (const [fieldKey, fieldLabel] of requiredFields) {
+      if (!String(createForm?.[fieldKey] || '').trim()) {
+        window.alert(`[${fieldLabel}]를 입력해주세요.`)
+        return
+      }
+    }
     await api('/api/admin/accounts/create', {
       method: 'POST',
       body: JSON.stringify({
         ...createForm,
+        email: String(createForm.email || '').trim(),
+        password: String(createForm.password || ''),
+        name: String(createForm.name || '').trim(),
+        nickname: String(createForm.nickname || '').trim(),
+        gender: String(createForm.gender || '').trim(),
+        region: String(createForm.region || '').trim() || '서울',
+        phone: String(createForm.phone || '').trim(),
+        recovery_email: String(createForm.recovery_email || '').trim(),
+        vehicle_number: String(createForm.vehicle_number || '').trim(),
         birth_year: Number(createForm.birth_year || 1995),
         branch_no: createForm.branch_no ? Number(createForm.branch_no) : null,
         grade: Number(createForm.grade || 6),
-        position_title: Number(createForm.branch_no || '') > 0 ? '호점대표' : (createForm.position_title || ''),
+        position_title: Number(createForm.branch_no || '') > 0 ? '호점대표' : String(createForm.position_title || '').trim(),
         approved: !!createForm.approved,
         vehicle_available: isStaffGradeValue(createForm.grade) ? false : parseVehicleAvailable(createForm.vehicle_available),
       }),
@@ -6968,8 +6989,8 @@ function AdminModePage() {
                 <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
                   <div className="admin-inline-grid compact-inline-grid">
                     <label>이름 <input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
-                    <label>아이디 <input value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
-                    <label>비밀번호 <input type="password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
+                    <label>아이디 <input autoComplete="username" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+                    <label>비밀번호 <input type="password" autoComplete="new-password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
                     <label>닉네임 <input value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
                     <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
                     <label>출생연도 <input value={createForm.birth_year} onChange={e => setCreateForm({ ...createForm, birth_year: e.target.value })} /></label>
@@ -7115,22 +7136,27 @@ function AdminModePage() {
       )}
 
       <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setStatusOpen(v => !v)} onKeyDown={(e) => {
+        <div className="between admin-mode-section-head admin-mode-section-toggle admin-status-head" role="button" tabIndex={0} onClick={() => setStatusOpen(v => !v)} onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             setStatusOpen(v => !v)
           }
         }}>
-          <h2>운영현황</h2>
+          <div className="inline-actions wrap admin-status-title-row">
+            <h2>운영현황</h2>
+            {statusOpen && (
+              <div className="inline-actions wrap status-tab-actions admin-status-tab-actions-inline" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
+                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
+              </div>
+            )}
+          </div>
           <span className="admin-section-chevron">{statusOpen ? '−' : '+'}</span>
         </div>
         {statusOpen && (
           <>
             <div className="between admin-section-toolbar admin-status-toolbar">
-              <div className="inline-actions wrap status-tab-actions">
-                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹현황</button>
-                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>직원현황</button>
-              </div>
+              <div className="inline-actions wrap status-tab-actions admin-status-toolbar-spacer" />
               <div className="inline-actions wrap admin-section-save-actions">
                 {actorGrade === 1 && (statusTab === 'branch'
                   ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
