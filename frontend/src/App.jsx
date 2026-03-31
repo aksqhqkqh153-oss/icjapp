@@ -522,6 +522,11 @@ function AuthPage({ onLogin }) {
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
           {error && <div className="error">{error}</div>}
         </form>
+        <div className="auth-guest-quote-box">
+          <div className="auth-guest-quote-title">로그인 없이도 견적 요청이 가능합니다.</div>
+          <div className="auth-guest-quote-help">이름과 연락처만 먼저 입력한 뒤, 당일이사 또는 짐보관이사를 선택해서 바로 견적을 접수할 수 있습니다.</div>
+          <Link to="/guest-quote" className="auth-guest-quote-button">로그인 없이 견적 받기</Link>
+        </div>
         <div className="inline-actions auth-link-row auth-link-row-three">
           <Link to="/signup" className="ghost-link">회원가입</Link>
           <Link to="/find-account" className="ghost-link">계정찾기</Link>
