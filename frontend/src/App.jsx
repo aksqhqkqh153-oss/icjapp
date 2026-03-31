@@ -4237,15 +4237,11 @@ function WorkSchedulePage() {
         const isBulkEdit = bulkEditDate === day.date
         const dayBulkForms = bulkForms[day.date] || []
         return (
-          <section key={day.date} className="card work-schedule-day">
+          <section key={day.date} className={`card work-schedule-day${day.entries.length > 0 ? ' has-entries' : ' empty-day'}`}>
             <div className="between work-schedule-head">
               <div className="work-schedule-headline">
                 <strong>{workScheduleHeading(index)}</strong>
                 <span className="muted">{workScheduleDateLine(day.date)}</span>
-              </div>
-              <div className={`inline-actions wrap work-schedule-action-stack${isMobile ? ' mobile' : ''}`}>
-                {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
-                {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
               </div>
             </div>
 
@@ -4254,6 +4250,15 @@ function WorkSchedulePage() {
               <span className="work-day-status-divider" />
               <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
             </button>
+
+            <section className="work-schedule-section">
+              <div className="between work-schedule-section-head">
+                <div className="work-schedule-section-title-wrap">
+                  <strong className="work-schedule-section-title">스케줄 목록</strong>
+                  <span className="muted">일정 화면에 등록된 고객 일정과 스케줄을 함께 표시합니다.</span>
+                </div>
+                {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
+              </div>
 
             {activeFormDate === day.date && !readOnly && (
               <form onSubmit={submitEntry} className="work-schedule-entry-form">
@@ -4279,13 +4284,18 @@ function WorkSchedulePage() {
                 const key = rowKey(day.date, item)
                 const isEditing = editingKey === key
                 return (
-                  <div key={key} className="work-schedule-line-item">
+                  <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}`}>
                     <div className="work-schedule-line-head">
-                      <div>
+                      <div className="work-schedule-line-body">
+                        <div className="work-schedule-line-primary">
+                          <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
+                          <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
+                          {item.platform && <span className="work-schedule-chip platform">{item.platform}</span>}
+                        </div>
                         <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
                         {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
                       </div>
-                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>편집</button>}
+                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>스케줄편집</button>}
                     </div>
                     {isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
@@ -4328,6 +4338,7 @@ function WorkSchedulePage() {
 
               {day.entries.length === 0 && <div className="muted">등록된 스케줄이 없습니다.</div>}
             </div>
+            </section>
 
             {activeStatusDate === day.date && !readOnly && (
               <form onSubmit={submitStatusEditor} className="work-day-status-editor">
@@ -4344,6 +4355,15 @@ function WorkSchedulePage() {
                 <textarea value={statusForm.day_memo} onChange={e => setStatusForm({ ...statusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
               </form>
             )}
+
+            <section className="work-schedule-section work-exclusion-section">
+              <div className="between work-schedule-section-head">
+                <div className="work-schedule-section-title-wrap">
+                  <strong className="work-schedule-section-title">열외자 목록</strong>
+                  <span className="muted">관리자/부관리자만 열외자 편집이 가능합니다.</span>
+                </div>
+                {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
+              </div>
 
             {activeNoteDate === day.date && !readOnly && (
               <form onSubmit={submitNotes} className="work-notes-form">
@@ -4376,10 +4396,10 @@ function WorkSchedulePage() {
             )}
 
             <div className="work-schedule-exclusion">
-              <div className="work-schedule-exclusion-title">- 열외자 목록</div>
-              <div className="muted">* 사업자({businessCount}) : {businessCount ? day.excluded_business_names.join(' / ') : '-'}</div>
-              <div className="muted">* 직원({staffCount}) : {staffCount ? day.excluded_staff_names.join(' / ') : '-'}</div>
+              <div className="work-schedule-exclusion-row"><strong>사업자</strong><span>{businessCount ? day.excluded_business_names.join(' / ') : '-'}</span></div>
+              <div className="work-schedule-exclusion-row"><strong>직원</strong><span>{staffCount ? day.excluded_staff_names.join(' / ') : '-'}</span></div>
             </div>
+            </section>
           </section>
         )
       })}
