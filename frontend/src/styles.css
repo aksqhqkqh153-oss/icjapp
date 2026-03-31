@@ -5752,3 +5752,77 @@ a:focus-visible {
     top:74px;
   }
 }
+
+
+.quote-guest-stage-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.quote-guest-stage-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quote-guest-stage-title-row.stacked {
+  justify-content: flex-start;
+}
+.quote-form-mode-title.inline {
+  margin: 0;
+}
+.quote-flow-step.inline {
+  min-width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  border-radius: 0;
+  font-size: 16px;
+}
+.quote-guest-intro-fields.single-column {
+  grid-template-columns: 1fr;
+}
+.quote-guest-intro-description.emphasis {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.quote-form-mode-subtitle {
+  margin: 4px 0 18px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.quote-guest-detail-shell {
+  max-width: 980px;
+}
+.guest-detail-topbar {
+  margin-bottom: 8px;
+}
+.quote-form-detail-heading {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.quote-back-button span {
+  display: inline-block;
+  transform: translateY(-1px);
+}
+@media (max-width: 768px) {
+  .quote-guest-stage-header {
+    align-items: center;
+    gap: 10px;
+  }
+  .quote-flow-step.inline {
+    font-size: 14px;
+  }
+  .quote-form-mode-subtitle {
+    font-size: 18px;
+  }
+  .quote-form-detail-heading {
+    font-size: 20px;
+    line-height: 1.35;
+  }
+}

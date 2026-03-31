@@ -5379,6 +5379,13 @@ function validateGuestCustomerName(rawValue) {
   return ''
 }
 
+function formatGuestPhoneInput(rawValue) {
+  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+}
+
 function formatQuoteDesiredDate(item) {
   const value = String(item?.desired_date || '').trim()
   if (value) return value
@@ -5497,8 +5504,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
   }
 
   function handleGuestIntroChange(key, value) {
-    setGuestIntro(prev => ({ ...prev, [key]: value }))
-    setForm(prev => ({ ...prev, [key]: value }))
+    const nextValue = key === 'contact_phone' ? formatGuestPhoneInput(value) : value
+    setGuestIntro(prev => ({ ...prev, [key]: nextValue }))
+    setForm(prev => ({ ...prev, [key]: nextValue }))
   }
 
   function proceedGuestIntro(e) {
@@ -5668,10 +5676,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
-      <div className="quote-form-title-block">
-        <h2>{guestMode && mode ? `${mode === 'storage' ? '짐보관' : '당일'}이사 상세 견적요청서(비회원)` : guestMode && !mode ? '이사 방법 선택(비회원)' : '견적'}</h2>
-        {!guestMode && <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>}
-      </div>
+      {!guestMode && <div className="quote-form-title-block">
+        <h2>견적</h2>
+        <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>
+      </div>}
 
       {!guestMode && <div className="quote-page-tabs">
         <button type="button" className={pageTab === 'form' ? 'active' : ''} onClick={() => setPageTab('form')}>견적양식</button>
@@ -5684,17 +5692,19 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {(pageTab === 'form' || guestMode) && <>
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
-            <div className="quote-guest-intro-topbar">
-              <button type="button" className="quote-back-button" aria-label="로그인 화면으로 돌아가기" onClick={() => navigate('/login')}>←</button>
+            <div className="quote-guest-stage-header">
+              <button type="button" className="quote-back-button" aria-label="로그인 화면으로 돌아가기" onClick={() => navigate('/login')}><span aria-hidden="true">←</span></button>
+              <div className="quote-guest-stage-title-row">
+                <div className="quote-form-mode-title inline">로그인 없이 견적받기</div>
+                <div className="quote-flow-step inline">(1단계)</div>
+              </div>
             </div>
             <div className="quote-form-mode-intro quote-guest-intro-layout">
-              <div className="quote-flow-step">1단계</div>
-              <div className="quote-form-mode-title">로그인 없이 견적 받기</div>
-              <div className="quote-guest-intro-description">이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
+              <div className="quote-guest-intro-description emphasis">※ 안내 : 이름 작성은 고객 구분을 위해 필요한 정보이며, 연락처는 문의주신 견적요청서에 대해 답변드리기 위한 용도로 사용됩니다.</div>
               <form className="quote-guest-intro-form" onSubmit={proceedGuestIntro}>
-                <div className="quote-guest-intro-fields">
+                <div className="quote-guest-intro-fields single-column">
                   <QuoteField label="이름(또는 닉네임)" required><input className="quote-form-input" placeholder="예: 성규 / 규A1 / mover01" value={guestIntro.customer_name} onChange={e => handleGuestIntroChange('customer_name', e.target.value)} /></QuoteField>
-                  <QuoteField label="연락처" required><input className="quote-form-input" placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', e.target.value)} /></QuoteField>
+                  <QuoteField label="연락처" required><input inputMode="numeric" pattern="[0-9-]*" className="quote-form-input" placeholder="010-0000-0000" value={guestIntro.contact_phone} onChange={e => handleGuestIntroChange('contact_phone', e.target.value)} /></QuoteField>
                 </div>
                 <div className="quote-guest-intro-help-panel">
                   <div className="quote-guest-intro-help-title">입력 조건</div>
@@ -5703,6 +5713,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
                     <li>한글은 완성형 2자리 이상 입력해야 합니다. 예: 성규</li>
                     <li>영문만 또는 숫자만 입력하는 경우 4자리 이상이어야 합니다.</li>
                     <li>한글과 영문/숫자를 함께 입력하는 경우 2자리 이상이면 가능합니다. 예: 성01, 규A1</li>
+                    <li>연락처는 숫자만 입력하면 하이픈(-)이 자동으로 들어갑니다.</li>
                   </ul>
                 </div>
                 <div className="quote-submit-bar guest-intro-submit"><button type="submit">다음 단계</button></div>
@@ -5714,8 +5725,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
         {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
           <section className="quote-mode-select-card quote-mode-select-compact">
             <div className="quote-form-mode-intro">
-              {guestMode && <div className="quote-flow-step">2단계</div>}
-              <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>
+              {guestMode && <div className="quote-guest-stage-header stage-2"><button type="button" className="quote-back-button" aria-label="1단계로 돌아가기" onClick={() => setGuestIntroCompleted(false)}><span aria-hidden="true">←</span></button><div className="quote-guest-stage-title-row"><div className="quote-form-mode-title inline">로그인 없이 견적받기</div><div className="quote-flow-step inline">(2단계)</div></div></div>}
+              {guestMode && <div className="quote-form-mode-subtitle">이사 방법 선택(비회원)</div>}
+              {!guestMode && <div className="quote-form-mode-title">짐 보관 필요여부를 선택해주세요!</div>}
               <div className="quote-mode-choice-row">
                 <button type="button" className="quote-mode-button compact" onClick={() => selectMode('same_day')}>당일이사</button>
               </div>
@@ -5729,11 +5741,12 @@ function QuoteFormsPage({ user, guestMode = false }) {
         )}
 
         {!submittedSummary && (!!mode) && <>
-        {guestMode && <div className="quote-flow-step quote-flow-step-inline">3단계</div>}
-        <div className="quote-form-flow-topbar align-left">
+        <section className="quote-mode-select-card quote-guest-detail-shell">
+        {guestMode ? <div className="quote-guest-stage-header stage-3"><button type="button" className="quote-back-button" aria-label="2단계로 돌아가기" onClick={resetModeSelection}><span aria-hidden="true">←</span></button><div className="quote-guest-stage-title-row stacked"><div className="quote-form-mode-title inline">로그인 없이 견적받기</div><div className="quote-flow-step inline">(3단계)</div></div></div> : null}
+        <div className="quote-form-flow-topbar align-left guest-detail-topbar">
           <button type="button" className="ghost small" onClick={resetModeSelection}>이전 선택으로</button>
-          <div className="quote-form-flow-badge">{mode === 'storage' ? '짐보관이사' : '당일이사'} 양식</div>
         </div>
+        <div className="quote-form-detail-heading">{mode === 'storage' ? '짐보관' : '당일'}이사 상세 견적요청서{guestMode ? '(비회원)' : ''}</div>
 
         <div className="quote-move-type-table-wrapper compact">
           <table className="quote-move-type-table compact-table">
@@ -5813,6 +5826,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
           <div className="quote-submit-bar"><button type="submit" disabled={submitting}>{submitting ? '접수 중...' : '신청 보내기'}</button></div>
         </form>
+        </section>
         </>}
 
         {privacyModalOpen && <div className="modal-overlay" onClick={() => closePrivacyModal(true)}>
