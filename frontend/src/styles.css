@@ -7980,6 +7980,32 @@ a:focus-visible {
   height: 18px;
 }
 
+.warehouse-sheet-table.is-compact td {
+  overflow: hidden;
+}
+
+.warehouse-sheet-table.is-compact .warehouse-cell-display,
+.warehouse-sheet-table.is-compact .warehouse-cell-input,
+.warehouse-sheet-table.is-compact .warehouse-cell-textarea {
+  padding: 3px 4px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.warehouse-sheet-table.is-compact .warehouse-cell-textarea {
+  min-height: 34px;
+  resize: both;
+}
+
+.warehouse-sheet-table.is-compact .warehouse-checkbox-cell {
+  min-height: 24px;
+}
+
+.warehouse-sheet-table.is-compact .warehouse-checkbox-cell input {
+  width: 15px;
+  height: 15px;
+}
+
 @media (max-width: 768px) {
   .warehouse-mode-tabs button,
   .warehouse-sub-tabs button {
@@ -7997,6 +8023,18 @@ a:focus-visible {
   .warehouse-cell-textarea {
     padding: 5px 6px;
     font-size: 12px;
+  }
+
+  .warehouse-sheet-table.is-compact .warehouse-cell-display,
+  .warehouse-sheet-table.is-compact .warehouse-cell-input,
+  .warehouse-sheet-table.is-compact .warehouse-cell-textarea {
+    padding: 2px 3px;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .warehouse-sheet-table.is-compact .warehouse-cell-textarea {
+    min-height: 30px;
   }
 }
 

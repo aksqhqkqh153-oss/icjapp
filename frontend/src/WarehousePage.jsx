@@ -103,18 +103,20 @@ function displayValue(value) {
   return String(value)
 }
 
-function sheetCellStyle(sheet, rowIndex, colIndex, cellStyle = {}) {
-  const width = pxWidth(sheet?.colWidths?.[String(colIndex + 1)], 84)
-  const height = Number(sheet?.rowHeights?.[String(rowIndex + 1)] || 34)
+function sheetCellStyle(sheet, rowIndex, colIndex, cellStyle = {}, compact = false) {
+  const baseWidth = pxWidth(sheet?.colWidths?.[String(colIndex + 1)], compact ? 64 : 84)
+  const width = compact ? Math.max(36, Math.round(baseWidth * 0.78)) : baseWidth
+  const baseHeight = Number(sheet?.rowHeights?.[String(rowIndex + 1)] || 34)
+  const height = compact ? Math.max(22, Math.round(baseHeight * 0.82)) : baseHeight
   const border = cellStyle.border || {}
   return {
     minWidth: `${width}px`,
     width: `${width}px`,
-    minHeight: `${Math.max(28, Math.round(height))}px`,
+    minHeight: `${Math.max(compact ? 22 : 28, Math.round(height))}px`,
     backgroundColor: cellStyle.fill ? `#${String(cellStyle.fill).replace(/^#/, '')}` : undefined,
     color: cellStyle.fontColor ? `#${String(cellStyle.fontColor).replace(/^#/, '')}` : undefined,
     fontWeight: cellStyle.fontBold ? 700 : 400,
-    fontSize: cellStyle.fontSize ? `${Math.max(10, Math.min(18, Number(cellStyle.fontSize)))}px` : undefined,
+    fontSize: cellStyle.fontSize ? `${Math.max(compact ? 9 : 10, Math.min(compact ? 15 : 18, Number(cellStyle.fontSize) * (compact ? 0.86 : 1)))}px` : undefined,
     textAlign: cellStyle.hAlign || 'center',
     verticalAlign: cellStyle.vAlign || 'middle',
     whiteSpace: cellStyle.wrap ? 'pre-line' : 'pre-line',
@@ -125,7 +127,7 @@ function sheetCellStyle(sheet, rowIndex, colIndex, cellStyle = {}) {
   }
 }
 
-function SpreadsheetTable({ title, sheet, editable = false, onEdit }) {
+function SpreadsheetTable({ title, sheet, editable = false, onEdit, compact = false }) {
   const mergeMaps = useMemo(() => buildMergeMaps(sheet?.merges || []), [sheet])
   const [drafts, setDrafts] = useState({})
 
@@ -139,7 +141,7 @@ function SpreadsheetTable({ title, sheet, editable = false, onEdit }) {
     <div className="warehouse-sheet-card">
       {title ? <div className="warehouse-sheet-title">{title}</div> : null}
       <div className="warehouse-sheet-scroll">
-        <table className={`warehouse-sheet-table${editable ? ' is-editable' : ''}`}>
+        <table className={`warehouse-sheet-table${editable ? ' is-editable' : ''}${compact ? ' is-compact' : ''}`}>
           <tbody>
             {sheet.rows.map((row, rowIndex) => (
               <tr key={`r-${rowIndex + 1}`}>
@@ -149,7 +151,7 @@ function SpreadsheetTable({ title, sheet, editable = false, onEdit }) {
                   const key = `${rowNo}:${colNo}`
                   if (mergeMaps.hiddenMap.has(key)) return null
                   const merge = mergeMaps.startMap.get(key)
-                  const style = sheetCellStyle(sheet, rowIndex, colIndex, sheet.styles?.[rowIndex]?.[colIndex])
+                  const style = sheetCellStyle(sheet, rowIndex, colIndex, sheet.styles?.[rowIndex]?.[colIndex], compact)
                   const currentValue = Object.prototype.hasOwnProperty.call(drafts, key) ? drafts[key] : displayValue(value)
                   const isBool = typeof value === 'boolean'
                   const multiLine = String(currentValue || '').includes('\n') || String(currentValue || '').length > 22
@@ -240,6 +242,7 @@ export default function WarehousePage() {
 
   const selectedInputTab = INPUT_TABS.find((item) => item.key === inputSite) || INPUT_TABS[0]
   const currentInputSheet = resolveSheetByTab(state, selectedInputTab)
+  const isCompactInputTab = ['gimpo-material-edit', 'galmae-material-edit'].includes(selectedInputTab?.key)
 
   return (
     <div className="feature-card warehouse-page-shell">
@@ -272,7 +275,7 @@ export default function WarehousePage() {
               </button>
             ))}
           </div>
-          {loading ? <div className="empty-state">창고 시트를 불러오는 중입니다...</div> : <SpreadsheetTable title={selectedInputTab?.title || selectedInputTab?.sheetName} sheet={currentInputSheet} editable onEdit={handleEdit} />}
+          {loading ? <div className="empty-state">창고 시트를 불러오는 중입니다...</div> : <SpreadsheetTable title={selectedInputTab?.title || selectedInputTab?.sheetName} sheet={currentInputSheet} editable onEdit={handleEdit} compact={isCompactInputTab} />}
         </>
       ) : (
         <>
