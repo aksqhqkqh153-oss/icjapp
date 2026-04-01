@@ -6606,6 +6606,12 @@ function AdminModePage() {
   const [accountManageOpen, setAccountManageOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
   const [authorityOpen, setAuthorityOpen] = useState(false)
+  const [materialsRequestDeleteOpen, setMaterialsRequestDeleteOpen] = useState(false)
+  const [materialsRequestDeleteFilters, setMaterialsRequestDeleteFilters] = useState({ userId: 'all', startDate: '', endDate: '', status: 'all' })
+  const [materialsRequestDeleteRows, setMaterialsRequestDeleteRows] = useState([])
+  const [materialsRequestDeleteSelection, setMaterialsRequestDeleteSelection] = useState([])
+  const [materialsRequestDeleteLoading, setMaterialsRequestDeleteLoading] = useState(false)
+  const [materialsRequestDeleteSubmitting, setMaterialsRequestDeleteSubmitting] = useState(false)
   const [materialsTableSizeOpen, setMaterialsTableSizeOpen] = useState(false)
   const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
   const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
@@ -6745,6 +6751,51 @@ function AdminModePage() {
     setMessage('계정 권한 정보가 저장되었습니다.')
     await load()
   }
+
+  async function loadMaterialsDeleteRequests(nextFilters = materialsRequestDeleteFilters) {
+    setMaterialsRequestDeleteLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (String(nextFilters.userId || 'all') !== 'all') params.set('user_id', String(nextFilters.userId))
+      if (String(nextFilters.status || 'all') !== 'all') params.set('status', String(nextFilters.status))
+      if (String(nextFilters.startDate || '').trim()) params.set('start_date', String(nextFilters.startDate).trim())
+      if (String(nextFilters.endDate || '').trim()) params.set('end_date', String(nextFilters.endDate).trim())
+      const result = await api(`/api/admin/materials/purchase-requests${params.toString() ? `?${params.toString()}` : ''}`)
+      setMaterialsRequestDeleteRows(Array.isArray(result?.requests) ? result.requests : [])
+      setMaterialsRequestDeleteSelection([])
+    } catch (err) {
+      window.alert(err.message || '자재신청현황 데이터를 불러오지 못했습니다.')
+    } finally {
+      setMaterialsRequestDeleteLoading(false)
+    }
+  }
+
+  async function deleteMaterialsDeleteRequests() {
+    if (!materialsRequestDeleteSelection.length) {
+      window.alert('삭제할 신청현황을 선택해 주세요.')
+      return
+    }
+    if (!window.confirm('선택한 자재 신청현황을 삭제하시겠습니까?')) return
+    setMaterialsRequestDeleteSubmitting(true)
+    try {
+      await api('/api/admin/materials/purchase-requests/delete', {
+        method: 'POST',
+        body: JSON.stringify({ request_ids: materialsRequestDeleteSelection }),
+      })
+      setMessage('선택한 자재 신청현황이 삭제되었습니다.')
+      await loadMaterialsDeleteRequests()
+    } catch (err) {
+      window.alert(err.message || '자재 신청현황 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setMaterialsRequestDeleteSubmitting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (materialsRequestDeleteOpen) {
+      loadMaterialsDeleteRequests()
+    }
+  }, [materialsRequestDeleteOpen])
 
   function updateMaterialsTableEditorField(field, value) {
     setMaterialsTableEditor(prev => ({ ...prev, [field]: value }))
@@ -7765,6 +7816,80 @@ function AdminModePage() {
               ))}
             </div>
           </>
+        )}
+      </section>
+
+      <section className="card admin-mode-card">
+        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setMaterialsRequestDeleteOpen(v => !v)} onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setMaterialsRequestDeleteOpen(v => !v)
+          }
+        }}>
+          <h2>자재신청현황삭제</h2>
+          <span className="admin-section-chevron">{materialsRequestDeleteOpen ? '−' : '+'}</span>
+        </div>
+        {materialsRequestDeleteOpen && (
+          <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
+            <div className="admin-inline-grid compact-inline-grid materials-table-admin-controls">
+              <label>계정
+                <select value={materialsRequestDeleteFilters.userId} onChange={e => setMaterialsRequestDeleteFilters(prev => ({ ...prev, userId: e.target.value }))}>
+                  <option value="all">전체 계정</option>
+                  {accountRows.map(item => (
+                    <option key={`materials-delete-user-${item.id}`} value={item.id}>
+                      {item.name || item.nickname || item.email || `계정 ${item.id}`} / {item.email || '-'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>상태
+                <select value={materialsRequestDeleteFilters.status} onChange={e => setMaterialsRequestDeleteFilters(prev => ({ ...prev, status: e.target.value }))}>
+                  <option value="all">전체</option>
+                  <option value="pending">신청접수</option>
+                  <option value="rejected">반려됨</option>
+                  <option value="settled">결산완료</option>
+                </select>
+              </label>
+              <label>시작일
+                <input type="date" value={materialsRequestDeleteFilters.startDate} onChange={e => setMaterialsRequestDeleteFilters(prev => ({ ...prev, startDate: e.target.value }))} />
+              </label>
+              <label>종료일
+                <input type="date" value={materialsRequestDeleteFilters.endDate} onChange={e => setMaterialsRequestDeleteFilters(prev => ({ ...prev, endDate: e.target.value }))} />
+              </label>
+            </div>
+            <div className="inline-actions wrap end">
+              <button type="button" className="small ghost" disabled={materialsRequestDeleteLoading} onClick={() => loadMaterialsDeleteRequests()}>조회</button>
+              <button type="button" className="small ghost" disabled={materialsRequestDeleteSubmitting || materialsRequestDeleteLoading} onClick={deleteMaterialsDeleteRequests}>삭제</button>
+            </div>
+            <div className="admin-account-table materials-admin-delete-table">
+              {materialsRequestDeleteLoading ? (
+                <div className="muted">불러오는 중...</div>
+              ) : materialsRequestDeleteRows.length ? materialsRequestDeleteRows.map(request => {
+                const meta = parseRequesterMeta(request)
+                const checked = materialsRequestDeleteSelection.includes(request.id)
+                return (
+                  <label key={`materials-delete-row-${request.id}`} className="materials-admin-delete-row">
+                    <div className="materials-admin-delete-check">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setMaterialsRequestDeleteSelection(prev => e.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))}
+                      />
+                    </div>
+                    <div>{formatRequesterBranchLabel(meta.branch)}</div>
+                    <div>{meta.name}</div>
+                    <div>{meta.uniqueId || '-'}</div>
+                    <div>{formatFullDateLabel(request.created_at)}</div>
+                    <div>{materialsStageStatusLabel(request.status)}</div>
+                    <div>{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
+                  </label>
+                )
+              }) : (
+                <div className="muted">조건에 맞는 신청현황이 없습니다.</div>
+              )}
+            </div>
+            <div className="muted tiny-text">선택한 신청현황은 모든 계정 화면에서 즉시 삭제됩니다.</div>
+          </div>
         )}
       </section>
 

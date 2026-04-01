@@ -7126,3 +7126,57 @@ a:focus-visible {
     justify-content: flex-end;
   }
 }
+
+.materials-admin-delete-table {
+  display: grid;
+  gap: 0;
+  border: 1px solid #d4d7dd;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.materials-admin-delete-row {
+  display: grid;
+  grid-template-columns: 64px minmax(72px, 0.7fr) minmax(96px, 1fr) minmax(96px, 1fr) minmax(128px, 1fr) minmax(88px, 0.8fr) minmax(96px, 0.8fr);
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px dashed #cfd4dc;
+  background: #fff;
+}
+
+.materials-admin-delete-row:last-child {
+  border-bottom: 0;
+}
+
+.materials-admin-delete-row > div,
+.materials-admin-delete-check {
+  min-width: 0;
+  padding: 8px 10px;
+  border-right: 1px dashed #cfd4dc;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.materials-admin-delete-row > div:last-child {
+  border-right: 0;
+}
+
+.materials-admin-delete-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .materials-admin-delete-row {
+    grid-template-columns: 52px minmax(54px, 0.7fr) minmax(70px, 0.9fr) minmax(78px, 0.9fr) minmax(92px, 1fr) minmax(70px, 0.72fr) minmax(78px, 0.82fr);
+  }
+
+  .materials-admin-delete-row > div,
+  .materials-admin-delete-check {
+    padding: 7px 6px;
+    font-size: 11px;
+  }
+}

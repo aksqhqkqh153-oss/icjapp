@@ -321,6 +321,9 @@ class MaterialPurchaseCreateIn(BaseModel):
 class MaterialSettlementProcessIn(BaseModel):
     request_ids: list[int] = []
 
+class MaterialRequestDeleteIn(BaseModel):
+    request_ids: list[int] = []
+
 class MaterialRequestUpdateRowIn(BaseModel):
     product_id: int
     quantity: int = 0
@@ -3993,6 +3996,57 @@ def update_material_purchase_requests(payload: MaterialRequestUpdateIn, user=Dep
             updated = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (int(request_row['id']),)).fetchone()
             updated_requests.append(_material_request_detail(conn, row_to_dict(updated)))
         return {'ok': True, 'requests': updated_requests}
+
+@app.get('/api/admin/materials/purchase-requests')
+def admin_list_material_purchase_requests(user_id: int = 0, status: str = '', start_date: str = '', end_date: str = '', admin=Depends(require_admin_mode_user)):
+    allowed_statuses = {'pending', 'settled', 'rejected'}
+    normalized_status = str(status or '').strip().lower()
+    with get_conn() as conn:
+        query = "SELECT * FROM material_purchase_requests WHERE 1=1"
+        params = []
+        if int(user_id or 0) > 0:
+            query += " AND user_id = ?"
+            params.append(int(user_id))
+        if normalized_status and normalized_status in allowed_statuses:
+            query += " AND status = ?"
+            params.append(normalized_status)
+        if str(start_date or '').strip():
+            query += " AND substr(created_at, 1, 10) >= ?"
+            params.append(str(start_date).strip())
+        if str(end_date or '').strip():
+            query += " AND substr(created_at, 1, 10) <= ?"
+            params.append(str(end_date).strip())
+        query += " ORDER BY created_at DESC, id DESC LIMIT 500"
+        rows = [
+            _material_request_detail(conn, row_to_dict(row))
+            for row in conn.execute(query, tuple(params)).fetchall()
+        ]
+    return {'requests': rows}
+
+@app.post('/api/admin/materials/purchase-requests/delete')
+def admin_delete_material_purchase_requests(payload: MaterialRequestDeleteIn, admin=Depends(require_admin_mode_user)):
+    request_ids = sorted({int(item) for item in payload.request_ids if int(item or 0) > 0})
+    if not request_ids:
+        raise HTTPException(status_code=400, detail='삭제할 신청현황을 선택해 주세요.')
+    placeholders = ','.join('?' for _ in request_ids)
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT id FROM material_purchase_requests WHERE id IN ({placeholders})",
+            tuple(request_ids),
+        ).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail='삭제할 신청현황을 찾을 수 없습니다.')
+        valid_ids = [int(row['id']) for row in rows]
+        valid_placeholders = ','.join('?' for _ in valid_ids)
+        conn.execute(
+            f"DELETE FROM material_purchase_request_items WHERE request_id IN ({valid_placeholders})",
+            tuple(valid_ids),
+        )
+        conn.execute(
+            f"DELETE FROM material_purchase_requests WHERE id IN ({valid_placeholders})",
+            tuple(valid_ids),
+        )
+    return {'ok': True, 'deleted_ids': valid_ids}
 
 @app.post('/api/materials/inventory')
 def save_material_inventory(payload: MaterialInventorySaveIn, user=Depends(require_user)):
