@@ -9120,7 +9120,7 @@ const MATERIALS_TABLE_WIDTH_DEFAULTS = {
   myRequests: [180, 108, 108, 124, 120],
   requesters: [112, 108, 150, 148, 148, 124],
   settlements: [112, 108, 150, 148, 148, 124],
-  history: [108, 150, 148, 148, 124],
+  history: [112, 108, 150, 148, 148, 124],
 }
 
 const MATERIALS_TABLE_EDIT_OPTIONS = [
@@ -9145,7 +9145,7 @@ const MATERIALS_TABLE_COLUMN_LABELS = {
   requesters: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
   incoming: ['구분', '물품가', '현재고', '입고량', '출고량', '정산수량', '비고'],
   settlements: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
-  history: ['호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
+  history: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
 }
 
 function getMaterialsDeviceType(isMobile) {
@@ -9177,7 +9177,7 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
       myRequests: 'minmax(0, 1.32fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 0.98fr)',
       requesters: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
       settlements: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
-      history: 'minmax(0, 0.72fr) minmax(0, 0.9fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr)',
+      history: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
     }
     if (mobileTemplates[key]) return mobileTemplates[key]
   }
@@ -9208,6 +9208,7 @@ function MaterialsPage({ user }) {
   const [inventoryDraft, setInventoryDraft] = useState({})
   const [incomingDraft, setIncomingDraft] = useState({})
   const [incomingEntryDate, setIncomingEntryDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [forceIncomingApply, setForceIncomingApply] = useState(false)
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
   const [settlementFilterDate, setSettlementFilterDate] = useState('')
@@ -9475,9 +9476,9 @@ function MaterialsPage({ user }) {
     try {
       await api('/api/materials/incoming', {
         method: 'POST',
-        body: JSON.stringify({ entry_date: incomingEntryDate, rows }),
+        body: JSON.stringify({ entry_date: incomingEntryDate, rows, force_apply: forceIncomingApply }),
       })
-      setNotice('자재입출고가 반영되었습니다.')
+      setNotice(forceIncomingApply ? '강제입력이 반영되었습니다. 입출고 기록은 남기지 않고 현재고만 조정했습니다.' : '자재입출고가 반영되었습니다.')
       await loadOverview('incoming')
     } catch (error) {
       setNotice(error.message || '자재입고 처리 중 오류가 발생했습니다.')
@@ -9901,6 +9902,7 @@ function MaterialsPage({ user }) {
     return (
       <div className="materials-request-sheet materials-request-sheet-history">
         <div className="materials-request-sheet-head materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
+          <div>선택</div>
           <div>호점</div>
           <div>이름</div>
           <div>구매신청일자</div>
@@ -9913,6 +9915,7 @@ function MaterialsPage({ user }) {
           return (
             <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history">
               <div className="materials-request-sheet-row materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
+                <div className="materials-history-static-cell">완료</div>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
@@ -10257,13 +10260,18 @@ function MaterialsPage({ user }) {
             )
           })}
         </div>
-        <div className="row gap wrap materials-actions-right materials-actions-bottom">
+        <div className="row gap wrap materials-actions-right materials-actions-bottom materials-incoming-actions-bottom">
           <label className="materials-date-inline-label">
             <span>입고입력일</span>
             <input type="date" value={incomingEntryDate} onChange={(e) => setIncomingEntryDate(e.target.value)} />
           </label>
+          <label className="materials-force-toggle">
+            <input type="checkbox" checked={forceIncomingApply} onChange={(e) => setForceIncomingApply(e.target.checked)} />
+            <span>강제입력</span>
+          </label>
           <button type="button" className="ghost active materials-bottom-button materials-register-button" disabled={saving} onClick={saveIncomingStock}>입고입력</button>
         </div>
+        {forceIncomingApply ? <div className="muted tiny-text">강제입력 체크 후 저장하면 입출고 기록은 남기지 않고 현재고와 정산수량만 즉시 조정됩니다.</div> : null}
       </section>
     )
   }

@@ -343,6 +343,7 @@ class MaterialInventorySaveIn(BaseModel):
 
 class MaterialIncomingSaveIn(BaseModel):
     entry_date: str = ''
+    force_apply: bool = False
     rows: list[MaterialInventoryRowIn] = []
 
 class InquiryIn(BaseModel):
@@ -4116,17 +4117,23 @@ def save_material_incoming(payload: MaterialIncomingSaveIn, user=Depends(require
             if not valid_rows:
                 raise HTTPException(status_code=400, detail='유효한 입출고 품목이 없습니다.')
             existing_rows = {int(r['product_id']): row_to_dict(r) for r in conn.execute("SELECT * FROM material_inventory_daily WHERE inventory_date = ?", (entry_date,)).fetchall()}
+            force_apply = bool(getattr(payload, 'force_apply', False))
             for row in valid_rows:
                 product = product_map[row['product_id']]
                 existing = existing_rows.get(row['product_id'], {})
-                prev_incoming = int(existing.get('incoming_qty') or 0)
-                prev_outgoing = int(existing.get('outgoing_qty') or 0)
-                delta = int(row['incoming_qty']) - prev_incoming - (int(row['outgoing_qty']) - prev_outgoing)
+                if force_apply:
+                    delta = int(row['incoming_qty']) - int(row['outgoing_qty'])
+                else:
+                    prev_incoming = int(existing.get('incoming_qty') or 0)
+                    prev_outgoing = int(existing.get('outgoing_qty') or 0)
+                    delta = int(row['incoming_qty']) - prev_incoming - (int(row['outgoing_qty']) - prev_outgoing)
                 next_stock = max(0, int(product.get('current_stock') or 0) + delta)
                 conn.execute(
                     "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
                     (next_stock, now, row['product_id']),
                 )
+                if force_apply:
+                    continue
                 conn.execute(
                     '''
                     INSERT INTO material_inventory_daily(inventory_date, product_id, incoming_qty, note, outgoing_qty, is_closed, closed_at, created_at, updated_at)
