@@ -866,19 +866,69 @@ def _material_request_detail(conn, request_row: dict) -> dict:
         'items': items,
     }
 
+def _pending_material_quantity_map(conn) -> dict[int, int]:
+    rows = conn.execute(
+        """
+        SELECT i.product_id, COALESCE(SUM(i.quantity), 0) AS total_qty
+        FROM material_purchase_request_items i
+        JOIN material_purchase_requests r ON r.id = i.request_id
+        WHERE r.status = 'pending' AND COALESCE(i.quantity, 0) > 0
+        GROUP BY i.product_id
+        """
+    ).fetchall()
+    return {int(row['product_id']): int(row['total_qty'] or 0) for row in rows}
+
+
+def _material_request_quantity_map(conn, request_ids: list[int]) -> dict[int, int]:
+    ids = sorted({int(item) for item in request_ids if int(item or 0) > 0})
+    if not ids:
+        return {}
+    placeholders = ','.join('?' for _ in ids)
+    rows = conn.execute(
+        f"SELECT product_id, COALESCE(SUM(quantity), 0) AS total_qty FROM material_purchase_request_items WHERE request_id IN ({placeholders}) AND COALESCE(quantity, 0) > 0 GROUP BY product_id",
+        tuple(ids),
+    ).fetchall()
+    return {int(row['product_id']): int(row['total_qty'] or 0) for row in rows}
+
+
+def _adjust_material_stock_by_product_map(conn, quantity_map: dict[int, int], direction: int, changed_at: str):
+    if not quantity_map:
+        return
+    products = {
+        int(row['id']): row_to_dict(row)
+        for row in conn.execute("SELECT id, current_stock FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()
+    }
+    for product_id, qty in quantity_map.items():
+        if product_id not in products:
+            continue
+        delta = int(qty or 0) * int(direction or 0)
+        if delta == 0:
+            continue
+        current_stock = max(0, int(products[product_id].get('current_stock') or 0) + delta)
+        conn.execute(
+            "UPDATE material_products SET current_stock = ?, updated_at = ? WHERE id = ?",
+            (current_stock, changed_at, product_id),
+        )
+
+
+def _adjust_material_stock_by_request_ids(conn, request_ids: list[int], direction: int, changed_at: str):
+    _adjust_material_stock_by_product_map(conn, _material_request_quantity_map(conn, request_ids), direction, changed_at)
+
+
 def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
     products = _material_products(conn)
-    outgoing_rows = conn.execute(
-        '''
+    pending_qty_map = _pending_material_quantity_map(conn)
+    settled_rows = conn.execute(
+        """
         SELECT i.product_id, COALESCE(SUM(i.quantity), 0) AS total_qty
         FROM material_purchase_request_items i
         JOIN material_purchase_requests r ON r.id = i.request_id
         WHERE r.status = 'settled' AND COALESCE(substr(r.settled_at, 1, 10), '') = ? AND COALESCE(i.quantity, 0) > 0
         GROUP BY i.product_id
-        ''',
+        """,
         (target_date,),
     ).fetchall()
-    outgoing_map = {int(row['product_id']): int(row['total_qty'] or 0) for row in outgoing_rows}
+    settled_outgoing_map = {int(row['product_id']): int(row['total_qty'] or 0) for row in settled_rows}
     daily_rows = conn.execute(
         "SELECT * FROM material_inventory_daily WHERE inventory_date = ?",
         (target_date,),
@@ -886,21 +936,31 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
     daily_map = {int(row['product_id']): row_to_dict(row) for row in daily_rows}
     output = []
     for product in products:
-        row = daily_map.get(int(product['id']), {})
+        product_id = int(product['id'])
+        row = daily_map.get(product_id, {})
+        base_current_stock = max(0, int(product.get('current_stock') or 0))
+        pending_qty = int(pending_qty_map.get(product_id, 0) or 0)
+        incoming_qty = int(row.get('incoming_qty') or 0)
+        manual_outgoing_qty = int(row.get('outgoing_qty') or 0)
+        settled_outgoing_qty = int(settled_outgoing_map.get(product_id, 0) or 0)
+        available_stock = max(0, base_current_stock - pending_qty)
         output.append({
-            'product_id': int(product['id']),
+            'product_id': product_id,
             'code': product.get('code', ''),
             'name': product.get('name', ''),
             'short_name': product.get('short_name', ''),
             'unit_price': int(product.get('unit_price') or 0),
-            'current_stock': int(product.get('current_stock') or 0),
-            'incoming_qty': int(row.get('incoming_qty') or 0),
-            'outgoing_qty': int(outgoing_map.get(int(product['id']), 0) or 0) + int(row.get('outgoing_qty') or 0),
-            'manual_outgoing_qty': int(row.get('outgoing_qty') or 0),
+            'base_current_stock': base_current_stock,
+            'current_stock': available_stock,
+            'pending_qty': pending_qty,
+            'incoming_qty': incoming_qty,
+            'outgoing_qty': settled_outgoing_qty + manual_outgoing_qty,
+            'settled_outgoing_qty': settled_outgoing_qty,
+            'manual_outgoing_qty': manual_outgoing_qty,
             'note': row.get('note', '') or '',
             'is_closed': bool(int(row.get('is_closed') or 0)) if row else False,
             'closed_at': row.get('closed_at', '') or '',
-            'expected_stock': int(product.get('current_stock') or 0),
+            'expected_stock': available_stock,
         })
     return output
 
@@ -953,31 +1013,18 @@ def _material_overview_payload(conn, user: dict) -> dict:
     history_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
     my_request_rows = [row for row in request_rows if int(row.get('user_id') or 0) == int(user.get('id') or 0)]
     products = _material_products(conn)
-    raw_inventory_rows = _material_today_inventory_rows(conn, today_key)
-    inventory_map = {int(row['product_id']): row for row in raw_inventory_rows}
-    pending_qty_map = {}
-    for row in pending_requests:
-        for item in row.get('items', []):
-            product_id = int(item.get('product_id') or 0)
-            pending_qty_map[product_id] = pending_qty_map.get(product_id, 0) + max(0, int(item.get('quantity') or 0))
-    inventory_rows = []
-    for row in raw_inventory_rows:
-        pending_qty = int(pending_qty_map.get(int(row['product_id']), 0) or 0)
-        adjusted_current_stock = max(0, int(row.get('current_stock') or 0) - pending_qty)
-        inventory_rows.append({
-            **row,
-            'pending_qty': pending_qty,
-            'current_stock': adjusted_current_stock,
-            'expected_stock': max(0, adjusted_current_stock + int(row.get('incoming_qty') or 0) - int(row.get('outgoing_qty') or 0)),
-        })
+    inventory_rows = _material_today_inventory_rows(conn, today_key)
+    inventory_map = {int(row['product_id']): row for row in inventory_rows}
+    pending_qty_map = _pending_material_quantity_map(conn)
     effective_products = []
     for product in products:
         product_copy = dict(product)
-        base_stock = max(0, int(product_copy.get('current_stock') or 0))
-        inventory_row = inventory_map.get(int(product_copy['id']))
-        if inventory_row:
-            base_stock = max(0, int(inventory_row.get('expected_stock') or 0))
-        product_copy['current_stock'] = max(0, base_stock - int(pending_qty_map.get(int(product_copy['id']), 0) or 0))
+        product_id = int(product_copy['id'])
+        inventory_row = inventory_map.get(product_id, {})
+        available_stock = int(inventory_row.get('current_stock', product_copy.get('current_stock') or 0) or 0)
+        product_copy['base_current_stock'] = int(inventory_row.get('base_current_stock', product_copy.get('current_stock') or 0) or 0)
+        product_copy['pending_qty'] = int(pending_qty_map.get(product_id, 0) or 0)
+        product_copy['current_stock'] = max(0, available_stock)
         effective_products.append(product_copy)
     return {
         'today': today_key,
@@ -3886,6 +3933,7 @@ def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user
                 continue
             detail = _material_request_detail(conn, row)
             share_text = _material_share_text([detail])
+            _adjust_material_stock_by_request_ids(conn, [int(row['id'])], -1, now)
             conn.execute(
                 "UPDATE material_purchase_requests SET status = 'settled', payment_confirmed = 1, settled_at = ?, settled_by_user_id = ?, share_snapshot_json = ? WHERE id = ?",
                 (now, user['id'], share_text, row['id']),
@@ -3917,6 +3965,7 @@ def unsettle_material_purchase_requests(payload: MaterialSettlementProcessIn, us
             if str(row.get('status') or '') != 'settled':
                 updated_rows.append(_material_request_detail(conn, row))
                 continue
+            _adjust_material_stock_by_request_ids(conn, [int(row['id'])], 1, now)
             conn.execute(
                 "UPDATE material_purchase_requests SET status = 'pending', payment_confirmed = 0, settled_at = '', settled_by_user_id = NULL, share_snapshot_json = '' WHERE id = ?",
                 (row['id'],),
@@ -4050,6 +4099,15 @@ def admin_delete_material_purchase_requests(payload: MaterialRequestDeleteIn, ad
         if not rows:
             raise HTTPException(status_code=404, detail='삭제할 신청현황을 찾을 수 없습니다.')
         valid_ids = [int(row['id']) for row in rows]
+        settled_ids = [
+            int(row['id'])
+            for row in conn.execute(
+                f"SELECT id FROM material_purchase_requests WHERE id IN ({placeholders}) AND status = 'settled'",
+                tuple(request_ids),
+            ).fetchall()
+        ]
+        if settled_ids:
+            _adjust_material_stock_by_request_ids(conn, settled_ids, 1, utcnow())
         valid_placeholders = ','.join('?' for _ in valid_ids)
         conn.execute(
             f"DELETE FROM material_purchase_request_items WHERE request_id IN ({valid_placeholders})",
