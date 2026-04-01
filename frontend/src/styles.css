@@ -6421,3 +6421,124 @@ a:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.materials-filter-select-compact {
+  width: auto;
+  min-width: 132px;
+  max-width: 172px;
+}
+
+.materials-date-inline-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: auto;
+}
+
+.materials-date-inline-label select.materials-filter-select-compact {
+  flex: 0 0 auto;
+}
+
+.materials-history-group-list {
+  gap: 0;
+  border: 1px dashed #b6bec9;
+  border-radius: 0;
+  background: #fff;
+}
+
+.materials-history-group-header,
+.materials-history-group-meta {
+  grid-template-columns: 72px minmax(92px, 1fr) 132px 148px 132px;
+  gap: 0;
+}
+
+.materials-history-group-header {
+  padding: 10px 12px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-bottom: 1px dashed #b6bec9;
+}
+
+.materials-history-group-header > div,
+.materials-history-group-meta > div {
+  padding: 6px 8px;
+  border-right: 1px dashed #cbd5e1;
+}
+
+.materials-history-group-header > div:last-child,
+.materials-history-group-meta > div:last-child {
+  border-right: 0;
+}
+
+.materials-history-group-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px dashed #b6bec9;
+}
+
+.materials-history-group-card:last-child {
+  border-bottom: 0;
+}
+
+.materials-history-group-meta {
+  font-weight: 500;
+  align-items: stretch;
+}
+
+.materials-history-group-details {
+  display: block;
+  padding: 0;
+  border-top: 1px dashed #d5dbe3;
+}
+
+.materials-history-group-detail-line {
+  padding: 10px 12px;
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  button.materials-tab {
+    min-height: 50px;
+    padding: 8px 4px;
+    font-size: 13.4px;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: keep-all;
+  }
+
+  .materials-filter-select-compact {
+    min-width: 122px;
+    max-width: 156px;
+  }
+
+  .materials-history-group-header,
+  .materials-history-group-meta {
+    grid-template-columns: 44px minmax(56px, 1fr) 72px 72px 82px;
+    gap: 0;
+    font-size: 11px;
+  }
+
+  .materials-history-group-header {
+    padding: 8px 6px;
+  }
+
+  .materials-history-group-header > div,
+  .materials-history-group-meta > div {
+    padding: 5px 4px;
+  }
+
+  .materials-history-group-detail-line {
+    padding: 8px 6px;
+    font-size: 11.5px;
+  }
+}

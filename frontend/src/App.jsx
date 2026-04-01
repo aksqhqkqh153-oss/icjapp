@@ -6746,6 +6746,58 @@ function AdminModePage() {
     await load()
   }
 
+  function updateMaterialsTableEditorField(field, value) {
+    setMaterialsTableEditor(prev => ({ ...prev, [field]: value }))
+  }
+
+  function updateMaterialsTableWidth(target, index, value) {
+    setMaterialsTableLayouts(prev => {
+      const next = { ...prev }
+      const current = Array.isArray(next[target]) ? [...next[target]] : [...(MATERIALS_TABLE_WIDTH_DEFAULTS[target] || [])]
+      current[index] = clampMaterialsColumnWidth(value)
+      next[target] = current
+      return next
+    })
+  }
+
+  async function saveMaterialsTableEditor() {
+    setMaterialsTableSaving(true)
+    try {
+      if (materialsTableEditor.mode === 'width') {
+        const target = materialsTableEditor.target
+        const desktopWidths = normalizeMaterialsColumnWidths(target, materialsTableLayouts[target] || MATERIALS_TABLE_WIDTH_DEFAULTS[target] || [], false)
+        const mobileWidths = normalizeMaterialsColumnWidths(target, materialsTableLayouts[target] || MATERIALS_TABLE_WIDTH_DEFAULTS[target] || [], true)
+        const desktopLayouts = { [target]: desktopWidths }
+        const mobileLayouts = { [target]: mobileWidths }
+        await Promise.all([
+          api('/api/materials/table-layout', {
+            method: 'POST',
+            body: JSON.stringify({ data: { device: 'desktop', layouts: desktopLayouts } }),
+          }),
+          api('/api/materials/table-layout', {
+            method: 'POST',
+            body: JSON.stringify({ data: { device: 'mobile', layouts: mobileLayouts } }),
+          }),
+        ])
+        setMaterialsTableLayouts(prev => ({ ...prev, [target]: desktopWidths }))
+        setMessage('표 가로 사이즈 설정이 저장되었습니다.')
+      } else {
+        const nextScales = Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, clampMaterialsScale(materialsTableScaleSettings[key] ?? 100)]))
+        const response = await api('/api/materials/table-scale', {
+          method: 'POST',
+          body: JSON.stringify({ data: { scales: nextScales } }),
+        })
+        const savedScales = response?.scales || nextScales
+        setMaterialsTableScaleSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, clampMaterialsScale(savedScales[key] ?? prev[key] ?? 100)])))
+        setMessage('표 가로 배율 설정이 저장되었습니다.')
+      }
+    } catch (error) {
+      window.alert(error.message || '표 사이즈 설정 저장 중 오류가 발생했습니다.')
+    } finally {
+      setMaterialsTableSaving(false)
+    }
+  }
+
   function normalizeDetailPayload(row) {
     const rawGroupNumber = String(row.group_number_text ?? row.group_number ?? '0')
     return {
@@ -9935,7 +9987,7 @@ function MaterialsPage({ user }) {
           <div className="row gap wrap materials-settlement-filter-row">
             <label className="materials-date-inline-label materials-date-inline-label-left">
               <span>구매신청일자</span>
-              <select value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)}>
+              <select className="materials-filter-select-compact" value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)}>
                 <option value="">전체일자</option>
                 {settlementDateOptions.map(date => <option key={`settlement-date-${date}`} value={date}>{formatSettlementFilterLabel(date)}</option>)}
               </select>
@@ -9944,9 +9996,9 @@ function MaterialsPage({ user }) {
           </div>
           {renderRequestRows(filteredSettledRequests, 'settled')}
           <div className="row gap wrap materials-actions-right materials-actions-bottom materials-settlement-actions-bottom">
+            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={goToSettlementProgress}>결산진행</button>
-            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
           </div>
         </section>
       )}
