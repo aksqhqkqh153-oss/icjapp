@@ -6598,6 +6598,7 @@ function SettingsPage({ onLogout }) {
 function AdminModePage() {
   const currentUser = getStoredUser()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -7481,7 +7482,7 @@ function AdminModePage() {
         }}>
           <div className="inline-actions wrap admin-status-title-row">
             <h2>운영현황</h2>
-            {statusOpen && !useIsMobile() && (
+            {statusOpen && !isMobile && (
               <div className="inline-actions wrap admin-status-category-tabs" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
                 <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
                 <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
@@ -7509,7 +7510,7 @@ function AdminModePage() {
                 {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => setMessage('삭제할 계정은 펼침 카드 또는 계정관리 영역에서 제외해 주세요.')}>삭제</button>}
               </div>
             </div>
-            {useIsMobile() && (
+            {isMobile && (
               <div className="inline-actions wrap admin-status-category-tabs">
                 <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
                 <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
