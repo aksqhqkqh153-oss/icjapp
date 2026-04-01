@@ -2434,6 +2434,19 @@ label { font-size: 14px; color: #4f6f8c; }
 .quick-check-card span {
   display: block;
 }
+
+.quick-check-card.quick-check-card-disabled {
+  border-color: #d1d5db;
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.quick-check-card.quick-check-card-disabled strong,
+.quick-check-card.quick-check-card-disabled span {
+  color: #6b7280;
+}
+
 .quick-check-editor.inset-card {
   margin-top: 14px;
   background: #fbfdff;

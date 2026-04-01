@@ -387,12 +387,13 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
   { id: 'point', label: '포인트', kind: 'placeholder' },
   { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
-  { id: 'materials', label: '자재구매/현황', kind: 'link', path: '/materials' },
-  { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials' },
+  { id: 'materials', label: '자재 신청현황', multiline: true, kind: 'link', path: '/materials?tab=myRequests' },
+  { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials?tab=sales' },
+  { id: 'materialsSettlement', label: '구매결산', kind: 'metric', metricKey: 'pendingMaterialsSettlementCount', path: '/materials?tab=settlements', adminOnly: true },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'storageStatus', 'settlements']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsSettlement', 'storageStatus', 'settlements']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 2
 
@@ -1153,10 +1154,7 @@ function HomePage() {
   }
 
   function handleQuickActionClick(item) {
-    if (item.id === 'materialsPendingSettlement') {
-      navigate('/materials?tab=requesters')
-      return
-    }
+    if (item.kind === 'placeholder') return
     if (item.path?.includes('?')) {
       navigate(item.path)
       return
@@ -1171,22 +1169,19 @@ function HomePage() {
   const quickLibrary = useMemo(() => {
     let base = [...QUICK_ACTION_LIBRARY]
     if (employeeRestricted) {
-      const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'settlements'])
+      const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'materialsSettlement', 'settlements'])
       base = base.filter(item => !hiddenQuickIds.has(item.id))
     }
-    if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0) {
-      base.push({ id: 'materialsPendingSettlement', label: '자재신청\n목록결산', kind: 'metric', metricKey: 'pendingMaterialsSettlementCount', path: '/materials' })
+    if (Number(currentUser?.grade || 6) > 2) {
+      base = base.filter(item => !item.adminOnly)
     }
     return base
-  }, [employeeRestricted, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+  }, [employeeRestricted, currentUser?.grade])
 
   const activeQuickItems = useMemo(() => {
     const activeIds = [...quickState.active].filter(id => quickLibrary.some(item => item.id === id))
-    if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0 && !activeIds.includes('materialsPendingSettlement')) {
-      activeIds.unshift('materialsPendingSettlement')
-    }
     return activeIds.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean)
-  }, [employeeRestricted, quickState.active, quickLibrary, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+  }, [quickState.active, quickLibrary])
   const archivedQuickItems = useMemo(() => quickState.archived.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean), [quickState.archived, quickLibrary])
 
   const homeSections = useMemo(() => {
@@ -1237,12 +1232,25 @@ function HomePage() {
             </div>
           </div>
           <div className="quick-check-grid">
-            {activeQuickItems.map(item => (
-              <button key={item.id} type="button" className="quick-check-card" onClick={() => handleQuickActionClick(item)}>
-                <strong>{item.kind === 'metric' ? String(summary?.[item.metricKey] ?? '-') : '준비중'}</strong>
-                <span style={item.id === 'materialsPendingSettlement' ? { whiteSpace: 'pre-line' } : undefined}>{item.label}</span>
-              </button>
-            ))}
+            {activeQuickItems.map(item => {
+              const topText = item.kind === 'metric'
+                ? String(summary?.[item.metricKey] ?? 0)
+                : (item.kind === 'placeholder' ? '준비중' : '')
+              const isDisabled = item.kind === 'placeholder'
+              const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`quick-check-card ${isDisabled ? 'quick-check-card-disabled' : ''}`.trim()}
+                  onClick={() => handleQuickActionClick(item)}
+                  disabled={isDisabled}
+                >
+                  {topText ? <strong>{topText}</strong> : null}
+                  <span style={item.multiline || labelText.includes('\n') ? { whiteSpace: 'pre-line' } : undefined}>{labelText}</span>
+                </button>
+              )
+            })}
           </div>
           {editingQuick && (
             <div className="quick-check-editor card inset-card">
@@ -1254,7 +1262,7 @@ function HomePage() {
                     <div className="inline-actions wrap end">
                       <button type="button" className="small ghost" onClick={() => moveQuickAction(index, -1)}>위로</button>
                       <button type="button" className="small ghost" onClick={() => moveQuickAction(index, 1)}>아래로</button>
-                      {item.id !== 'materialsPendingSettlement' && <button type="button" className="small ghost" onClick={() => archiveQuickAction(item.id)}>보관</button>}
+                      <button type="button" className="small ghost" onClick={() => archiveQuickAction(item.id)}>보관</button>
                     </div>
                   </div>
                 ))}
@@ -5657,7 +5665,7 @@ function NotificationsPage({ user }) {
       navigate('/friends?panel=requests')
       return
     }
-    if (item?.type === 'materials_pending_settlement') {
+    if (item?.type === 'materials_pending_settlement' || item?.type === 'materials_purchase_request') {
       navigate('/materials?tab=requesters')
       return
     }

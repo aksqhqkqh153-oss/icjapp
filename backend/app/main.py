@@ -3911,7 +3911,12 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
                 (request_id, product_id, qty, unit_price, line_total, memo),
             )
         row = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
-        return {'ok': True, 'request': _material_request_detail(conn, row_to_dict(row))}
+        detail = _material_request_detail(conn, row_to_dict(row))
+        detail['requester_display_name'] = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
+        detail['requester_user_name'] = str(user.get('name') or '').strip()
+        detail['requester_nickname'] = str(user.get('nickname') or '').strip()
+        _notify_material_purchase_request(conn, user, detail)
+        return {'ok': True, 'request': detail}
 
 @app.post('/api/materials/purchase-requests/settle')
 def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
