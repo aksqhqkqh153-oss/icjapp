@@ -48,6 +48,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(soomgo_review_router)
+
+ALLOWED_GENDERS = {'남성', '여성'}
+
+def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
+    gender = str(value or '').strip()
+    if not gender and allow_empty:
+        return ''
+    if gender not in ALLOWED_GENDERS:
+        raise HTTPException(status_code=400, detail='성별은 남성 또는 여성만 선택할 수 있습니다.')
+    return gender
 class SignupIn(BaseModel):
     email: str
     password: str
@@ -1637,7 +1647,7 @@ def signup(payload: SignupIn):
     account_id = payload.email.strip()
     password = payload.password.strip()
     nickname = payload.nickname.strip()
-    gender = payload.gender.strip()
+    gender = _validate_gender_value(payload.gender, allow_empty=False)
     region = payload.region.strip()
     phone = payload.phone.strip()
     recovery_email = payload.recovery_email.strip()
@@ -1889,7 +1899,7 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
             ("photo_url", payload.photo_url.strip()),
             ("phone", payload.phone.strip()),
             ("recovery_email", payload.recovery_email.strip()),
-            ("gender", payload.gender.strip()),
+            ("gender", _validate_gender_value(payload.gender, allow_empty=True)),
             ("birth_year", int(payload.birth_year or 1990)),
             ("vehicle_number", payload.vehicle_number.strip()),
             ("branch_no", payload.branch_no if int(user.get('grade') or 6) == 1 else user.get('branch_no')),
@@ -3854,6 +3864,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()
             data['email'] = str(data.get('email') or '').strip()
             data['recovery_email'] = str(data.get('recovery_email') or '').strip()
+            data['gender'] = _validate_gender_value(data.get('gender') or '', allow_empty=True)
             if data['email']:
                 dup_email = conn.execute("SELECT id FROM users WHERE email = ? AND id != ?", (data['email'], item.id)).fetchone()
                 if dup_email:
@@ -3886,6 +3897,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         raise HTTPException(status_code=400, detail='비밀번호를 입력해주세요.')
     if not str(payload.nickname or '').strip():
         raise HTTPException(status_code=400, detail='닉네임을 입력해주세요.')
+    payload_gender = _validate_gender_value(payload.gender, allow_empty=False)
     try:
         with get_conn() as conn:
             exists = conn.execute('SELECT id FROM users WHERE email = ?', (str(payload.email).strip(),)).fetchone()
@@ -3900,7 +3912,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                 INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, created_at)
                 VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (str(payload.email).strip(), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), int(payload.grade), int(bool(payload.approved)), payload.gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 0 if _is_staff_grade(payload.grade) else (1 if payload.vehicle_available else 0), generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
+                (str(payload.email).strip(), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), int(payload.grade), int(bool(payload.approved)), payload_gender, payload.birth_year, payload.region, payload.phone, payload.recovery_email, payload.vehicle_number, payload.branch_no, position_title, 0 if _is_staff_grade(payload.grade) else (1 if payload.vehicle_available else 0), generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', utcnow()),
             )
             user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

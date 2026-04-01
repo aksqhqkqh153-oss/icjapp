@@ -132,7 +132,7 @@ const ROLE_OPTIONS = [
 ]
 
 const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원', '본부장', '상담실장', '상담팀장', '상담사원']
-
+const GENDER_OPTIONS = ['남성', '여성']
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
@@ -149,7 +149,7 @@ function isAssignedBranchNo(value) {
 function branchOptionLabel(value) {
   const num = Number(value)
   if (!Number.isFinite(num)) return '본점 또는 미지정'
-  return num === 0 ? '0본점' : `${num}호점`
+  return num === 0 ? '본점' : `${num}호점`
 }
 
 function branchDisplayLabel(value, fallback = '본점/미지정') {
@@ -225,12 +225,6 @@ const MENU_PERMISSION_SECTIONS = [
     id: 'common',
     label: '공용',
     items: [
-      { id: 'home', label: '홈', path: '/' },
-      { id: 'schedule', label: '일정', path: '/calendar' },
-      { id: 'work-schedule', label: '스케줄', path: '/work-schedule' },
-      { id: 'map', label: '지도', path: '/map' },
-      { id: 'chat', label: '채팅', path: '/chat' },
-      { id: 'friends', label: '친구', path: '/friends' },
       { id: 'reviews', label: '리뷰', path: '/reviews' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
@@ -245,7 +239,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
-      { id: 'reports', label: '신고관리', path: '/reports', adminOnly: true },
+      { id: 'reports', label: '신고관리', path: '/reports' },
     ],
   },
   {
@@ -256,24 +250,11 @@ const MENU_PERMISSION_SECTIONS = [
     ],
   },
   {
-    id: 'staff',
-    label: '직원용',
-    items: [],
-  },
-  {
     id: 'admin',
     label: '관리자모드',
     items: [
       { id: 'admin-mode', label: '관리자모드', path: '/admin-mode', adminOnly: true },
       { id: 'menu-permissions', label: '메뉴권한', path: '/menu-permissions', adminOnly: true },
-    ],
-  },
-  {
-    id: 'etc',
-    label: '기타',
-    items: [
-      { id: 'meetups', label: '모임', path: '/meetups' },
-      { id: 'boards', label: '게시판', path: '/boards' },
     ],
   },
 ]
@@ -395,6 +376,21 @@ function parseExcludedBusinessSlots(value) {
 
 function serializeExcludedBusinessSlots(slots) {
   return slots.filter(Boolean).map(value => `${value}호점`).join(', ')
+}
+
+function buildExcludedBusinessDetailsFromSlots(slots = [], options = [], reasons = []) {
+  const optionMap = new Map((options || []).map(option => [String(option.value), option]))
+  return (slots || []).map((value, index) => {
+    const key = String(value || '').trim()
+    if (!key) return null
+    const option = optionMap.get(key) || {}
+    return {
+      branch_no: Number(key),
+      name: String(option.name || option.label || `${key}호점`).replace(/^\[[^\]]+\]\s*/, '').trim(),
+      reason: String((reasons || [])[index] || '').trim(),
+      user_id: Number(option.userId || 0) || null,
+    }
+  }).filter(Boolean)
 }
 
 const QUICK_ACTION_LIBRARY = [
@@ -567,14 +563,19 @@ function Layout({ children, user, onLogout }) {
   const menuPermissions = useMemo(() => normalizeMenuPermissions(user?.permission_config?.menu_permissions_json), [user?.permission_config?.menu_permissions_json])
   const employeeRestricted = isEmployeeRestrictedUser(user)
   const topMenuSections = useMemo(() => {
-    const hiddenSectionIds = employeeRestricted ? new Set(['head-office', 'business']) : new Set()
-    const hiddenItemIds = employeeRestricted ? new Set(['materials', 'workday-history', 'settlements']) : new Set()
+    const grade = Number(user?.grade || 6)
     return MENU_PERMISSION_SECTIONS
       .map(section => ({
         ...section,
-        visible: !hiddenSectionIds.has(section.id) && canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
+        visible: (() => {
+          if (section.id === 'common') return grade !== 6 && grade !== 7
+          if (section.id === 'head-office') return grade <= 2
+          if (section.id === 'business') return grade <= 4
+          if (section.id === 'admin') return grade <= 2
+          return true
+        })() && canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
         items: section.items.filter(item => {
-          if (hiddenItemIds.has(item.id)) return false
+          if (employeeRestricted && ['materials', 'workday-history', 'settlements'].includes(item.id)) return false
           if (item.adminOnly && !canAccessAdminMode(user)) return false
           return canViewMenuEntry(user, menuPermissions, `item:${item.id}`)
         }),
@@ -841,7 +842,7 @@ function SignupPage({ onLogin }) {
           <input type="text" placeholder="아이디 *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
           <input type="password" placeholder="비밀번호 *" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
           <input placeholder="닉네임 *" value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} required />
-          <input placeholder="성별 *" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} required />
+          <select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} required><option value="">성별 선택 *</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>
           <input type="number" placeholder="생년 *" value={form.birth_year} onChange={e => setForm({ ...form, birth_year: e.target.value })} required />
           <input placeholder="지역 *" value={form.region} onChange={e => setForm({ ...form, region: e.target.value })} required />
           <input placeholder="연락처 *" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
@@ -1591,7 +1592,7 @@ function ProfilePage({ onUserUpdate }) {
             </label>
             <label className="field-block">
               <span>성별</span>
-              <input value={form.gender || ''} onChange={e => updateField('gender', e.target.value)} placeholder="성별" />
+              <select value={form.gender || ''} onChange={e => updateField('gender', e.target.value)}><option value="">성별 선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>
             </label>
             <label className="field-block">
               <span>MBTI</span>
@@ -4614,7 +4615,7 @@ function WorkSchedulePage() {
   const [loading, setLoading] = useState(true)
   const [entryForm, setEntryForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [activeFormDate, setActiveFormDate] = useState('')
-  const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_staff: '' })
+  const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_business_reasons: Array(6).fill(''), excluded_staff: '' })
   const [activeNoteDate, setActiveNoteDate] = useState('')
   const [message, setMessage] = useState('')
   const [editingKey, setEditingKey] = useState('')
@@ -4666,9 +4667,11 @@ function WorkSchedulePage() {
 
   function openNotes(day) {
     setActiveNoteDate(day.date)
+    const details = Array.isArray(day.excluded_business_details) ? day.excluded_business_details : []
     setNoteForm({
       schedule_date: day.date,
-      excluded_business_slots: parseExcludedBusinessSlots((day.excluded_business_details && day.excluded_business_details.length) ? day.excluded_business_details : day.excluded_business),
+      excluded_business_slots: details.length ? details.slice(0, 6).map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business),
+      excluded_business_reasons: details.length ? details.slice(0, 6).map(item => String(item?.reason || '').trim()) : Array(6).fill(''),
       excluded_staff: day.excluded_staff || '',
     })
     setMessage('')
@@ -4688,7 +4691,17 @@ function WorkSchedulePage() {
 
   async function submitNotes(e) {
     e.preventDefault()
-    const excludedBusinessDetails = buildExcludedBusinessDetailsFromSlots(noteForm.excluded_business_slots, businessExclusionOptions)
+    const duplicated = noteForm.excluded_business_slots.filter(Boolean).some((value, index, arr) => arr.indexOf(value) !== index)
+    if (duplicated) {
+      window.alert('중첩된 선택입니다. 다른 사업자를 입력하세요')
+      return
+    }
+    const hasMissingReason = noteForm.excluded_business_slots.some((value, index) => String(value || '').trim() && !String(noteForm.excluded_business_reasons?.[index] || '').trim())
+    if (hasMissingReason) {
+      window.alert('사업자 열외사유를 입력해 주세요.')
+      return
+    }
+    const excludedBusinessDetails = buildExcludedBusinessDetailsFromSlots(noteForm.excluded_business_slots, businessExclusionOptions, noteForm.excluded_business_reasons)
     const payload = {
       schedule_date: noteForm.schedule_date,
       excluded_business: serializeExcludedBusinessSlots(noteForm.excluded_business_slots),
@@ -4950,23 +4963,30 @@ function WorkSchedulePage() {
               <form onSubmit={submitNotes} className="work-notes-form">
                 <div className="stack compact-gap">
                   <label>열외자 목록 - 사업자</label>
-                  <div className="work-excluded-business-grid">
+                  <div className="work-excluded-business-grid with-reason">
                     {noteForm.excluded_business_slots.map((slot, index) => (
-                      <select key={`${day.date}-business-${index}`} value={slot} onChange={e => {
-                        const nextValue = e.target.value
-                        if (nextValue && noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === nextValue)) {
-                          window.alert('중첩된 선택입니다. 다른 사업자를 입력하세요')
-                          return
-                        }
-                        const next = [...noteForm.excluded_business_slots]
-                        next[index] = nextValue
-                        setNoteForm({ ...noteForm, excluded_business_slots: next })
-                      }}>
-                        <option value="">선택 안 함</option>
-                        {businessExclusionOptions.map(option => (
-                          <option key={option.value} value={option.value} disabled={noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === option.value)}>{option.label}</option>
-                        ))}
-                      </select>
+                      <div key={`${day.date}-business-${index}`} className="work-excluded-business-row">
+                        <select value={slot} onChange={e => {
+                          const nextValue = e.target.value
+                          if (nextValue && noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === nextValue)) {
+                            window.alert('중첩된 선택입니다. 다른 사업자를 입력하세요')
+                            return
+                          }
+                          const next = [...noteForm.excluded_business_slots]
+                          next[index] = nextValue
+                          setNoteForm({ ...noteForm, excluded_business_slots: next })
+                        }}>
+                          <option value="">선택 안 함</option>
+                          {businessExclusionOptions.map(option => (
+                            <option key={option.value} value={option.value} disabled={noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === option.value)}>{option.label}</option>
+                          ))}
+                        </select>
+                        <input value={noteForm.excluded_business_reasons?.[index] || ''} placeholder="열외 사유" onChange={e => {
+                          const nextReasons = [...(noteForm.excluded_business_reasons || Array(6).fill(''))]
+                          nextReasons[index] = e.target.value
+                          setNoteForm({ ...noteForm, excluded_business_reasons: nextReasons })
+                        }} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -7612,7 +7632,7 @@ function AdminModePage() {
                     <label>아이디 <input autoComplete="username" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
                     <label>비밀번호 <input type="password" autoComplete="new-password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
                     <label>닉네임 <input autoComplete="nickname" value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
-                    <label>성별 <input value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })} /></label>
+                    <label>성별 <select value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })}><option value="">선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
                     <label>출생연도 <input value={createForm.birth_year} onChange={e => setCreateForm({ ...createForm, birth_year: e.target.value })} /></label>
                     <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
                     <label>연락처 <input autoComplete="tel" value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
@@ -7702,7 +7722,7 @@ function AdminModePage() {
                               </label>
                               <label>연락처 <input value={item.phone || ''} onChange={e => updateAccountRow(item.id, { phone: e.target.value })} /></label>
                               <label>복구이메일 <input value={item.recovery_email || ''} onChange={e => updateAccountRow(item.id, { recovery_email: e.target.value })} /></label>
-                              <label>성별 <input value={item.gender || ''} onChange={e => updateAccountRow(item.id, { gender: e.target.value })} /></label>
+                              <label>성별 <select value={item.gender || ''} onChange={e => updateAccountRow(item.id, { gender: e.target.value })}><option value="">선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
                               <label>출생연도 <input value={item.birth_year || ''} onChange={e => updateAccountRow(item.id, { birth_year: e.target.value })} /></label>
                               <label>지역 <input value={item.region || ''} onChange={e => updateAccountRow(item.id, { region: e.target.value })} /></label>
                               <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateAccountRow(item.id, { vehicle_number: e.target.value })} /></label>
@@ -7852,7 +7872,7 @@ function AdminModePage() {
                           <div className="admin-summary-line admin-summary-line-primary">
                             <span>[{groupNumberDisplay(item)}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
-                            <span>[{branchDisplayLabel(item.branch_no)}]</span>
+                            <span>[{isAssignedBranchNo(item.branch_no) ? branchDisplayLabel(item.branch_no) : (/^0+$/.test(groupNumberDisplay(item)) ? '본점' : '미지정')}]</span>
                             <span>[{item.name || item.nickname || '이름 미입력'}]</span>
                             <span>[{item.phone || '연락처 미입력'}]</span>
                           </div>
@@ -7868,7 +7888,7 @@ function AdminModePage() {
                           <div className="admin-inline-grid compact-inline-grid">
                             <label>차량번호 <input value={item.vehicle_number || ''} onChange={e => updateBranchRow(item.id, { vehicle_number: e.target.value })} disabled={!branchEditMode} /></label>
                             <label>직급 <input value={defaultPositionForRow(item)} onChange={e => updateBranchRow(item.id, { position_title: e.target.value })} disabled={!branchEditMode} /></label>
-                            <label>호점 <input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value })} disabled={!branchEditMode} /></label>
+                            <label>호점 <input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : (/^0+$/.test(groupNumberDisplay(item)) ? '본점' : '')} onChange={e => updateBranchRow(item.id, { branch_no: e.target.value === '본점' ? 0 : e.target.value })} disabled={!branchEditMode} /></label>
                           </div>
                         </div>
                       )}
