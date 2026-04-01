@@ -7784,11 +7784,11 @@ function AdminModePage() {
                 {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
                   ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
                   : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '정보저장', saveEmployeeDetails))}
-                {showStatusCategoryActions && <button type="button" className={statusMovePickerOpen[currentStatusCategoryKey] ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+                {showStatusCategoryActions && <button type="button" className="multiline-action-button" onClick={() => {
                   const key = currentStatusCategoryKey
                   setStatusMovePickerOpen(prev => ({ ...prev, [key]: !prev[key] }))
                   setStatusDeletePickerOpen(prev => ({ ...prev, [key]: false }))
-                }}>계정정보<br />옮겨오기</button>}
+                }}><span>계정정보<br />옮겨오기</span></button>}
                 {actorGrade === 1 && <button type="button" className={((statusTab === 'all' || statusTab === 'branch') ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
                   if (statusTab === 'all' || statusTab === 'branch') setBranchEditMode(v => !v)
                   else setEmployeeEditMode(v => !v)
@@ -7837,11 +7837,13 @@ function AdminModePage() {
             )}
             {(statusTab === 'all' || statusTab === 'branch') && (
               <>
-                <div className="admin-inline-grid compact-inline-grid summary-grid summary-grid-inline-labels branch-summary-grid-mobile-two">
-                  <label>가맹현황수 <input value={String(franchiseCount || 0)} readOnly /></label>
-                  <label>총차량수 <input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
+                <div className="admin-subtitle-row admin-status-metric-row">
+                  <div className="admin-subtitle">가맹현황/상세정보</div>
+                  <div className="admin-status-inline-metrics">
+                    <label><span>가맹현황수</span><input value={String(franchiseCount || 0)} readOnly /></label>
+                    <label><span>총차량수</span><input value={String(derivedTotalVehicleCount || 0)} readOnly /></label>
+                  </div>
                 </div>
-                <div className="admin-subtitle">가맹현황/상세정보</div>
                 <div className="list">
                   {(statusTab === 'all' ? combinedStatusRows.filter(item => franchiseRows.some(branch => branch.id === item.id)) : franchiseRows).map(item => (
                     <div key={item.id} className="list-item block admin-detail-card compact-card">
@@ -7877,7 +7879,12 @@ function AdminModePage() {
             )}
             {(statusTab === 'all' || statusTab === 'employee') && (
               <>
-                <div className="admin-subtitle">현장직원</div>
+                <div className="admin-subtitle-row admin-status-metric-row">
+                  <div className="admin-subtitle">현장직원/상세보기</div>
+                  <div className="admin-status-inline-metrics single">
+                    <label><span>현장직원수</span><input value={String(fieldEmployeeRows.length || 0)} readOnly /></label>
+                  </div>
+                </div>
                 <div className="list">
                   {(statusTab === 'all' ? fieldEmployeeRows : fieldEmployeeRows).map(item => (
                     <div key={item.id} className="list-item block admin-detail-card compact-card">
@@ -7898,7 +7905,12 @@ function AdminModePage() {
             )}
             {(statusTab === 'all' || statusTab === 'hq') && (
               <>
-                <div className="admin-subtitle">본사직원</div>
+                <div className="admin-subtitle-row admin-status-metric-row">
+                  <div className="admin-subtitle">본사직원/상세보기</div>
+                  <div className="admin-status-inline-metrics single">
+                    <label><span>본사직원수</span><input value={String(headOfficeRows.length || 0)} readOnly /></label>
+                  </div>
+                </div>
                 <div className="list">
                   {headOfficeRows.map(item => (
                     <div key={item.id} className="list-item block admin-detail-card compact-card">

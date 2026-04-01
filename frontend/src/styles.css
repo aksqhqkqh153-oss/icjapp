@@ -7556,3 +7556,72 @@ a:focus-visible {
 .admin-status-toolbar .small {
   line-height: 1.15;
 }
+
+
+.admin-status-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+.admin-status-inline-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.admin-status-inline-metrics label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.admin-status-inline-metrics label span {
+  font-weight: 700;
+}
+.admin-status-inline-metrics input {
+  width: 56px;
+  min-width: 56px;
+  padding: 4px 6px;
+  text-align: center;
+}
+.admin-status-inline-metrics.single input {
+  width: 60px;
+  min-width: 60px;
+}
+@media (max-width: 768px) {
+  .admin-status-metric-row {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  .admin-status-metric-row .admin-subtitle {
+    font-size: 12px;
+    white-space: nowrap;
+    margin: 0;
+  }
+  .admin-status-inline-metrics {
+    gap: 4px;
+  }
+  .admin-status-inline-metrics label {
+    gap: 2px;
+    font-size: 10px;
+  }
+  .admin-status-inline-metrics input {
+    width: 42px;
+    min-width: 42px;
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+  .admin-status-inline-metrics.single input {
+    width: 44px;
+    min-width: 44px;
+  }
+  .admin-status-toolbar .multiline-action-button {
+    min-width: 74px;
+    padding: 6px 8px;
+  }
+}
