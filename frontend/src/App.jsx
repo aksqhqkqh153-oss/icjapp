@@ -389,11 +389,12 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
   { id: 'materials', label: '자재 신청현황', multiline: true, kind: 'link', path: '/materials?tab=myRequests' },
   { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials?tab=sales' },
-  { id: 'materialsSettlement', label: '구매결산', kind: 'metric', metricKey: 'pendingMaterialsSettlementCount', path: '/materials?tab=settlements', adminOnly: true },
+  { id: 'materialsRequesters', label: '신청목록', kind: 'metric', metricKey: 'pendingMaterialsRequesterCount', path: '/materials?tab=requesters', adminOnly: true },
+  { id: 'materialsSettlement', label: '구매결산', kind: 'link', path: '/materials?tab=settlements', adminOnly: true },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsSettlement', 'storageStatus', 'settlements']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 2
 
@@ -1027,17 +1028,17 @@ function HomePage() {
         api('/api/friends'),
         api('/api/home/upcoming-schedules'),
       ])
-      let pendingMaterialsSettlementCount = 0
+      let pendingMaterialsRequesterCount = 0
       try {
         if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2) {
           const materials = await api('/api/materials/overview')
-          pendingMaterialsSettlementCount = Array.isArray(materials?.pending_requests) ? materials.pending_requests.length : 0
+          pendingMaterialsRequesterCount = Array.isArray(materials?.pending_requests) ? materials.pending_requests.length : 0
         }
       } catch (_) {}
       setSummary({
         friendCount: friends.friends.length,
         requestCount: friends.received_requests.length,
-        pendingMaterialsSettlementCount,
+        pendingMaterialsRequesterCount,
         upcomingCount: (upcoming.days || []).reduce((acc, day) => acc + (day.items?.length || 0), 0),
         upcomingDays: upcoming.days || [],
       })
@@ -1169,7 +1170,7 @@ function HomePage() {
   const quickLibrary = useMemo(() => {
     let base = [...QUICK_ACTION_LIBRARY]
     if (employeeRestricted) {
-      const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'materialsSettlement', 'settlements'])
+      const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'settlements'])
       base = base.filter(item => !hiddenQuickIds.has(item.id))
     }
     if (Number(currentUser?.grade || 6) > 2) {

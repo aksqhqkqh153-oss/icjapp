@@ -998,6 +998,43 @@ def _pending_material_settlement_info(conn, user: dict) -> dict:
         label = '미결제한 자재결산이 있습니다.'
     return {'count': count, 'body': label, 'latest_date': date_text}
 
+def _material_notification_lines(request_detail: dict) -> tuple[str, str]:
+    requester_branch = str(request_detail.get('requester_branch_label') or request_detail.get('requester_branch_no') or request_detail.get('requester_branch_no_text') or '').strip()
+    requester_name = str(request_detail.get('requester_display_name') or request_detail.get('requester_user_name') or request_detail.get('requester_nickname') or request_detail.get('requester_name') or '').strip()
+    title = '자재구매 신청 접수'
+    item_chunks: list[str] = []
+    for item in request_detail.get('items', []) or []:
+        item_name = str(item.get('short_name') or item.get('name') or '').strip()
+        qty = int(item.get('quantity') or 0)
+        if not item_name or qty <= 0:
+            continue
+        item_chunks.append(f'[{item_name} / {qty}개]')
+    total_amount = int(request_detail.get('total_amount') or 0)
+    body_parts = []
+    if requester_branch:
+        body_parts.append(f'[{requester_branch}]')
+    if requester_name:
+        body_parts.append(f'[{requester_name}]')
+    body_parts.extend(item_chunks[:6])
+    body_parts.append(f'[{total_amount:,}원]')
+    return title, ' '.join(body_parts)
+
+
+def _notify_material_purchase_request(conn, requester_user: dict, request_detail: dict) -> None:
+    admin_rows = conn.execute(
+        "SELECT id FROM users WHERE COALESCE(is_active, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) = 1 ORDER BY id"
+    ).fetchall()
+    if not admin_rows:
+        return
+    title, body = _material_notification_lines(request_detail)
+    requester_id = int(requester_user.get('id') or 0)
+    for row in admin_rows:
+        admin_id = int(row['id'] or 0)
+        if admin_id <= 0 or admin_id == requester_id:
+            continue
+        insert_notification(conn, admin_id, 'material_purchase_request', title, body)
+
+
 def _material_overview_payload(conn, user: dict) -> dict:
     today_key = datetime.now().date().isoformat()
     permissions = _material_permissions(user)
