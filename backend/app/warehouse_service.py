@@ -90,6 +90,40 @@ def update_cell(conn, sheet_name: str, row: int, col: int, value: Any) -> dict[s
     return save_state(conn, state)
 
 
+def update_layout(conn, sheet_name: str, *, col_widths: dict[str, Any] | None = None, row_heights: dict[str, Any] | None = None) -> dict[str, Any]:
+    state = get_state(conn)
+    sheet = state['sheets'].get(sheet_name)
+    if not sheet:
+        raise ValueError('시트를 찾을 수 없습니다.')
+
+    sheet.setdefault('colWidths', {})
+    sheet.setdefault('rowHeights', {})
+
+    if isinstance(col_widths, dict):
+        for key, value in col_widths.items():
+            try:
+                idx = int(str(key))
+                parsed = float(value)
+            except Exception:
+                continue
+            if idx < 1:
+                continue
+            sheet['colWidths'][str(idx)] = max(4.0, min(40.0, round(parsed, 2)))
+
+    if isinstance(row_heights, dict):
+        for key, value in row_heights.items():
+            try:
+                idx = int(str(key))
+                parsed = float(value)
+            except Exception:
+                continue
+            if idx < 1:
+                continue
+            sheet['rowHeights'][str(idx)] = max(16.0, min(120.0, round(parsed, 2)))
+
+    return save_state(conn, state)
+
+
 def _ensure_size(sheet: dict[str, Any], row: int, col: int):
     while len(sheet['rows']) < row:
         sheet['rows'].append(['' for _ in range(sheet['lastCol'])])

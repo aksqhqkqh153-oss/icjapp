@@ -33,7 +33,7 @@ from .settings import settings, get_settings
 from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
 from .soomgo_review_api import router as soomgo_review_router
-from .warehouse_service import get_state as get_warehouse_state, save_state as save_warehouse_state, update_cell as update_warehouse_cell
+from .warehouse_service import get_state as get_warehouse_state, save_state as save_warehouse_state, update_cell as update_warehouse_cell, update_layout as update_warehouse_layout
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -382,6 +382,10 @@ class WarehouseCellUpdateIn(BaseModel):
     row: int
     col: int
     value: Any = ''
+class WarehouseLayoutUpdateIn(BaseModel):
+    sheet_name: str
+    col_widths: dict[str, Any] = {}
+    row_heights: dict[str, Any] = {}
 def _bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -4048,6 +4052,16 @@ def warehouse_cell_api(payload: WarehouseCellUpdateIn, user=Depends(require_user
     with get_conn() as conn:
         try:
             state = update_warehouse_cell(conn, payload.sheet_name, int(payload.row), int(payload.col), payload.value)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {'ok': True, 'state': state}
+
+
+@app.post('/api/warehouse/layout')
+def warehouse_layout_api(payload: WarehouseLayoutUpdateIn, user=Depends(require_user)):
+    with get_conn() as conn:
+        try:
+            state = update_warehouse_layout(conn, payload.sheet_name, col_widths=payload.col_widths, row_heights=payload.row_heights)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {'ok': True, 'state': state}

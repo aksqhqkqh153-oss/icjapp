@@ -7915,12 +7915,55 @@ a:focus-visible {
   overflow: hidden;
 }
 
-.warehouse-sheet-title {
+.warehouse-sheet-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 12px 16px;
-  font-size: 15px;
-  font-weight: 800;
   border-bottom: 1px solid rgba(79, 92, 128, 0.14);
   background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+}
+
+.warehouse-sheet-title {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.warehouse-sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.warehouse-sheet-actions button {
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  background: #ffffff;
+  color: #1f2937;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0.45rem 0.7rem;
+}
+
+.warehouse-sheet-actions button.active,
+.warehouse-sheet-actions button.primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.warehouse-sheet-actions button:disabled {
+  opacity: 0.6;
+}
+
+.warehouse-layout-guide {
+  font-size: 12px;
+  color: #475569;
+  background: #eef4ff;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.12);
+  padding: 8px 12px;
 }
 
 .warehouse-sheet-scroll {
@@ -7935,9 +7978,80 @@ a:focus-visible {
   min-width: 100%;
 }
 
-.warehouse-sheet-table td {
+.warehouse-sheet-table td,
+.warehouse-sheet-table th {
   padding: 0;
   box-sizing: border-box;
+}
+
+.warehouse-corner-header,
+.warehouse-col-header,
+.warehouse-row-header {
+  position: sticky;
+  background: #f8fafc;
+  z-index: 2;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid rgba(79, 92, 128, 0.18);
+}
+
+.warehouse-corner-header {
+  left: 0;
+  top: 0;
+  z-index: 5;
+}
+
+.warehouse-col-header {
+  top: 0;
+  z-index: 4;
+}
+
+.warehouse-row-header {
+  left: 0;
+  z-index: 3;
+  min-width: 52px;
+  width: 52px;
+}
+
+.warehouse-col-header span,
+.warehouse-row-header span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.35rem;
+}
+
+.warehouse-resize-handle {
+  position: absolute;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+.warehouse-resize-handle.is-col {
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.warehouse-resize-handle.is-row {
+  left: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 8px;
+  cursor: row-resize;
+}
+
+.warehouse-sheet-table.is-resize-mode .warehouse-col-header:hover,
+.warehouse-sheet-table.is-resize-mode .warehouse-row-header:hover {
+  background: #e8f0ff;
 }
 
 .warehouse-cell-display,
@@ -7980,7 +8094,8 @@ a:focus-visible {
   height: 18px;
 }
 
-.warehouse-sheet-table.is-compact td {
+.warehouse-sheet-table.is-compact td,
+.warehouse-sheet-table.is-compact th {
   overflow: hidden;
 }
 
@@ -8013,9 +8128,26 @@ a:focus-visible {
     padding: 9px 12px;
   }
 
+  .warehouse-sheet-topbar {
+    padding: 10px 12px;
+  }
+
   .warehouse-sheet-title {
     font-size: 14px;
-    padding: 10px 12px;
+  }
+
+  .warehouse-sheet-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .warehouse-sheet-actions button {
+    font-size: 11px;
+    padding: 0.38rem 0.58rem;
+  }
+
+  .warehouse-layout-guide {
+    font-size: 11px;
   }
 
   .warehouse-cell-display,
@@ -8023,6 +8155,12 @@ a:focus-visible {
   .warehouse-cell-textarea {
     padding: 5px 6px;
     font-size: 12px;
+  }
+
+  .warehouse-corner-header,
+  .warehouse-col-header,
+  .warehouse-row-header {
+    font-size: 11px;
   }
 
   .warehouse-sheet-table.is-compact .warehouse-cell-display,
@@ -8037,7 +8175,6 @@ a:focus-visible {
     min-height: 30px;
   }
 }
-
 
 /* 2026-04-01 follow-up refined admin/schedule/history layout */
 .employee-summary-lines .admin-summary-line.admin-summary-line-primary {
