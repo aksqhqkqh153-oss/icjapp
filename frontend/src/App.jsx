@@ -9828,27 +9828,27 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     return (
-      <div className="materials-history-group-list">
-        <div className="materials-history-group-header">
+      <div className="materials-request-sheet materials-request-sheet-history">
+        <div className="materials-request-sheet-head materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
           <div>호점</div>
           <div>이름</div>
           <div>구매신청일자</div>
           <div>결산처리완료일자</div>
-          <div className="materials-history-group-total">물품총합계</div>
+          <div className="materials-request-total-cell">물품총합계</div>
         </div>
         {requests.map(request => {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
-            <section key={`history-group-${request.id}`} className="materials-history-group-card">
-              <div className="materials-history-group-meta materials-history-group-row">
+            <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history">
+              <div className="materials-request-sheet-row materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
-                <div><strong>{meta.name}</strong></div>
+                <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{formatFullDateLabel(request.settled_at)}</div>
-                <div className="materials-history-group-total">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
+                <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-history-group-details">
+              <div className="materials-request-items materials-request-items-sheet materials-request-items-history">
                 {detailLines.length ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-history-group-detail-line">{line}</div>) : <div className="materials-history-group-detail-line muted">상세 내역이 없습니다.</div>}
               </div>
             </section>

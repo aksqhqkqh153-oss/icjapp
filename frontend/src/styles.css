@@ -5554,26 +5554,54 @@ a:focus-visible {
 }
 .materials-table-sales {
   display: grid;
-  gap: 6px;
+  gap: 0;
+  width: 100%;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0;
+  background: #fff;
+  overflow: hidden;
 }
 .materials-table-sales .materials-row.materials-row-sales,
 .materials-table-sales .materials-row.materials-row-head.materials-row-head-sales {
-  grid-template-columns: max-content max-content max-content max-content max-content;
-  justify-content: end;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
+  justify-content: stretch;
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px dashed #cbd5e1;
+}
+.materials-table-sales .materials-row:last-child {
+  border-bottom: 0;
 }
 .materials-table-sales .materials-row > div,
 .materials-table-inventory .materials-row > div {
   white-space: nowrap;
 }
+.materials-table-sales .materials-row > div,
+.materials-table-sales .materials-row-head > div {
+  min-height: 40px;
+  padding: 8px 8px;
+  border-right: 1px dashed #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.materials-table-sales .materials-row > div:last-child,
+.materials-table-sales .materials-row-head > div:last-child {
+  border-right: 0;
+}
 .materials-table-sales .materials-row > div:first-child,
 .materials-table-sales .materials-row-head > div:first-child,
 .materials-table-inventory .materials-row > div:first-child,
 .materials-table-inventory .materials-row-head > div:first-child {
-  text-align: right;
-  overflow: visible;
-  text-overflow: clip;
+  justify-content: flex-start;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .materials-table-inventory .materials-row {
   grid-template-columns: max-content max-content max-content max-content max-content minmax(180px, max-content);
@@ -7087,6 +7115,28 @@ a:focus-visible {
   padding: 8px 10px;
   border-top: 1px dashed #d5dbe3;
   background: #fff;
+}
+.materials-request-items-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.materials-request-sheet-history .materials-request-sheet-head > div,
+.materials-request-sheet-history .materials-request-sheet-row-history > div {
+  justify-content: center;
+  text-align: center;
+}
+.materials-request-sheet-history .materials-request-sheet-head > div:first-child,
+.materials-request-sheet-history .materials-request-sheet-row-history > div:first-child,
+.materials-request-sheet-history .materials-request-sheet-head > div:nth-child(2),
+.materials-request-sheet-history .materials-request-sheet-row-history > div:nth-child(2) {
+  justify-content: flex-start;
+  text-align: left;
+}
+.materials-request-sheet-history .materials-request-sheet-head > div:last-child,
+.materials-request-sheet-history .materials-request-sheet-row-history > div:last-child {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .materials-request-items-grid {
