@@ -4,7 +4,7 @@ export const WAREHOUSE_VIEW_CONFIG = {
     { key: 'gimpo', title: '김포', sheetName: '김포창고입력시트', type: 'full' },
     {
       key: 'gimpo-edit',
-      title: '김포(편집)',
+      title: '갈매(편집)',
       sheetName: '갈매창고입력시트',
       type: 'range',
       range: {
