@@ -5211,6 +5211,24 @@ a:focus-visible {
 .admin-sort-select-inline {
   margin-left: auto;
 }
+.authority-toolbar-row {
+  align-items: center;
+}
+.authority-toolbar-left {
+  flex: 0 0 auto;
+}
+.authority-toolbar-actions {
+  gap: 6px;
+}
+.authority-sort-select {
+  margin-left: 0;
+  min-width: 92px;
+  max-width: 108px;
+  font-size: 11px;
+  height: 32px;
+  padding: 4px 6px;
+}
+
 .materials-page .card.materials-hero,
 .materials-page .card.materials-panel,
 .materials-page .card.materials-request-card {
@@ -6907,6 +6925,24 @@ a:focus-visible {
   .admin-mode-page .authority-grid-responsive .admin-select-field > span {
     font-size: 10.5px;
   }
+  .authority-toolbar-row {
+    align-items: center;
+  }
+  .authority-toolbar-left {
+    flex: 0 0 auto;
+  }
+  .authority-toolbar-actions {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  .authority-sort-select {
+    min-width: 74px;
+    max-width: 84px;
+    font-size: 10px;
+    height: 30px;
+    padding: 3px 4px;
+  }
   .admin-mode-page .authority-grid-responsive input,
   .admin-mode-page .authority-grid-responsive select,
   .admin-mode-page .authority-grid-responsive button {
@@ -7512,4 +7548,11 @@ a:focus-visible {
     padding-right: 4px;
     font-size: 10.5px;
   }
+}
+
+.admin-status-toolbar .small br {
+  display: block;
+}
+.admin-status-toolbar .small {
+  line-height: 1.15;
 }

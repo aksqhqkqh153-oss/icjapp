@@ -225,6 +225,13 @@ const MENU_PERMISSION_SECTIONS = [
     id: 'common',
     label: '공용',
     items: [
+      { id: 'home', label: '홈', path: '/' },
+      { id: 'schedule', label: '일정', path: '/calendar' },
+      { id: 'work-schedule', label: '스케줄', path: '/work-schedule' },
+      { id: 'map', label: '지도', path: '/map' },
+      { id: 'chat', label: '채팅', path: '/chat' },
+      { id: 'friends', label: '친구', path: '/friends' },
+      { id: 'reviews', label: '리뷰', path: '/reviews' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
       { id: 'quotes', label: '견적', path: '/quotes' },
@@ -238,18 +245,27 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
+      { id: 'reports', label: '신고관리', path: '/reports', adminOnly: true },
     ],
   },
   {
     id: 'business',
     label: '사업자용',
-    items: [],
+    items: [
+      { id: 'points', label: '포인트', path: '/points' },
+    ],
   },
   {
     id: 'staff',
     label: '직원용',
+    items: [],
+  },
+  {
+    id: 'admin',
+    label: '관리자모드',
     items: [
-      { id: 'points', label: '포인트', path: '/points' },
+      { id: 'admin-mode', label: '관리자모드', path: '/admin-mode', adminOnly: true },
+      { id: 'menu-permissions', label: '메뉴권한', path: '/menu-permissions', adminOnly: true },
     ],
   },
   {
@@ -258,7 +274,6 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'meetups', label: '모임', path: '/meetups' },
       { id: 'boards', label: '게시판', path: '/boards' },
-      { id: 'reports', label: '신고관리', path: '/reports', adminOnly: true },
     ],
   },
 ]
@@ -6746,8 +6761,12 @@ function AdminModePage() {
   const [vehicleExceptionModal, setVehicleExceptionModal] = useState({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })
   const [sortConfigs, setSortConfigs] = useState({ manage: { mode: 'group_number', keys: [] }, status: { mode: 'group_number', keys: [] }, authority: { mode: 'group_number', keys: [] } })
   const [sortModal, setSortModal] = useState({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })
-  const [statusAddPickerOpen, setStatusAddPickerOpen] = useState({ branch: false, employee: false })
-  const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '' })
+  const [statusAddPickerOpen, setStatusAddPickerOpen] = useState({ branch: false, employee: false, hq: false })
+  const [statusAddSelection, setStatusAddSelection] = useState({ branch: '', employee: '', hq: '' })
+  const [statusMovePickerOpen, setStatusMovePickerOpen] = useState({ branch: false, employee: false, hq: false })
+  const [statusMoveSelection, setStatusMoveSelection] = useState({ branch: '', employee: '', hq: '' })
+  const [statusDeletePickerOpen, setStatusDeletePickerOpen] = useState({ branch: false, employee: false, hq: false })
+  const [statusDeleteSelection, setStatusDeleteSelection] = useState({ branch: '', employee: '', hq: '' })
   const ACCOUNTS_PER_PAGE = 10
 
   function isStaffGradeValue(value) {
@@ -6807,6 +6826,12 @@ function AdminModePage() {
       setAccountDeleteDialogOpen(false)
       setAccountDeleteConfirmText('')
       setSelectedSwitchAccountId(null)
+      setStatusAddPickerOpen({ branch: false, employee: false, hq: false })
+      setStatusAddSelection({ branch: '', employee: '', hq: '' })
+      setStatusMovePickerOpen({ branch: false, employee: false, hq: false })
+      setStatusMoveSelection({ branch: '', employee: '', hq: '' })
+      setStatusDeletePickerOpen({ branch: false, employee: false, hq: false })
+      setStatusDeleteSelection({ branch: '', employee: '', hq: '' })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -7200,25 +7225,78 @@ function AdminModePage() {
     const email = String(item?.email || '').trim()
     const name = String(item?.name || '').trim()
     const nickname = String(item?.nickname || '').trim()
-    return ['이청잘A', '이청잘B', '이청잘C'].includes(email) || ['최성규', '이준희', '손지민'].includes(name) || ['최성규', '이준희', '손지민'].includes(nickname)
+    const position = String(item?.position_title || '').trim()
+    return position.includes('본사') || ['이청잘A', '이청잘B', '이청잘C'].includes(email) || ['최성규', '이준희', '손지민'].includes(name) || ['최성규', '이준희', '손지민'].includes(nickname)
+  }
+
+  function applyStatusTargetToRow(source, target) {
+    const nextRow = { ...source }
+    if (target === 'branch') {
+      nextRow.show_in_branch_status = true
+      nextRow.archived_in_branch_status = false
+      nextRow.show_in_employee_status = false
+      if (!String(nextRow.position_title || '').trim()) nextRow.position_title = '호점대표'
+    } else if (target === 'employee') {
+      nextRow.show_in_branch_status = false
+      nextRow.archived_in_branch_status = false
+      nextRow.show_in_employee_status = true
+      if (String(nextRow.position_title || '').includes('본사')) nextRow.position_title = '현장직원'
+      if (!String(nextRow.position_title || '').trim()) nextRow.position_title = '현장직원'
+    } else if (target === 'hq') {
+      nextRow.show_in_branch_status = false
+      nextRow.archived_in_branch_status = false
+      nextRow.show_in_employee_status = true
+      nextRow.position_title = '본사직원'
+    }
+    return nextRow
+  }
+
+  function syncStatusRowToCollections(nextRow) {
+    setAccountRows(prev => prev.map(item => item.id === nextRow.id ? nextRow : item))
+    setBranchRows(prev => {
+      const exists = prev.some(item => item.id === nextRow.id)
+      if (nextRow.show_in_branch_status) {
+        return exists ? prev.map(item => item.id === nextRow.id ? nextRow : item) : [...prev, nextRow]
+      }
+      return prev.filter(item => item.id !== nextRow.id)
+    })
+    setEmployeeRows(prev => {
+      const exists = prev.some(item => item.id === nextRow.id)
+      if (nextRow.show_in_employee_status) {
+        return exists ? prev.map(item => item.id === nextRow.id ? nextRow : item) : [...prev, nextRow]
+      }
+      return prev.filter(item => item.id !== nextRow.id)
+    })
   }
 
   function addAccountToStatus(target) {
-    const selectedId = Number(statusAddSelection[target] || 0)
+    const selectedId = Number(statusMoveSelection[target] || statusAddSelection[target] || 0)
     if (!selectedId) return
     const source = accountRows.find(item => Number(item.id) === selectedId)
     if (!source) return
-    if (target === 'branch') {
-      const nextRow = { ...source, show_in_branch_status: true, archived_in_branch_status: false }
-      setBranchRows(prev => prev.some(item => item.id === selectedId) ? prev.map(item => item.id === selectedId ? nextRow : item) : [...prev, nextRow])
-      setAccountRows(prev => prev.map(item => item.id === selectedId ? { ...item, show_in_branch_status: true, archived_in_branch_status: false } : item))
-    }
-    if (target === 'employee') {
-      const nextRow = { ...source, show_in_employee_status: true }
-      setEmployeeRows(prev => prev.some(item => item.id === selectedId) ? prev.map(item => item.id === selectedId ? nextRow : item) : [...prev, nextRow])
-      setAccountRows(prev => prev.map(item => item.id === selectedId ? { ...item, show_in_employee_status: true } : item))
-    }
+    const nextRow = applyStatusTargetToRow(source, target)
+    syncStatusRowToCollections(nextRow)
     setStatusAddSelection(prev => ({ ...prev, [target]: '' }))
+    setStatusMoveSelection(prev => ({ ...prev, [target]: '' }))
+    setStatusAddPickerOpen(prev => ({ ...prev, [target]: false }))
+    setStatusMovePickerOpen(prev => ({ ...prev, [target]: false }))
+  }
+
+  function removeAccountFromStatus(target) {
+    const selectedId = Number(statusDeleteSelection[target] || 0)
+    if (!selectedId) return
+    const source = accountRows.find(item => Number(item.id) === selectedId)
+    if (!source) return
+    const nextRow = { ...source }
+    if (target === 'branch') {
+      nextRow.show_in_branch_status = false
+      nextRow.archived_in_branch_status = false
+    } else {
+      nextRow.show_in_employee_status = false
+    }
+    syncStatusRowToCollections(nextRow)
+    setStatusDeleteSelection(prev => ({ ...prev, [target]: '' }))
+    setStatusDeletePickerOpen(prev => ({ ...prev, [target]: false }))
   }
 
   function toggleBranchArchive(flag) {
@@ -7316,12 +7394,13 @@ function AdminModePage() {
   const archivedBranchRows = sortedBranchRows.filter(item => item.archived_in_branch_status)
   const franchiseRows = visibleBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item)))
   const fieldEmployeeRows = sortedEmployeeRows.filter(item => !isHeadOfficeRow(item))
-  const headOfficeRows = applyAdminSort(accountRows.filter(item => isHeadOfficeRow(item)), 'status')
+  const headOfficeRows = sortedEmployeeRows.filter(item => isHeadOfficeRow(item))
   const combinedStatusRows = applyAdminSort([...visibleBranchRows, ...fieldEmployeeRows, ...headOfficeRows.filter(item => !fieldEmployeeRows.some(emp => emp.id === item.id))], 'status')
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseRows.filter(item => parseVehicleAvailable(item?.vehicle_available)).length
-  const branchStatusCandidates = sortedAccountRows.filter(item => !branchRows.some(row => row.id === item.id))
-  const employeeStatusCandidates = sortedAccountRows.filter(item => !employeeRows.some(row => row.id === item.id))
+  const branchStatusCandidates = sortedAccountRows.filter(item => !visibleBranchRows.some(row => row.id === item.id))
+  const employeeStatusCandidates = sortedAccountRows.filter(item => !fieldEmployeeRows.some(row => row.id === item.id))
+  const headOfficeStatusCandidates = sortedAccountRows.filter(item => !headOfficeRows.some(row => row.id === item.id))
   const deletableAccounts = sortedAccountRows.filter(item => {
     if (Number(item.id) === Number(currentUser?.id || 0)) return false
     if (actorGrade === 1) return true
@@ -7329,6 +7408,18 @@ function AdminModePage() {
     return false
   })
   const selectedSwitchAccount = sortedAccountRows.find(item => Number(item.id) === Number(selectedSwitchAccountId || 0)) || null
+  const statusMoveCandidates = {
+    branch: branchStatusCandidates,
+    employee: employeeStatusCandidates,
+    hq: headOfficeStatusCandidates,
+  }
+  const statusDeleteCandidates = {
+    branch: franchiseRows,
+    employee: fieldEmployeeRows,
+    hq: headOfficeRows,
+  }
+  const currentStatusCategoryKey = statusTab === 'hq' ? 'hq' : (statusTab === 'employee' ? 'employee' : 'branch')
+  const showStatusCategoryActions = actorGrade === 1 && ['branch', 'employee', 'hq'].includes(statusTab)
 
   function canEditAccountGrade(targetUserId, targetCurrentGrade, nextGrade) {
     if (actorGrade === 1) return true
@@ -7693,13 +7784,21 @@ function AdminModePage() {
                 {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
                   ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
                   : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '정보저장', saveEmployeeDetails))}
+                {showStatusCategoryActions && <button type="button" className={statusMovePickerOpen[currentStatusCategoryKey] ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+                  const key = currentStatusCategoryKey
+                  setStatusMovePickerOpen(prev => ({ ...prev, [key]: !prev[key] }))
+                  setStatusDeletePickerOpen(prev => ({ ...prev, [key]: false }))
+                }}>계정정보<br />옮겨오기</button>}
                 {actorGrade === 1 && <button type="button" className={((statusTab === 'all' || statusTab === 'branch') ? branchEditMode : employeeEditMode) ? 'small selected-toggle' : 'small ghost'} onClick={() => {
                   if (statusTab === 'all' || statusTab === 'branch') setBranchEditMode(v => !v)
                   else setEmployeeEditMode(v => !v)
                 }}>수정</button>}
-                {actorGrade === 1 && (statusTab === 'branch' || statusTab === 'employee') && <button type="button" className={statusAddPickerOpen[statusTab] ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusAddPickerOpen(prev => ({ ...prev, [statusTab]: !prev[statusTab] }))}>추가</button>}
                 {actorGrade === 1 && statusTab === 'branch' && <button type="button" className="small ghost" onClick={() => { setBranchArchiveModalOpen(true); setBranchArchiveMode('archive') }}>보관</button>}
-                {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => setMessage('삭제할 계정은 펼침 카드 또는 계정관리 영역에서 제외해 주세요.')}>삭제</button>}
+                {showStatusCategoryActions && <button type="button" className={statusDeletePickerOpen[currentStatusCategoryKey] ? 'small selected-toggle' : 'small ghost'} onClick={() => {
+                  const key = currentStatusCategoryKey
+                  setStatusDeletePickerOpen(prev => ({ ...prev, [key]: !prev[key] }))
+                  setStatusMovePickerOpen(prev => ({ ...prev, [key]: false }))
+                }}>삭제</button>}
               </div>
             </div>
             {isMobile && (
@@ -7710,17 +7809,30 @@ function AdminModePage() {
                 <button type="button" className={statusTab === 'hq' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('hq')}>본사직원</button>
               </div>
             )}
-            {(statusTab === 'branch' || statusTab === 'employee') && statusAddPickerOpen[statusTab] && actorGrade === 1 && (
+            {showStatusCategoryActions && statusMovePickerOpen[currentStatusCategoryKey] && (
               <div className="admin-status-add-row">
-                <select value={statusAddSelection[statusTab]} onChange={e => setStatusAddSelection(prev => ({ ...prev, [statusTab]: e.target.value }))}>
-                  <option value="">추가할 계정 선택</option>
-                  {(statusTab === 'branch' ? branchStatusCandidates : employeeStatusCandidates).map(item => (
-                    <option key={`${statusTab}-candidate-${item.id}`} value={item.id}>
+                <select value={statusMoveSelection[currentStatusCategoryKey]} onChange={e => setStatusMoveSelection(prev => ({ ...prev, [currentStatusCategoryKey]: e.target.value }))}>
+                  <option value="">옮겨올 계정 선택</option>
+                  {(statusMoveCandidates[currentStatusCategoryKey] || []).map(item => (
+                    <option key={`${currentStatusCategoryKey}-candidate-${item.id}`} value={item.id}>
                       {(item.name || item.nickname || '이름 미입력')} / {item.email || '-'} / {item.account_unique_id || '-'}
                     </option>
                   ))}
                 </select>
-                <button type="button" className="small" onClick={() => addAccountToStatus(statusTab)}>추가확인</button>
+                <button type="button" className="small" onClick={() => addAccountToStatus(currentStatusCategoryKey)}>옮겨오기</button>
+              </div>
+            )}
+            {showStatusCategoryActions && statusDeletePickerOpen[currentStatusCategoryKey] && (
+              <div className="admin-status-add-row">
+                <select value={statusDeleteSelection[currentStatusCategoryKey]} onChange={e => setStatusDeleteSelection(prev => ({ ...prev, [currentStatusCategoryKey]: e.target.value }))}>
+                  <option value="">삭제할 계정 선택</option>
+                  {(statusDeleteCandidates[currentStatusCategoryKey] || []).map(item => (
+                    <option key={`${currentStatusCategoryKey}-delete-${item.id}`} value={item.id}>
+                      {(item.name || item.nickname || '이름 미입력')} / {item.email || '-'} / {item.account_unique_id || '-'}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="small ghost" onClick={() => removeAccountFromStatus(currentStatusCategoryKey)}>삭제하기</button>
               </div>
             )}
             {(statusTab === 'all' || statusTab === 'branch') && (
@@ -7853,16 +7965,16 @@ function AdminModePage() {
         </div>
         {authorityOpen && (
           <>
-            <div className="between admin-section-toolbar">
-              <div className="inline-actions wrap admin-section-tabbar">
-                <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.authority.mode} onChange={e => handleSortModeChange('authority', e.target.value)}>
+            <div className="between admin-section-toolbar authority-toolbar-row">
+              <div className="inline-actions wrap admin-section-tabbar authority-toolbar-left">
+                <select className="small admin-sort-select admin-sort-select-inline authority-sort-select" value={sortConfigs.authority.mode} onChange={e => handleSortModeChange('authority', e.target.value)}>
                   {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
-              <div className="inline-actions wrap admin-section-save-actions">
-                {renderActionButton('계정권한', '정보저장', saveAccounts)}
+              <div className="inline-actions wrap admin-section-save-actions authority-toolbar-actions">
+                <button type="button" className="small" onClick={saveAccounts}>저장</button>
                 {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
-                <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>🔍</button>
+                <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>검색</button>
               </div>
             </div>
             <div className="admin-account-table">
