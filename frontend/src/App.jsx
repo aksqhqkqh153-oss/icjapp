@@ -6605,6 +6605,11 @@ function AdminModePage() {
   const [accountManageOpen, setAccountManageOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
   const [authorityOpen, setAuthorityOpen] = useState(false)
+  const [materialsTableSizeOpen, setMaterialsTableSizeOpen] = useState(false)
+  const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
+  const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
+  const [materialsTableScaleSettings, setMaterialsTableScaleSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, 100])))
+  const [materialsTableSaving, setMaterialsTableSaving] = useState(false)
   const [accountManageTab, setAccountManageTab] = useState('list')
   const [accountDeleteSelection, setAccountDeleteSelection] = useState({})
   const [accountDeleteDialogOpen, setAccountDeleteDialogOpen] = useState(false)
@@ -6682,8 +6687,14 @@ function AdminModePage() {
     setLoading(true)
     setError('')
     try {
-      const response = await api('/api/admin-mode')
+      const [response, materialsScaleResponse, desktopLayoutResponse] = await Promise.all([
+        api('/api/admin-mode'),
+        api('/api/materials/table-scale').catch(() => ({ scales: {} })),
+        api('/api/materials/table-layout?device=desktop').catch(() => ({ layouts: {} })),
+      ])
       setData(response)
+      setMaterialsTableScaleSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, clampMaterialsScale(materialsScaleResponse?.scales?.[key] ?? prev[key] ?? 100)])))
+      setMaterialsTableLayouts(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, desktopLayoutResponse?.layouts?.[key] ?? prev[key] ?? MATERIALS_TABLE_WIDTH_DEFAULTS[key], false)])))
       setConfigForm({
         total_vehicle_count: String(response.config?.total_vehicle_count || ''),
         branch_count_override: String(response.config?.branch_count_override || response.branch_count || ''),
@@ -7699,6 +7710,52 @@ function AdminModePage() {
               {Array.from({ length: pageCount }, (_, index) => index + 1).map(pageNo => (
                 <button key={pageNo} type="button" className={accountPage === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
               ))}
+            </div>
+            <div className="admin-inline-subsection materials-table-admin-editor">
+              <div className="between admin-inline-subsection-head" role="button" tabIndex={0} onClick={() => setMaterialsTableSizeOpen(v => !v)} onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setMaterialsTableSizeOpen(v => !v)
+                }
+              }}>
+                <strong>표 사이즈 조절</strong>
+                <span className="admin-section-chevron">{materialsTableSizeOpen ? '−' : '+'}</span>
+              </div>
+              {materialsTableSizeOpen && (
+                <div className="stack compact-gap materials-table-admin-editor-body">
+                  <div className="admin-inline-grid compact-inline-grid materials-table-admin-controls">
+                    <label>기능
+                      <select value={materialsTableEditor.mode} onChange={e => updateMaterialsTableEditorField('mode', e.target.value)}>
+                        {MATERIALS_TABLE_EDIT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <label>화면
+                      <select value={materialsTableEditor.target} onChange={e => updateMaterialsTableEditorField('target', e.target.value)}>
+                        {MATERIALS_TABLE_TARGET_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  {materialsTableEditor.mode === 'width' ? (
+                    <div className="materials-table-admin-width-list">
+                      {(MATERIALS_TABLE_COLUMN_LABELS[materialsTableEditor.target] || []).map((label, index) => (
+                        <label key={`materials-table-width-${materialsTableEditor.target}-${index}`} className="materials-table-admin-width-row">
+                          <span>{label}</span>
+                          <input type="number" min="56" max="360" step="1" value={materialsTableLayouts[materialsTableEditor.target]?.[index] ?? ''} onChange={e => updateMaterialsTableWidth(materialsTableEditor.target, index, e.target.value)} />
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <label className="materials-table-admin-scale-field">
+                      <span>표 가로 배율 (%)</span>
+                      <input type="number" min="80" max="140" step="1" value={materialsTableScaleSettings[materialsTableEditor.target] ?? 100} onChange={e => setMaterialsTableScaleSettings(prev => ({ ...prev, [materialsTableEditor.target]: clampMaterialsScale(e.target.value) }))} />
+                    </label>
+                  )}
+                  <div className="inline-actions wrap end">
+                    <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={saveMaterialsTableEditor}>저장</button>
+                  </div>
+                  <div className="muted tiny-text">저장 시 모든 계정에 동일하게 적용됩니다.</div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -8821,7 +8878,33 @@ const MATERIALS_TABLE_WIDTH_DEFAULTS = {
   inventory: [150, 88, 96, 96, 104, 180],
   myRequests: [180, 108, 108, 124, 120],
   requesters: [112, 108, 150, 148, 148, 124],
+  settlements: [112, 108, 150, 148, 148, 124],
   history: [108, 150, 148, 148, 124],
+}
+
+const MATERIALS_TABLE_EDIT_OPTIONS = [
+  { value: 'width', label: '표 가로 사이즈' },
+  { value: 'scale', label: '표 가로 배율(%)' },
+]
+
+const MATERIALS_TABLE_TARGET_OPTIONS = [
+  { value: 'sales', label: '자재구매(1/2)' },
+  { value: 'confirm', label: '자재구매(2/2)' },
+  { value: 'myRequests', label: '신청현황' },
+  { value: 'requesters', label: '신청목록' },
+  { value: 'incoming', label: '자재입고' },
+  { value: 'settlements', label: '구매결산' },
+  { value: 'history', label: '구매목록' },
+]
+
+const MATERIALS_TABLE_COLUMN_LABELS = {
+  sales: ['구분', '물품가', '현재고', '구매수량', '합계금액'],
+  confirm: ['구분', '물품가', '구매수량', '합계금액'],
+  myRequests: ['구매물품', '구매가격', '구매수량', '합계가격', '결산처리상태'],
+  requesters: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
+  incoming: ['구분', '물품가', '현재고', '입고수량', '출고수량', '입고 후 수량', '비고'],
+  settlements: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
+  history: ['호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
 }
 
 function getMaterialsDeviceType(isMobile) {
@@ -8875,24 +8958,21 @@ function MaterialsPage({ user }) {
   const [settlementFilterDate, setSettlementFilterDate] = useState('')
   const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100, history: 100, settlements: 100 })
   const [tableColumnSettings, setTableColumnSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsSaving, setSettingsSaving] = useState(false)
-  const [columnEditKey, setColumnEditKey] = useState('')
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
-  const canEditMaterialTableSize = isMaterialsAdminUser(user)
+  const settlementDateOptions = Array.from(new Set(settledRequests.map(request => String(request.created_at || '').slice(0, 10)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
 
   async function loadOverview(nextTab) {
     setLoading(true)
     try {
-      const [result, preferences, layoutResult] = await Promise.all([
+      const [result, scaleResult, layoutResult] = await Promise.all([
         api('/api/materials/overview'),
-        api('/api/preferences').catch(() => ({})),
+        api('/api/materials/table-scale').catch(() => ({ scales: {} })),
         api(`/api/materials/table-layout?device=${getMaterialsDeviceType(isMobile)}`).catch(() => ({ layouts: {} })),
       ])
       setData(result)
-      const savedScale = preferences?.materialsTableScale || {}
+      const savedScale = scaleResult?.scales || {}
       setTableScaleSettings(prev => ({
         sales: clampMaterialsScale(savedScale.sales ?? prev.sales),
         confirm: clampMaterialsScale(savedScale.confirm ?? prev.confirm),
@@ -8975,14 +9055,6 @@ function MaterialsPage({ user }) {
   const cartTotal = cartRows.reduce((sum, item) => sum + item.lineTotal, 0)
   const insufficientCartItem = cartRows.find(item => Number(item.quantity || 0) > Number(item.current_stock || 0))
 
-  function getActiveTableScaleKey() {
-    if (activeTab === 'sales') return salesStep === 2 ? 'confirm' : 'sales'
-    if (activeTab === 'myRequests') return 'myRequests'
-    if (activeTab === 'incoming') return 'incoming'
-    if (activeTab === 'requesters') return 'requesters'
-    return 'sales'
-  }
-
   function getTableScaleStyle(key) {
     const scale = clampMaterialsScale(tableScaleSettings[key])
     return { '--materials-table-scale': String(scale / 100) }
@@ -8996,83 +9068,12 @@ function MaterialsPage({ user }) {
     return { gridTemplateColumns: buildMaterialsGridTemplate(key, tableColumnSettings[key], isMobile) }
   }
 
-  function beginColumnResize(key, index, event) {
-    if (columnEditKey !== key) return
-    const point = 'touches' in event ? event.touches?.[0] : event
-    if (!point) return
-    event.preventDefault()
-    const current = normalizeMaterialsColumnWidths(key, tableColumnSettings[key], isMobile)
-    resizeStateRef.current = { key, index, startX: point.clientX, startWidth: current[index] || 80 }
-  }
-
-  useEffect(() => {
-    function handleMove(event) {
-      const state = resizeStateRef.current
-      if (!state) return
-      const point = event.touches?.[0] || event
-      if (!point) return
-      if (event.cancelable) event.preventDefault()
-      const delta = point.clientX - state.startX
-      setTableColumnSettings(prev => ({
-        ...prev,
-        [state.key]: normalizeMaterialsColumnWidths(state.key, (prev[state.key] || []).map((width, idx) => idx === state.index ? state.startWidth + delta : width), isMobile),
-      }))
-    }
-    function handleUp() {
-      resizeStateRef.current = null
-    }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    window.addEventListener('touchmove', handleMove, { passive: false })
-    window.addEventListener('touchend', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-      window.removeEventListener('touchmove', handleMove)
-      window.removeEventListener('touchend', handleUp)
-    }
-  }, [isMobile])
-
-  async function saveTableColumnSetting(key) {
-    const nextLayouts = { ...tableColumnSettings, [key]: normalizeMaterialsColumnWidths(key, tableColumnSettings[key], isMobile) }
-    setTableColumnSettings(nextLayouts)
-    setSettingsSaving(true)
-    try {
-      await api('/api/materials/table-layout', { method: 'POST', body: JSON.stringify({ data: { device: getMaterialsDeviceType(isMobile), layouts: nextLayouts } }) })
-      setNotice('표 가로 사이즈가 저장되었습니다.')
-      setColumnEditKey('')
-      setSettingsOpen('')
-    } catch (error) {
-      setNotice(error.message || '표 가로 사이즈 저장 중 오류가 발생했습니다.')
-    } finally {
-      setSettingsSaving(false)
-    }
-  }
-
-  function renderResizableRowCells(labels, key) {
-    const editable = columnEditKey === key
+  function renderResizableRowCells(labels) {
     return labels.map((label, index) => (
-      <div key={`${key}-head-${index}`} className={editable ? 'materials-resize-cell editable' : 'materials-resize-cell'}>
+      <div key={`materials-head-${index}`} className="materials-resize-cell">
         <span>{label}</span>
-        {editable && index < labels.length - 1 ? <button type="button" className="materials-col-resizer" aria-label="표 가로 사이즈 조절" onMouseDown={(event) => beginColumnResize(key, index, event)} onTouchStart={(event) => beginColumnResize(key, index, event)} /> : null}
       </div>
     ))
-  }
-
-  async function saveTableScaleSetting(key, nextValue) {
-    const clamped = clampMaterialsScale(nextValue)
-    const nextSettings = { ...tableScaleSettings, [key]: clamped }
-    setTableScaleSettings(nextSettings)
-    setSettingsSaving(true)
-    try {
-      const prefs = await api('/api/preferences').catch(() => ({}))
-      await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: { ...prefs, materialsTableScale: nextSettings } }) })
-      setNotice('표 크기 설정이 저장되었습니다.')
-    } catch (error) {
-      setNotice(error.message || '표 크기 설정 저장 중 오류가 발생했습니다.')
-    } finally {
-      setSettingsSaving(false)
-    }
   }
 
   function updateQuantity(productId, value) {
@@ -9531,28 +9532,70 @@ function MaterialsPage({ user }) {
     )
   }
 
-  function renderMaterialsPanelSettingsButton(key) {
-    if (!canEditMaterialTableSize) return null
-    const activeKey = key || getActiveTableScaleKey()
-    const columnEditable = Object.prototype.hasOwnProperty.call(MATERIALS_TABLE_WIDTH_DEFAULTS, activeKey)
+  function renderMaterialsPanelSettingsButton() {
+    return null
+  }
+
+  function goToSettlementProgress() {
+    if (!(data?.permissions?.can_view_requesters)) {
+      setNotice('신청목록 권한이 없어 결산진행 화면으로 이동할 수 없습니다.')
+      return
+    }
+    setSelectedRequestIds([])
+    setActiveTab('requesters')
+    setNotice('신청목록 화면에서 결산진행을 계속할 수 있습니다.')
+  }
+
+  function formatRequesterBranchLabel(value) {
+    const raw = String(value || '').trim()
+    if (!raw) return '-'
+    return raw.endsWith('호점') ? raw.replace(/호점$/, '') : raw
+  }
+
+  function buildHistoryDetailLines(items, maxLength = isMobile ? 34 : 88) {
+    const tokens = (items || []).map(item => `${item.short_name || item.name || '물품'}(${Number(item.unit_price || 0).toLocaleString('ko-KR')}원*${Number(item.quantity || 0)}개)`).filter(Boolean)
+    const lines = []
+    let current = []
+    let currentLength = 0
+    tokens.forEach(token => {
+      const nextLength = current.length === 0 ? token.length : currentLength + 3 + token.length
+      if (current.length > 0 && nextLength > maxLength) {
+        lines.push(`${current.join(' | ')} |`)
+        current = [token]
+        currentLength = token.length
+      } else {
+        current.push(token)
+        currentLength = nextLength
+      }
+    })
+    if (current.length) lines.push(current.join(' | '))
+    return lines
+  }
+
+  function renderHistoryRows(requests) {
+    if (!requests.length) {
+      return <div className="card muted">표시할 데이터가 없습니다.</div>
+    }
     return (
-      <div className="materials-panel-settings-wrap">
-        <button type="button" className="ghost small" onClick={() => setSettingsOpen(prev => prev === activeKey ? '' : activeKey)}>설정</button>
-        {settingsOpen === activeKey ? (
-          <div className="materials-settings-popover">
-            <strong>설정</strong>
-            {columnEditable ? <button type="button" className={`ghost small materials-setting-subbutton ${columnEditKey === activeKey ? 'active' : ''}`.trim()} onClick={() => setColumnEditKey(prev => prev === activeKey ? '' : activeKey)}>표 가로 사이즈 편집</button> : null}
-            <label className="stack compact-gap">
-              <span>표 가로 배율 (%)</span>
-              <input type="number" min="80" max="140" step="1" value={tableScaleSettings[activeKey] ?? 100} onChange={e => setTableScaleSettings(prev => ({ ...prev, [activeKey]: clampMaterialsScale(e.target.value) }))} />
-            </label>
-            <div className="row gap materials-settings-actions">
-              <button type="button" className="ghost small" onClick={() => { setSettingsOpen(''); setColumnEditKey('') }}>닫기</button>
-              {columnEditable && columnEditKey === activeKey ? <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableColumnSetting(activeKey)}>표크기 저장</button> : null}
-              <button type="button" className="ghost active small" disabled={settingsSaving} onClick={() => saveTableScaleSetting(activeKey, tableScaleSettings[activeKey])}>배율 저장</button>
-            </div>
-          </div>
-        ) : null}
+      <div className="materials-history-group-list">
+        {requests.map(request => {
+          const meta = parseRequesterMeta(request)
+          const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
+          return (
+            <section key={`history-group-${request.id}`} className="card materials-history-group-card">
+              <div className="materials-history-group-meta">
+                <div>{formatRequesterBranchLabel(meta.branch)}</div>
+                <div><strong>{meta.name}</strong></div>
+                <div>{formatFullDateLabel(request.created_at)}</div>
+                <div>{formatFullDateLabel(request.settled_at)}</div>
+                <div className="materials-history-group-total">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
+              </div>
+              <div className="materials-history-group-details">
+                {detailLines.length ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-history-group-detail-line">{line}</div>) : <div className="materials-history-group-detail-line muted">상세 내역이 없습니다.</div>}
+              </div>
+            </section>
+          )
+        })}
       </div>
     )
   }
@@ -9564,7 +9607,6 @@ function MaterialsPage({ user }) {
           <div className="materials-summary-head materials-summary-head-inline">
             <div><h3>자재구매(2/2)</h3>
             <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div></div>
-            {renderMaterialsPanelSettingsButton('confirm')}
           </div>
           <div className="materials-account-box">
             <strong>자재 입금 계좌</strong>
@@ -9607,7 +9649,6 @@ function MaterialsPage({ user }) {
             <h3>자재구매(1/2)</h3>
             <div className="muted">구매 수량을 입력한 뒤 자재구매 버튼을 눌러 주세요. 현재고보다 많은 수량은 신청할 수 없습니다.</div>
           </div>
-          {canEditMaterialTableSize ? renderMaterialsPanelSettingsButton('sales') : null}
         </div>
         <div className="materials-table materials-table-sales" style={getTableScaleStyle('sales')}>
           <div className="materials-row materials-row-head materials-row-head-sales materials-row-sales" style={getTableGridStyle('sales')}>
@@ -9658,7 +9699,10 @@ function MaterialsPage({ user }) {
     if (!requests.length) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
-    const requestGridKey = mode === 'pending' ? 'requesters' : 'history'
+    if (mode === 'history') {
+      return renderHistoryRows(requests)
+    }
+    const requestGridKey = mode === 'pending' ? 'requesters' : 'settlements'
     const selectable = mode === 'pending' || mode === 'settled'
     return (
       <div className="materials-request-sheet">
@@ -9683,7 +9727,7 @@ function MaterialsPage({ user }) {
                     <span>{mode === 'pending' ? '입금확인' : '결산취소'}</span>
                   </label>
                 ) : null}
-                <div>{meta.branch}</div>
+                <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div className="materials-request-name-cell">
                   <strong>{meta.name}</strong>
                 </div>
@@ -9713,7 +9757,7 @@ function MaterialsPage({ user }) {
     const grouped = groupedMyRequests()
     return (
       <section className="card materials-panel materials-panel-compact-head">
-        <div className="materials-summary-head-inline"><div><h3>신청현황</h3></div>{renderMaterialsPanelSettingsButton('myRequests')}</div>
+        <div className="materials-summary-head-inline"><div><h3>신청현황</h3></div></div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
@@ -9775,7 +9819,7 @@ function MaterialsPage({ user }) {
       <section className="card materials-panel materials-panel-compact-head">
         <div className="materials-summary-head-inline materials-summary-head-inventory">
           <div><h3>자재입고</h3></div>
-          {renderMaterialsPanelSettingsButton('incoming')}
+          
         </div>
         <div className="materials-table materials-table-sales" style={getTableScaleStyle('incoming')}>
           <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
@@ -9862,7 +9906,7 @@ function MaterialsPage({ user }) {
       {activeTab === 'incoming' && renderIncomingContent()}
       {activeTab === 'requesters' && (
         <section className="card materials-panel materials-panel-compact-head">
-          <div className="materials-summary-head-inline"><div><h3>신청목록</h3></div>{renderMaterialsPanelSettingsButton('requesters')}</div>
+          <div className="materials-summary-head-inline"><div><h3>신청목록</h3></div></div>
           <div style={getTableScaleStyle('requesters')}>{renderRequestRows(pendingRequests, 'pending')}</div>
           <div className="row gap wrap materials-actions-right materials-actions-bottom">
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={rejectSelectedRequests}>결산반려</button>
@@ -9872,7 +9916,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'settlements' && (
         <section className="card materials-panel materials-panel-compact-head">
-          <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div>{renderMaterialsPanelSettingsButton('settlements')}</div>
+          <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div></div>
           <div className="row gap wrap materials-actions-right materials-actions-bottom">
             <label className="materials-date-inline-label">
               <span>구매신청일자</span>
@@ -9887,7 +9931,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'history' && (
         <section className="card materials-panel materials-panel-compact-head">
-          <div className="materials-summary-head-inline"><div><h3>구매목록</h3></div>{renderMaterialsPanelSettingsButton('history')}</div>
+          <div className="materials-summary-head-inline"><div><h3>구매목록</h3></div></div>
           {renderRequestRows(historyRequests, 'history')}
         </section>
       )}

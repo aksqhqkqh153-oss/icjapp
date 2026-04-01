@@ -3735,6 +3735,41 @@ def _normalize_materials_table_device(value: str) -> str:
 def _get_materials_table_layout_key(device: str) -> str:
     return f'materials_table_layout_{_normalize_materials_table_device(device)}_json'
 
+def _get_materials_table_scale_key() -> str:
+    return 'materials_table_scale_json'
+
+@app.get('/api/materials/table-scale')
+def get_materials_table_scale(user=Depends(require_user)):
+    with get_conn() as conn:
+        raw = _get_admin_setting(conn, _get_materials_table_scale_key(), '{}')
+    try:
+        scales = json.loads(raw or '{}')
+        if not isinstance(scales, dict):
+            scales = {}
+    except Exception:
+        scales = {}
+    return {'scales': scales}
+
+@app.post('/api/materials/table-scale')
+def save_materials_table_scale(payload: PreferenceIn, user=Depends(require_admin_or_subadmin)):
+    scales = (payload.data or {}).get('scales', {})
+    if not isinstance(scales, dict):
+        raise HTTPException(status_code=400, detail='표 배율 데이터 형식이 올바르지 않습니다.')
+    normalized = {}
+    for key, value in scales.items():
+        try:
+            parsed = int(round(float(value)))
+        except Exception:
+            continue
+        normalized[str(key)] = max(80, min(140, parsed))
+    with get_conn() as conn:
+        now = utcnow()
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (_get_materials_table_scale_key(), json.dumps(normalized, ensure_ascii=False), now),
+        )
+    return {'ok': True, 'scales': normalized}
+
 @app.get('/api/materials/table-layout')
 def get_materials_table_layout(device: str = 'desktop', user=Depends(require_user)):
     normalized = _normalize_materials_table_device(device)

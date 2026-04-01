@@ -6288,3 +6288,94 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+
+.materials-settlement-filter-row {
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+.materials-date-inline-label-left {
+  margin-right: 0;
+}
+.materials-history-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.materials-history-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid #dbe2ea;
+}
+.materials-history-group-meta {
+  display: grid;
+  grid-template-columns: 72px minmax(90px, 1fr) 132px 148px 132px;
+  gap: 10px;
+  align-items: center;
+  font-weight: 600;
+}
+.materials-history-group-total {
+  text-align: right;
+  font-weight: 700;
+}
+.materials-history-group-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+.materials-history-group-detail-line {
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.materials-table-admin-editor {
+  margin-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+.admin-inline-subsection-head {
+  cursor: pointer;
+  user-select: none;
+}
+.materials-table-admin-editor-body {
+  margin-top: 12px;
+}
+.materials-table-admin-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.materials-table-admin-width-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.materials-table-admin-width-row,
+.materials-table-admin-scale-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (max-width: 768px) {
+  .materials-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  button.materials-tab {
+    min-height: 52px;
+  }
+  .materials-settlement-filter-row {
+    justify-content: flex-start;
+  }
+  .materials-history-group-meta {
+    grid-template-columns: 46px minmax(62px, 1fr) 74px 74px 86px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .materials-history-group-detail-line {
+    font-size: 12px;
+  }
+  .materials-table-admin-controls,
+  .materials-table-admin-width-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
