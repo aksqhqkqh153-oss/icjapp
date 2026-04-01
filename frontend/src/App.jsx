@@ -119,26 +119,6 @@ function saveAlertShownMap(userId, channel, value) {
   } catch (_) {}
 }
 
-
-function parseSharedRequesterMeta(request) {
-  const source = String(request?.requester_name || '').trim()
-  const uniqueId = String(request?.requester_unique_id || request?.account_unique_id || '').trim()
-  const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
-  if (match) {
-    return {
-      branch: match[1] || '-',
-      name: String(match[2] || '').trim() || match[1] || '-',
-      uniqueId,
-    }
-  }
-  return {
-    branch: '-',
-    name: source || '-',
-    uniqueId,
-  }
-}
-
-
 const BRANCH_NUMBER_OPTIONS = [0, ...Array.from({ length: 50 }, (_, index) => index + 1)]
 
 const ROLE_OPTIONS = [
@@ -6710,36 +6690,6 @@ function AdminModePage() {
     return parseVehicleAvailable(item?.vehicle_available) ? '가용' : '불가'
   }
 
-  function parseAdminRequesterMeta(request) {
-    return parseSharedRequesterMeta(request)
-  }
-
-  function buildAdminRequestDetailLines(items, maxLength = isMobile ? 24 : 56) {
-    const tokens = (items || []).filter(item => Number(item?.quantity || 0) > 0).map(item => {
-      const name = item?.short_name || item?.name || '물품'
-      const price = Number(item?.unit_price || 0).toLocaleString('ko-KR')
-      const qty = Number(item?.quantity || 0)
-      return `${name} / ${price}원 (${qty}개)`
-    })
-    if (!tokens.length) return ['세부구매내역 없음']
-    const lines = []
-    let current = []
-    let currentLength = 0
-    tokens.forEach(token => {
-      const nextLength = current.length ? currentLength + 3 + token.length : token.length
-      if (current.length && nextLength > maxLength) {
-        lines.push(current.join(' | '))
-        current = [token]
-        currentLength = token.length
-      } else {
-        current.push(token)
-        currentLength = nextLength
-      }
-    })
-    if (current.length) lines.push(current.join(' | '))
-    return lines
-  }
-
   async function load() {
     setLoading(true)
     setError('')
@@ -6846,31 +6796,6 @@ function AdminModePage() {
       loadMaterialsDeleteRequests()
     }
   }, [materialsRequestDeleteOpen])
-
-  const materialsRequestDeleteGroups = useMemo(() => {
-    const groups = new Map()
-    materialsRequestDeleteRows.forEach(request => {
-      const key = String(request?.user_id || request?.requester_unique_id || request?.requester_name || request?.id || '')
-      const meta = parseAdminRequesterMeta(request)
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          userId: request?.user_id || 0,
-          branch: meta.branch,
-          name: meta.name,
-          uniqueId: meta.uniqueId,
-          rows: [],
-        })
-      }
-      groups.get(key).rows.push(request)
-    })
-    return Array.from(groups.values()).sort((a, b) => {
-      const branchA = String(a.branch || '')
-      const branchB = String(b.branch || '')
-      if (branchA !== branchB) return branchA.localeCompare(branchB, 'ko')
-      return String(a.name || '').localeCompare(String(b.name || ''), 'ko')
-    })
-  }, [materialsRequestDeleteRows, isMobile])
 
   function updateMaterialsTableEditorField(field, value) {
     setMaterialsTableEditor(prev => ({ ...prev, [field]: value }))
@@ -7940,7 +7865,7 @@ function AdminModePage() {
               {materialsRequestDeleteLoading ? (
                 <div className="muted">불러오는 중...</div>
               ) : materialsRequestDeleteRows.length ? materialsRequestDeleteRows.map(request => {
-                const meta = parseAdminRequesterMeta(request)
+                const meta = parseRequesterMeta(request)
                 const checked = materialsRequestDeleteSelection.includes(request.id)
                 return (
                   <label key={`materials-delete-row-${request.id}`} className="materials-admin-delete-row">
@@ -7963,39 +7888,7 @@ function AdminModePage() {
                 <div className="muted">조건에 맞는 신청현황이 없습니다.</div>
               )}
             </div>
-            {!materialsRequestDeleteLoading && materialsRequestDeleteGroups.length ? (
-              <div className="materials-admin-delete-groups stack compact-gap">
-                {materialsRequestDeleteGroups.map(group => (
-                  <section key={`materials-delete-group-${group.key}`} className="materials-admin-delete-group-card">
-                    <div className="materials-admin-delete-group-header">
-                      <div className="materials-admin-delete-group-branch">[{formatRequesterBranchLabel(group.branch)}호점]</div>
-                      <div className="materials-admin-delete-group-name">{group.name}</div>
-                    </div>
-                    <div className="materials-admin-delete-group-list">
-                      {group.rows.map(request => {
-                        const checked = materialsRequestDeleteSelection.includes(request.id)
-                        const detailLines = buildAdminRequestDetailLines(request.items || [])
-                        return (
-                          <div key={`materials-delete-group-row-${request.id}`} className="materials-admin-delete-group-item">
-                            <label className="materials-admin-delete-group-meta">
-                              <span className="materials-admin-delete-group-checkbox"><input type="checkbox" checked={checked} onChange={e => setMaterialsRequestDeleteSelection(prev => e.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))} /></span>
-                              <span>{formatFullDateLabel(request.created_at)}</span>
-                              <span>{formatFullDateLabel(request.settled_at)}</span>
-                              <span>{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</span>
-                              <span>{materialsStageStatusLabel(request.status)}</span>
-                            </label>
-                            <div className="materials-admin-delete-group-details">
-                              {detailLines.map((line, index) => <div key={`materials-delete-detail-${request.id}-${index}`}>{line}</div>)}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : null}
-            <div className="muted tiny-text">선택한 신청현황은 해당 계정의 자재구매/현황 &gt; 신청현황 기록에서도 즉시 삭제됩니다.</div>
+            <div className="muted tiny-text">선택한 신청현황은 모든 계정 화면에서 즉시 삭제됩니다.</div>
           </div>
         )}
       </section>
@@ -9188,7 +9081,7 @@ const MATERIALS_TABLE_COLUMN_LABELS = {
   confirm: ['구분', '물품가', '구매수량', '합계금액'],
   myRequests: ['구매물품', '구매가격', '구매수량', '합계가격', '결산처리상태'],
   requesters: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
-  incoming: ['구분', '물품가', '현재고', '입고수량', '출고수량', '입고 후 수량', '비고'],
+  incoming: ['구분', '물품가', '현재고', '입고량', '출고량', '정산수량', '비고'],
   settlements: ['선택', '호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
   history: ['호점', '이름', '구매신청일자', '결산처리완료일자', '물품총합계'],
 }
@@ -9485,7 +9378,7 @@ function MaterialsPage({ user }) {
       .map(([productId, row]) => ({ product_id: Number(productId), incoming_qty: Number(row?.incoming_qty || 0), outgoing_qty: Number(row?.outgoing_qty || 0), note: row?.note || '' }))
       .filter(row => row.product_id > 0 && (row.incoming_qty > 0 || row.outgoing_qty > 0 || String(row.note || '').trim()))
     if (!rows.length) {
-      setNotice('입고수량 또는 출고수량을 1개 이상 입력해 주세요.')
+      setNotice('입고량 또는 출고량을 1개 이상 입력해 주세요.')
       return
     }
     setSaving(true)
@@ -9689,10 +9582,17 @@ function MaterialsPage({ user }) {
   }
 
   function parseRequesterMeta(request) {
-    const meta = parseSharedRequesterMeta(request)
+    const source = String(request?.requester_name || '').trim()
+    const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
+    if (match) {
+      return {
+        branch: match[1] || '-',
+        name: match[2] || match[1] || '-',
+      }
+    }
     return {
-      branch: meta.branch,
-      name: meta.name,
+      branch: '-',
+      name: source || '-',
     }
   }
 
@@ -9928,27 +9828,27 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     return (
-      <div className="materials-history-group-list">
-        <div className="materials-history-group-header">
+      <div className="materials-request-sheet materials-request-sheet-history">
+        <div className="materials-request-sheet-head materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
           <div>호점</div>
           <div>이름</div>
           <div>구매신청일자</div>
           <div>결산처리완료일자</div>
-          <div className="materials-history-group-total">물품총합계</div>
+          <div className="materials-request-total-cell">물품총합계</div>
         </div>
         {requests.map(request => {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
-            <section key={`history-group-${request.id}`} className="materials-history-group-card">
-              <div className="materials-history-group-meta materials-history-group-row">
+            <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history">
+              <div className="materials-request-sheet-row materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
-                <div><strong>{meta.name}</strong></div>
+                <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{formatFullDateLabel(request.settled_at)}</div>
-                <div className="materials-history-group-total">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
+                <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-history-group-details">
+              <div className="materials-request-items materials-request-items-sheet materials-request-items-history">
                 {detailLines.length ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-history-group-detail-line">{line}</div>) : <div className="materials-history-group-detail-line muted">상세 내역이 없습니다.</div>}
               </div>
             </section>
@@ -10115,7 +10015,7 @@ function MaterialsPage({ user }) {
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
         </div>
-        <div className="materials-myrequest-filter-bar">
+        <div className="materials-myrequest-filter-bar materials-myrequest-filter-bar-mobile-compact">
           <label className="materials-date-inline-label materials-date-inline-label-left">
             <span>시작기간</span>
             <input type="date" value={myRequestStartDate} onChange={(e) => setMyRequestStartDate(e.target.value)} />
@@ -10135,7 +10035,7 @@ function MaterialsPage({ user }) {
               <option value="canceled">취소접수</option>
             </select>
           </label>
-          <button type="button" className="ghost materials-bottom-button" onClick={() => { setMyRequestStartDate(''); setMyRequestEndDate(''); setMyRequestStatusFilter('all') }}>필터초기화</button>
+          <button type="button" className="ghost materials-bottom-button materials-filter-reset-button" onClick={() => { setMyRequestStartDate(''); setMyRequestEndDate(''); setMyRequestStatusFilter('all') }}><span>필터</span><span>초기화</span></button>
         </div>
         <div className="materials-request-history-list">
           {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
@@ -10198,7 +10098,7 @@ function MaterialsPage({ user }) {
         </div>
         <div className="materials-table materials-table-sales materials-table-incoming" style={getTableScaleStyle('incoming')}>
           <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
-            {renderResizableRowCells(['구분', '물품가', '현재고', '입고수량', '출고수량', '입고 후 수량', '비고'], 'incoming')}
+            {renderResizableRowCells(['구분', '물품가', '현재고', '입고량', '출고량', '정산수량', '비고'], 'incoming')}
           </div>
           {productRows.map(product => {
             const inventoryRow = inventoryRows.find(row => Number(row.product_id) === Number(product.id)) || {}
