@@ -8986,9 +8986,10 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
     const mobileTemplates = {
       sales: 'minmax(0, 1.34fr) minmax(0, 1fr) minmax(0, 0.82fr) minmax(0, 0.92fr) minmax(0, 1fr)',
       confirm: 'minmax(0, 1.44fr) minmax(0, 1fr) minmax(0, 0.92fr) minmax(0, 1fr)',
-      incoming: 'minmax(0, 1.2fr) minmax(0, 0.84fr) minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 0.86fr) minmax(0, 0.9fr)',
-      myRequests: 'minmax(0, 1.34fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 1fr)',
-      settlements: 'minmax(0, 0.72fr) minmax(0, 0.9fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr)',
+      incoming: 'minmax(0, 1.18fr) minmax(0, 0.82fr) minmax(0, 0.7fr) minmax(0, 0.76fr) minmax(0, 0.76fr) minmax(0, 0.88fr) minmax(0, 0.92fr)',
+      myRequests: 'minmax(0, 1.32fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 0.98fr)',
+      requesters: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
+      settlements: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
       history: 'minmax(0, 0.72fr) minmax(0, 0.9fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr)',
     }
     if (mobileTemplates[key]) return mobileTemplates[key]
@@ -9021,6 +9022,9 @@ function MaterialsPage({ user }) {
   const [notice, setNotice] = useState('')
   const [salesError, setSalesError] = useState('')
   const [settlementFilterDate, setSettlementFilterDate] = useState('')
+  const [myRequestStartDate, setMyRequestStartDate] = useState('')
+  const [myRequestEndDate, setMyRequestEndDate] = useState('')
+  const [myRequestStatusFilter, setMyRequestStatusFilter] = useState('all')
   const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100, history: 100, settlements: 100 })
   const [tableColumnSettings, setTableColumnSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
   const resizeStateRef = useRef(null)
@@ -9336,6 +9340,25 @@ function MaterialsPage({ user }) {
     return groups
   }
 
+  function filterMyRequests(groups) {
+    return groups.filter(request => {
+      const createdDate = String(request.created_at || '').slice(0, 10)
+      if (myRequestStartDate && createdDate < myRequestStartDate) return false
+      if (myRequestEndDate && createdDate > myRequestEndDate) return false
+      const statusLabel = formatRequestStatusLabel(request.status, (request.visibleItems || [])[0]?.quantity)
+      if (myRequestStatusFilter !== 'all') {
+        const matches = {
+          pending: statusLabel === '신청접수',
+          rejected: statusLabel === '반려됨',
+          settled: statusLabel === '결산완료',
+          canceled: statusLabel === '취소접수',
+        }
+        if (!matches[myRequestStatusFilter]) return false
+      }
+      return true
+    })
+  }
+
   async function saveMyRequestEdits() {
     if (mySelectedRequestIds.length === 0) {
       setNotice('수정/취소할 신청건을 선택해 주세요.')
@@ -9630,6 +9653,31 @@ function MaterialsPage({ user }) {
     return raw.endsWith('호점') ? raw.replace(/호점$/, '') : raw
   }
 
+  function formatRequestStatusLabel(status, quantity = null) {
+    const normalized = String(status || '').trim()
+    if (normalized === 'settled') return '결산완료'
+    if (normalized === 'rejected') return '반려됨'
+    if (Number(quantity || 0) === 0) return '취소접수'
+    return '신청접수'
+  }
+
+  function renderRequestItemSummary(items) {
+    const visibleItems = (items || []).filter(item => Number(item.quantity || 0) > 0)
+    if (!visibleItems.length) {
+      return <div className="materials-request-items-empty muted">상세 내역이 없습니다.</div>
+    }
+    return (
+      <div className="materials-request-items-grid">
+        {visibleItems.map(item => (
+          <div key={`summary-${item.id || item.product_id}`} className="materials-request-item-box">
+            <div className="materials-request-item-box-top">{item.short_name || item.name || '물품'} / {Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
+            <div className="materials-request-item-box-bottom">{Number(item.quantity || 0)}개</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   function buildHistoryDetailLines(items, maxLength = isMobile ? 34 : 88) {
     const tokens = (items || []).map(item => `${item.short_name || item.name || '물품'}(${Number(item.unit_price || 0).toLocaleString('ko-KR')}원*${Number(item.quantity || 0)}개)`).filter(Boolean)
     const lines = []
@@ -9821,14 +9869,8 @@ function MaterialsPage({ user }) {
                 <div>{isRejected ? <button type="button" className="ghost small" onClick={() => window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.')}>반려됨</button> : formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-request-items materials-request-items-sheet">
-                {visibleItems.map(item => (
-                  <div key={`req-item-${request.id}-${item.id}`} className="materials-inline-item materials-inline-item-sheet">
-                    <span className="materials-inline-item-name">{item.short_name || item.name}</span>
-                    <span className="materials-inline-item-price">{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</span>
-                    <strong>{Number(item.quantity || 0)}개</strong>
-                  </div>
-                ))}
+              <div className="materials-request-items materials-request-items-sheet materials-request-items-sheet-grid">
+                {renderRequestItemSummary(visibleItems)}
               </div>
               {request.request_note ? <div className="muted">메모: {request.request_note}</div> : null}
             </section>
@@ -9840,13 +9882,35 @@ function MaterialsPage({ user }) {
 
 
   function renderMyRequests() {
-    const grouped = groupedMyRequests()
+    const grouped = filterMyRequests(groupedMyRequests())
     return (
       <section className="card materials-panel materials-panel-compact-head">
         <div className="materials-summary-head-inline"><div><h3>신청현황</h3></div></div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
+        </div>
+        <div className="materials-myrequest-filter-bar">
+          <label className="materials-date-inline-label materials-date-inline-label-left">
+            <span>시작기간</span>
+            <input type="date" value={myRequestStartDate} onChange={(e) => setMyRequestStartDate(e.target.value)} />
+          </label>
+          <span className="materials-filter-range-separator">~</span>
+          <label className="materials-date-inline-label materials-date-inline-label-left">
+            <span>종료기간</span>
+            <input type="date" value={myRequestEndDate} onChange={(e) => setMyRequestEndDate(e.target.value)} />
+          </label>
+          <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact">
+            <span>상태</span>
+            <select className="materials-filter-select-compact" value={myRequestStatusFilter} onChange={(e) => setMyRequestStatusFilter(e.target.value)}>
+              <option value="all">전체</option>
+              <option value="pending">신청접수</option>
+              <option value="rejected">반려됨</option>
+              <option value="settled">결산완료</option>
+              <option value="canceled">취소접수</option>
+            </select>
+          </label>
+          <button type="button" className="ghost materials-bottom-button" onClick={() => { setMyRequestStartDate(''); setMyRequestEndDate(''); setMyRequestStatusFilter('all') }}>필터초기화</button>
         </div>
         <div className="materials-request-history-list">
           {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
@@ -9866,7 +9930,7 @@ function MaterialsPage({ user }) {
                     ) : null}
                     <strong>{String(request.created_at || '').slice(0, 10)}</strong>
                   </div>
-                  <span className={`materials-status-pill ${isSettled ? 'settled' : (isRejected ? 'rejected materials-status-pill-clickable' : 'pending')}`.trim()} onClick={() => { if (isRejected) window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{isSettled ? '결산완료' : (isRejected ? '반려됨' : '신청접수')}</span>
+                  <span className={`materials-status-pill ${isSettled ? 'settled' : (isRejected ? 'rejected materials-status-pill-clickable' : 'pending')}`.trim()} onClick={() => { if (isRejected) window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{formatRequestStatusLabel(request.status, request.visibleItems?.[0]?.quantity)}</span>
                 </div>
                 <div className="materials-request-history-table">
                   <div className="materials-request-history-row materials-request-history-head" style={getTableGridStyle('myRequests')}>
@@ -9883,7 +9947,7 @@ function MaterialsPage({ user }) {
                         <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                         <div>{myEditing && isSelected && !isLocked ? <input className={`materials-qty-input materials-history-qty-input ${shouldPulseQty ? 'materials-soft-pulse' : ''}`.trim()} inputMode="numeric" value={qty} onChange={(e) => handleMyRequestDraftChange(request, item, e.target.value)} /> : qty}</div>
                         <div>{lineTotal.toLocaleString('ko-KR')}원</div>
-                        <div className={`${qty === 0 && !isSettled ? 'materials-cancel-text' : ''} ${String(request.status || '') === 'rejected' ? 'materials-rejected-help-trigger' : ''}`.trim()} onClick={() => { if (String(request.status || '') === 'rejected') window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{isSettled ? '결산완료' : (String(request.status || '') === 'rejected' ? '반려됨' : (qty === 0 ? '취소접수' : '신청접수'))}</div>
+                        <div className={`${qty === 0 && !isSettled ? 'materials-cancel-text' : ''} ${String(request.status || '') === 'rejected' ? 'materials-rejected-help-trigger' : ''}`.trim()} onClick={() => { if (String(request.status || '') === 'rejected') window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.') }}>{formatRequestStatusLabel(request.status, qty)}</div>
                       </div>
                     )
                   })}
@@ -9994,7 +10058,7 @@ function MaterialsPage({ user }) {
         <section className="card materials-panel materials-panel-compact-head">
           <div className="materials-summary-head-inline"><div><h3>신청목록</h3></div></div>
           <div style={getTableScaleStyle('requesters')}>{renderRequestRows(pendingRequests, 'pending')}</div>
-          <div className="row gap wrap materials-actions-right materials-actions-bottom">
+          <div className="row gap wrap materials-actions-right materials-actions-bottom materials-requesters-actions-bottom">
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={rejectSelectedRequests}>결산반려</button>
             <button type="button" className="ghost active materials-bottom-button materials-register-button" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
           </div>

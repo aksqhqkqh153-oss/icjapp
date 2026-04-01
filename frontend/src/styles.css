@@ -6945,3 +6945,184 @@ a:focus-visible {
     overflow: hidden;
   }
 }
+
+/* 2026-04-01 request/settlement alignment refinements */
+.materials-request-sheet,
+.materials-request-history-table,
+.materials-request-history-card,
+.materials-request-history-row,
+.materials-request-sheet-card,
+.materials-request-sheet-row {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.materials-request-sheet {
+  border: 1px dashed #b6bec9;
+  border-radius: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+.materials-request-sheet-head,
+.materials-request-sheet-row-pending,
+.materials-request-sheet-row-settled,
+.materials-request-sheet-row-history {
+  gap: 0;
+  padding: 0;
+}
+
+.materials-request-sheet-head {
+  background: #f8fafc;
+  color: #334155;
+  border-bottom: 1px dashed #b6bec9;
+}
+
+.materials-request-sheet-head > div,
+.materials-request-sheet-row-pending > div,
+.materials-request-sheet-row-pending > label,
+.materials-request-sheet-row-settled > div,
+.materials-request-sheet-row-settled > label,
+.materials-request-sheet-row-history > div {
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 8px 8px;
+  border-right: 1px dashed #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.materials-request-sheet-head > div:last-child,
+.materials-request-sheet-row-pending > div:last-child,
+.materials-request-sheet-row-pending > label:last-child,
+.materials-request-sheet-row-settled > div:last-child,
+.materials-request-sheet-row-settled > label:last-child,
+.materials-request-sheet-row-history > div:last-child {
+  border-right: 0;
+}
+
+.materials-request-sheet-card {
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-bottom: 1px dashed #b6bec9 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fff;
+}
+.materials-request-sheet-card:last-child { border-bottom: 0 !important; }
+
+.materials-request-total-cell,
+.materials-request-sheet-head > div:last-child,
+.materials-request-sheet-row-pending > div:last-child,
+.materials-request-sheet-row-settled > div:last-child,
+.materials-request-sheet-row-history > div:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.materials-request-checkbox-cell {
+  gap: 6px;
+}
+
+.materials-request-items-sheet {
+  padding: 8px 10px;
+  border-top: 1px dashed #d5dbe3;
+  background: #fff;
+}
+
+.materials-request-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 8px 10px;
+  width: 100%;
+}
+
+.materials-request-item-box {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 4px;
+  min-width: 0;
+}
+
+.materials-request-item-box-top,
+.materials-request-item-box-bottom {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.materials-request-item-box-top {
+  font-weight: 700;
+}
+
+.materials-request-item-box-bottom {
+  padding-left: 8px;
+  color: #475569;
+}
+
+.materials-request-items-empty {
+  padding: 4px 0;
+}
+
+.materials-myrequest-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.materials-filter-range-separator {
+  line-height: 38px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.materials-requesters-actions-bottom {
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .materials-request-sheet-head > div,
+  .materials-request-sheet-row-pending > div,
+  .materials-request-sheet-row-pending > label,
+  .materials-request-sheet-row-settled > div,
+  .materials-request-sheet-row-settled > label,
+  .materials-request-sheet-row-history > div {
+    min-height: 34px;
+    padding: 6px 4px;
+    font-size: 10.7px;
+  }
+
+  .materials-request-items-sheet {
+    padding: 6px;
+  }
+
+  .materials-request-items-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .materials-request-item-box-top,
+  .materials-request-item-box-bottom {
+    font-size: 11px;
+  }
+
+  .materials-myrequest-filter-bar {
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .materials-filter-range-separator {
+    line-height: 32px;
+  }
+
+  .materials-requesters-actions-bottom {
+    justify-content: flex-end;
+  }
+}
