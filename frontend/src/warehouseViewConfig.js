@@ -3,9 +3,21 @@ export const WAREHOUSE_VIEW_CONFIG = {
     { key: 'galmae', title: '갈매', sheetName: '갈매창고입력시트', type: 'full' },
     { key: 'gimpo', title: '김포', sheetName: '김포창고입력시트', type: 'full' },
     {
-      key: 'gimpo-edit',
+      key: 'galmae-edit',
       title: '갈매(편집)',
       sheetName: '갈매창고입력시트',
+      type: 'range',
+      range: {
+        startRow: 1,
+        endRow: 19,
+        startCol: 4,
+        endCol: 8,
+      },
+    },
+    {
+      key: 'gimpo-edit',
+      title: '김포(편집)',
+      sheetName: '김포창고입력시트',
       type: 'range',
       range: {
         startRow: 1,
