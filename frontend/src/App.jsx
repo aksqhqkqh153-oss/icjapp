@@ -8982,6 +8982,14 @@ function normalizeMaterialsColumnWidths(key, values, isMobile) {
 }
 
 function buildMaterialsGridTemplate(key, widths, isMobile) {
+  if (isMobile) {
+    const mobileTemplates = {
+      sales: 'minmax(0, 1.34fr) minmax(0, 1fr) minmax(0, 0.82fr) minmax(0, 0.92fr) minmax(0, 1fr)',
+      confirm: 'minmax(0, 1.44fr) minmax(0, 1fr) minmax(0, 0.92fr) minmax(0, 1fr)',
+      myRequests: 'minmax(0, 1.34fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 1fr)',
+    }
+    if (mobileTemplates[key]) return mobileTemplates[key]
+  }
   const normalized = normalizeMaterialsColumnWidths(key, widths, isMobile)
   return normalized.map(width => `${width}px`).join(' ')
 }
@@ -9132,7 +9140,13 @@ function MaterialsPage({ user }) {
 
   function updateQuantity(productId, value) {
     const nextValue = String(value).replace(/[^\d]/g, '')
-    setQuantities(prev => ({ ...prev, [productId]: nextValue ? Number(nextValue) : '' }))
+    const nextQuantity = nextValue ? Number(nextValue) : ''
+    const product = productRows.find(item => Number(item.id) === Number(productId))
+    const stock = Number(product?.current_stock || 0)
+    if (nextValue && Number(nextQuantity) > stock) {
+      window.alert('현재고보다 구매수량이 많습니다. 구매수량을 줄여주세요')
+    }
+    setQuantities(prev => ({ ...prev, [productId]: nextQuantity }))
   }
 
   async function submitPurchaseRequest() {
@@ -9675,7 +9689,7 @@ function MaterialsPage({ user }) {
             <div><h3>자재구매(2/2)</h3>
             <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div></div>
           </div>
-          <div className="materials-account-box">
+          <div className="materials-account-box materials-account-box-centered">
             <strong>자재 입금 계좌</strong>
             <div>{accountGuide}</div>
           </div>
@@ -9724,14 +9738,15 @@ function MaterialsPage({ user }) {
           {productRows.map(product => {
             const quantity = Number(quantities[product.id] || 0)
             const stock = Number(product.current_stock || 0)
+            const hasStockError = quantity > stock
             return (
-              <div key={product.id} className="materials-row materials-row-sales" style={getTableGridStyle('sales')}>
+              <div key={product.id} className={`materials-row materials-row-sales ${hasStockError ? 'materials-row-invalid' : ''}`.trim()} style={getTableGridStyle('sales')}>
                 <div>{displayMaterialName(product, isMobile)}</div>
                 <div>{Number(product.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{stock}</div>
                 <div>
                   <input
-                    className="materials-qty-input"
+                    className={`materials-qty-input ${hasStockError ? 'materials-qty-input-invalid' : ''}`.trim()}
                     inputMode="numeric"
                     value={quantities[product.id] ?? ''}
                     onFocus={moveCaretToEnd}
@@ -9985,7 +10000,7 @@ function MaterialsPage({ user }) {
         <section className="card materials-panel materials-panel-compact-head">
           <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div></div>
           <div className="row gap wrap materials-settlement-filter-row">
-            <label className="materials-date-inline-label materials-date-inline-label-left">
+            <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact">
               <span>구매신청일자</span>
               <select className="materials-filter-select-compact" value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)}>
                 <option value="">전체일자</option>
@@ -9996,7 +10011,7 @@ function MaterialsPage({ user }) {
           </div>
           {renderRequestRows(filteredSettledRequests, 'settled')}
           <div className="row gap wrap materials-actions-right materials-actions-bottom materials-settlement-actions-bottom">
-            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
+            <button type="button" className="ghost materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={goToSettlementProgress}>결산진행</button>
           </div>
