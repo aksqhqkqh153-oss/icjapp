@@ -8961,7 +8961,6 @@ function MaterialsPage({ user }) {
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
-  const settlementDateOptions = Array.from(new Set(settledRequests.map(request => String(request.created_at || '').slice(0, 10)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
 
   async function loadOverview(nextTab) {
     setLoading(true)
@@ -9039,6 +9038,7 @@ function MaterialsPage({ user }) {
   const myRequests = data?.my_requests || []
   const inventoryRows = data?.inventory_rows || []
   const isInventoryManager = Boolean(data?.permissions?.can_manage_inventory)
+  const settlementDateOptions = Array.from(new Set(settledRequests.map(request => String(request.created_at || '').slice(0, 10)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
   const filteredSettledRequests = settlementFilterDate ? settledRequests.filter(request => String(request.created_at || '').slice(0, 10) === settlementFilterDate) : settledRequests
 
   const cartRows = productRows
