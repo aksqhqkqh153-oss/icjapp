@@ -2,11 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { WAREHOUSE_VIEW_CONFIG } from './warehouseViewConfig'
 
-const INPUT_SHEETS = {
-  galmae: '갈매창고입력시트',
-  gimpo: '김포창고입력시트',
-}
-
+const INPUT_TABS = WAREHOUSE_VIEW_CONFIG.inputTabs
 const WAREHOUSE_TABS = WAREHOUSE_VIEW_CONFIG.warehouseTabs
 
 function pxWidth(value, fallback = 88) {
@@ -81,13 +77,23 @@ function cropSheet(sheet, range) {
   }
 }
 
-function resolveWarehouseSheet(state, tabConfig) {
+function resolveSheetByTab(state, tabConfig) {
   const sourceSheet = state?.sheets?.[tabConfig.sheetName]
   if (!sourceSheet) return null
   if (tabConfig.type === 'range') {
     return cropSheet(sourceSheet, tabConfig.range)
   }
   return sourceSheet
+}
+
+function translateRangeCell(tabConfig, row, col) {
+  if (tabConfig?.type !== 'range' || !tabConfig?.range) {
+    return { row, col }
+  }
+  return {
+    row: tabConfig.range.startRow + row - 1,
+    col: tabConfig.range.startCol + col - 1,
+  }
 }
 
 function displayValue(value) {
@@ -216,13 +222,15 @@ export default function WarehousePage() {
   }, [loadState])
 
   const handleEdit = useCallback(async (row, col, value) => {
-    const sheetName = INPUT_SHEETS[inputSite]
-    const updateKey = `${sheetName}:${row}:${col}`
+    const selectedInputTab = INPUT_TABS.find((item) => item.key === inputSite) || INPUT_TABS[0]
+    const sheetName = selectedInputTab?.sheetName
+    const translated = translateRangeCell(selectedInputTab, row, col)
+    const updateKey = `${sheetName}:${translated.row}:${translated.col}`
     setSavingKey(updateKey)
     try {
       const response = await api('/api/warehouse/cell', {
         method: 'POST',
-        body: JSON.stringify({ sheet_name: sheetName, row, col, value }),
+        body: JSON.stringify({ sheet_name: sheetName, row: translated.row, col: translated.col, value }),
       })
       setState(response?.state || null)
     } finally {
@@ -230,7 +238,8 @@ export default function WarehousePage() {
     }
   }, [inputSite])
 
-  const currentInputSheet = state?.sheets?.[INPUT_SHEETS[inputSite]]
+  const selectedInputTab = INPUT_TABS.find((item) => item.key === inputSite) || INPUT_TABS[0]
+  const currentInputSheet = resolveSheetByTab(state, selectedInputTab)
 
   return (
     <div className="feature-card warehouse-page-shell">
@@ -252,10 +261,18 @@ export default function WarehousePage() {
       {mode === 'input' ? (
         <>
           <div className="warehouse-sub-tabs">
-            <button type="button" className={inputSite === 'galmae' ? 'active' : ''} onClick={() => setInputSite('galmae')}>갈매</button>
-            <button type="button" className={inputSite === 'gimpo' ? 'active' : ''} onClick={() => setInputSite('gimpo')}>김포</button>
+            {INPUT_TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={inputSite === item.key ? 'active' : ''}
+                onClick={() => setInputSite(item.key)}
+              >
+                {item.title}
+              </button>
+            ))}
           </div>
-          {loading ? <div className="empty-state">창고 시트를 불러오는 중입니다...</div> : <SpreadsheetTable title={INPUT_SHEETS[inputSite]} sheet={currentInputSheet} editable onEdit={handleEdit} />}
+          {loading ? <div className="empty-state">창고 시트를 불러오는 중입니다...</div> : <SpreadsheetTable title={selectedInputTab?.title || selectedInputTab?.sheetName} sheet={currentInputSheet} editable onEdit={handleEdit} />}
         </>
       ) : (
         <>
@@ -277,7 +294,7 @@ export default function WarehousePage() {
             <div className="warehouse-dual-stack">
               {(() => {
                 const selectedTab = WAREHOUSE_TABS.find((item) => item.key === warehouseViewTab) || WAREHOUSE_TABS[0]
-                const selectedSheet = resolveWarehouseSheet(state, selectedTab)
+                const selectedSheet = resolveSheetByTab(state, selectedTab)
                 return <SpreadsheetTable key={selectedTab.key} title={selectedTab.title} sheet={selectedSheet} editable={false} />
               })()}
             </div>
