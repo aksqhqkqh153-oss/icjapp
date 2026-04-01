@@ -26,6 +26,18 @@ export const WAREHOUSE_VIEW_CONFIG = {
         endCol: 8,
       },
     },
+    {
+      key: 'gimpo-material-edit',
+      title: '김포자재(편집)',
+      sheetName: '김포창고입력시트',
+      type: 'range',
+      range: {
+        startRow: 20,
+        endRow: 100,
+        startCol: 4,
+        endCol: 22,
+      },
+    },
   ],
   warehouseTabs: [
     { key: 'galmae', title: '갈매창고', sheetName: '갈매창고', type: 'full' },
