@@ -334,6 +334,15 @@ function isReadOnlyMember(user) {
   return Number(user?.grade || 6) === 6
 }
 
+function isEmployeeRestrictedUser(user) {
+  const accountType = String(user?.account_type || '').trim().toLowerCase()
+  return accountType === 'employee' || Number(user?.grade || 6) === 5
+}
+
+function canUseMaterialsPurchase(user) {
+  return !isEmployeeRestrictedUser(user)
+}
+
 function AccessDeniedRedirect({ message = '권한이 없습니다.' }) {
   const navigate = useNavigate()
   useEffect(() => {
@@ -539,18 +548,22 @@ function Layout({ children, user, onLogout }) {
     return location.pathname === to || location.pathname.startsWith(`${to}/`)
   }
   const menuPermissions = useMemo(() => normalizeMenuPermissions(user?.permission_config?.menu_permissions_json), [user?.permission_config?.menu_permissions_json])
-  const topMenuSections = useMemo(() => (
-    MENU_PERMISSION_SECTIONS
+  const employeeRestricted = isEmployeeRestrictedUser(user)
+  const topMenuSections = useMemo(() => {
+    const hiddenSectionIds = employeeRestricted ? new Set(['head-office', 'business']) : new Set()
+    const hiddenItemIds = employeeRestricted ? new Set(['materials', 'workday-history', 'settlements']) : new Set()
+    return MENU_PERMISSION_SECTIONS
       .map(section => ({
         ...section,
-        visible: canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
+        visible: !hiddenSectionIds.has(section.id) && canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
         items: section.items.filter(item => {
+          if (hiddenItemIds.has(item.id)) return false
           if (item.adminOnly && !canAccessAdminMode(user)) return false
           return canViewMenuEntry(user, menuPermissions, `item:${item.id}`)
         }),
       }))
-      .filter(section => section.visible)
-  ), [menuPermissions, user])
+      .filter(section => section.visible && section.items.length > 0)
+  }, [employeeRestricted, menuPermissions, user])
 
   useEffect(() => {
     setMenuOpen(false)
@@ -997,6 +1010,7 @@ function WorkdayHistoryPage() {
 function HomePage() {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
+  const employeeRestricted = isEmployeeRestrictedUser(currentUser)
   const [summary, setSummary] = useState(null)
   const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
   const [editingQuick, setEditingQuick] = useState(false)
@@ -1014,7 +1028,7 @@ function HomePage() {
       ])
       let pendingMaterialsSettlementCount = 0
       try {
-        if (Number(currentUser?.grade || 6) <= 2) {
+        if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2) {
           const materials = await api('/api/materials/overview')
           pendingMaterialsSettlementCount = Array.isArray(materials?.pending_requests) ? materials.pending_requests.length : 0
         }
@@ -1155,20 +1169,24 @@ function HomePage() {
   }
 
   const quickLibrary = useMemo(() => {
-    const base = [...QUICK_ACTION_LIBRARY]
-    if (Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0) {
+    let base = [...QUICK_ACTION_LIBRARY]
+    if (employeeRestricted) {
+      const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'settlements'])
+      base = base.filter(item => !hiddenQuickIds.has(item.id))
+    }
+    if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0) {
       base.push({ id: 'materialsPendingSettlement', label: '자재신청\n목록결산', kind: 'metric', metricKey: 'pendingMaterialsSettlementCount', path: '/materials' })
     }
     return base
-  }, [currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+  }, [employeeRestricted, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
 
   const activeQuickItems = useMemo(() => {
-    const activeIds = [...quickState.active]
-    if (Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0 && !activeIds.includes('materialsPendingSettlement')) {
+    const activeIds = [...quickState.active].filter(id => quickLibrary.some(item => item.id === id))
+    if (!employeeRestricted && Number(currentUser?.grade || 6) <= 2 && Number(summary?.pendingMaterialsSettlementCount || 0) > 0 && !activeIds.includes('materialsPendingSettlement')) {
       activeIds.unshift('materialsPendingSettlement')
     }
     return activeIds.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean)
-  }, [quickState.active, quickLibrary, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
+  }, [employeeRestricted, quickState.active, quickLibrary, currentUser?.grade, summary?.pendingMaterialsSettlementCount])
   const archivedQuickItems = useMemo(() => quickState.archived.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean), [quickState.archived, quickLibrary])
 
   const homeSections = useMemo(() => {
@@ -1186,7 +1204,7 @@ function HomePage() {
                       <div className="menu-category-title">홈 구조 변경</div>
                       <div className="stack compact">
                         <strong className="small-text">항목위치변경</strong>
-                        {homeSettings.sectionOrder.map(sectionId => (
+                        {homeSettings.sectionOrder.filter(sectionId => !(employeeRestricted && sectionId === 'workday')).map(sectionId => (
                           <div key={`section-order-${sectionId}`} className="quick-edit-row">
                             <span>{sectionId === 'quick' ? '빠른 확인' : sectionId === 'workday' ? '일시작~일종료' : '다가오는 일정'}</span>
                             <div className="inline-actions wrap end">
@@ -1197,19 +1215,21 @@ function HomePage() {
                         ))}
                       </div>
                     </div>
-                    <div className="menu-category-block">
-                      <div className="menu-category-title">시작종료설정</div>
-                      <div className="stack compact">
-                        <label>누르는 시간 : <input type="number" min="1" max="10" value={Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, holdSeconds: Math.max(1, Math.min(10, Number(e.target.value || HOME_HOLD_SECONDS_DEFAULT))) } })} /></label>
-                        <label>
-                          <select value={homeSettings.workday.enabled ? '사용' : '미사용'} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, enabled: e.target.value === '사용' } })}>
-                            <option value="사용">사용</option>
-                            <option value="미사용">미사용</option>
-                          </select>
-                        </label>
-                        <label className="check"><input type="checkbox" checked={!!homeSettings.workday.hideOnHome} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, hideOnHome: e.target.checked } })} /> 홈 화면 제외</label>
+                    {!employeeRestricted && (
+                      <div className="menu-category-block">
+                        <div className="menu-category-title">시작종료설정</div>
+                        <div className="stack compact">
+                          <label>누르는 시간 : <input type="number" min="1" max="10" value={Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, holdSeconds: Math.max(1, Math.min(10, Number(e.target.value || HOME_HOLD_SECONDS_DEFAULT))) } })} /></label>
+                          <label>
+                            <select value={homeSettings.workday.enabled ? '사용' : '미사용'} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, enabled: e.target.value === '사용' } })}>
+                              <option value="사용">사용</option>
+                              <option value="미사용">미사용</option>
+                            </select>
+                          </label>
+                          <label className="check"><input type="checkbox" checked={!!homeSettings.workday.hideOnHome} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, hideOnHome: e.target.checked } })} /> 홈 화면 제외</label>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1254,7 +1274,7 @@ function HomePage() {
           )}
         </section>
       ),
-      workday: (!homeSettings.workday.hideOnHome && homeSettings.workday.enabled) ? (
+      workday: (!employeeRestricted && !homeSettings.workday.hideOnHome && homeSettings.workday.enabled) ? (
         <section className="card" key="workday">
           <div className="between align-center">
             <h2>일시작 ~ 일종료</h2>
@@ -1307,7 +1327,7 @@ function HomePage() {
       ),
     }
     return homeSettings.sectionOrder.map(sectionId => sections[sectionId]).filter(Boolean)
-  }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, holdProgress, homeSettings, homeSettingsOpen, quickState.active, summary])
+  }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, employeeRestricted, holdProgress, homeSettings, homeSettingsOpen, quickState.active, summary])
 
   return (
     <div className="stack-page">
@@ -9168,6 +9188,8 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
 function MaterialsPage({ user }) {
 
   const isMobile = useIsMobile()
+  const employeeRestricted = isEmployeeRestrictedUser(user)
+  const canPurchaseMaterials = canUseMaterialsPurchase(user)
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -9279,7 +9301,7 @@ function MaterialsPage({ user }) {
   function buildVisibleTabs(permissions) {
     return [
       permissions.can_view_sales ? { id: 'sales', label: '자재구매' } : null,
-      permissions.can_view_my_requests ? { id: 'myRequests', label: '신청현황' } : null,
+      permissions.can_view_my_requests && !employeeRestricted ? { id: 'myRequests', label: '신청현황' } : null,
       permissions.can_view_requesters ? { id: 'requesters', label: '신청목록' } : null,
       permissions.can_manage_incoming ? { id: 'incoming', label: '자재입고' } : null,
       permissions.can_view_settlements ? { id: 'settlements', label: '구매결산' } : null,
@@ -9334,6 +9356,7 @@ function MaterialsPage({ user }) {
   }
 
   function updateQuantity(productId, value) {
+    if (!canPurchaseMaterials) return
     const nextValue = String(value).replace(/[^\d]/g, '')
     const nextQuantity = nextValue ? Number(nextValue) : ''
     const product = productRows.find(item => Number(item.id) === Number(productId))
@@ -9345,6 +9368,10 @@ function MaterialsPage({ user }) {
   }
 
   async function submitPurchaseRequest() {
+    if (!canPurchaseMaterials) {
+      setNotice('직원 계정은 자재를 구매할 수 없습니다.')
+      return
+    }
     if (cartRows.length === 0) {
       setNotice('구매 수량을 입력한 뒤 진행해 주세요.')
       return
@@ -9786,6 +9813,10 @@ function MaterialsPage({ user }) {
   }
 
   function handleMaterialsPurchaseClick() {
+    if (!canPurchaseMaterials) {
+      setSalesError('직원 계정은 자재를 구매할 수 없습니다.')
+      return
+    }
     if (insufficientCartItem) {
       const label = insufficientCartItem.short_name || insufficientCartItem.name || '해당'
       setSalesError(`${label} 물품의 재고가 부족하여 구매를 할 수 없습니다.`)
@@ -9798,7 +9829,7 @@ function MaterialsPage({ user }) {
   function renderSalesPurchaseButtons(positionClass = '') {
     return (
       <div className={`row gap materials-actions-right materials-sales-submit-row ${positionClass}`.trim()}>
-        <button type="button" className="ghost active materials-bottom-button" onClick={handleMaterialsPurchaseClick}>자재구매</button>
+        <button type="button" className="ghost active materials-bottom-button" onClick={handleMaterialsPurchaseClick} disabled={!canPurchaseMaterials}>{canPurchaseMaterials ? '자재구매' : '직원 계정 사용불가'}</button>
       </div>
     )
   }
@@ -9966,6 +9997,7 @@ function MaterialsPage({ user }) {
                     className={`materials-qty-input ${hasStockError ? 'materials-qty-input-invalid' : ''}`.trim()}
                     inputMode="numeric"
                     value={quantities[product.id] ?? ''}
+                    disabled={!canPurchaseMaterials}
                     onFocus={moveCaretToEnd}
                     onClick={moveCaretToEnd}
                     onKeyUp={moveCaretToEnd}
@@ -10672,10 +10704,10 @@ function App() {
         <Route path="/quotes" element={<QuoteFormsPage user={user} />} />
         <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
-        <Route path="/settlements" element={<SettlementPage />} />
+        <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
-        <Route path="/workday-history" element={<WorkdayHistoryPage />} />
+        <Route path="/workday-history" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 일시작종료 기능을 사용할 수 없습니다." /> : <WorkdayHistoryPage />} />
         <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
         <Route path="/menu-permissions" element={isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />} />
         <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />

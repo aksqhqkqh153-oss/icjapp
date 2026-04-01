@@ -404,6 +404,13 @@ def _is_staff_grade(grade_value) -> bool:
         return int(grade_value or 0) == 5
     except Exception:
         return False
+
+def _is_employee_restricted_user(user: dict) -> bool:
+    account_type = str(user.get('account_type') or '').strip().lower()
+    if account_type == 'employee':
+        return True
+    return _is_staff_grade(user.get('grade'))
+
 def _can_access_admin_mode(user: dict, conn) -> bool:
     return _grade_of(user) <= 2 or _grade_of(user) <= _get_permission_config(conn)['admin_mode_access_grade']
 def _can_manage_grade(actor: dict, target_grade: int, conn) -> bool:
@@ -791,8 +798,11 @@ def _location_share_status(conn, user: dict) -> dict:
 
 def _materials_scope_allowed(user: dict, scope: str) -> bool:
     grade = _grade_of(user)
+    employee_restricted = _is_employee_restricted_user(user)
     if scope == 'sales':
         return True
+    if scope == 'my_requests':
+        return not employee_restricted
     if scope == 'inventory':
         return grade <= 2
     if scope in {'requesters', 'settlements', 'history'}:
@@ -833,7 +843,7 @@ def _material_permissions(user: dict) -> dict:
         'can_view_history': _materials_scope_allowed(user, 'history'),
         'can_manage_inventory': _materials_scope_allowed(user, 'inventory_manage'),
         'can_manage_incoming': _materials_scope_allowed(user, 'inventory_manage'),
-        'can_view_my_requests': _materials_scope_allowed(user, 'sales'),
+        'can_view_my_requests': _materials_scope_allowed(user, 'my_requests'),
     }
 
 def _material_request_detail(conn, request_row: dict) -> dict:
@@ -3807,6 +3817,8 @@ def get_materials_overview(user=Depends(require_user)):
 @app.post('/api/materials/purchase-requests')
 def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Depends(require_user)):
     _require_materials_scope(user, 'sales')
+    if _is_employee_restricted_user(user):
+        raise HTTPException(status_code=403, detail='직원 계정은 자재를 구매할 수 없습니다.')
     valid_items = [item for item in payload.items if int(item.quantity or 0) > 0]
     if not valid_items:
         raise HTTPException(status_code=400, detail='구매 개수를 1개 이상 입력해 주세요.')
