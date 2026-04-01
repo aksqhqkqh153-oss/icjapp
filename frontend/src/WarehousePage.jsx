@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import { WAREHOUSE_VIEW_CONFIG } from './warehouseViewConfig'
 
 const INPUT_SHEETS = {
   galmae: '갈매창고입력시트',
   gimpo: '김포창고입력시트',
 }
 
-const DISPLAY_SHEETS = [
-  { key: 'galmae', title: '갈매창고', name: '갈매창고' },
-  { key: 'gimpo', title: '김포창고', name: '김포창고' },
-]
+const WAREHOUSE_TABS = WAREHOUSE_VIEW_CONFIG.warehouseTabs
 
 function pxWidth(value, fallback = 88) {
   const width = Number(value || 0)
@@ -31,6 +29,65 @@ function buildMergeMaps(merges = []) {
     }
   })
   return { startMap, hiddenMap }
+}
+
+
+function cropSheet(sheet, range) {
+  if (!sheet || !range) return null
+  const { startRow, endRow, startCol, endCol } = range
+  const rowCount = Math.max(0, endRow - startRow + 1)
+  const colCount = Math.max(0, endCol - startCol + 1)
+  const rows = Array.from({ length: rowCount }, (_, rowOffset) => {
+    const sourceRow = sheet.rows?.[startRow - 1 + rowOffset] || []
+    return Array.from({ length: colCount }, (_, colOffset) => sourceRow[startCol - 1 + colOffset] ?? '')
+  })
+  const styles = Array.from({ length: rowCount }, (_, rowOffset) => {
+    const sourceRow = sheet.styles?.[startRow - 1 + rowOffset] || []
+    return Array.from({ length: colCount }, (_, colOffset) => sourceRow[startCol - 1 + colOffset] || {})
+  })
+  const merges = (sheet.merges || [])
+    .filter((merge) => merge.r1 >= startRow && merge.r2 <= endRow && merge.c1 >= startCol && merge.c2 <= endCol)
+    .map((merge) => ({
+      r1: merge.r1 - startRow + 1,
+      c1: merge.c1 - startCol + 1,
+      r2: merge.r2 - startRow + 1,
+      c2: merge.c2 - startCol + 1,
+    }))
+
+  const colWidths = {}
+  for (let col = startCol; col <= endCol; col += 1) {
+    const width = sheet.colWidths?.[String(col)]
+    if (width !== undefined) {
+      colWidths[String(col - startCol + 1)] = width
+    }
+  }
+
+  const rowHeights = {}
+  for (let row = startRow; row <= endRow; row += 1) {
+    const height = sheet.rowHeights?.[String(row)]
+    if (height !== undefined) {
+      rowHeights[String(row - startRow + 1)] = height
+    }
+  }
+
+  return {
+    rows,
+    styles,
+    merges,
+    colWidths,
+    rowHeights,
+    lastRow: rowCount,
+    lastCol: colCount,
+  }
+}
+
+function resolveWarehouseSheet(state, tabConfig) {
+  const sourceSheet = state?.sheets?.[tabConfig.sheetName]
+  if (!sourceSheet) return null
+  if (tabConfig.type === 'range') {
+    return cropSheet(sourceSheet, tabConfig.range)
+  }
+  return sourceSheet
 }
 
 function displayValue(value) {
@@ -142,6 +199,7 @@ export default function WarehousePage() {
   const [state, setState] = useState(null)
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState('')
+  const [warehouseViewTab, setWarehouseViewTab] = useState('galmae')
 
   const loadState = useCallback(async () => {
     setLoading(true)
@@ -200,11 +258,31 @@ export default function WarehousePage() {
           {loading ? <div className="empty-state">창고 시트를 불러오는 중입니다...</div> : <SpreadsheetTable title={INPUT_SHEETS[inputSite]} sheet={currentInputSheet} editable onEdit={handleEdit} />}
         </>
       ) : (
-        <div className="warehouse-dual-stack">
-          {DISPLAY_SHEETS.map((item) => (
-            <SpreadsheetTable key={item.name} title={item.title} sheet={state?.sheets?.[item.name]} editable={false} />
-          ))}
-        </div>
+        <>
+          <div className="warehouse-sub-tabs">
+            {WAREHOUSE_TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={warehouseViewTab === item.key ? 'active' : ''}
+                onClick={() => setWarehouseViewTab(item.key)}
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+          {loading ? (
+            <div className="empty-state">창고 시트를 불러오는 중입니다...</div>
+          ) : (
+            <div className="warehouse-dual-stack">
+              {(() => {
+                const selectedTab = WAREHOUSE_TABS.find((item) => item.key === warehouseViewTab) || WAREHOUSE_TABS[0]
+                const selectedSheet = resolveWarehouseSheet(state, selectedTab)
+                return <SpreadsheetTable key={selectedTab.key} title={selectedTab.title} sheet={selectedSheet} editable={false} />
+              })()}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
