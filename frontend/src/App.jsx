@@ -230,6 +230,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'materials', label: '자재구매/현황', path: '/materials' },
       { id: 'quotes', label: '견적', path: '/quotes' },
       { id: 'workday-history', label: '일시작종료', path: '/workday-history' },
+      { id: 'points', label: '포인트', path: '/points' },
     ],
   },
   {
@@ -245,9 +246,7 @@ const MENU_PERMISSION_SECTIONS = [
   {
     id: 'business',
     label: '사업자용',
-    items: [
-      { id: 'points', label: '포인트', path: '/points' },
-    ],
+    items: [],
   },
   {
     id: 'admin',
@@ -4616,6 +4615,16 @@ function WorkSchedulePage() {
   const [entryForm, setEntryForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [activeFormDate, setActiveFormDate] = useState('')
   const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_business_reasons: Array(6).fill(''), excluded_staff: '' })
+  const businessSlotCount = Math.max(6, noteForm.excluded_business_slots.length, noteForm.excluded_business_reasons.length)
+
+  function setBusinessSlotCount(nextCount) {
+    const safeCount = Math.max(6, Number(nextCount) || 6)
+    setNoteForm(prev => ({
+      ...prev,
+      excluded_business_slots: Array.from({ length: safeCount }, (_, index) => String(prev.excluded_business_slots?.[index] || '')),
+      excluded_business_reasons: Array.from({ length: safeCount }, (_, index) => String(prev.excluded_business_reasons?.[index] || '')),
+    }))
+  }
   const [activeNoteDate, setActiveNoteDate] = useState('')
   const [message, setMessage] = useState('')
   const [editingKey, setEditingKey] = useState('')
@@ -4640,7 +4649,7 @@ function WorkSchedulePage() {
           .filter(item => !item?.archived_in_branch_status)
           .map(item => ({
             value: String(item.branch_no),
-            label: `[${item.branch_no}호점] ${item.nickname || item.name || item.email || `${item.branch_no}호점`}`,
+            label: `[${branchDisplayLabel(item.branch_no, `${item.branch_no}호점`)}] [${item.nickname || item.name || item.email || `${item.branch_no}호점`}]`,
             name: item.nickname || item.name || item.email || `${item.branch_no}호점`,
             userId: item.id,
           }))
@@ -4670,8 +4679,8 @@ function WorkSchedulePage() {
     const details = Array.isArray(day.excluded_business_details) ? day.excluded_business_details : []
     setNoteForm({
       schedule_date: day.date,
-      excluded_business_slots: details.length ? details.slice(0, 6).map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business),
-      excluded_business_reasons: details.length ? details.slice(0, 6).map(item => String(item?.reason || '').trim()) : Array(6).fill(''),
+      excluded_business_slots: details.length ? details.map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business),
+      excluded_business_reasons: details.length ? details.map(item => String(item?.reason || '').trim()) : Array(6).fill(''),
       excluded_staff: day.excluded_staff || '',
     })
     setMessage('')
@@ -4964,7 +4973,7 @@ function WorkSchedulePage() {
                 <div className="stack compact-gap">
                   <label>열외자 목록 - 사업자</label>
                   <div className="work-excluded-business-grid with-reason">
-                    {noteForm.excluded_business_slots.map((slot, index) => (
+                    {Array.from({ length: businessSlotCount }, (_, index) => noteForm.excluded_business_slots[index] || '').map((slot, index) => (
                       <div key={`${day.date}-business-${index}`} className="work-excluded-business-row">
                         <select value={slot} onChange={e => {
                           const nextValue = e.target.value
@@ -7802,7 +7811,7 @@ function AdminModePage() {
               <div className="inline-actions wrap admin-status-toolbar-spacer" />
               <div className="inline-actions wrap admin-section-save-actions">
                 {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
-                  ? renderActionButton('가맹현황', '저장', saveBranchDetails)
+                  ? renderActionButton('가맹정보', '저장', saveBranchDetails)
                   : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '저장', saveEmployeeDetails))}
                 {showStatusCategoryActions && <button type="button" className="multiline-action-button" onClick={() => {
                   const key = currentStatusCategoryKey
@@ -10071,7 +10080,7 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     return (
-      <div className="materials-request-sheet materials-request-sheet-history">
+      <div className="materials-request-sheet materials-request-sheet-history materials-history-grid-sync">
         <div className="materials-request-sheet-head materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
           <div>선택</div>
           <div>호점</div>
@@ -10084,8 +10093,8 @@ function MaterialsPage({ user }) {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
-            <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history">
-              <div className="materials-request-sheet-row materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
+            <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history materials-history-grid-card">
+              <div className="materials-request-sheet-row materials-request-sheet-row-history materials-history-grid-row" style={getRequestSheetGridStyle('history')}>
                 <div className="materials-history-static-cell">완료</div>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
@@ -10093,7 +10102,7 @@ function MaterialsPage({ user }) {
                 <div>{formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-request-items materials-request-items-sheet materials-request-items-history">
+              <div className="materials-history-grid-detail-wrap">
                 {detailLines.length ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-history-group-detail-line">{line}</div>) : <div className="materials-history-group-detail-line muted">상세 내역이 없습니다.</div>}
               </div>
             </section>

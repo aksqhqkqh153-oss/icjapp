@@ -3438,7 +3438,9 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             for entry in excluded_business_details:
                 name = str(entry.get('name') or entry.get('label') or '').strip() or '사업자'
                 reason = str(entry.get('reason') or '').strip()
-                excluded_business_names.append(f'{name} (사유 : {reason or "-"})')
+                branch_no = entry.get('branch_no')
+                branch_label = '본점' if str(branch_no).strip() in {'0', '본점'} else (f'{int(branch_no)}호점' if str(branch_no).strip().isdigit() else str(branch_no or '-').strip())
+                excluded_business_names.append(f'[{branch_label}] | [{name}] | [(사유 : {reason or "-"})]')
         else:
             for branch_no in branch_ids:
                 display_name = branch_name_map.get(branch_no, f'{branch_no}호점')

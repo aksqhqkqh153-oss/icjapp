@@ -7743,3 +7743,102 @@ a:focus-visible {
 .admin-section-save-actions .small {
   white-space: nowrap;
 }
+
+/* 2026-04-01 request update */
+@media (max-width: 768px) {
+  .home-settings-menu {
+    min-width: min(84vw, 320px);
+    max-width: min(86vw, 334px);
+  }
+  .materials-confirm-history-table .materials-request-history-row > div,
+  .materials-confirm-history-table .materials-request-history-head > div {
+    font-size: 13px;
+  }
+  .branch-summary-lines .admin-summary-line.admin-summary-line-primary {
+    font-size: 12px;
+  }
+  .authority-toolbar-row {
+    grid-template-columns: minmax(68px, auto) 1fr;
+    gap: 4px;
+  }
+  .authority-toolbar-left {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .authority-sort-select {
+    min-width: 66px;
+    max-width: 72px;
+    font-size: 10px;
+    margin: 0;
+  }
+  .account-manage-toolbar-row {
+    display: grid;
+    grid-template-columns: minmax(68px, auto) 1fr;
+    gap: 6px;
+    align-items: center;
+  }
+  .account-manage-toolbar-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .account-manage-toolbar-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}
+.admin-status-toolbar .small,
+.admin-status-toolbar .multiline-action-button {
+  min-width: 56px;
+}
+.work-excluded-business-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.9fr);
+  gap: 6px;
+}
+.work-excluded-business-row select option:disabled {
+  color: #9ca3af;
+}
+.materials-history-grid-sync .materials-request-sheet-head,
+.materials-history-grid-sync .materials-history-grid-row {
+  width: 100%;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+.materials-history-grid-card {
+  border: 0;
+  border-bottom: 1px dashed #b6bec9;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 0;
+}
+.materials-history-grid-card:last-child {
+  border-bottom: 0;
+}
+.materials-history-grid-row > div,
+.materials-history-grid-sync .materials-request-sheet-head > div {
+  border-right: 1px dashed #cbd5e1;
+  padding: 8px 8px;
+}
+.materials-history-grid-row > div:last-child,
+.materials-history-grid-sync .materials-request-sheet-head > div:last-child {
+  border-right: 0;
+}
+.materials-history-grid-detail-wrap {
+  border-top: 1px dashed #d5dbe3;
+}
+.materials-history-grid-sync .materials-request-sheet-head {
+  border-bottom: 1px dashed #b6bec9;
+}
+.materials-history-grid-sync {
+  border: 1px dashed #b6bec9;
+  border-radius: 0;
+}
+.materials-history-grid-sync .materials-request-sheet-card {
+  background: #fff;
+}
