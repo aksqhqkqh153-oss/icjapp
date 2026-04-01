@@ -3981,7 +3981,9 @@ button.selected-toggle:hover,
 button.materials-tab {
   min-width: 0;
   width: 100%;
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.2;
 }
 button.materials-tab.active {
@@ -4027,6 +4029,8 @@ button.ghost.active {
 }
 .materials-bottom-button {
   min-width: 116px;
+  min-height: 38px;
+  padding: 8px 14px;
 }
 .materials-summary-head-sales-top {
   flex-direction: row;
@@ -4238,9 +4242,11 @@ button.ghost.active {
 
   button.materials-tab {
     min-width: 0;
-    padding: 8px 6px;
-    font-size: 11px;
-    white-space: normal;
+    padding: 9px 6px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     word-break: keep-all;
   }
 
@@ -6297,10 +6303,39 @@ a:focus-visible {
 .materials-date-inline-label-left {
   margin-right: 0;
 }
+.materials-settlement-filter-row {
+  justify-content: flex-start;
+  align-items: flex-end;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+.materials-settlement-filter-row .materials-bottom-button {
+  margin-left: 0;
+}
+.materials-settlement-actions-bottom {
+  justify-content: flex-end;
+}
+.materials-date-inline-label select,
+.materials-date-inline-label input {
+  min-height: 38px;
+}
 .materials-history-group-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.materials-history-group-header,
+.materials-history-group-meta {
+  display: grid;
+  grid-template-columns: 72px minmax(90px, 1fr) 132px 148px 132px;
+  gap: 10px;
+  align-items: center;
+}
+.materials-history-group-header {
+  padding: 0 10px 2px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
 }
 .materials-history-group-card {
   display: flex;
@@ -6309,10 +6344,6 @@ a:focus-visible {
   border-bottom: 1px solid #dbe2ea;
 }
 .materials-history-group-meta {
-  display: grid;
-  grid-template-columns: 72px minmax(90px, 1fr) 132px 148px 132px;
-  gap: 10px;
-  align-items: center;
   font-weight: 600;
 }
 .materials-history-group-total {
@@ -6329,6 +6360,9 @@ a:focus-visible {
   line-height: 1.55;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+.materials-table-admin-section-body {
+  padding-top: 4px;
 }
 .materials-table-admin-editor {
   margin-top: 16px;
@@ -6362,14 +6396,22 @@ a:focus-visible {
   }
   button.materials-tab {
     min-height: 52px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .materials-settlement-filter-row {
     justify-content: flex-start;
   }
+  .materials-history-group-header,
   .materials-history-group-meta {
     grid-template-columns: 46px minmax(62px, 1fr) 74px 74px 86px;
     gap: 6px;
     font-size: 12px;
+  }
+  .materials-history-group-header {
+    padding: 0 4px 2px;
   }
   .materials-history-group-detail-line {
     font-size: 12px;

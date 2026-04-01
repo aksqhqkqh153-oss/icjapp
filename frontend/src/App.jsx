@@ -7712,53 +7712,54 @@ function AdminModePage() {
                 <button key={pageNo} type="button" className={accountPage === pageNo ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountPage(pageNo)}>{pageNo}</button>
               ))}
             </div>
-            <div className="admin-inline-subsection materials-table-admin-editor">
-              <div className="between admin-inline-subsection-head" role="button" tabIndex={0} onClick={() => setMaterialsTableSizeOpen(v => !v)} onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setMaterialsTableSizeOpen(v => !v)
-                }
-              }}>
-                <strong>표 사이즈 조절</strong>
-                <span className="admin-section-chevron">{materialsTableSizeOpen ? '−' : '+'}</span>
-              </div>
-              {materialsTableSizeOpen && (
-                <div className="stack compact-gap materials-table-admin-editor-body">
-                  <div className="admin-inline-grid compact-inline-grid materials-table-admin-controls">
-                    <label>기능
-                      <select value={materialsTableEditor.mode} onChange={e => updateMaterialsTableEditorField('mode', e.target.value)}>
-                        {MATERIALS_TABLE_EDIT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                    </label>
-                    <label>화면
-                      <select value={materialsTableEditor.target} onChange={e => updateMaterialsTableEditorField('target', e.target.value)}>
-                        {MATERIALS_TABLE_TARGET_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  {materialsTableEditor.mode === 'width' ? (
-                    <div className="materials-table-admin-width-list">
-                      {(MATERIALS_TABLE_COLUMN_LABELS[materialsTableEditor.target] || []).map((label, index) => (
-                        <label key={`materials-table-width-${materialsTableEditor.target}-${index}`} className="materials-table-admin-width-row">
-                          <span>{label}</span>
-                          <input type="number" min="56" max="360" step="1" value={materialsTableLayouts[materialsTableEditor.target]?.[index] ?? ''} onChange={e => updateMaterialsTableWidth(materialsTableEditor.target, index, e.target.value)} />
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <label className="materials-table-admin-scale-field">
-                      <span>표 가로 배율 (%)</span>
-                      <input type="number" min="80" max="140" step="1" value={materialsTableScaleSettings[materialsTableEditor.target] ?? 100} onChange={e => setMaterialsTableScaleSettings(prev => ({ ...prev, [materialsTableEditor.target]: clampMaterialsScale(e.target.value) }))} />
-                    </label>
-                  )}
-                  <div className="inline-actions wrap end">
-                    <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={saveMaterialsTableEditor}>저장</button>
-                  </div>
-                  <div className="muted tiny-text">저장 시 모든 계정에 동일하게 적용됩니다.</div>
-                </div>
-              )}
-            </div>
           </>
+        )}
+      </section>
+
+      <section className="card admin-mode-card">
+        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setMaterialsTableSizeOpen(v => !v)} onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setMaterialsTableSizeOpen(v => !v)
+          }
+        }}>
+          <h2>표 사이즈 조절</h2>
+          <span className="admin-section-chevron">{materialsTableSizeOpen ? '−' : '+'}</span>
+        </div>
+        {materialsTableSizeOpen && (
+          <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
+            <div className="admin-inline-grid compact-inline-grid materials-table-admin-controls">
+              <label>기능
+                <select value={materialsTableEditor.mode} onChange={e => updateMaterialsTableEditorField('mode', e.target.value)}>
+                  {MATERIALS_TABLE_EDIT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label>화면
+                <select value={materialsTableEditor.target} onChange={e => updateMaterialsTableEditorField('target', e.target.value)}>
+                  {MATERIALS_TABLE_TARGET_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            {materialsTableEditor.mode === 'width' ? (
+              <div className="materials-table-admin-width-list">
+                {(MATERIALS_TABLE_COLUMN_LABELS[materialsTableEditor.target] || []).map((label, index) => (
+                  <label key={`materials-table-width-${materialsTableEditor.target}-${index}`} className="materials-table-admin-width-row">
+                    <span>{label}</span>
+                    <input type="number" min="56" max="360" step="1" value={materialsTableLayouts[materialsTableEditor.target]?.[index] ?? ''} onChange={e => updateMaterialsTableWidth(materialsTableEditor.target, index, e.target.value)} />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <label className="materials-table-admin-scale-field">
+                <span>표 가로 배율 (%)</span>
+                <input type="number" min="80" max="140" step="1" value={materialsTableScaleSettings[materialsTableEditor.target] ?? 100} onChange={e => setMaterialsTableScaleSettings(prev => ({ ...prev, [materialsTableEditor.target]: clampMaterialsScale(e.target.value) }))} />
+              </label>
+            )}
+            <div className="inline-actions wrap end">
+              <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={saveMaterialsTableEditor}>저장</button>
+            </div>
+            <div className="muted tiny-text">저장 시 모든 계정에 동일하게 적용됩니다.</div>
+          </div>
         )}
       </section>
 
@@ -9357,6 +9358,12 @@ function MaterialsPage({ user }) {
     return raw || '-'
   }
 
+  function formatSettlementFilterLabel(value) {
+    const raw = String(value || '').slice(0, 10)
+    if (!raw) return '전체일자'
+    return raw
+  }
+
   function parseRequesterMeta(request) {
     const source = String(request?.requester_name || '').trim()
     const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
@@ -9579,12 +9586,19 @@ function MaterialsPage({ user }) {
     }
     return (
       <div className="materials-history-group-list">
+        <div className="materials-history-group-header">
+          <div>호점</div>
+          <div>이름</div>
+          <div>구매신청일자</div>
+          <div>결산처리완료일자</div>
+          <div className="materials-history-group-total">물품총합계</div>
+        </div>
         {requests.map(request => {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
             <section key={`history-group-${request.id}`} className="card materials-history-group-card">
-              <div className="materials-history-group-meta">
+              <div className="materials-history-group-meta materials-history-group-row">
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
@@ -9918,16 +9932,22 @@ function MaterialsPage({ user }) {
       {activeTab === 'settlements' && (
         <section className="card materials-panel materials-panel-compact-head">
           <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div></div>
-          <div className="row gap wrap materials-actions-right materials-actions-bottom">
-            <label className="materials-date-inline-label">
+          <div className="row gap wrap materials-settlement-filter-row">
+            <label className="materials-date-inline-label materials-date-inline-label-left">
               <span>구매신청일자</span>
-              <input type="date" value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)} />
+              <select value={settlementFilterDate} onChange={(e) => setSettlementFilterDate(e.target.value)}>
+                <option value="">전체일자</option>
+                {settlementDateOptions.map(date => <option key={`settlement-date-${date}`} value={date}>{formatSettlementFilterLabel(date)}</option>)}
+              </select>
             </label>
             <button type="button" className="ghost materials-bottom-button" onClick={() => setSettlementFilterDate('')}>필터초기화</button>
-            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
-            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
           </div>
           {renderRequestRows(filteredSettledRequests, 'settled')}
+          <div className="row gap wrap materials-actions-right materials-actions-bottom materials-settlement-actions-bottom">
+            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
+            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={goToSettlementProgress}>결산진행</button>
+            <button type="button" className="ghost active materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
+          </div>
         </section>
       )}
       {activeTab === 'history' && (
