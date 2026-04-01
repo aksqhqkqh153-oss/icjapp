@@ -119,6 +119,26 @@ function saveAlertShownMap(userId, channel, value) {
   } catch (_) {}
 }
 
+
+function parseSharedRequesterMeta(request) {
+  const source = String(request?.requester_name || '').trim()
+  const uniqueId = String(request?.requester_unique_id || request?.account_unique_id || '').trim()
+  const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
+  if (match) {
+    return {
+      branch: match[1] || '-',
+      name: String(match[2] || '').trim() || match[1] || '-',
+      uniqueId,
+    }
+  }
+  return {
+    branch: '-',
+    name: source || '-',
+    uniqueId,
+  }
+}
+
+
 const BRANCH_NUMBER_OPTIONS = [0, ...Array.from({ length: 50 }, (_, index) => index + 1)]
 
 const ROLE_OPTIONS = [
@@ -6691,21 +6711,7 @@ function AdminModePage() {
   }
 
   function parseAdminRequesterMeta(request) {
-    const source = String(request?.requester_name || '').trim()
-    const uniqueId = String(request?.requester_unique_id || request?.account_unique_id || '').trim()
-    const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
-    if (match) {
-      return {
-        branch: match[1] || '-',
-        name: String(match[2] || '').trim() || match[1] || '-',
-        uniqueId,
-      }
-    }
-    return {
-      branch: '-',
-      name: source || '-',
-      uniqueId,
-    }
+    return parseSharedRequesterMeta(request)
   }
 
   function buildAdminRequestDetailLines(items, maxLength = isMobile ? 24 : 56) {
@@ -9683,17 +9689,10 @@ function MaterialsPage({ user }) {
   }
 
   function parseRequesterMeta(request) {
-    const source = String(request?.requester_name || '').trim()
-    const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
-    if (match) {
-      return {
-        branch: match[1] || '-',
-        name: match[2] || match[1] || '-',
-      }
-    }
+    const meta = parseSharedRequesterMeta(request)
     return {
-      branch: '-',
-      name: source || '-',
+      branch: meta.branch,
+      name: meta.name,
     }
   }
 
