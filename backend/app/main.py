@@ -33,6 +33,7 @@ from .settings import settings, get_settings
 from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
 from .soomgo_review_api import router as soomgo_review_router
+from .warehouse_service import get_state as get_warehouse_state, save_state as save_warehouse_state, update_cell as update_warehouse_cell
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -376,6 +377,11 @@ class BlockIn(BaseModel):
     reason: str = ""
 class PreferenceIn(BaseModel):
     data: dict
+class WarehouseCellUpdateIn(BaseModel):
+    sheet_name: str
+    row: int
+    col: int
+    value: Any = ''
 def _bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -4028,6 +4034,24 @@ def _normalize_materials_table_device(value: str) -> str:
 
 def _get_materials_table_layout_key(device: str) -> str:
     return f'materials_table_layout_{_normalize_materials_table_device(device)}_json'
+
+
+@app.get('/api/warehouse/state')
+def warehouse_state_api(user=Depends(require_user)):
+    with get_conn() as conn:
+        state = get_warehouse_state(conn)
+    return {'state': state}
+
+
+@app.post('/api/warehouse/cell')
+def warehouse_cell_api(payload: WarehouseCellUpdateIn, user=Depends(require_user)):
+    with get_conn() as conn:
+        try:
+            state = update_warehouse_cell(conn, payload.sheet_name, int(payload.row), int(payload.col), payload.value)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {'ok': True, 'state': state}
+
 
 def _get_materials_table_scale_key() -> str:
     return 'materials_table_scale_json'

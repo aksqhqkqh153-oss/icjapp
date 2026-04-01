@@ -5,6 +5,7 @@ import { SETTLEMENT_DATA } from './settlementData'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
+import WarehousePage from './WarehousePage'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -10887,7 +10888,7 @@ function App() {
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/notifications" element={<NotificationsPage user={user} />} />
         <Route path="/points" element={<PointsPage />} />
-        <Route path="/warehouse" element={<PlaceholderFeaturePage title="창고현황" description="창고현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/warehouse" element={<WarehousePage />} />
         <Route path="/materials" element={<MaterialsPage user={user} />} />
         <Route path="/quotes" element={<QuoteFormsPage user={user} />} />
         <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
