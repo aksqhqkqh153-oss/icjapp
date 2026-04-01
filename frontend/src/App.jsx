@@ -6760,7 +6760,7 @@ function AdminModePage() {
     })
   }
 
-  const saveMaterialsTableEditor = useCallback(async () => {
+  async function saveMaterialsTableEditor() {
     setMaterialsTableSaving(true)
     try {
       if (materialsTableEditor.mode === 'width') {
@@ -6796,7 +6796,7 @@ function AdminModePage() {
     } finally {
       setMaterialsTableSaving(false)
     }
-  }, [materialsTableEditor.mode, materialsTableEditor.target, materialsTableLayouts, materialsTableScaleSettings])
+  }
 
   function normalizeDetailPayload(row) {
     const rawGroupNumber = String(row.group_number_text ?? row.group_number ?? '0')
@@ -7808,7 +7808,7 @@ function AdminModePage() {
               </label>
             )}
             <div className="inline-actions wrap end">
-              <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={saveMaterialsTableEditor}>저장</button>
+              <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={() => saveMaterialsTableEditor()}>저장</button>
             </div>
             <div className="muted tiny-text">저장 시 모든 계정에 동일하게 적용됩니다.</div>
           </div>
@@ -8986,7 +8986,10 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
     const mobileTemplates = {
       sales: 'minmax(0, 1.34fr) minmax(0, 1fr) minmax(0, 0.82fr) minmax(0, 0.92fr) minmax(0, 1fr)',
       confirm: 'minmax(0, 1.44fr) minmax(0, 1fr) minmax(0, 0.92fr) minmax(0, 1fr)',
+      incoming: 'minmax(0, 1.2fr) minmax(0, 0.84fr) minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 0.86fr) minmax(0, 0.9fr)',
       myRequests: 'minmax(0, 1.34fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 1fr)',
+      settlements: 'minmax(0, 0.72fr) minmax(0, 0.9fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr)',
+      history: 'minmax(0, 0.72fr) minmax(0, 0.9fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr)',
     }
     if (mobileTemplates[key]) return mobileTemplates[key]
   }
@@ -9601,7 +9604,7 @@ function MaterialsPage({ user }) {
 
   function renderSalesPurchaseButtons(positionClass = '') {
     return (
-      <div className={`row gap materials-actions-right ${positionClass}`.trim()}>
+      <div className={`row gap materials-actions-right materials-sales-submit-row ${positionClass}`.trim()}>
         <button type="button" className="ghost active materials-bottom-button" onClick={handleMaterialsPurchaseClick}>자재구매</button>
       </div>
     )
@@ -9664,7 +9667,7 @@ function MaterialsPage({ user }) {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
-            <section key={`history-group-${request.id}`} className="card materials-history-group-card">
+            <section key={`history-group-${request.id}`} className="materials-history-group-card">
               <div className="materials-history-group-meta materials-history-group-row">
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div><strong>{meta.name}</strong></div>
@@ -9694,7 +9697,7 @@ function MaterialsPage({ user }) {
             <strong>자재 입금 계좌</strong>
             <div>{accountGuide}</div>
           </div>
-          <div className="materials-table materials-table-confirm" style={getTableScaleStyle('confirm')}>
+          <div className="materials-table materials-table-confirm materials-table-confirm-grid" style={getTableScaleStyle('confirm')}>
             <div className="materials-row materials-row-head" style={getTableGridStyle('confirm')}>
               {renderResizableRowCells(['구분', '물품가', '구매수량', '합계금액'], 'confirm')}
             </div>
@@ -9796,7 +9799,7 @@ function MaterialsPage({ user }) {
           const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
           const isRejected = String(request.status || '') === 'rejected'
           return (
-            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card materials-request-sheet-card-${mode} ${selectable ? 'with-check' : ''}`.trim()}>
+            <section key={`request-${mode}-${request.id}`} className={`${mode === 'settled' ? '' : 'card '}materials-request-card materials-request-sheet-card materials-request-sheet-card-${mode} ${selectable ? 'with-check' : ''}`.trim()}>
               <div className={`materials-request-sheet-row materials-request-sheet-row-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
                 {selectable ? (
                   <label className="materials-checkbox materials-request-checkbox-cell">
@@ -9904,7 +9907,7 @@ function MaterialsPage({ user }) {
           <div><h3>자재입고</h3></div>
           
         </div>
-        <div className="materials-table materials-table-sales" style={getTableScaleStyle('incoming')}>
+        <div className="materials-table materials-table-sales materials-table-incoming" style={getTableScaleStyle('incoming')}>
           <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
             {renderResizableRowCells(['구분', '물품가', '현재고', '입고수량', '출고수량', '입고 후 수량', '비고'], 'incoming')}
           </div>

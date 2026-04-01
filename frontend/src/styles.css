@@ -6825,3 +6825,123 @@ a:focus-visible {
     font-size: 12px;
   }
 }
+
+
+/* 2026-04-01 alignment polish */
+.materials-sales-submit-row {
+  width: 100%;
+  justify-content: flex-end;
+}
+.materials-history-group-list,
+.materials-history-group-card,
+.materials-history-group-header,
+.materials-history-group-meta,
+.materials-history-group-details,
+.materials-request-sheet,
+.materials-request-sheet-row,
+.materials-request-sheet-card,
+.materials-request-items-sheet {
+  box-sizing: border-box;
+}
+.materials-history-group-list {
+  width: 100%;
+}
+.materials-history-group-card {
+  padding: 0;
+}
+.materials-history-group-header,
+.materials-history-group-meta {
+  width: 100%;
+}
+.materials-history-group-header > div,
+.materials-history-group-meta > div {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+}
+.materials-history-group-meta > div:last-child,
+.materials-history-group-header > div:last-child {
+  justify-content: flex-end;
+}
+.materials-settlement-panel .materials-request-sheet,
+.materials-settlement-panel .materials-request-sheet-settled {
+  width: 100%;
+  border-radius: 0;
+}
+.materials-settlement-panel .materials-request-sheet-card,
+.materials-settlement-panel .materials-request-sheet-card-settled {
+  padding: 0;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled,
+.materials-settlement-panel .materials-request-sheet-row-settled {
+  width: 100%;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled > div,
+.materials-settlement-panel .materials-request-sheet-row-settled > div,
+.materials-settlement-panel .materials-request-sheet-row-settled > label {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled > div:last-child,
+.materials-settlement-panel .materials-request-sheet-row-settled > div:last-child {
+  justify-content: flex-end;
+}
+.materials-table-incoming .materials-row,
+.materials-table-confirm-grid .materials-row {
+  box-sizing: border-box;
+}
+.admin-mode-page .authority-grid-responsive,
+.admin-mode-page .authority-grid-responsive .admin-select-field {
+  min-width: 0;
+}
+.admin-mode-page .authority-grid-responsive .admin-select-field {
+  overflow: hidden;
+}
+.admin-mode-page .authority-grid-responsive input,
+.admin-mode-page .authority-grid-responsive select,
+.admin-mode-page .authority-grid-responsive button {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .materials-actions-right.materials-actions-bottom.materials-sales-submit-row {
+    justify-content: flex-end;
+  }
+  .materials-page .materials-table-incoming .materials-row {
+    grid-template-columns: 70px 50px 42px 42px 42px 56px minmax(58px, 1fr);
+  }
+  .materials-page .materials-table-confirm-grid .materials-row {
+    grid-template-columns: 74px 56px 50px 72px;
+  }
+  .materials-history-group-list {
+    border-width: 1px;
+  }
+  .materials-history-group-header,
+  .materials-history-group-meta {
+    grid-template-columns: 42px minmax(54px, 1fr) 68px 68px 72px;
+  }
+  .materials-history-group-header > div,
+  .materials-history-group-meta > div,
+  .materials-settlement-panel .materials-request-sheet-head-settled > div,
+  .materials-settlement-panel .materials-request-sheet-row-settled > div,
+  .materials-settlement-panel .materials-request-sheet-row-settled > label {
+    min-height: 34px;
+    padding: 6px 4px;
+    font-size: 10.8px;
+  }
+  .materials-settlement-panel .materials-request-sheet-row-settled > div,
+  .materials-settlement-panel .materials-request-sheet-row-settled > label,
+  .materials-history-group-header > div,
+  .materials-history-group-meta > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .admin-mode-page .authority-grid-responsive {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+  }
+}
