@@ -14,5 +14,17 @@ export const WAREHOUSE_VIEW_CONFIG = {
         endCol: 10,
       },
     },
+    {
+      key: 'gimpo-view',
+      title: '김포창고(뷰)',
+      sheetName: '김포창고',
+      type: 'range',
+      range: {
+        startRow: 14,
+        endRow: 25,
+        startCol: 1,
+        endCol: 8,
+      },
+    },
   ],
 }
