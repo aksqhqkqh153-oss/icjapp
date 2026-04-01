@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AUTH_EXPIRED_EVENT, api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
 import { SETTLEMENT_DATA } from './settlementData'
@@ -6760,7 +6760,7 @@ function AdminModePage() {
     })
   }
 
-  async function saveMaterialsTableEditor() {
+  const saveMaterialsTableEditor = useCallback(async () => {
     setMaterialsTableSaving(true)
     try {
       if (materialsTableEditor.mode === 'width') {
@@ -6796,7 +6796,7 @@ function AdminModePage() {
     } finally {
       setMaterialsTableSaving(false)
     }
-  }
+  }, [materialsTableEditor.mode, materialsTableEditor.target, materialsTableLayouts, materialsTableScaleSettings])
 
   function normalizeDetailPayload(row) {
     const rawGroupNumber = String(row.group_number_text ?? row.group_number ?? '0')
@@ -7728,29 +7728,29 @@ function AdminModePage() {
             <div className="admin-account-table">
           {pagedAccounts.map(item => (
             <div key={item.id} className="admin-account-grid compact labeled-account-grid authority-grid-8 authority-grid-responsive">
-              <div className="admin-select-field locked-field"><span>구분숫자</span><input value={groupNumberDisplay(item)} readOnly disabled /></div>
-              <div className="admin-select-field locked-field"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} readOnly disabled /></div>
-              <div className="admin-select-field locked-field"><span>이름</span><input value={item.name || item.nickname || ''} readOnly disabled /></div>
-              <div className="admin-select-field locked-field"><span>아이디</span><input value={item.email || ''} readOnly disabled /></div>
-              <label className="admin-select-field">
+              <div className="admin-select-field locked-field admin-field-group"><span>구분</span><input value={groupNumberDisplay(item)} readOnly disabled /></div>
+              <div className="admin-select-field locked-field admin-field-branch"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} readOnly disabled /></div>
+              <div className="admin-select-field locked-field admin-field-name"><span>이름</span><input value={item.name || item.nickname || ''} readOnly disabled /></div>
+              <div className="admin-select-field locked-field admin-field-id"><span>아이디</span><input value={item.email || ''} readOnly disabled /></div>
+              <label className="admin-select-field admin-field-vehicle-available">
                 <span>차량가용여부</span>
                 <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
                   <option value="가용">가용</option>
                   <option value="불가">불가</option>
                 </select>
               </label>
-              <label className="admin-select-field admin-action-field">
+              <label className="admin-select-field admin-action-field admin-field-vehicle-exception">
                 <span>차량열외</span>
                 <button type="button" className="small ghost" onClick={() => openVehicleExceptionModal(item)} disabled={isStaffGradeValue(item?.grade)}>차량열외</button>
               </label>
-              <label className="admin-select-field">
+              <label className="admin-select-field admin-field-position">
                 <span>직급</span>
                 <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })} disabled={!canEditPosition(item)}>
                   <option value="">미지정</option>
                   {POSITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
-              <label className="admin-select-field">
+              <label className="admin-select-field admin-field-grade">
                 <span>계정권한</span>
                 <select value={Number(item.grade || 6)} onChange={e => updateAccountRow(item.id, { grade: Number(e.target.value) })} disabled={actorGrade === 2 && Number(item.grade || 6) <= 2}>
                   {roleOptionsForTarget(item).map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
@@ -9447,8 +9447,9 @@ function MaterialsPage({ user }) {
 
   function renderRequestListHeader(mode) {
     const selectable = mode === 'pending' || mode === 'settled'
+    const requestGridKey = mode === 'pending' ? 'requesters' : 'settlements'
     return (
-      <div className={`materials-request-sheet-row materials-request-sheet-head ${selectable ? 'with-check' : ''}`.trim()}>
+      <div className={`materials-request-sheet-row materials-request-sheet-head materials-request-sheet-head-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
         {selectable ? <div className="materials-request-sheet-check">선택</div> : null}
         <div>호점</div>
         <div>이름</div>
@@ -9787,7 +9788,7 @@ function MaterialsPage({ user }) {
     const requestGridKey = mode === 'pending' ? 'requesters' : 'settlements'
     const selectable = mode === 'pending' || mode === 'settled'
     return (
-      <div className="materials-request-sheet">
+      <div className={`materials-request-sheet materials-request-sheet-${mode}`}>
         {renderRequestListHeader(mode)}
         {requests.map(request => {
           const checked = selectedRequestIds.includes(request.id)
@@ -9795,8 +9796,8 @@ function MaterialsPage({ user }) {
           const visibleItems = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
           const isRejected = String(request.status || '') === 'rejected'
           return (
-            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card ${selectable ? 'with-check' : ''}`.trim()}>
-              <div className={`materials-request-sheet-row ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
+            <section key={`request-${mode}-${request.id}`} className={`card materials-request-card materials-request-sheet-card materials-request-sheet-card-${mode} ${selectable ? 'with-check' : ''}`.trim()}>
+              <div className={`materials-request-sheet-row materials-request-sheet-row-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
                 {selectable ? (
                   <label className="materials-checkbox materials-request-checkbox-cell">
                     <input
@@ -9959,7 +9960,7 @@ function MaterialsPage({ user }) {
             <span>입고입력일</span>
             <input type="date" value={incomingEntryDate} onChange={(e) => setIncomingEntryDate(e.target.value)} />
           </label>
-          <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={saveIncomingStock}>입고입력</button>
+          <button type="button" className="ghost active materials-bottom-button materials-register-button" disabled={saving} onClick={saveIncomingStock}>입고입력</button>
         </div>
       </section>
     )
@@ -9992,12 +9993,12 @@ function MaterialsPage({ user }) {
           <div style={getTableScaleStyle('requesters')}>{renderRequestRows(pendingRequests, 'pending')}</div>
           <div className="row gap wrap materials-actions-right materials-actions-bottom">
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={rejectSelectedRequests}>결산반려</button>
-            <button type="button" className="ghost active materials-bottom-button" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
+            <button type="button" className="ghost active materials-bottom-button materials-register-button" disabled={saving} onClick={settleSelectedRequests}>결산등록</button>
           </div>
         </section>
       )}
       {activeTab === 'settlements' && (
-        <section className="card materials-panel materials-panel-compact-head">
+        <section className="card materials-panel materials-panel-compact-head materials-settlement-panel">
           <div className="materials-summary-head-inline"><div><h3>구매결산</h3></div></div>
           <div className="row gap wrap materials-settlement-filter-row">
             <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact">
@@ -10013,7 +10014,7 @@ function MaterialsPage({ user }) {
           <div className="row gap wrap materials-actions-right materials-actions-bottom materials-settlement-actions-bottom">
             <button type="button" className="ghost materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
             <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={unsettleSelectedRequests}>결산취소</button>
-            <button type="button" className="ghost materials-bottom-button" disabled={saving} onClick={goToSettlementProgress}>결산진행</button>
+            <button type="button" className="ghost materials-bottom-button materials-register-button" disabled={saving} onClick={goToSettlementProgress}>결산진행</button>
           </div>
         </section>
       )}

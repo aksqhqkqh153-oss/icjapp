@@ -6662,3 +6662,166 @@ a:focus-visible {
     justify-content: center;
   }
 }
+
+/* 2026-04-01 materials/admin authority follow-up fixes */
+.materials-register-button {
+  min-width: 104px;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.materials-settlement-panel .materials-request-sheet-settled {
+  border: 1px dashed #b6bec9;
+  border-radius: 0;
+  background: #fff;
+  overflow: hidden;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled,
+.materials-settlement-panel .materials-request-sheet-row-settled {
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-bottom: 1px dashed #b6bec9;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled > div,
+.materials-settlement-panel .materials-request-sheet-row-settled > div,
+.materials-settlement-panel .materials-request-sheet-row-settled > label {
+  min-width: 0;
+  padding: 10px 8px;
+  border-right: 1px dashed #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.materials-settlement-panel .materials-request-sheet-head-settled > div:last-child,
+.materials-settlement-panel .materials-request-sheet-row-settled > div:last-child,
+.materials-settlement-panel .materials-request-sheet-row-settled > label:last-child {
+  border-right: 0;
+}
+.materials-settlement-panel .materials-request-sheet-card-settled {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  gap: 0;
+  border-bottom: 1px dashed #b6bec9;
+}
+.materials-settlement-panel .materials-request-sheet-card-settled:last-child {
+  border-bottom: 0;
+}
+.materials-settlement-panel .materials-request-items-sheet {
+  padding: 10px 12px;
+  border-top: 1px dashed #d5dbe3;
+  background: #fff;
+}
+.materials-settlement-panel .materials-inline-item-sheet {
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  padding: 2px 0;
+}
+.materials-settlement-panel .materials-request-checkbox-cell {
+  gap: 6px;
+  align-items: center;
+}
+.materials-settlement-panel .materials-request-sheet-row-settled .materials-request-total-cell {
+  text-align: right;
+  font-weight: 700;
+}
+
+.materials-date-inline-label-compact select.materials-filter-select-compact {
+  width: fit-content;
+  min-width: 104px;
+  max-width: 132px;
+}
+
+.admin-mode-page .authority-grid-responsive {
+  grid-template-columns: minmax(64px, 72px) minmax(54px, 60px) minmax(84px, 0.95fr) minmax(140px, 1.3fr) minmax(92px, 100px) minmax(84px, 92px) minmax(78px, 90px) minmax(98px, 112px);
+  align-items: end;
+}
+.admin-mode-page .admin-field-group input,
+.admin-mode-page .admin-field-branch input {
+  text-align: center;
+}
+.admin-mode-page .admin-field-group input {
+  max-width: 72px;
+}
+.admin-mode-page .admin-field-branch input {
+  max-width: 60px;
+}
+.admin-mode-page .admin-field-position select {
+  width: fit-content;
+  min-width: 84px;
+  max-width: 96px;
+}
+.admin-mode-page .admin-field-grade select {
+  width: fit-content;
+  min-width: 96px;
+  max-width: 116px;
+}
+.admin-mode-page .admin-field-vehicle-available select {
+  min-width: 84px;
+}
+.admin-mode-page .admin-field-vehicle-exception button {
+  min-width: 84px;
+}
+
+@media (max-width: 768px) {
+  .admin-mode-page .authority-grid-responsive {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 6px;
+  }
+  .admin-mode-page .admin-field-group { order: 1; }
+  .admin-mode-page .admin-field-branch { order: 2; }
+  .admin-mode-page .admin-field-name { order: 3; }
+  .admin-mode-page .admin-field-id { order: 4; }
+  .admin-mode-page .admin-field-vehicle-available { order: 5; }
+  .admin-mode-page .admin-field-vehicle-exception { order: 6; }
+  .admin-mode-page .admin-field-position { order: 7; }
+  .admin-mode-page .admin-field-grade { order: 8; }
+  .admin-mode-page .authority-grid-responsive .admin-select-field > span {
+    font-size: 10.5px;
+  }
+  .admin-mode-page .authority-grid-responsive input,
+  .admin-mode-page .authority-grid-responsive select,
+  .admin-mode-page .authority-grid-responsive button {
+    font-size: 11px;
+    height: 32px;
+    padding: 5px 6px;
+  }
+  .admin-mode-page .admin-field-position select,
+  .admin-mode-page .admin-field-grade select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .materials-settlement-panel .materials-request-sheet-head-settled,
+  .materials-settlement-panel .materials-request-sheet-row-settled {
+    font-size: 10.5px;
+  }
+  .materials-settlement-panel .materials-request-sheet-head-settled > div,
+  .materials-settlement-panel .materials-request-sheet-row-settled > div,
+  .materials-settlement-panel .materials-request-sheet-row-settled > label {
+    padding: 8px 4px;
+  }
+  .materials-settlement-panel .materials-request-items-sheet {
+    padding: 8px 6px;
+  }
+  .materials-register-button,
+  .materials-bottom-button {
+    min-height: 34px;
+    min-width: 88px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
