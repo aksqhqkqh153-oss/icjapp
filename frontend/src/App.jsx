@@ -9870,19 +9870,19 @@ function MaterialsPage({ user }) {
             <strong>자재 입금 계좌</strong>
             <div>{accountGuide}</div>
           </div>
-          <div className="materials-table materials-table-confirm materials-table-confirm-grid" style={getTableScaleStyle('confirm')}>
-            <div className="materials-row materials-row-head" style={getTableGridStyle('confirm')}>
+          <div className="materials-request-history-table materials-confirm-history-table" style={getTableScaleStyle('confirm')}>
+            <div className="materials-request-history-row materials-request-history-head materials-confirm-history-row" style={getTableGridStyle('confirm')}>
               {renderResizableRowCells(['구분', '물품가', '구매수량', '합계금액'], 'confirm')}
             </div>
             {cartRows.map(item => (
-              <div key={`confirm-${item.id}`} className="materials-row" style={getTableGridStyle('confirm')}>
+              <div key={`confirm-${item.id}`} className="materials-request-history-row materials-confirm-history-row" style={getTableGridStyle('confirm')}>
                 <div>{displayMaterialName(item, isMobile)}</div>
                 <div>{Number(item.unit_price || 0).toLocaleString('ko-KR')}원</div>
                 <div>{item.quantity}</div>
                 <div>{item.lineTotal.toLocaleString('ko-KR')}원</div>
               </div>
             ))}
-            <div className="materials-row materials-row-total" style={getTableGridStyle('confirm')}>
+            <div className="materials-request-history-row materials-request-history-head materials-row-total materials-confirm-history-row materials-confirm-history-total" style={getTableGridStyle('confirm')}>
               <div>합계</div>
               <div />
               <div>{cartRows.reduce((sum, item) => sum + item.quantity, 0)}</div>
