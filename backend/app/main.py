@@ -2474,12 +2474,19 @@ def home_upcoming_schedules(days: int = Query(default=7, ge=1, le=31), user=Depe
 def get_workday_status(user=Depends(require_user)):
     today = datetime.now().strftime('%Y-%m-%d')
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
-        if not row:
+        active_row = conn.execute(
+            "SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ? AND COALESCE(start_time, '') <> '' AND COALESCE(end_time, '') = '' ORDER BY id DESC LIMIT 1",
+            (user['id'], today),
+        ).fetchone()
+        latest_row = conn.execute(
+            "SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ? ORDER BY id DESC LIMIT 1",
+            (user['id'], today),
+        ).fetchone()
+        if not active_row and not latest_row:
             return {'active': False, 'today': None}
-        data = row_to_dict(row)
+        data = row_to_dict(active_row or latest_row)
         return {
-            'active': bool(data.get('start_time')) and not bool(data.get('end_time')),
+            'active': bool(active_row),
             'today': data,
         }
 
@@ -2501,26 +2508,28 @@ def toggle_workday(payload: WorkdayToggleIn, user=Depends(require_user)):
     if action not in {'start', 'end'}:
         raise HTTPException(status_code=400, detail='action 값은 start 또는 end 이어야 합니다.')
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
+        open_row = conn.execute(
+            "SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ? AND COALESCE(start_time, '') <> '' AND COALESCE(end_time, '') = '' ORDER BY id DESC LIMIT 1",
+            (user['id'], today),
+        ).fetchone()
         if action == 'start':
-            if row and row['start_time']:
-                raise HTTPException(status_code=409, detail='이미 오늘 일시작이 기록되어 있습니다.')
+            if open_row:
+                raise HTTPException(status_code=409, detail='진행중인 일시작 기록이 있습니다. 먼저 일종료를 눌러주세요.')
             now = utcnow()
-            if row:
-                conn.execute("UPDATE workday_logs SET start_time = ?, started_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, row['id']))
-            else:
-                conn.execute(
-                    "INSERT INTO workday_logs(user_id, work_date, start_time, end_time, started_at, ended_at, created_at, updated_at) VALUES (?, ?, ?, '', ?, '', ?, ?)",
-                    (user['id'], today, current_time, now, now, now),
-                )
+            conn.execute(
+                "INSERT INTO workday_logs(user_id, work_date, start_time, end_time, started_at, ended_at, created_at, updated_at) VALUES (?, ?, ?, '', ?, '', ?, ?)",
+                (user['id'], today, current_time, now, now, now),
+            )
+            updated = conn.execute(
+                "SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ? ORDER BY id DESC LIMIT 1",
+                (user['id'], today),
+            ).fetchone()
         else:
-            if not row or not row['start_time']:
-                raise HTTPException(status_code=409, detail='오늘 시작 기록이 없어 종료할 수 없습니다.')
-            if row['end_time']:
-                raise HTTPException(status_code=409, detail='이미 오늘 일종료가 기록되어 있습니다.')
+            if not open_row:
+                raise HTTPException(status_code=409, detail='진행중인 일시작 기록이 없어 종료할 수 없습니다.')
             now = utcnow()
-            conn.execute("UPDATE workday_logs SET end_time = ?, ended_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, row['id']))
-        updated = conn.execute("SELECT * FROM workday_logs WHERE user_id = ? AND work_date = ?", (user['id'], today)).fetchone()
+            conn.execute("UPDATE workday_logs SET end_time = ?, ended_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, open_row['id']))
+            updated = conn.execute("SELECT * FROM workday_logs WHERE id = ?", (open_row['id'],)).fetchone()
         return {'ok': True, 'item': row_to_dict(updated)}
 
 @app.get("/api/map-users")

@@ -2009,7 +2009,8 @@ def init_db() -> None:
         })
         workday_logs_sql = "CREATE TABLE IF NOT EXISTS workday_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, work_date TEXT NOT NULL, start_time TEXT NOT NULL DEFAULT '', end_time TEXT NOT NULL DEFAULT '', started_at TEXT NOT NULL DEFAULT '', ended_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
         conn.execute(_sqlite_schema_to_postgres(workday_logs_sql) if DB_ENGINE == 'postgresql' else workday_logs_sql)
-        _ensure_unique_index(conn, 'workday_logs', 'idx_workday_logs_user_date', ['user_id', 'work_date'])
+        conn.execute("DROP INDEX IF EXISTS idx_workday_logs_user_date")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_workday_logs_user_date_lookup ON workday_logs (user_id, work_date, id)")
         _ensure_columns(conn, 'workday_logs', {
             'start_time': "TEXT NOT NULL DEFAULT ''",
             'end_time': "TEXT NOT NULL DEFAULT ''",

@@ -7514,28 +7514,28 @@ function AdminModePage() {
 
           {accountManageOpen && (
             <div className="stack compact-gap">
-              <div className="between admin-section-toolbar">
-                <div className="inline-actions wrap admin-section-tabbar">
-                  <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>계정목록</button>
-                  <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>계정편집</button>
-                  <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>계정추가</button>
-                  <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>계정전환</button>
-                  <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>계정삭제</button>
+              <div className="between admin-section-toolbar account-manage-toolbar-row">
+                <div className="inline-actions wrap admin-section-tabbar account-manage-toolbar-left">
                   {accountManageTab !== 'create' && (
-                    <select className="small admin-sort-select admin-sort-select-inline" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
+                    <select className="small admin-sort-select admin-sort-select-inline account-manage-sort-select" value={sortConfigs.manage.mode} onChange={e => handleSortModeChange('manage', e.target.value)}>
                       {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   )}
+                  <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>목록</button>
+                  <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>수정</button>
+                  <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>추가</button>
+                  <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>전환</button>
+                  <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>삭제</button>
                 </div>
-                <div className="inline-actions wrap admin-section-save-actions">
+                <div className="inline-actions wrap admin-section-save-actions account-manage-toolbar-actions">
                   {accountManageTab === 'create' && actorGrade <= 2 && (
                     <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
                   )}
                   {accountManageTab === 'edit' && actorGrade <= 2 && (
-                    <button type="button" className="small" onClick={saveAccountEdits}>계정편집 저장</button>
+                    <button type="button" className="small" onClick={saveAccountEdits}>저장</button>
                   )}
                   {accountManageTab === 'delete' && actorGrade <= 2 && (
-                    <button type="button" className="small danger" onClick={requestDeleteAccounts}>계정삭제</button>
+                    <button type="button" className="small danger" onClick={requestDeleteAccounts}>삭제</button>
                   )}
                   {accountManageTab === 'switch' && actorGrade <= 2 && (
                     <>
@@ -7782,8 +7782,8 @@ function AdminModePage() {
               <div className="inline-actions wrap admin-status-toolbar-spacer" />
               <div className="inline-actions wrap admin-section-save-actions">
                 {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
-                  ? renderActionButton('가맹현황', '정보저장', saveBranchDetails)
-                  : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '정보저장', saveEmployeeDetails))}
+                  ? renderActionButton('가맹현황', '저장', saveBranchDetails)
+                  : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '저장', saveEmployeeDetails))}
                 {showStatusCategoryActions && <button type="button" className="multiline-action-button" onClick={() => {
                   const key = currentStatusCategoryKey
                   setStatusMovePickerOpen(prev => ({ ...prev, [key]: !prev[key] }))

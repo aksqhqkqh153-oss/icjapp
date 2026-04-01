@@ -7625,3 +7625,121 @@ a:focus-visible {
     padding: 6px 8px;
   }
 }
+
+/* 2026-04-01 follow-up home/admin/mobile refinements */
+.home-settings-menu {
+  min-width: 420px;
+  max-width: min(92vw, 560px);
+}
+@media (max-width: 768px) {
+  .home-settings-menu {
+    min-width: min(92vw, 360px);
+    max-width: min(94vw, 380px);
+    right: 0;
+  }
+}
+
+.account-manage-toolbar-row {
+  align-items: center;
+  gap: 8px;
+}
+.account-manage-toolbar-left {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+.account-manage-toolbar-actions {
+  justify-content: flex-end;
+}
+.account-manage-sort-select {
+  margin-left: 0;
+}
+
+/* workday repeat logs support */
+.workday-log-list .list-item,
+.workday-history-list .list-item { border-radius: 0; }
+
+/* materials font +1pt on mobile */
+@media (max-width: 768px) {
+  .materials-table-sales .materials-row > div,
+  .materials-table-sales .materials-row-head > div {
+    font-size: 12px;
+  }
+  .materials-qty-input {
+    font-size: 12px;
+  }
+}
+
+/* admin status list readability */
+.admin-detail-card .admin-summary-line {
+  font-size: 15px;
+}
+@media (max-width: 768px) {
+  .admin-detail-card .admin-summary-line {
+    font-size: 12px;
+  }
+}
+
+/* branch/all rows single-line alignment */
+.branch-summary-lines .admin-summary-line.admin-summary-line-primary {
+  display: grid;
+  grid-template-columns: minmax(56px, 0.72fr) minmax(52px, 0.72fr) minmax(52px, 0.64fr) minmax(70px, 0.86fr) minmax(96px, 1.12fr);
+  gap: 4px;
+  align-items: center;
+}
+.branch-summary-lines .admin-summary-line.admin-summary-line-primary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .branch-summary-lines .admin-summary-line.admin-summary-line-primary {
+    grid-template-columns: minmax(32px, 0.52fr) minmax(34px, 0.52fr) minmax(32px, 0.46fr) minmax(42px, 0.66fr) minmax(70px, 1fr);
+    gap: 2px;
+    font-size: 10px;
+  }
+}
+
+/* authority mobile toolbar one-row */
+@media (max-width: 768px) {
+  .authority-toolbar-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 6px;
+  }
+  .authority-toolbar-left,
+  .authority-toolbar-actions {
+    min-width: 0;
+  }
+  .authority-toolbar-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .authority-sort-select {
+    min-width: 72px;
+    max-width: 78px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+}
+
+/* admin status save/action buttons label width */
+.admin-status-toolbar .multiline-action-button,
+.admin-status-toolbar .small {
+  min-width: 62px;
+}
+
+/* tighten inline metrics row */
+.admin-status-metric-row {
+  gap: 6px;
+}
+.admin-status-metric-row .admin-subtitle {
+  white-space: nowrap;
+}
+
+/* rename/save buttons shorter layout */
+.admin-section-save-actions .small {
+  white-space: nowrap;
+}
