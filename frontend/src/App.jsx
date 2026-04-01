@@ -4609,16 +4609,27 @@ function WorkSchedulePage() {
   const [activeStatusDate, setActiveStatusDate] = useState('')
   const [statusForm, setStatusForm] = useState(buildDayStatusForm(null))
   const [assignableUsers, setAssignableUsers] = useState([])
+  const [businessExclusionOptions, setBusinessExclusionOptions] = useState([])
 
   async function load() {
     setLoading(true)
     try {
-      const [data, users] = await Promise.all([
-        api('/api/work-schedule'),
-        api('/api/users'),
-      ])
+      const requests = [api('/api/work-schedule'), api('/api/users')]
+      if (!readOnly) requests.push(api('/api/admin-mode').catch(() => null))
+      const [data, users, adminData] = await Promise.all(requests)
       setDaysData(data.days || [])
       const me = getStoredUser(); setAssignableUsers(me ? [me, ...(users || [])] : (users || []))
+      if (!readOnly) {
+        const branches = (adminData?.branches || [])
+          .filter(item => !item?.archived_in_branch_status)
+          .map(item => ({
+            value: String(item.branch_no),
+            label: `[${item.branch_no}호점] ${item.nickname || item.name || item.email || `${item.branch_no}호점`}`,
+            name: item.nickname || item.name || item.email || `${item.branch_no}호점`,
+            userId: item.id,
+          }))
+        setBusinessExclusionOptions(branches)
+      }
     } finally {
       setLoading(false)
     }
@@ -4642,7 +4653,7 @@ function WorkSchedulePage() {
     setActiveNoteDate(day.date)
     setNoteForm({
       schedule_date: day.date,
-      excluded_business_slots: parseExcludedBusinessSlots(day.excluded_business),
+      excluded_business_slots: parseExcludedBusinessSlots((day.excluded_business_details && day.excluded_business_details.length) ? day.excluded_business_details : day.excluded_business),
       excluded_staff: day.excluded_staff || '',
     })
     setMessage('')
@@ -4662,9 +4673,11 @@ function WorkSchedulePage() {
 
   async function submitNotes(e) {
     e.preventDefault()
+    const excludedBusinessDetails = buildExcludedBusinessDetailsFromSlots(noteForm.excluded_business_slots, businessExclusionOptions)
     const payload = {
       schedule_date: noteForm.schedule_date,
       excluded_business: serializeExcludedBusinessSlots(noteForm.excluded_business_slots),
+      excluded_business_details: excludedBusinessDetails,
       excluded_staff: noteForm.excluded_staff,
     }
     await api('/api/work-schedule/day-note', { method: 'PUT', body: JSON.stringify(payload) })
@@ -4810,8 +4823,7 @@ function WorkSchedulePage() {
               <div className="between work-schedule-section-head">
                 <div className="work-schedule-section-title-wrap">
                   <strong className="work-schedule-section-title">스케줄 목록</strong>
-                  <span className="muted">일정 화면에 등록된 고객 일정과 스케줄을 함께 표시합니다.</span>
-                </div>
+                                  </div>
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
               </div>
 
@@ -4915,8 +4927,7 @@ function WorkSchedulePage() {
               <div className="between work-schedule-section-head">
                 <div className="work-schedule-section-title-wrap">
                   <strong className="work-schedule-section-title">열외자 목록</strong>
-                  <span className="muted">관리자/부관리자만 열외자 편집이 가능합니다.</span>
-                </div>
+                                  </div>
                 {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
               </div>
 
@@ -4927,13 +4938,18 @@ function WorkSchedulePage() {
                   <div className="work-excluded-business-grid">
                     {noteForm.excluded_business_slots.map((slot, index) => (
                       <select key={`${day.date}-business-${index}`} value={slot} onChange={e => {
+                        const nextValue = e.target.value
+                        if (nextValue && noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === nextValue)) {
+                          window.alert('중첩된 선택입니다. 다른 사업자를 입력하세요')
+                          return
+                        }
                         const next = [...noteForm.excluded_business_slots]
-                        next[index] = e.target.value
+                        next[index] = nextValue
                         setNoteForm({ ...noteForm, excluded_business_slots: next })
                       }}>
                         <option value="">선택 안 함</option>
-                        {BRANCH_NUMBER_OPTIONS.map(num => (
-                          <option key={num} value={String(num)} disabled={noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === String(num))}>{num}호점</option>
+                        {businessExclusionOptions.map(option => (
+                          <option key={option.value} value={option.value} disabled={noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === option.value)}>{option.label}</option>
                         ))}
                       </select>
                     ))}

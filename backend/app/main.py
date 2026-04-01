@@ -2882,7 +2882,15 @@ def _get_admin_total_vehicle_count(conn):
 def _sync_all_day_note_available_vehicle_counts(conn) -> None:
     auto_count = _get_admin_total_vehicle_count(conn)
     try:
-        conn.execute('UPDATE work_schedule_day_notes SET available_vehicle_count = ?', (auto_count,))
+        rows = conn.execute("SELECT id, schedule_date FROM work_schedule_day_notes").fetchall()
+        for row in rows:
+            item = row_to_dict(row)
+            date_key = _normalize_date_key(item.get('schedule_date'))
+            excluded_count = 0
+            if date_key:
+                _, auto_unavailable_map, _ = _get_vehicle_base_and_auto_unavailable(conn, [date_key])
+                excluded_count = len({int(entry.get('user_id') or 0) for entry in auto_unavailable_map.get(date_key, []) if int(entry.get('user_id') or 0) > 0})
+            conn.execute('UPDATE work_schedule_day_notes SET available_vehicle_count = ? WHERE id = ?', (max(auto_count - excluded_count, 0), int(item.get('id'))))
     except Exception:
         return
 
@@ -2902,6 +2910,158 @@ def _normalize_date_key(value: Any) -> str:
     except ValueError:
         return ''
 
+
+
+SCHEDULE_EXCLUSION_REASON_PREFIX = '[스케줄열외]'
+
+
+def _get_shared_schedule_note_owner_id(conn) -> int:
+    row = conn.execute(
+        """
+        SELECT id
+        FROM users
+        WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)
+        ORDER BY CASE WHEN grade = 1 THEN 0 ELSE 1 END, id
+        LIMIT 1
+        """
+    ).fetchone()
+    if row:
+        return int(row['id']) if hasattr(row, 'keys') else int(row[0])
+    fallback = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+    if fallback:
+        return int(fallback['id']) if hasattr(fallback, 'keys') else int(fallback[0])
+    return 1
+
+
+def _get_schedule_note_owner_id_for_user(conn, user: dict | None) -> int:
+    if not user:
+        return _get_shared_schedule_note_owner_id(conn)
+    try:
+        grade = int(user.get('grade') or 6)
+    except Exception:
+        grade = 6
+    if grade <= 2:
+        return _get_shared_schedule_note_owner_id(conn)
+    try:
+        return int(user.get('id') or _get_shared_schedule_note_owner_id(conn))
+    except Exception:
+        return _get_shared_schedule_note_owner_id(conn)
+
+
+def _get_schedule_note_owner_id_by_user_id(conn, user_id: int) -> int:
+    row = conn.execute("SELECT id, grade FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        return _get_shared_schedule_note_owner_id(conn)
+    user = row_to_dict(row)
+    return _get_schedule_note_owner_id_for_user(conn, user)
+
+
+def _is_schedule_sync_exclusion_reason(reason: Any) -> bool:
+    return str(reason or '').strip().startswith(SCHEDULE_EXCLUSION_REASON_PREFIX)
+
+
+def _sync_schedule_business_exclusions(conn, schedule_date: str, excluded_business: str = '', excluded_business_details: list[dict] | None = None) -> None:
+    normalized_date = _normalize_date_key(schedule_date)
+    if not normalized_date:
+        return
+    details = excluded_business_details or []
+    rows = conn.execute(
+        """
+        SELECT id, branch_no, nickname, name, email, show_in_branch_status
+        FROM users
+        WHERE branch_no IS NOT NULL
+        ORDER BY COALESCE(branch_no, 9999), nickname, name, email
+        """
+    ).fetchall()
+    user_rows = [row_to_dict(row) for row in rows]
+    branch_map: dict[int, dict[str, Any]] = {}
+    user_id_map: dict[int, dict[str, Any]] = {}
+    for item in user_rows:
+        try:
+            user_id = int(item.get('id') or 0)
+        except Exception:
+            user_id = 0
+        try:
+            branch_no = int(item.get('branch_no') or 0)
+        except Exception:
+            branch_no = 0
+        if user_id > 0:
+            user_id_map[user_id] = item
+        if branch_no > 0 and bool(item.get('show_in_branch_status', True)):
+            branch_map[branch_no] = item
+
+    desired_user_ids: set[int] = set()
+    for entry in details:
+        try:
+            entry_user_id = int(entry.get('user_id') or 0)
+        except Exception:
+            entry_user_id = 0
+        try:
+            entry_branch_no = int(entry.get('branch_no') or 0)
+        except Exception:
+            entry_branch_no = 0
+        if entry_user_id > 0 and entry_user_id in user_id_map:
+            desired_user_ids.add(entry_user_id)
+            continue
+        if entry_branch_no > 0 and entry_branch_no in branch_map:
+            desired_user_ids.add(int(branch_map[entry_branch_no]['id']))
+
+    if not desired_user_ids:
+        for branch_no in _parse_branch_exclusions(excluded_business):
+            if branch_no in branch_map:
+                desired_user_ids.add(int(branch_map[branch_no]['id']))
+
+    existing_rows = conn.execute(
+        "SELECT id, user_id, reason FROM vehicle_exclusions WHERE start_date = ? AND end_date = ?",
+        (normalized_date, normalized_date),
+    ).fetchall()
+    existing_sync_by_user: dict[int, list[int]] = {}
+    for row in existing_rows:
+        item = row_to_dict(row)
+        if not _is_schedule_sync_exclusion_reason(item.get('reason')):
+            continue
+        try:
+            target_user_id = int(item.get('user_id') or 0)
+        except Exception:
+            target_user_id = 0
+        if target_user_id <= 0:
+            continue
+        existing_sync_by_user.setdefault(target_user_id, []).append(int(item.get('id')))
+
+    for user_id, exclusion_ids in existing_sync_by_user.items():
+        if user_id not in desired_user_ids:
+            for exclusion_id in exclusion_ids:
+                conn.execute("DELETE FROM vehicle_exclusions WHERE id = ?", (exclusion_id,))
+
+    now = utcnow()
+    for user_id in desired_user_ids:
+        if user_id in existing_sync_by_user:
+            continue
+        conn.execute(
+            "INSERT INTO vehicle_exclusions(user_id, start_date, end_date, reason, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, normalized_date, normalized_date, f'{SCHEDULE_EXCLUSION_REASON_PREFIX} 스케줄 열외', now, now),
+        )
+
+
+def _serialize_schedule_business_details(conn, raw_text: str) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    branch_ids = _parse_branch_exclusions(raw_text)
+    if not branch_ids:
+        return details
+    placeholders = ','.join('?' for _ in branch_ids)
+    rows = conn.execute(
+        f"SELECT id, branch_no, nickname, name, email FROM users WHERE branch_no IN ({placeholders}) ORDER BY COALESCE(branch_no, 9999), nickname, name, email",
+        tuple(branch_ids),
+    ).fetchall()
+    row_map = {int(row['branch_no']): row_to_dict(row) for row in rows if row['branch_no'] is not None}
+    for branch_no in branch_ids:
+        row = row_map.get(int(branch_no))
+        if row:
+            label = str(row.get('nickname') or row.get('name') or row.get('email') or f'{branch_no}호점').strip()
+            details.append({'user_id': int(row.get('id') or 0), 'branch_no': int(branch_no), 'name': label, 'reason': '스케줄 열외'})
+        else:
+            details.append({'branch_no': int(branch_no), 'name': f'{branch_no}호점', 'reason': '스케줄 열외'})
+    return details
 
 def _build_available_vehicle_accounts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
@@ -3078,6 +3238,7 @@ def _delete_vehicle_exclusion_response(user_id: int, exclusion_id: int):
 
 
 def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
+    owner_user_id = _get_schedule_note_owner_id_by_user_id(conn, user_id)
     event_rows = conn.execute(
         """
         SELECT
@@ -3093,9 +3254,12 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
     total_a = int(event_rows['status_a_count'] or 0) if event_rows else 0
     total_b = int(event_rows['status_b_count'] or 0) if event_rows else 0
     total_c = int(event_rows['status_c_count'] or 0) if event_rows else 0
+    _, auto_unavailable_map, _ = _get_vehicle_base_and_auto_unavailable(conn, [schedule_date])
+    excluded_count = len({int(entry.get('user_id') or 0) for entry in auto_unavailable_map.get(schedule_date, []) if int(entry.get('user_id') or 0) > 0})
+    next_available_count = max(_get_admin_total_vehicle_count(conn) - excluded_count, 0)
     existing = conn.execute(
         "SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?",
-        (user_id, schedule_date),
+        (owner_user_id, schedule_date),
     ).fetchone()
     if existing:
         conn.execute(
@@ -3104,7 +3268,7 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
             SET available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, updated_at = ?
             WHERE user_id = ? AND schedule_date = ?
             """,
-            (_get_admin_total_vehicle_count(conn), total_a, total_b, total_c, now, user_id, schedule_date),
+            (next_available_count, total_a, total_b, total_c, now, owner_user_id, schedule_date),
         )
     else:
         conn.execute(
@@ -3115,10 +3279,8 @@ def _sync_work_schedule_day_note_counts(conn, user_id: int, schedule_date: str):
             )
             VALUES (?, ?, '', '', '[]', '[]', ?, ?, ?, ?, '', 0, ?, ?)
             """,
-            (user_id, schedule_date, _get_admin_total_vehicle_count(conn), total_a, total_b, total_c, now, now),
+            (owner_user_id, schedule_date, next_available_count, total_a, total_b, total_c, now, now),
         )
-
-
 
 def _collect_auto_unavailable_business(conn, date_keys: list[str]) -> dict[str, list[dict[str, Any]]]:
     _, result, _ = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
@@ -3184,12 +3346,13 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             """,
             (user['id'], *date_keys),
         ).fetchall()
+        notes_owner_id = _get_schedule_note_owner_id_for_user(conn, user)
         notes_rows = conn.execute(
             f"""
             SELECT * FROM work_schedule_day_notes
             WHERE user_id = ? AND schedule_date IN ({placeholders})
             """,
-            (user['id'], *date_keys),
+            (notes_owner_id, *date_keys),
         ).fetchall()
         branch_rows = conn.execute("SELECT branch_no, nickname FROM users WHERE branch_no IS NOT NULL").fetchall()
         dynamic_total_vehicle_count, auto_unavailable_by_date, available_vehicle_accounts = _get_vehicle_base_and_auto_unavailable(conn, date_keys)
@@ -3275,11 +3438,7 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
             base_available_count = max(int(dynamic_total_vehicle_count or 0), 0)
         except (TypeError, ValueError):
             base_available_count = 0
-        # 사용자 최신 요구사항 기준:
-        # 일정 화면의 가용차량수는 관리자모드 > 계정권한에서
-        # 차량가용여부가 '가용'인 승인 계정 수를 그대로 표시한다.
-        # 날짜별 차량열외/수기 열외/과거 메모값은 가용차량수 숫자 자체를 차감하지 않는다.
-        available_vehicle_count = base_available_count
+        available_vehicle_count = max(base_available_count - excluded_vehicle_count, 0)
         def _safe_count(value):
             try:
                 return max(int(value or 0), 0)
@@ -3376,9 +3535,14 @@ def delete_work_schedule_entry(entry_id: int, user=Depends(require_user)):
 def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(require_user)):
     _require_write_access(user, 'work_schedule')
     with get_conn() as conn:
-        existing = conn.execute("SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
+        owner_user_id = _get_schedule_note_owner_id_for_user(conn, user)
+        normalized_details = payload.excluded_business_details or _serialize_schedule_business_details(conn, payload.excluded_business)
+        _sync_schedule_business_exclusions(conn, payload.schedule_date, payload.excluded_business, normalized_details)
+        _, auto_unavailable_map, _ = _get_vehicle_base_and_auto_unavailable(conn, [payload.schedule_date])
+        excluded_count = len({int(entry.get('user_id') or 0) for entry in auto_unavailable_map.get(payload.schedule_date, []) if int(entry.get('user_id') or 0) > 0})
+        existing = conn.execute("SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (owner_user_id, payload.schedule_date)).fetchone()
         now = utcnow()
-        computed_available_vehicle_count = _get_admin_total_vehicle_count(conn)
+        computed_available_vehicle_count = max(_get_admin_total_vehicle_count(conn) - excluded_count, 0)
         if existing:
             conn.execute(
                 """
@@ -3386,7 +3550,7 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
                 SET excluded_business = ?, excluded_staff = ?, excluded_business_details = ?, excluded_staff_details = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, is_handless_day = ?, updated_at = ?
                 WHERE user_id = ? AND schedule_date = ?
                 """,
-                (payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, user['id'], payload.schedule_date),
+                (payload.excluded_business, payload.excluded_staff, json.dumps(normalized_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, owner_user_id, payload.schedule_date),
             )
         else:
             conn.execute(
@@ -3394,9 +3558,9 @@ def upsert_work_schedule_day_note(payload: WorkScheduleDayNoteIn, user=Depends(r
                 INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user['id'], payload.schedule_date, payload.excluded_business, payload.excluded_staff, json.dumps(payload.excluded_business_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, now),
+                (owner_user_id, payload.schedule_date, payload.excluded_business, payload.excluded_staff, json.dumps(normalized_details, ensure_ascii=False), json.dumps(payload.excluded_staff_details, ensure_ascii=False), computed_available_vehicle_count, payload.status_a_count, payload.status_b_count, payload.status_c_count, payload.day_memo, 1 if payload.is_handless_day else 0, now, now),
             )
-        row = conn.execute("SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], payload.schedule_date)).fetchone()
+        row = conn.execute("SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (owner_user_id, payload.schedule_date)).fetchone()
         return row_to_dict(row)
 
 @app.post("/api/work-schedule/handless-bulk")
@@ -3406,27 +3570,30 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
     selected_dates = set(str(item).strip() for item in payload.selected_dates if str(item).strip())
     now = utcnow()
     with get_conn() as conn:
+        owner_user_id = _get_schedule_note_owner_id_for_user(conn, user)
         existing_rows = conn.execute(
             f"SELECT * FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date IN ({','.join('?' for _ in visible_dates)})",
-            (user['id'], *visible_dates),
+            (owner_user_id, *visible_dates),
         ).fetchall() if visible_dates else []
         existing_map = {row['schedule_date']: row_to_dict(row) for row in existing_rows}
         for schedule_date in visible_dates:
             current = existing_map.get(schedule_date, {})
             is_handless = schedule_date in selected_dates
+            _, auto_unavailable_map, _ = _get_vehicle_base_and_auto_unavailable(conn, [schedule_date])
+            excluded_count = len({int(entry.get('user_id') or 0) for entry in auto_unavailable_map.get(schedule_date, []) if int(entry.get('user_id') or 0) > 0})
             payload_row = {
                 'excluded_business': current.get('excluded_business', '') or '',
                 'excluded_staff': current.get('excluded_staff', '') or '',
                 'excluded_business_details': json.loads(current.get('excluded_business_details') or '[]') if isinstance(current.get('excluded_business_details'), str) else current.get('excluded_business_details', []) or [],
                 'excluded_staff_details': json.loads(current.get('excluded_staff_details') or '[]') if isinstance(current.get('excluded_staff_details'), str) else current.get('excluded_staff_details', []) or [],
-                'available_vehicle_count': _get_admin_total_vehicle_count(conn),
+                'available_vehicle_count': max(_get_admin_total_vehicle_count(conn) - excluded_count, 0),
                 'status_a_count': int(current.get('status_a_count') or 0),
                 'status_b_count': int(current.get('status_b_count') or 0),
                 'status_c_count': int(current.get('status_c_count') or 0),
                 'day_memo': current.get('day_memo', '') or '',
                 'is_handless_day': is_handless,
             }
-            existing = conn.execute("SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (user['id'], schedule_date)).fetchone()
+            existing = conn.execute("SELECT id FROM work_schedule_day_notes WHERE user_id = ? AND schedule_date = ?", (owner_user_id, schedule_date)).fetchone()
             if existing:
                 conn.execute(
                     """
@@ -3434,7 +3601,7 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                     SET excluded_business = ?, excluded_staff = ?, excluded_business_details = ?, excluded_staff_details = ?, available_vehicle_count = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, day_memo = ?, is_handless_day = ?, updated_at = ?
                     WHERE user_id = ? AND schedule_date = ?
                     """,
-                    (payload_row['excluded_business'], payload_row['excluded_staff'], json.dumps(payload_row['excluded_business_details'], ensure_ascii=False), json.dumps(payload_row['excluded_staff_details'], ensure_ascii=False), payload_row['available_vehicle_count'], payload_row['status_a_count'], payload_row['status_b_count'], payload_row['status_c_count'], payload_row['day_memo'], 1 if payload_row['is_handless_day'] else 0, now, user['id'], schedule_date),
+                    (payload_row['excluded_business'], payload_row['excluded_staff'], json.dumps(payload_row['excluded_business_details'], ensure_ascii=False), json.dumps(payload_row['excluded_staff_details'], ensure_ascii=False), payload_row['available_vehicle_count'], payload_row['status_a_count'], payload_row['status_b_count'], payload_row['status_c_count'], payload_row['day_memo'], 1 if payload_row['is_handless_day'] else 0, now, owner_user_id, schedule_date),
                 )
             else:
                 conn.execute(
@@ -3442,9 +3609,10 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                     INSERT INTO work_schedule_day_notes(user_id, schedule_date, excluded_business, excluded_staff, excluded_business_details, excluded_staff_details, available_vehicle_count, status_a_count, status_b_count, status_c_count, day_memo, is_handless_day, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user['id'], schedule_date, payload_row['excluded_business'], payload_row['excluded_staff'], json.dumps(payload_row['excluded_business_details'], ensure_ascii=False), json.dumps(payload_row['excluded_staff_details'], ensure_ascii=False), payload_row['available_vehicle_count'], payload_row['status_a_count'], payload_row['status_b_count'], payload_row['status_c_count'], payload_row['day_memo'], 1 if payload_row['is_handless_day'] else 0, now, now),
+                    (owner_user_id, schedule_date, payload_row['excluded_business'], payload_row['excluded_staff'], json.dumps(payload_row['excluded_business_details'], ensure_ascii=False), json.dumps(payload_row['excluded_staff_details'], ensure_ascii=False), payload_row['available_vehicle_count'], payload_row['status_a_count'], payload_row['status_b_count'], payload_row['status_c_count'], payload_row['day_memo'], 1 if payload_row['is_handless_day'] else 0, now, now),
                 )
         return {'ok': True, 'saved_count': len(visible_dates)}
+
 @app.post("/api/quote-forms/submit")
 def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(get_optional_user)):
     if not payload.privacy_agreed:
