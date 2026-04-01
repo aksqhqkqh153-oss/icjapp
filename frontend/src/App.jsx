@@ -157,6 +157,48 @@ function branchDisplayLabel(value, fallback = '본점/미지정') {
   return branchOptionLabel(value)
 }
 
+
+function formatFullDateLabel(value) {
+  const raw = String(value || '').slice(0, 10)
+  return raw || '-'
+}
+
+function formatRequesterBranchLabel(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return '-'
+  return raw.endsWith('호점') ? raw.replace(/호점$/, '') : raw
+}
+
+function parseRequesterMeta(request) {
+  const requesterName = String(request?.requester_name || '').trim()
+  const fallbackBranch = isAssignedBranchNo(request?.branch_no)
+    ? branchOptionLabel(request.branch_no)
+    : '-'
+  const fallbackName = String(request?.name || request?.nickname || '').trim()
+  const uniqueId = String(
+    request?.requester_unique_id
+    || request?.account_unique_id
+    || request?.unique_id
+    || request?.user_unique_id
+    || ''
+  ).trim()
+
+  const match = requesterName.match(/^\s*([^\s]+호점)\s*(.*)$/)
+  if (match) {
+    return {
+      branch: match[1] || fallbackBranch,
+      name: match[2] || fallbackName || match[1] || '-',
+      uniqueId: uniqueId || '-',
+    }
+  }
+
+  return {
+    branch: fallbackBranch,
+    name: requesterName || fallbackName || '-',
+    uniqueId: uniqueId || '-',
+  }
+}
+
 const ADMIN_SORT_OPTIONS = [
   { value: 'group_number', label: '구분 기준' },
   { value: 'account_type', label: '사업자 / 직원 분류' },
@@ -9570,10 +9612,6 @@ function MaterialsPage({ user }) {
     return `${parts[0].slice(2)}.${parts[1]}.${parts[2]}`
   }
 
-  function formatFullDateLabel(value) {
-    const raw = String(value || '').slice(0, 10)
-    return raw || '-'
-  }
 
   function formatSettlementFilterLabel(value) {
     const raw = String(value || '').slice(0, 10)
@@ -9581,20 +9619,6 @@ function MaterialsPage({ user }) {
     return raw
   }
 
-  function parseRequesterMeta(request) {
-    const source = String(request?.requester_name || '').trim()
-    const match = source.match(/^\s*([^\s]+호점)\s*(.*)$/)
-    if (match) {
-      return {
-        branch: match[1] || '-',
-        name: match[2] || match[1] || '-',
-      }
-    }
-    return {
-      branch: '-',
-      name: source || '-',
-    }
-  }
 
   function renderRequestListHeader(mode) {
     const selectable = mode === 'pending' || mode === 'settled'
@@ -9772,11 +9796,6 @@ function MaterialsPage({ user }) {
     setNotice('신청목록 화면에서 결산진행을 계속할 수 있습니다.')
   }
 
-  function formatRequesterBranchLabel(value) {
-    const raw = String(value || '').trim()
-    if (!raw) return '-'
-    return raw.endsWith('호점') ? raw.replace(/호점$/, '') : raw
-  }
 
   function formatRequestStatusLabel(status, quantity = null) {
     const normalized = String(status || '').trim()
