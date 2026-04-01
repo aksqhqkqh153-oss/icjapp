@@ -6745,7 +6745,7 @@ function AdminModePage() {
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
     const rawGroupNumber = item?.group_number_text ?? item?.group_number ?? '0'
-    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType })
+    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType, new_password: '' })
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -6945,6 +6945,7 @@ function AdminModePage() {
       archived_in_branch_status: !!row.archived_in_branch_status,
       group_number: rawGroupNumber,
       group_number_text: rawGroupNumber,
+      new_password: String(row.new_password || ''),
     }
   }
 
@@ -7570,6 +7571,7 @@ function AdminModePage() {
                               <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
                               <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
                               <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
+                              <label>비밀번호 <input type="password" autoComplete="new-password" value={item.new_password || ''} onChange={e => updateAccountRow(item.id, { new_password: e.target.value })} placeholder="변경 시에만 입력" /></label>
                               <label>고유ID값 <input value={item.account_unique_id || ''} onChange={e => updateAccountRow(item.id, { account_unique_id: e.target.value })} /></label>
                               <label>직급
                                 <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })}>

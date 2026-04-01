@@ -258,6 +258,7 @@ class AdminUserDetailIn(BaseModel):
     group_number: str = "0"
     name: str = ''
     nickname: str = ''
+    new_password: str = ''
     account_unique_id: str = ''
     position_title: str = ''
     gender: str = ''
@@ -3649,8 +3650,12 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                     raise HTTPException(status_code=400, detail=f"{data['account_unique_id']} 고유ID값은 이미 사용 중입니다.")
             if not data['position_title'] and data.get('branch_no') not in (None, '') and int(data.get('branch_no') or 0) > 0:
                 data['position_title'] = '호점대표'
-            assignments = ', '.join(f"{field} = ?" for field in editable_fields)
-            values = [data.get(field) for field in editable_fields] + [item.id]
+            update_fields = list(editable_fields)
+            if str(data.get('new_password') or '').strip():
+                data['password_hash'] = hash_password(str(data.get('new_password') or '').strip())
+                update_fields.append('password_hash')
+            assignments = ', '.join(f"{field} = ?" for field in update_fields)
+            values = [data.get(field) for field in update_fields] + [item.id]
             conn.execute(f"UPDATE users SET {assignments} WHERE id = ?", values)
     return {'ok': True}
 @app.post('/api/admin/accounts/create')
