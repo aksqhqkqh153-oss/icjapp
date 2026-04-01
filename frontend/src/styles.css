@@ -7747,8 +7747,8 @@ a:focus-visible {
 /* 2026-04-01 request update */
 @media (max-width: 768px) {
   .home-settings-menu {
-    min-width: min(84vw, 320px);
-    max-width: min(86vw, 334px);
+    min-width: min(76vw, 292px);
+    max-width: min(82vw, 314px);
   }
   .materials-confirm-history-table .materials-request-history-row > div,
   .materials-confirm-history-table .materials-request-history-head > div {
@@ -7797,8 +7797,12 @@ a:focus-visible {
 }
 .work-excluded-business-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.72fr) auto;
   gap: 6px;
+  align-items: center;
+}
+.work-excluded-delete-button {
+  white-space: nowrap;
 }
 .work-excluded-business-row select option:disabled {
   color: #9ca3af;
@@ -7986,5 +7990,122 @@ a:focus-visible {
   .warehouse-cell-textarea {
     padding: 5px 6px;
     font-size: 12px;
+  }
+}
+
+
+/* 2026-04-01 follow-up refined admin/schedule/history layout */
+.employee-summary-lines .admin-summary-line.admin-summary-line-primary {
+  display: grid;
+  grid-template-columns: minmax(44px, 0.5fr) minmax(52px, 0.72fr) minmax(78px, 1fr) minmax(72px, 0.9fr);
+  gap: 4px;
+  align-items: center;
+}
+.employee-summary-lines .admin-summary-line.admin-summary-line-primary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary {
+    grid-template-columns: minmax(28px, 0.42fr) minmax(38px, 0.56fr) minmax(72px, 1fr) minmax(56px, 0.74fr);
+    gap: 2px;
+    font-size: 11px;
+  }
+  .admin-detail-card.compact-card {
+    overflow: hidden;
+  }
+  .account-manage-toolbar-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  .account-manage-toolbar-left {
+    flex: 0 0 auto;
+  }
+  .account-manage-toolbar-actions, .admin-section-tabbar.account-manage-toolbar-left {
+    min-width: 0;
+  }
+  .admin-section-tabbar.account-manage-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .admin-section-tabbar.account-manage-toolbar-left button,
+  .admin-section-tabbar.account-manage-toolbar-left .small,
+  .account-manage-toolbar-actions .small {
+    padding-left: 6px;
+    padding-right: 6px;
+    white-space: nowrap;
+  }
+}
+.materials-purchase-history-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.materials-purchase-history-block {
+  display: flex;
+  flex-direction: column;
+}
+.materials-purchase-history-row {
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+  border: 1px dashed #cbd5e1;
+  border-top: 0;
+  background: #fff;
+}
+.materials-purchase-history-table > .materials-purchase-history-row:first-child,
+.materials-purchase-history-block:first-of-type .materials-purchase-history-row {
+  border-top: 1px dashed #cbd5e1;
+}
+.materials-purchase-history-row > div {
+  min-height: 42px;
+  padding: 10px 8px;
+  border-right: 1px dashed #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+.materials-purchase-history-row > div:first-child {
+  justify-content: flex-start;
+  text-align: left !important;
+}
+.materials-purchase-history-row > div:last-child {
+  border-right: 0;
+}
+.materials-purchase-history-row.materials-request-history-head {
+  background: #f8fafc;
+  font-weight: 700;
+}
+.materials-purchase-history-detail-wrap {
+  border-left: 1px dashed #cbd5e1;
+  border-right: 1px dashed #cbd5e1;
+  border-bottom: 1px dashed #cbd5e1;
+  padding: 6px 8px;
+  background: #fff;
+}
+.materials-purchase-history-detail-line {
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 768px) {
+  .materials-purchase-history-row > div {
+    min-height: 34px;
+    padding: 6px 4px;
+    font-size: 10.8px;
+  }
+  .materials-purchase-history-detail-wrap {
+    padding: 5px 6px;
   }
 }

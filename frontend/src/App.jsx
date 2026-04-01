@@ -4691,6 +4691,14 @@ function WorkSchedulePage() {
     setActiveNoteDate('')
   }
 
+  function clearExcludedBusinessSlot(index) {
+    const nextSlots = [...noteForm.excluded_business_slots]
+    const nextReasons = [...(noteForm.excluded_business_reasons || Array(businessSlotCount).fill(''))]
+    nextSlots[index] = ''
+    nextReasons[index] = ''
+    setNoteForm({ ...noteForm, excluded_business_slots: nextSlots, excluded_business_reasons: nextReasons })
+  }
+
   async function submitEntry(e) {
     e.preventDefault()
     await api('/api/work-schedule/entries', { method: 'POST', body: JSON.stringify({ ...entryForm, schedule_time: entryForm.schedule_time || '' }) })
@@ -4992,10 +5000,11 @@ function WorkSchedulePage() {
                           ))}
                         </select>
                         <input value={noteForm.excluded_business_reasons?.[index] || ''} placeholder="열외 사유" onChange={e => {
-                          const nextReasons = [...(noteForm.excluded_business_reasons || Array(6).fill(''))]
+                          const nextReasons = [...(noteForm.excluded_business_reasons || Array(businessSlotCount).fill(''))]
                           nextReasons[index] = e.target.value
                           setNoteForm({ ...noteForm, excluded_business_reasons: nextReasons })
                         }} />
+                        <button type="button" className="small ghost work-excluded-delete-button" onClick={() => clearExcludedBusinessSlot(index)}>열외삭제</button>
                       </div>
                     ))}
                   </div>
@@ -7812,8 +7821,8 @@ function AdminModePage() {
               <div className="inline-actions wrap admin-status-toolbar-spacer" />
               <div className="inline-actions wrap admin-section-save-actions">
                 {actorGrade === 1 && ((statusTab === 'all' || statusTab === 'branch')
-                  ? renderActionButton('가맹정보', '저장', saveBranchDetails)
-                  : renderActionButton(statusTab === 'hq' ? '본사직원' : '현장직원', '저장', saveEmployeeDetails))}
+                  ? <button type="button" className="small" onClick={saveBranchDetails}>저장</button>
+                  : <button type="button" className="small" onClick={saveEmployeeDetails}>저장</button>)}
                 {showStatusCategoryActions && <button type="button" className="multiline-action-button" onClick={() => {
                   const key = currentStatusCategoryKey
                   setStatusMovePickerOpen(prev => ({ ...prev, [key]: !prev[key] }))
@@ -10081,8 +10090,8 @@ function MaterialsPage({ user }) {
       return <div className="card muted">표시할 데이터가 없습니다.</div>
     }
     return (
-      <div className="materials-request-sheet materials-request-sheet-history materials-history-grid-sync">
-        <div className="materials-request-sheet-head materials-request-sheet-row-history" style={getRequestSheetGridStyle('history')}>
+      <div className="materials-request-history-table materials-purchase-history-table" style={getTableScaleStyle('history')}>
+        <div className="materials-request-history-row materials-request-history-head materials-confirm-history-row materials-purchase-history-row" style={getTableGridStyle('history')}>
           <div>선택</div>
           <div>호점</div>
           <div>이름</div>
@@ -10094,8 +10103,8 @@ function MaterialsPage({ user }) {
           const meta = parseRequesterMeta(request)
           const detailLines = buildHistoryDetailLines((request.items || []).filter(item => Number(item.quantity || 0) > 0))
           return (
-            <section key={`history-group-${request.id}`} className="materials-request-sheet-card materials-request-sheet-card-history materials-history-grid-card">
-              <div className="materials-request-sheet-row materials-request-sheet-row-history materials-history-grid-row" style={getRequestSheetGridStyle('history')}>
+            <div key={`history-group-${request.id}`} className="materials-purchase-history-block">
+              <div className="materials-request-history-row materials-confirm-history-row materials-purchase-history-row" style={getTableGridStyle('history')}>
                 <div className="materials-history-static-cell">완료</div>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
@@ -10103,10 +10112,12 @@ function MaterialsPage({ user }) {
                 <div>{formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
               </div>
-              <div className="materials-history-grid-detail-wrap">
-                {detailLines.length ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-history-group-detail-line">{line}</div>) : <div className="materials-history-group-detail-line muted">상세 내역이 없습니다.</div>}
+              <div className="materials-purchase-history-detail-wrap">
+                {detailLines.length
+                  ? detailLines.map((line, index) => <div key={`history-detail-${request.id}-${index}`} className="materials-purchase-history-detail-line">{line}</div>)
+                  : <div className="materials-purchase-history-detail-line muted">상세 내역이 없습니다.</div>}
               </div>
-            </section>
+            </div>
           )
         })}
       </div>
