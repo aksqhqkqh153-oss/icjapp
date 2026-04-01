@@ -56,26 +56,21 @@ export function getApiBase() {
 }
 
 export function getRememberedLogin() {
-  return localStorage.getItem(REMEMBER_KEY) === '1'
+  const saved = localStorage.getItem(REMEMBER_KEY)
+  return saved === null ? true : saved === '1'
 }
 
 export function getToken() {
   return sessionStorage.getItem('icj_token') || localStorage.getItem('icj_token') || ''
 }
 
-export function setSession(token, user, remember = false) {
+export function setSession(token, user, remember = true) {
   const serializedUser = JSON.stringify(user)
   sessionStorage.setItem('icj_token', token)
   sessionStorage.setItem('icj_user', serializedUser)
-  if (remember) {
-    localStorage.setItem('icj_token', token)
-    localStorage.setItem('icj_user', serializedUser)
-    localStorage.setItem(REMEMBER_KEY, '1')
-  } else {
-    localStorage.removeItem('icj_token')
-    localStorage.removeItem('icj_user')
-    localStorage.removeItem(REMEMBER_KEY)
-  }
+  localStorage.setItem('icj_token', token)
+  localStorage.setItem('icj_user', serializedUser)
+  localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
   invalidateApiCache()
 }
 

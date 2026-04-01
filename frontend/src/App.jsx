@@ -633,7 +633,7 @@ function AuthPage({ onLogin }) {
   const navigate = useNavigate()
   const [accounts, setAccounts] = useState([])
   const [form, setForm] = useState({ email: 'admin@example.com', password: 'admin1234' })
-  const [autoLogin, setAutoLogin] = useState(getRememberedLogin())
+  const [autoLogin, setAutoLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -648,7 +648,7 @@ function AuthPage({ onLogin }) {
         method: 'POST',
         body: JSON.stringify(form),
       })
-      setSession(data.access_token, data.user, autoLogin)
+      setSession(data.access_token, data.user, true)
       onLogin(data.user)
       navigate('/')
     } catch (err) {
@@ -665,7 +665,7 @@ function AuthPage({ onLogin }) {
         <form onSubmit={submit} className="stack">
           <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" autoComplete="username" />
           <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" autoComplete="current-password" />
-          <label className="check auto-login-check"><input type="checkbox" checked={autoLogin} onChange={e => setAutoLogin(e.target.checked)} /> 자동로그인</label>
+          <div className="muted auto-login-check">로그인 상태는 로그아웃 전까지 유지됩니다.</div>
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
           {error && <div className="error">{error}</div>}
         </form>
@@ -753,7 +753,7 @@ function SignupPage({ onLogin }) {
         method: 'POST',
         body: JSON.stringify(payload),
       })
-      setSession(data.access_token, data.user)
+      setSession(data.access_token, data.user, true)
       onLogin(data.user)
       navigate('/')
     } catch (err) {
