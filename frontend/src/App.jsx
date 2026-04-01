@@ -9197,6 +9197,27 @@ function MaterialsPage({ user }) {
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
+  const myRequestStartDateInputRef = useRef(null)
+  const myRequestEndDateInputRef = useRef(null)
+
+  function openCompactDatePicker(inputRef) {
+    const input = inputRef?.current
+    if (!input) return
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+      return
+    }
+    input.focus()
+    input.click()
+  }
+
+  function formatCompactDateLabel(value) {
+    if (!value) return '-- -- --'
+    const raw = String(value).trim()
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (match) return `${match[1].slice(2)}-${match[2]}-${match[3]}`
+    return raw
+  }
 
   async function loadOverview(nextTab) {
     setLoading(true)
@@ -9885,9 +9906,9 @@ function MaterialsPage({ user }) {
             <div><h3>자재구매(2/2)</h3>
             <div className="muted">신청 내역과 입금 계좌를 확인한 뒤 확인 버튼을 눌러 주세요.</div></div>
           </div>
-          <div className="materials-account-box materials-account-box-centered">
+          <div className="materials-account-box materials-account-box-centered materials-account-box-emphasis">
             <strong>자재 입금 계좌</strong>
-            <div>{accountGuide}</div>
+            <div className="materials-account-guide-strong">{accountGuide}</div>
           </div>
           <div className="materials-request-history-table materials-confirm-history-table" style={getTableScaleStyle('confirm')}>
             <div className="materials-request-history-row materials-request-history-head materials-confirm-history-row" style={getTableGridStyle('confirm')}>
@@ -10025,6 +10046,50 @@ function MaterialsPage({ user }) {
   }
 
 
+  function renderCompactDateFilter(label, value, setValue, inputRef) {
+    return (
+      <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-mobile-top">
+        <span>{label}</span>
+        <button
+          type="button"
+          className="materials-compact-date-button"
+          onClick={() => openCompactDatePicker(inputRef)}
+        >
+          {formatCompactDateLabel(value)}
+        </button>
+        <input
+          ref={inputRef}
+          className="materials-compact-date-native"
+          type="date"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          aria-label={label}
+          tabIndex={-1}
+        />
+      </label>
+    )
+  }
+
+  function renderIncomingHeaderCells() {
+    if (!isMobile) {
+      return renderResizableRowCells(['구분', '물품가', '현재고', '입고량', '출고량', '정산수량', '비고'], 'incoming')
+    }
+    return [
+      ['구분', ''],
+      ['물품', '가격'],
+      ['현', '재고'],
+      ['입고', '수량'],
+      ['출고', '수량'],
+      ['정산', '수량'],
+      ['비고', ''],
+    ].map(([line1, line2], index) => (
+      <div key={`incoming-head-${index}`} className="materials-resize-cell materials-resize-cell-two-line">
+        <span>{line1}</span>
+        <span>{line2 || '\u00A0'}</span>
+      </div>
+    ))
+  }
+
   function renderMyRequests() {
     const grouped = filterMyRequests(groupedMyRequests())
     return (
@@ -10035,16 +10100,10 @@ function MaterialsPage({ user }) {
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
         </div>
         <div className="materials-myrequest-filter-bar materials-myrequest-filter-bar-mobile-compact">
-          <label className="materials-date-inline-label materials-date-inline-label-left">
-            <span>시작기간</span>
-            <input type="date" value={myRequestStartDate} onChange={(e) => setMyRequestStartDate(e.target.value)} />
-          </label>
+          {renderCompactDateFilter('시작기간', myRequestStartDate, setMyRequestStartDate, myRequestStartDateInputRef)}
           <span className="materials-filter-range-separator">~</span>
-          <label className="materials-date-inline-label materials-date-inline-label-left">
-            <span>종료기간</span>
-            <input type="date" value={myRequestEndDate} onChange={(e) => setMyRequestEndDate(e.target.value)} />
-          </label>
-          <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact">
+          {renderCompactDateFilter('종료기간', myRequestEndDate, setMyRequestEndDate, myRequestEndDateInputRef)}
+          <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact materials-date-inline-label-mobile-top">
             <span>상태</span>
             <select className="materials-filter-select-compact" value={myRequestStatusFilter} onChange={(e) => setMyRequestStatusFilter(e.target.value)}>
               <option value="all">전체</option>
@@ -10117,7 +10176,7 @@ function MaterialsPage({ user }) {
         </div>
         <div className="materials-table materials-table-sales materials-table-incoming" style={getTableScaleStyle('incoming')}>
           <div className="materials-row materials-row-head materials-row-confirm-header materials-row-sales" style={getTableGridStyle('incoming')}>
-            {renderResizableRowCells(['구분', '물품가', '현재고', '입고량', '출고량', '정산수량', '비고'], 'incoming')}
+            {renderIncomingHeaderCells()}
           </div>
           {productRows.map(product => {
             const inventoryRow = inventoryRows.find(row => Number(row.product_id) === Number(product.id)) || {}

@@ -4198,6 +4198,15 @@ button.ghost.active {
   width: 100%;
   text-align: center;
 }
+.materials-account-box-emphasis {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.materials-account-guide-strong {
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 17px;
+}
 .materials-request-list {
   display: flex;
   flex-direction: column;
@@ -6263,6 +6272,17 @@ a:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.materials-resize-cell-two-line {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.materials-resize-cell-two-line > span {
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.05;
+}
 .materials-col-resizer {
   position: absolute;
   top: -6px;
@@ -7307,17 +7327,19 @@ a:focus-visible {
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label {
-    gap: 4px;
+    gap: 3px;
     min-width: 0;
     flex: 0 0 auto;
+    align-items: center;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label span {
     font-size: 10px;
-    line-height: 1.1;
+    line-height: 1.05;
+    text-align: center;
+    width: 100%;
   }
 
-  .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label input,
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label select {
     min-height: 32px;
     height: 32px;
@@ -7325,9 +7347,18 @@ a:focus-visible {
     font-size: 11px;
   }
 
-  .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label input[type="date"] {
-    width: 106px;
-    min-width: 106px;
+  .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label-mobile-top {
+    justify-content: flex-start;
+  }
+
+  .materials-myrequest-filter-bar-mobile-compact .materials-compact-date-button {
+    width: 76px;
+    min-width: 76px;
+    max-width: 76px;
+    min-height: 32px;
+    height: 32px;
+    padding: 4px 4px;
+    font-size: 11px;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label-compact select.materials-filter-select-compact {
@@ -7353,7 +7384,29 @@ a:focus-visible {
     line-height: 1.05;
     font-size: 10px;
     white-space: normal;
-    word-break: keep-all;
-    flex: 0 0 auto;
   }
 }
+
+.materials-compact-date-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.materials-compact-date-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
