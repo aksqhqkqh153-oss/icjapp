@@ -8517,3 +8517,272 @@ a:focus-visible {
     flex-direction: column;
   }
 }
+
+
+.disposal-page {
+  gap: 12px;
+}
+
+.disposal-hub-card {
+  gap: 16px;
+}
+
+.disposal-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.disposal-hub-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  border-radius: 18px;
+  border: 1px solid var(--line-color, #d8deea);
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,247,255,.92));
+  font-weight: 800;
+  text-decoration: none;
+  color: inherit;
+}
+
+.disposal-hero,
+.disposal-entry-card,
+.disposal-items-card,
+.disposal-sheet-card,
+.disposal-settlement-filter-card,
+.disposal-records-card {
+  padding: 14px;
+}
+
+.disposal-form-shell,
+.disposal-settlement-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  gap: 12px;
+}
+
+.disposal-meta-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.disposal-meta-row {
+  display: grid;
+  gap: 10px;
+}
+
+.disposal-meta-row-top {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.disposal-meta-row-bottom {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.disposal-meta-layout input,
+.disposal-filter-row select,
+.disposal-item-card input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #cfd6e4;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.disposal-items-grid-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.disposal-item-card {
+  border: 1px solid #e1e6f0;
+  border-radius: 16px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: #fbfcff;
+}
+
+.disposal-item-card-head {
+  font-weight: 800;
+  color: #42526b;
+}
+
+.disposal-item-row-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.muted-metrics {
+  font-size: 12px;
+  color: #6a768e;
+}
+
+.disposal-inline-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.disposal-sheet-fit-card {
+  overflow: hidden;
+}
+
+.disposal-sheet-fit-shell {
+  overflow: hidden;
+}
+
+.disposal-sheet-fit-scale {
+  width: 100%;
+}
+
+.disposal-sheet-grid-fit {
+  width: 100%;
+  transform-origin: top left;
+  transform: scale(.63);
+  margin-bottom: -34%;
+}
+
+.disposal-cell.fit-cell {
+  font-size: 10px;
+  line-height: 1.15;
+  padding: 2px 4px;
+}
+
+.disposal-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.disposal-filter-chip-label {
+  min-width: 72px;
+  font-weight: 800;
+}
+
+.disposal-list-table-card {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.disposal-list-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) minmax(0, 1.4fr) minmax(90px, .8fr) minmax(100px, .9fr) 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e7ebf3;
+}
+
+.disposal-list-table-head {
+  background: #f4f7fb;
+  font-weight: 800;
+  color: #44506a;
+}
+
+.disposal-list-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) minmax(0, 1.4fr) minmax(90px, .8fr) minmax(100px, .9fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
+.disposal-plain-button {
+  border: 0;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.disposal-list-data-row:hover {
+  background: #fafcff;
+}
+
+.disposal-row-delete {
+  min-height: 38px;
+}
+
+.disposal-settlement-metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.disposal-settlement-metrics > div {
+  border: 1px solid #e3e8f2;
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .disposal-form-shell,
+  .disposal-settlement-shell,
+  .disposal-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .disposal-items-grid-list {
+    grid-template-columns: 1fr;
+  }
+
+  .disposal-sheet-grid-fit {
+    transform: scale(.48);
+    margin-bottom: -52%;
+  }
+}
+
+@media (max-width: 720px) {
+  .disposal-meta-row-top,
+  .disposal-meta-row-bottom,
+  .disposal-inline-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .disposal-list-table-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .disposal-list-table-head {
+    display: none;
+  }
+
+  .disposal-list-link-row {
+    grid-template-columns: 1fr;
+  }
+
+  .disposal-list-data-row {
+    padding: 12px;
+  }
+
+  .disposal-list-data-row span {
+    display: block;
+    font-size: 13px;
+  }
+
+  .disposal-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .disposal-sheet-grid-fit {
+    transform: scale(.34);
+    margin-bottom: -66%;
+  }
+}

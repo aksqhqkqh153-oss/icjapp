@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
-import { DisposalFormsPage, DisposalSettlementsPage } from './DisposalPages'
+import { DisposalFormsPage, DisposalHubPage, DisposalListPage, DisposalSettlementsPage } from './DisposalPages'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -34,7 +34,9 @@ const PAGE_TITLES = {
   '/quotes': '견적',
   '/quote-forms': '견적',
   '/operations-dashboard': '대쉬보드',
+  '/disposal': '폐기',
   '/disposal/forms': '폐기양식',
+  '/disposal/list': '폐기목록',
   '/disposal/settlements': '폐기결산',
 }
 
@@ -42,6 +44,7 @@ function pageTitle(pathname) {
   if (pathname.startsWith('/schedule/new')) return '일정등록'
   if (/^\/schedule\/\d+\/edit$/.test(pathname)) return '일정수정'
   if (/^\/schedule\/\d+$/.test(pathname)) return '일정상세'
+  if (/^\/disposal\/forms\/[^/]+$/.test(pathname)) return '폐기양식 상세'
   if (pathname.startsWith('/chats/direct/') || pathname.startsWith('/chats/group/')) return '채팅방'
   return PAGE_TITLES[pathname] || '앱'
 }
@@ -244,8 +247,7 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
-      { id: 'disposal-forms', label: '폐기양식', path: '/disposal/forms' },
-      { id: 'disposal-settlements', label: '폐기결산', path: '/disposal/settlements' },
+      { id: 'disposal', label: '폐기', path: '/disposal' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
       { id: 'reports', label: '신고관리', path: '/reports' },
     ],
@@ -11056,7 +11058,10 @@ function App() {
         <Route path="/operations-dashboard" element={<OperationsDashboardPage />} />
         <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/disposal" element={<DisposalHubPage />} />
         <Route path="/disposal/forms" element={<DisposalFormsPage />} />
+        <Route path="/disposal/forms/:recordId" element={<DisposalFormsPage />} />
+        <Route path="/disposal/list" element={<DisposalListPage />} />
         <Route path="/disposal/settlements" element={<DisposalSettlementsPage />} />
         <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />

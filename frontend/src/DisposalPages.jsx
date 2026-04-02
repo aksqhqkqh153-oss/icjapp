@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DISPOSAL_TEMPLATE } from './disposalTemplateData'
 
-const STORAGE_KEY = 'icj_disposal_records_v1'
+const STORAGE_KEY = 'icj_disposal_records_v2'
+const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 const ITEM_ROW_COUNT = 17
 const FEE_RATE = 1.3
+const FILTER_OPTIONS = [
+  { value: 'latest', label: '최신 저장순' },
+  { value: 'customer', label: '고객명순' },
+  { value: 'date', label: '폐기일자순' },
+  { value: 'status', label: '최종현황순' },
+]
 
 function createEmptyItem() {
   return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '' }
@@ -15,7 +23,7 @@ function createInitialDraft() {
     disposalDate: '',
     location: '',
     district: '',
-    finalStatus: '입금 대기 / 신고 대기',
+    finalStatus: '',
     customerName: '',
     items: Array.from({ length: ITEM_ROW_COUNT }, () => createEmptyItem()),
   }
@@ -31,18 +39,47 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('ko-KR')
 }
 
+function normalizeRecordShape(record) {
+  if (!record || typeof record !== 'object') return null
+  const items = Array.from({ length: ITEM_ROW_COUNT }, (_, index) => ({
+    ...createEmptyItem(),
+    ...(record.items?.[index] || {}),
+  }))
+  return {
+    id: String(record.id || `disposal-${Date.now()}`),
+    savedAt: String(record.savedAt || new Date().toISOString()),
+    disposalDate: String(record.disposalDate || ''),
+    location: String(record.location || ''),
+    district: String(record.district || ''),
+    finalStatus: String(record.finalStatus || ''),
+    customerName: String(record.customerName || ''),
+    items,
+    totals: {
+      totalQty: safeNumber(record?.totals?.totalQty),
+      totalReport: safeNumber(record?.totals?.totalReport),
+      totalFinal: safeNumber(record?.totals?.totalFinal),
+    },
+  }
+}
+
 function loadRecords() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    const primary = localStorage.getItem(STORAGE_KEY)
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    const raw = primary || legacy || '[]'
+    const parsed = JSON.parse(raw)
+    const list = Array.isArray(parsed) ? parsed.map(normalizeRecordShape).filter(Boolean) : []
+    if (!primary && list.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    }
+    return list
   } catch {
     return []
   }
 }
 
 function saveRecords(records) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records || []))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
 }
 
 function getCellRef(colIndex, rowNumber) {
@@ -144,56 +181,169 @@ function buildRenderedTemplate(draft) {
   }
 }
 
-function DisposalTemplateTable({ title, startRow, endRow, rendered }) {
+function makeRecordFromDraft(draft, totals, existingId = '') {
+  return normalizeRecordShape({
+    id: existingId || `disposal-${Date.now()}`,
+    savedAt: new Date().toISOString(),
+    disposalDate: draft.disposalDate,
+    location: draft.location,
+    district: draft.district,
+    finalStatus: draft.finalStatus,
+    customerName: draft.customerName,
+    items: draft.items,
+    totals,
+  })
+}
+
+function sortRecords(records, sortKey) {
+  const list = [...records]
+  if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
+  if (sortKey === 'date') return list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
+  if (sortKey === 'status') return list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
+  return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+}
+
+function DisposalTemplateTable({ title, rendered }) {
   const mergeInfo = useMemo(() => buildMergeMap(DISPOSAL_TEMPLATE.merges), [])
   const columnStyle = useMemo(() => ({
-    gridTemplateColumns: DISPOSAL_TEMPLATE.columnWidths.map((width) => `${Math.max(76, width * 7.5)}px`).join(' '),
+    gridTemplateColumns: DISPOSAL_TEMPLATE.columnWidths.map((width) => `${Math.max(60, width * 5.8)}px`).join(' '),
   }), [])
-  const rowSlice = rendered.rows.slice(startRow - 1, endRow)
 
   return (
-    <section className="card disposal-sheet-card">
+    <section className="card disposal-sheet-card disposal-sheet-fit-card">
       <div className="disposal-sheet-head">
         <h3>{title}</h3>
-        <div className="notice-text">첨부된 폐기견적서 A1:H71 영역을 앱 화면에 옮긴 양식입니다.</div>
+        <div className="notice-text">표 전체가 한 화면 안에 보이도록 축소된 미리보기입니다.</div>
       </div>
-      <div className="disposal-sheet-scroll">
-        <div className="disposal-sheet-grid" style={columnStyle}>
-          {rowSlice.map((row, rowOffset) => {
-            const actualRow = startRow + rowOffset
-            return row.map((value, colIndex) => {
-              const cellRef = getCellRef(colIndex, actualRow)
-              if (mergeInfo.hidden.has(cellRef)) return null
-              const merge = mergeInfo.origins.get(cellRef)
-              const classNames = ['disposal-cell']
-              if ([1, 25, 50].includes(actualRow)) classNames.push('title-cell')
-              if ([5, 28, 53].includes(actualRow)) classNames.push('header-cell')
-              if ([23, 47, 48].includes(actualRow)) classNames.push('summary-cell')
-              if (colIndex === 0) classNames.push('label-cell')
-              return (
-                <div
-                  key={cellRef}
-                  className={classNames.join(' ')}
-                  style={{
-                    gridColumn: `${colIndex + 1} / span ${merge?.colSpan || 1}`,
-                    gridRow: `${rowOffset + 1} / span ${merge?.rowSpan || 1}`,
-                    minHeight: `${Math.max(38, DISPOSAL_TEMPLATE.rowHeights[actualRow - 1] || 38)}px`,
-                  }}
-                >
-                  <span>{String(value || '').trim() ? String(value) : ' '}</span>
-                </div>
-              )
-            })
-          })}
+      <div className="disposal-sheet-fit-shell">
+        <div className="disposal-sheet-fit-scale">
+          <div className="disposal-sheet-grid disposal-sheet-grid-fit" style={columnStyle}>
+            {rendered.rows.map((row, rowOffset) => {
+              const actualRow = rowOffset + 1
+              return row.map((value, colIndex) => {
+                const cellRef = getCellRef(colIndex, actualRow)
+                if (mergeInfo.hidden.has(cellRef)) return null
+                const merge = mergeInfo.origins.get(cellRef)
+                const classNames = ['disposal-cell', 'fit-cell']
+                if ([1, 25, 50].includes(actualRow)) classNames.push('title-cell')
+                if ([5, 28, 53].includes(actualRow)) classNames.push('header-cell')
+                if ([23, 47, 48].includes(actualRow)) classNames.push('summary-cell')
+                if (colIndex === 0) classNames.push('label-cell')
+                return (
+                  <div
+                    key={cellRef}
+                    className={classNames.join(' ')}
+                    style={{
+                      gridColumn: `${colIndex + 1} / span ${merge?.colSpan || 1}`,
+                      gridRow: `${rowOffset + 1} / span ${merge?.rowSpan || 1}`,
+                      minHeight: `${Math.max(24, (DISPOSAL_TEMPLATE.rowHeights[actualRow - 1] || 28) * 0.55)}px`,
+                    }}
+                  >
+                    <span>{String(value || '').trim() ? String(value) : ' '}</span>
+                  </div>
+                )
+              })
+            })}
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
+function DisposalMetaInputs({ draft, updateDraftField }) {
+  return (
+    <section className="card disposal-entry-card">
+      <div className="disposal-meta-layout">
+        <div className="disposal-meta-row disposal-meta-row-top">
+          <input value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} placeholder="고객명" />
+          <input value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} placeholder="폐기일자" />
+          <input value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} placeholder="최종현황" />
+        </div>
+        <div className="disposal-meta-row disposal-meta-row-bottom">
+          <input value={draft.location} onChange={e => updateDraftField('location', e.target.value)} placeholder="폐기장소" />
+          <input value={draft.district} onChange={e => updateDraftField('district', e.target.value)} placeholder="관할구역" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function DisposalItemsEditor({ draft, rendered, updateItem }) {
+  return (
+    <section className="card disposal-items-card">
+      <div className="disposal-items-head">
+        <h3>폐기 품목 입력</h3>
+        <div className="notice-text">수량 × 1개당 비용 = 신고합계, 신고합계 × 1.3 = 최종비용으로 자동 계산됩니다.</div>
+      </div>
+      <div className="disposal-items-grid-list">
+        {rendered.reportRows.map((item, index) => (
+          <div key={`disposal-item-${index}`} className="disposal-item-card">
+            <div className="disposal-item-card-head">#{index + 1}</div>
+            <input value={draft.items[index]?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="폐기 품목" />
+            <div className="disposal-item-row-two">
+              <input inputMode="numeric" value={draft.items[index]?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="수량" />
+              <input inputMode="numeric" value={draft.items[index]?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="1개당 비용" />
+            </div>
+            <div className="disposal-item-row-two muted-metrics">
+              <div>신고합계 {formatNumber(item.reportAmount)}원</div>
+              <div>최종비용 {formatNumber(item.finalAmount)}원</div>
+            </div>
+            <div className="disposal-item-row-two">
+              <input value={draft.items[index]?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="폐기 신고 번호" />
+              <input value={draft.items[index]?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="비고" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="disposal-inline-summary">
+        <span>총 수량 {formatNumber(rendered.totals.totalQty)}</span>
+        <span>신고합계 {formatNumber(rendered.totals.totalReport)}원</span>
+        <span>최종비용 {formatNumber(rendered.totals.totalFinal)}원</span>
+      </div>
+    </section>
+  )
+}
+
+export function DisposalHubPage() {
+  return (
+    <div className="stack-page disposal-page">
+      <section className="card disposal-hero disposal-hub-card">
+        <div>
+          <h2>폐기</h2>
+          <p className="notice-text">폐기양식 입력, 폐기목록 관리, 폐기결산 확인 화면으로 이동할 수 있습니다.</p>
+        </div>
+        <div className="disposal-hub-grid">
+          <Link className="disposal-hub-button" to="/disposal/forms">폐기양식</Link>
+          <Link className="disposal-hub-button" to="/disposal/list">폐기목록</Link>
+          <Link className="disposal-hub-button" to="/disposal/settlements">폐기결산</Link>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export function DisposalFormsPage() {
+  const navigate = useNavigate()
+  const { recordId } = useParams()
   const [draft, setDraft] = useState(createInitialDraft())
   const [savedAt, setSavedAt] = useState('')
+
+  useEffect(() => {
+    if (!recordId) return
+    const found = loadRecords().find(record => record.id === recordId)
+    if (found) {
+      setDraft({
+        customerName: found.customerName || '',
+        disposalDate: found.disposalDate || '',
+        location: found.location || '',
+        district: found.district || '',
+        finalStatus: found.finalStatus || '',
+        items: Array.from({ length: ITEM_ROW_COUNT }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+      })
+      setSavedAt(found.savedAt || '')
+    }
+  }, [recordId])
 
   const rendered = useMemo(() => buildRenderedTemplate(draft), [draft])
 
@@ -214,141 +364,52 @@ export function DisposalFormsPage() {
   }
 
   function saveSettlementRecord() {
-    const record = {
-      id: `disposal-${Date.now()}`,
-      savedAt: new Date().toISOString(),
-      disposalDate: draft.disposalDate,
-      location: draft.location,
-      district: draft.district,
-      finalStatus: draft.finalStatus,
-      customerName: draft.customerName,
-      items: draft.items,
-      totals: rendered.totals,
-    }
+    const nextRecord = makeRecordFromDraft(draft, rendered.totals, recordId)
     const current = loadRecords()
-    saveRecords([record, ...current].slice(0, 200))
-    const stamp = new Date(record.savedAt)
-    setSavedAt(`${stamp.getFullYear()}-${String(stamp.getMonth() + 1).padStart(2, '0')}-${String(stamp.getDate()).padStart(2, '0')} ${String(stamp.getHours()).padStart(2, '0')}:${String(stamp.getMinutes()).padStart(2, '0')}`)
-    window.alert('폐기결산 데이터가 로컬 저장소에 저장되었습니다.')
+    const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
+    saveRecords(next)
+    setSavedAt(nextRecord.savedAt)
+    window.alert(recordId ? '폐기양식이 수정 저장되었습니다.' : '폐기결산 저장과 함께 폐기목록에 등록되었습니다.')
+    navigate('/disposal/list')
   }
 
   return (
     <div className="stack-page disposal-page">
       <section className="card disposal-hero">
         <div>
-          <h2>폐기양식</h2>
-          <p className="notice-text">폐기견적서 양식을 앱 화면에 맞게 옮긴 입력/확인 화면입니다. 저장 시 폐기결산 화면에서 합계 내역을 확인할 수 있습니다.</p>
+          <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
+          <p className="notice-text">저장 시 폐기목록과 폐기결산에서 동시에 관리됩니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
           <button type="button" className="ghost active" onClick={saveSettlementRecord}>폐기결산 저장</button>
         </div>
       </section>
 
-      <section className="card disposal-entry-card">
-        <div className="disposal-entry-grid">
-          <label>
-            <span>고객명</span>
-            <input value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} placeholder="예: 홍길동" />
-          </label>
-          <label>
-            <span>폐기일자</span>
-            <input value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} placeholder="예: 26.05.29" />
-          </label>
-          <label>
-            <span>폐기장소</span>
-            <input value={draft.location} onChange={e => updateDraftField('location', e.target.value)} placeholder="예: 서울시 중랑구 면목로94길 15" />
-          </label>
-          <label>
-            <span>관할구역</span>
-            <input value={draft.district} onChange={e => updateDraftField('district', e.target.value)} placeholder="예: 중랑구" />
-          </label>
-          <label className="disposal-status-field">
-            <span>최종현황</span>
-            <select value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)}>
-              <option value="입금 대기 / 신고 대기">입금 대기 / 신고 대기</option>
-              <option value="입금 완 / 신고 진행">입금 완 / 신고 진행</option>
-              <option value="입금 완 / 신고 완">입금 완 / 신고 완</option>
-            </select>
-          </label>
-        </div>
-        <div className="disposal-saved-at">최근 저장: {savedAt || '-'}</div>
-      </section>
+      <DisposalMetaInputs draft={draft} updateDraftField={updateDraftField} />
 
-      <section className="card disposal-items-card">
-        <div className="disposal-items-head">
-          <h3>폐기 품목 입력</h3>
-          <div className="notice-text">수량 × 1개당 비용 = 신고합계, 신고합계 × 1.3 = 최종비용(수수료 포함)으로 자동 계산됩니다.</div>
+      <section className="disposal-form-shell">
+        <div className="disposal-form-left">
+          <DisposalItemsEditor draft={draft} rendered={rendered} updateItem={updateItem} />
+          <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>
-        <div className="disposal-items-scroll">
-          <table className="disposal-items-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>폐기 품목</th>
-                <th>수량</th>
-                <th>1개당 비용</th>
-                <th>신고합계</th>
-                <th>최종비용</th>
-                <th>폐기 신고 번호</th>
-                <th>비고</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rendered.reportRows.map((item, index) => (
-                <tr key={`disposal-item-${index}`}>
-                  <td>{index + 1}</td>
-                  <td><input value={draft.items[index]?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} /></td>
-                  <td><input inputMode="numeric" value={draft.items[index]?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} /></td>
-                  <td><input inputMode="numeric" value={draft.items[index]?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} /></td>
-                  <td>{formatNumber(item.reportAmount)}</td>
-                  <td>{formatNumber(item.finalAmount)}</td>
-                  <td><input value={draft.items[index]?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} /></td>
-                  <td><input value={draft.items[index]?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} /></td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan="2">합계</td>
-                <td>{formatNumber(rendered.totals.totalQty)}</td>
-                <td>-</td>
-                <td>{formatNumber(rendered.totals.totalReport)}</td>
-                <td>{formatNumber(rendered.totals.totalFinal)}</td>
-                <td colSpan="2">{draft.customerName ? `${draft.customerName} 건` : '저장 전 임시 작성'}</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="disposal-form-right">
+          <DisposalTemplateTable title="폐기견적서 전체 미리보기" rendered={rendered} />
         </div>
       </section>
-
-      <DisposalTemplateTable title="편집용 양식" startRow={1} endRow={23} rendered={rendered} />
-      <DisposalTemplateTable title="대리 신고 견적서" startRow={25} endRow={48} rendered={rendered} />
-      <DisposalTemplateTable title="신고 번호 정리표" startRow={50} endRow={71} rendered={rendered} />
     </div>
   )
 }
 
-export function DisposalSettlementsPage() {
+export function DisposalListPage() {
+  const navigate = useNavigate()
   const [records, setRecords] = useState([])
-  const [filterDate, setFilterDate] = useState('')
+  const [sortKey, setSortKey] = useState('latest')
 
   useEffect(() => {
     setRecords(loadRecords())
   }, [])
-
-  const filteredRecords = useMemo(() => {
-    const keyword = String(filterDate || '').trim()
-    if (!keyword) return records
-    return records.filter(record => String(record?.disposalDate || '').includes(keyword))
-  }, [filterDate, records])
-
-  const summary = useMemo(() => ({
-    count: filteredRecords.length,
-    totalQty: filteredRecords.reduce((sum, record) => sum + safeNumber(record?.totals?.totalQty), 0),
-    totalReport: filteredRecords.reduce((sum, record) => sum + safeNumber(record?.totals?.totalReport), 0),
-    totalFinal: filteredRecords.reduce((sum, record) => sum + safeNumber(record?.totals?.totalFinal), 0),
-  }), [filteredRecords])
 
   function removeRecord(id) {
     const next = records.filter(record => record.id !== id)
@@ -356,69 +417,128 @@ export function DisposalSettlementsPage() {
     saveRecords(next)
   }
 
+  const sortedRecords = useMemo(() => sortRecords(records, sortKey), [records, sortKey])
+
+  return (
+    <div className="stack-page disposal-page">
+      <section className="card disposal-hero">
+        <div>
+          <h2>폐기목록</h2>
+          <p className="notice-text">폐기양식 저장 건이 목록으로 누적됩니다. 행을 누르면 상세입력창으로 이동합니다.</p>
+        </div>
+        <div className="disposal-hero-actions">
+          <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
+        </div>
+      </section>
+
+      <section className="card disposal-settlement-filter-card">
+        <div className="disposal-filter-row">
+          <div className="disposal-filter-chip-label">정렬필터</div>
+          <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
+            {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </div>
+      </section>
+
+      <section className="card disposal-records-card disposal-list-table-card">
+        <div className="disposal-list-table-head disposal-list-table-row">
+          <div>고객명</div>
+          <div>폐기일자</div>
+          <div>폐기장소</div>
+          <div>관할구역</div>
+          <div>최종현황</div>
+          <div>관리</div>
+        </div>
+        {sortedRecords.length === 0 ? (
+          <div className="empty-state">저장된 폐기목록이 없습니다.</div>
+        ) : sortedRecords.map(record => (
+          <div key={record.id} className="disposal-list-table-row disposal-list-data-row">
+            <button type="button" className="disposal-list-link-row" onClick={() => navigate(`/disposal/forms/${record.id}`)}>
+              <span>{record.customerName || '-'}</span>
+              <span>{record.disposalDate || '-'}</span>
+              <span>{record.location || '-'}</span>
+              <span>{record.district || '-'}</span>
+              <span>{record.finalStatus || '-'}</span>
+            </button>
+            <button type="button" className="ghost disposal-row-delete" onClick={() => removeRecord(record.id)}>삭제</button>
+          </div>
+        ))}
+      </section>
+    </div>
+  )
+}
+
+export function DisposalSettlementsPage() {
+  const navigate = useNavigate()
+  const [records, setRecords] = useState([])
+
+  useEffect(() => {
+    setRecords(loadRecords())
+  }, [])
+
+  const summary = useMemo(() => ({
+    count: records.length,
+    totalQty: records.reduce((sum, record) => sum + safeNumber(record?.totals?.totalQty), 0),
+    totalReport: records.reduce((sum, record) => sum + safeNumber(record?.totals?.totalReport), 0),
+    totalFinal: records.reduce((sum, record) => sum + safeNumber(record?.totals?.totalFinal), 0),
+  }), [records])
+
   return (
     <div className="stack-page disposal-page">
       <section className="card disposal-hero">
         <div>
           <h2>폐기결산</h2>
-          <p className="notice-text">폐기양식 화면에서 저장한 내역을 기준으로 건수와 금액 합계를 확인하는 화면입니다.</p>
+          <p className="notice-text">한 화면에서 합계와 저장 목록을 함께 확인하도록 구성했습니다.</p>
+        </div>
+        <div className="disposal-hero-actions">
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
+          <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
         </div>
       </section>
 
-      <section className="card disposal-settlement-filter-card">
-        <div className="disposal-entry-grid disposal-entry-grid-compact">
-          <label>
-            <span>폐기일자 필터</span>
-            <input value={filterDate} onChange={e => setFilterDate(e.target.value)} placeholder="예: 26.05" />
-          </label>
-        </div>
-      </section>
-
-      <section className="disposal-summary-grid">
-        <div className="card disposal-summary-card"><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
-        <div className="card disposal-summary-card"><span>총 수량</span><strong>{formatNumber(summary.totalQty)}</strong></div>
-        <div className="card disposal-summary-card"><span>신고합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
-        <div className="card disposal-summary-card"><span>최종비용 합계</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
-      </section>
-
-      <section className="card disposal-records-card">
-        <div className="disposal-items-head">
-          <h3>저장 내역</h3>
-          <div className="notice-text">브라우저 로컬 저장소 기준으로 표시됩니다.</div>
-        </div>
-        {filteredRecords.length === 0 ? (
-          <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
-        ) : (
-          <div className="disposal-record-list">
-            {filteredRecords.map(record => (
-              <article key={record.id} className="disposal-record-card">
-                <div className="disposal-record-head">
-                  <div>
-                    <strong>{record.customerName || '고객명 미입력'}</strong>
-                    <div className="notice-text">{record.disposalDate || '-'} · {record.location || '-'} · {record.finalStatus || '-'}</div>
-                  </div>
-                  <button type="button" className="ghost" onClick={() => removeRecord(record.id)}>삭제</button>
-                </div>
-                <div className="disposal-record-meta">
-                  <span>관할구역: {record.district || '-'}</span>
-                  <span>총 수량: {formatNumber(record?.totals?.totalQty)}</span>
-                  <span>신고합계: {formatNumber(record?.totals?.totalReport)}원</span>
-                  <span>최종비용: {formatNumber(record?.totals?.totalFinal)}원</span>
-                </div>
-                <div className="disposal-record-items">
-                  {(record.items || []).filter(item => String(item?.itemName || '').trim()).map((item, index) => (
-                    <div key={`${record.id}-item-${index}`} className="disposal-record-item-row">
-                      <span>{item.itemName}</span>
-                      <span>{formatNumber(item.quantity)}개</span>
-                      <span>{formatNumber(item.unitCost)}원</span>
-                      <span>{item.reportNo || '-'}</span>
-                    </div>
-                  ))}
-                </div>
-              </article>
+      <section className="disposal-settlement-shell">
+        <div className="disposal-settlement-left">
+          <section className="disposal-summary-grid">
+            <div className="card disposal-summary-card"><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
+            <div className="card disposal-summary-card"><span>총 수량</span><strong>{formatNumber(summary.totalQty)}</strong></div>
+            <div className="card disposal-summary-card"><span>신고합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
+            <div className="card disposal-summary-card"><span>최종비용 합계</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
+          </section>
+          <section className="card disposal-records-card disposal-list-table-card">
+            <div className="disposal-list-table-head disposal-list-table-row">
+              <div>고객명</div>
+              <div>폐기일자</div>
+              <div>폐기장소</div>
+              <div>관할구역</div>
+              <div>최종현황</div>
+            </div>
+            {records.length === 0 ? (
+              <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
+            ) : sortRecords(records, 'latest').map(record => (
+              <button key={record.id} type="button" className="disposal-list-table-row disposal-list-link-row disposal-list-data-row disposal-plain-button" onClick={() => navigate(`/disposal/forms/${record.id}`)}>
+                <span>{record.customerName || '-'}</span>
+                <span>{record.disposalDate || '-'}</span>
+                <span>{record.location || '-'}</span>
+                <span>{record.district || '-'}</span>
+                <span>{record.finalStatus || '-'}</span>
+              </button>
             ))}
-          </div>
-        )}
+          </section>
+        </div>
+        <div className="disposal-settlement-right">
+          <section className="card disposal-sheet-card disposal-settlement-mini-sheet">
+            <div className="disposal-sheet-head">
+              <h3>결산 요약</h3>
+              <div className="notice-text">저장 데이터 합계를 기준으로 즉시 반영됩니다.</div>
+            </div>
+            <div className="disposal-settlement-metrics">
+              <div><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
+              <div><span>총 수량</span><strong>{formatNumber(summary.totalQty)}</strong></div>
+              <div><span>신고합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
+              <div><span>최종비용</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
+            </div>
+          </section>
+        </div>
       </section>
     </div>
   )
