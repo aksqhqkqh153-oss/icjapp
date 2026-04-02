@@ -2681,7 +2681,7 @@ label { font-size: 14px; color: #4f6f8c; }
 .schedule-page.mobile .calendar-top-actions{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .schedule-page.mobile .schedule-header-line{display:grid;grid-template-columns:1fr auto;align-items:flex-start}
 .schedule-page.mobile .calendar-date-select{justify-self:start}
-.schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:62px;padding:8px 6px;flex-direction:column;justify-content:center;align-items:center;gap:4px}
+.schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:50px;padding:4px 4px;flex-direction:column;justify-content:center;align-items:center;gap:2px}
 .schedule-page.mobile .calendar-mobile-vehicle-line{font-size:clamp(12px,3.6vw,16px);font-weight:800;line-height:1;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .schedule-page.mobile .calendar-handless-pill.active{font-size:11px;padding:2px 6px}
 .schedule-page.mobile .mobile-schedule-detail-panel{margin-top:12px}
@@ -2691,6 +2691,11 @@ label { font-size: 14px; color: #4f6f8c; }
   .calendar-grid.schedule-grid.detail-mode{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
   .calendar-grid.schedule-grid.detail-mode .calendar-cell{min-height:116px;padding:6px}
   .calendar-grid.schedule-grid.detail-mode .calendar-lanes-stack{display:none}
+  .calendar-grid.schedule-grid.detail-mode .calendar-cell-topline{margin-bottom:2px}
+  .calendar-grid.schedule-grid.detail-mode .schedule-header-line{min-height:auto}
+  .calendar-grid.schedule-grid.detail-mode .calendar-date-select{min-height:28px}
+  .calendar-grid.schedule-grid.detail-mode .calendar-handless-pill.mobile-compact{padding:1px 6px;line-height:1.2}
+
   .calendar-grid.schedule-grid.detail-mode .calendar-plus-row{display:none}
   .chat-room-row{padding:12px}
   .chat-room-topline{grid-template-columns:minmax(0,1fr) auto auto}

@@ -3716,8 +3716,9 @@ function CalendarPage() {
 
   async function load() {
     const firstDate = fmtDate(days[0] || new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1))
+    const lastDate = fmtDate(days[days.length - 1] || new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0))
     const [calendarData, workData] = await Promise.all([
-      api('/api/calendar/events'),
+      api(`/api/calendar/events?start_date=${firstDate}&end_date=${lastDate}`),
       api(`/api/work-schedule?start_date=${firstDate}&days=42`),
     ])
     setItems(calendarData)
@@ -3989,9 +3990,10 @@ function CalendarPage() {
             const dayItems = date ? (grouped.get(fmtDate(date)) || []) : []
             const visibleItems = dayItems.slice(0, visibleLaneCount)
             const extraCount = Math.max(dayItems.length - visibleLaneCount, 0)
+            const hasWorkDayData = Boolean(date && workDayMap.has(fmtDate(date)))
             const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
-            const dayCapacity = daySummary ? analyzeScheduleDayCapacity(daySummary) : null
-            const dayCapacityClass = daySummary ? buildCalendarDayStatusClass(daySummary) : ''
+            const dayCapacity = hasWorkDayData && daySummary ? analyzeScheduleDayCapacity(daySummary) : null
+            const dayCapacityClass = hasWorkDayData && daySummary ? buildCalendarDayStatusClass(daySummary) : ''
             const isFriday = date && date.getDay() === 5
             const shouldHighlightDayKind = Boolean(date && (isFriday || isWeekend || daySummary?.is_handless_day))
             const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
@@ -4015,7 +4017,7 @@ function CalendarPage() {
                       )}
                     </div>
 
-                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
+                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} title={dayCapacity?.detail || ''} onClick={() => (isMobile ? selectDate(date) : openCalendarStatus(daySummary))}>
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack compact-topline">
                           <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}${shouldHighlightDayKind ? ' special-attention' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>

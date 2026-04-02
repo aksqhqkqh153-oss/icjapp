@@ -2829,9 +2829,18 @@ def _calendar_event_out(conn, row):
     item["status_c_count"] = int(item.get("status_c_count") or 0)
     return item
 @app.get("/api/calendar/events")
-def get_calendar_events(user=Depends(require_user)):
+def get_calendar_events(start_date: str | None = None, end_date: str | None = None, user=Depends(require_user)):
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM calendar_events WHERE user_id = ? ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END", (user["id"],)).fetchall()
+        query = "SELECT * FROM calendar_events WHERE user_id = ?"
+        params = [user["id"]]
+        if start_date:
+            query += " AND event_date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND event_date <= ?"
+            params.append(end_date)
+        query += " ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END"
+        rows = conn.execute(query, tuple(params)).fetchall()
         return [_calendar_event_out(conn, r) for r in rows]
 @app.get("/api/calendar/events/{event_id}")
 def get_calendar_event(event_id: int, user=Depends(require_user)):
