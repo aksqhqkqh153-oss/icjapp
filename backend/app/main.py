@@ -1,4 +1,5 @@
 from __future__ import annotations
+import io
 import json
 import logging
 import random
@@ -9,8 +10,10 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 
 from .db import (
     DB_ENGINE,
@@ -3655,6 +3658,310 @@ def save_handless_bulk(payload: HandlessBulkIn, user=Depends(require_user)):
                 )
         return {'ok': True, 'saved_count': len(visible_dates)}
 
+
+
+def _digits_only(value: str | None) -> str:
+    return ''.join(ch for ch in str(value or '') if ch.isdigit())
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(float(str(value).strip()))
+    except Exception:
+        return default
+
+
+def _quote_desired_date(item: dict, payload: dict) -> str:
+    if item.get('form_type') == 'storage':
+        start_date = str(payload.get('storage_start_date') or item.get('desired_date') or '').strip()
+        end_date = str(payload.get('storage_end_date') or '').strip()
+        return ' ~ '.join([part for part in [start_date, end_date] if part]) or str(item.get('desired_date') or '').strip()
+    return str(payload.get('move_date') or item.get('desired_date') or '').strip()
+
+
+def _quote_primary_date(item: dict, payload: dict) -> str:
+    if item.get('form_type') == 'storage':
+        return str(payload.get('storage_start_date') or item.get('desired_date') or '').strip()
+    return str(payload.get('move_date') or item.get('desired_date') or '').strip()
+
+
+def _compute_quote_estimate(item: dict) -> dict:
+    payload = item.get('payload') or {}
+    area = str(payload.get('area') or '')
+    household = str(payload.get('household') or '')
+    move_types = payload.get('move_types') or []
+    premium_options = payload.get('premium_options') or []
+    furniture_types = payload.get('furniture_types') or []
+    disassembly_types = payload.get('disassembly_types') or []
+    large_item_types = payload.get('large_item_types') or []
+    via_exists = any(str(payload.get(key) or '').strip() for key in ['via_address', 'via_address_detail', 'via_pickup_items', 'via_drop_items'])
+    origin_elevator = str(payload.get('origin_elevator') or '')
+    destination_elevator = str(payload.get('destination_elevator') or '')
+    form_type = 'storage' if item.get('form_type') == 'storage' else 'same_day'
+    score = 0
+    score += {'1인': 0, '2인': 2, '3인': 4, '4인 이상': 6}.get(household, 1)
+    score += {'10평 미만': 0, '10평대': 2, '20평대': 4, '30평대 이상': 7}.get(area, 1)
+    score += len(move_types) * 2 + len(premium_options) + len(furniture_types) + len(disassembly_types) + len(large_item_types)
+    if form_type == 'storage':
+        score += 4
+    if via_exists:
+        score += 2
+    if origin_elevator == '없음':
+        score += 2
+    if destination_elevator == '없음':
+        score += 2
+    if any('포장이사' in str(v) for v in move_types):
+        score += 3
+    if any('반포장' in str(v) for v in move_types):
+        score += 2
+
+    if score <= 5:
+        crew = 1
+        vehicles = 1
+        low, high = 120000, 220000
+        grade = '소형'
+    elif score <= 10:
+        crew = 2
+        vehicles = 1
+        low, high = 220000, 380000
+        grade = '일반'
+    elif score <= 16:
+        crew = 3
+        vehicles = 1
+        low, high = 380000, 650000
+        grade = '중형'
+    else:
+        crew = 4
+        vehicles = 2
+        low, high = 650000, 1200000
+        grade = '대형'
+
+    if form_type == 'storage':
+        low += 100000
+        high += 220000
+    if via_exists:
+        low += 50000
+        high += 120000
+    if any('피아노' in str(v) or '냉장고' in str(v) or '세탁기' in str(v) for v in large_item_types):
+        low += 40000
+        high += 100000
+
+    lines = [
+        f"기본 난이도: {grade}",
+        f"가구원/평수/옵션 반영 점수: {score}",
+        f"추천 인원: {crew}명",
+        f"추천 차량: {vehicles}대",
+    ]
+    if form_type == 'storage':
+        lines.append('짐보관이사 가산 금액이 포함되었습니다.')
+    if via_exists:
+        lines.append('경유지 정보가 있어 추가 금액이 반영되었습니다.')
+    if origin_elevator == '없음' or destination_elevator == '없음':
+        lines.append('엘리베이터 없음 조건이 반영되었습니다.')
+    return {
+        'recommended_crew': crew,
+        'recommended_vehicle_count': vehicles,
+        'estimated_low': low,
+        'estimated_high': high,
+        'difficulty_grade': grade,
+        'score': score,
+        'explanation_lines': lines,
+        'move_date_label': _quote_desired_date(item, payload),
+    }
+
+
+def _find_repeat_customer(conn, item: dict) -> list[dict]:
+    phone_digits = _digits_only(item.get('contact_phone'))
+    if not phone_digits:
+        return []
+    rows = conn.execute(
+        "SELECT id, requester_name, desired_date, summary_title, created_at, payload_json FROM quote_form_submissions WHERE REPLACE(REPLACE(REPLACE(contact_phone, '-', ''), ' ', ''), '.', '') = ? AND id <> ? ORDER BY created_at DESC LIMIT 10",
+        (phone_digits, int(item.get('id') or 0)),
+    ).fetchall()
+    results = []
+    for row in rows:
+        data = row_to_dict(row)
+        payload = json_loads(data.get('payload_json'), {})
+        results.append({
+            'id': data.get('id'),
+            'customer_name': data.get('requester_name') or '',
+            'desired_date': _quote_desired_date(data, payload),
+            'summary_title': data.get('summary_title') or '',
+            'created_at': data.get('created_at') or '',
+        })
+    return results
+
+
+def _schedule_conflict_analysis(conn, item: dict, estimate: dict) -> dict:
+    payload = item.get('payload') or {}
+    target_date = _quote_primary_date(item, payload)
+    if not target_date:
+        return {'target_date': '', 'available_vehicle_count': None, 'conflicts': [], 'conflict_level': '확인불가', 'recommended_action': '이사 희망 날짜가 없어 충돌 분석을 생략했습니다.'}
+    event_rows = conn.execute(
+        "SELECT id, customer_name, start_time, representative1, representative2, representative3, staff1, staff2, staff3, status_a_count, status_b_count, status_c_count FROM calendar_events WHERE event_date = ? ORDER BY CASE WHEN COALESCE(start_time, '') = '' THEN '99:99' ELSE start_time END, id",
+        (target_date,),
+    ).fetchall()
+    note_row = conn.execute("SELECT available_vehicle_count, excluded_business, excluded_staff, day_memo FROM work_schedule_day_notes WHERE schedule_date = ? ORDER BY id DESC LIMIT 1", (target_date,)).fetchone()
+    available_vehicle_count = None
+    if note_row:
+        available_vehicle_count = _to_int(note_row['available_vehicle_count'], 0)
+    conflicts = []
+    used_vehicle_slots = 0
+    for row in event_rows:
+        assigned_people = [str(row[k] or '').strip() for k in ['representative1','representative2','representative3','staff1','staff2','staff3'] if str(row[k] or '').strip()]
+        vehicle_need = max(1, _to_int(row['status_a_count']) + _to_int(row['status_b_count']) + _to_int(row['status_c_count']))
+        used_vehicle_slots += vehicle_need
+        conflicts.append({
+            'event_id': row['id'],
+            'customer_name': row['customer_name'] or '-',
+            'start_time': row['start_time'] or '미정',
+            'assigned_people': assigned_people,
+            'vehicle_need': vehicle_need,
+        })
+    post_use_remaining = None if available_vehicle_count is None else available_vehicle_count - used_vehicle_slots - int(estimate.get('recommended_vehicle_count') or 0)
+    if available_vehicle_count is None:
+        level = '확인필요'
+        action = '일정 메모의 가용차량수가 없어서 수동 확인이 필요합니다.'
+    elif post_use_remaining < 0:
+        level = '충돌위험'
+        action = f"추천 차량 {estimate.get('recommended_vehicle_count')}대 기준으로 {abs(post_use_remaining)}대 부족합니다. 날짜 변경 또는 차량 재배치가 필요합니다."
+    elif post_use_remaining == 0:
+        level = '주의'
+        action = '가용차량이 정확히 소진됩니다. 열외차량/인원 배치 재확인이 필요합니다.'
+    else:
+        level = '가능'
+        action = f"추가 투입 후에도 차량 {post_use_remaining}대 여유가 있습니다."
+    return {
+        'target_date': target_date,
+        'available_vehicle_count': available_vehicle_count,
+        'scheduled_vehicle_count': used_vehicle_slots,
+        'remaining_vehicle_count_after_assignment': post_use_remaining,
+        'conflicts': conflicts,
+        'conflict_level': level,
+        'recommended_action': action,
+    }
+
+
+def _deposit_alert_summary(item: dict) -> dict:
+    payload = item.get('payload') or {}
+    target_date = _quote_primary_date(item, payload)
+    if not target_date:
+        return {'target_date': '', 'days_until_move': None, 'should_alert': False, 'message': '이사일이 없어 계약금 알림 판정을 생략했습니다.'}
+    try:
+        move_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+        days_until = (move_date - date.today()).days
+    except Exception:
+        return {'target_date': target_date, 'days_until_move': None, 'should_alert': False, 'message': '날짜 형식 확인이 필요합니다.'}
+    should_alert = days_until <= 3
+    message = '관리자 알림 대상입니다. 이사일 3일 전 이내입니다.' if should_alert else f'현재 기준 D-{days_until} 입니다. 3일 전부터 관리자 알림 대상으로 전환됩니다.'
+    return {'target_date': target_date, 'days_until_move': days_until, 'should_alert': should_alert, 'message': message}
+
+
+def _recommended_checklist(item: dict) -> dict:
+    payload = item.get('payload') or {}
+    move_types = payload.get('move_types') or []
+    base_items = [
+        {'label': '고객 연락 및 당일 일정 재확인', 'checked': False},
+        {'label': '출발지/도착지 주소 및 주차 가능 여부 확인', 'checked': False},
+        {'label': '엘리베이터 / 계단 / 사다리 필요 여부 확인', 'checked': False},
+        {'label': '파손 우려 물품 사전 체크', 'checked': False},
+    ]
+    if item.get('form_type') == 'storage':
+        base_items.extend([
+            {'label': '보관 시작/종료일 및 창고 위치 재확인', 'checked': False},
+            {'label': '보관 중 파손방지 포장 강화', 'checked': False},
+        ])
+    if any('포장' in str(v) for v in move_types):
+        base_items.append({'label': '포장 자재(박스/테이프/커버) 사전 준비', 'checked': False})
+    if str(payload.get('waste_service') or ''):
+        base_items.append({'label': '폐기물 신고 서비스 접수 여부 재확인', 'checked': False})
+    if any(str(payload.get(k) or '').strip() for k in ['via_address', 'via_pickup_items', 'via_drop_items']):
+        base_items.append({'label': '경유지 상하차 물품 분리 라벨링', 'checked': False})
+    return {'name': 'AI 추천 체크리스트', 'items': base_items}
+
+
+def _quote_operations_preview(conn, item: dict) -> dict:
+    estimate = _compute_quote_estimate(item)
+    return {
+        'estimate': estimate,
+        'crm_matches': _find_repeat_customer(conn, item),
+        'schedule_analysis': _schedule_conflict_analysis(conn, item, estimate),
+        'deposit_alert': _deposit_alert_summary(item),
+        'recommended_checklist': _recommended_checklist(item),
+        'vehicle_tracking_summary': {
+            'status': '준비완료',
+            'message': '차량 위치 공유 / 지오펜스 자동 상태 변경을 연결할 준비가 완료되었습니다. 지도 화면 위치 데이터와 연동하면 도착/작업중/완료 자동 전환이 가능합니다.',
+        },
+        'review_automation_summary': {
+            'status': '준비완료',
+            'message': '숨고 / 오늘의집 리뷰 수집 이후 AI 답변 초안 자동 생성 흐름으로 연결할 수 있습니다.',
+        },
+        'evidence_summary': {
+            'status': '준비완료',
+            'message': '전/후 사진 업로드 및 증빙 관리 테이블이 추가되었습니다. 추후 R2/S3 업로드 API 연결 시 즉시 확장 가능합니다.',
+        },
+        'attendance_summary': {
+            'status': '준비완료',
+            'message': 'GPS 출퇴근 및 일정 기반 급여 계산용 요약 테이블이 추가되었습니다.',
+        },
+    }
+
+
+def _build_quote_estimate_workbook(item: dict, preview: dict) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '견적추출'
+    header_fill = PatternFill(fill_type='solid', fgColor='DDEBF7')
+    section_fill = PatternFill(fill_type='solid', fgColor='E2F0D9')
+    bold = Font(bold=True)
+    ws.column_dimensions['A'].width = 24
+    ws.column_dimensions['B'].width = 48
+    rows = [
+        ('고객명', item.get('requester_name') or ''),
+        ('연락처', item.get('contact_phone') or ''),
+        ('희망일', preview['estimate'].get('move_date_label') or ''),
+        ('예상 견적 하한', int(preview['estimate'].get('estimated_low') or 0)),
+        ('예상 견적 상한', int(preview['estimate'].get('estimated_high') or 0)),
+        ('추천 인원', f"{preview['estimate'].get('recommended_crew')}명"),
+        ('추천 차량', f"{preview['estimate'].get('recommended_vehicle_count')}대"),
+        ('충돌 분석', preview['schedule_analysis'].get('conflict_level') or ''),
+        ('권장 조치', preview['schedule_analysis'].get('recommended_action') or ''),
+        ('재방문 고객 여부', '있음' if preview['crm_matches'] else '없음'),
+    ]
+    ws['A1'] = '이청잘 자동 견적 추출 결과'
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A1:B1')
+    ws['A3'] = '기본 요약'
+    ws['A3'].font = bold
+    ws['A3'].fill = section_fill
+    row_idx = 4
+    for label, value in rows:
+        ws[f'A{row_idx}'] = label
+        ws[f'B{row_idx}'] = value
+        ws[f'A{row_idx}'].font = bold
+        ws[f'A{row_idx}'].fill = header_fill
+        row_idx += 1
+    ws[f'A{row_idx+1}'] = 'AI 계산 근거'
+    ws[f'A{row_idx+1}'].font = bold
+    ws[f'A{row_idx+1}'].fill = section_fill
+    for idx, line in enumerate(preview['estimate'].get('explanation_lines') or [], start=row_idx+2):
+        ws[f'A{idx}'] = f'근거 {idx-(row_idx+1)}'
+        ws[f'B{idx}'] = line
+    start = row_idx + 4 + len(preview['estimate'].get('explanation_lines') or [])
+    ws[f'A{start}'] = '추천 체크리스트'
+    ws[f'A{start}'].font = bold
+    ws[f'A{start}'].fill = section_fill
+    for idx, item_row in enumerate(preview['recommended_checklist'].get('items') or [], start=start+1):
+        ws[f'A{idx}'] = f'체크 {idx-start}'
+        ws[f'B{idx}'] = item_row.get('label') or ''
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 @app.post("/api/quote-forms/submit")
 def submit_quote_form(payload: QuoteFormSubmitIn, user=Depends(get_optional_user)):
     if not payload.privacy_agreed:
@@ -3702,6 +4009,94 @@ def admin_quote_form_detail(submission_id: int, admin=Depends(require_admin_mode
     item = row_to_dict(row)
     item['payload'] = json_loads(item.get('payload_json'), {})
     return {'item': item}
+
+
+@app.get('/api/admin/quote-forms/{submission_id}/operations-preview')
+def admin_quote_form_operations_preview(submission_id: int, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='해당 양식 접수를 찾을 수 없습니다.')
+        item = row_to_dict(row)
+        item['payload'] = json_loads(item.get('payload_json'), {})
+        preview = _quote_operations_preview(conn, item)
+    return {'item_id': submission_id, 'preview': preview}
+
+
+@app.get('/api/admin/quote-forms/{submission_id}/estimate-excel')
+def admin_quote_form_estimate_excel(submission_id: int, admin=Depends(require_admin_mode_user)):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='해당 양식 접수를 찾을 수 없습니다.')
+        item = row_to_dict(row)
+        item['payload'] = json_loads(item.get('payload_json'), {})
+        preview = _quote_operations_preview(conn, item)
+    filename = f"estimate_{submission_id}.xlsx"
+    data = _build_quote_estimate_workbook(item, preview)
+    return StreamingResponse(io.BytesIO(data), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+@app.get('/api/operations/dashboard')
+def operations_dashboard(user=Depends(require_user)):
+    with get_conn() as conn:
+        today = date.today().isoformat()
+        rows_today = conn.execute("SELECT id, customer_name, amount1, amount2, deposit_amount, representative1, representative2, representative3, staff1, staff2, staff3 FROM calendar_events WHERE event_date = ? ORDER BY id DESC", (today,)).fetchall()
+        rows_month = conn.execute("SELECT event_date, amount1, amount2, deposit_amount FROM calendar_events WHERE event_date >= ? ORDER BY event_date DESC", ((date.today() - timedelta(days=30)).isoformat(),)).fetchall()
+        quote_count = conn.execute("SELECT COUNT(*) AS cnt FROM quote_form_submissions WHERE created_at >= ?", ((datetime.utcnow() - timedelta(days=30)).isoformat(),)).fetchone()['cnt']
+        repeat_candidates = conn.execute("SELECT contact_phone, COUNT(*) AS cnt FROM quote_form_submissions GROUP BY contact_phone HAVING COUNT(*) > 1 ORDER BY cnt DESC LIMIT 5").fetchall()
+        latest_locations = conn.execute("SELECT COUNT(*) AS cnt FROM vehicle_live_locations WHERE updated_at >= ?", ((datetime.utcnow() - timedelta(hours=1)).isoformat(),)).fetchone()['cnt']
+        evidence_count = conn.execute("SELECT COUNT(*) AS cnt FROM work_media_evidence").fetchone()['cnt']
+        checklist_count = conn.execute("SELECT COUNT(*) AS cnt FROM work_checklists").fetchone()['cnt']
+    def money_sum(rows, *keys):
+        total = 0
+        for row in rows:
+            for key in keys:
+                total += _to_int(row[key], 0)
+        return total
+    staff_names = set()
+    for row in rows_today:
+        for key in ['representative1','representative2','representative3','staff1','staff2','staff3']:
+            name = str(row[key] or '').strip()
+            if name:
+                staff_names.add(name)
+    return {
+        'today': {
+            'schedule_count': len(rows_today),
+            'assigned_people_count': len(staff_names),
+            'sales_amount': money_sum(rows_today, 'amount1', 'amount2'),
+            'deposit_amount': money_sum(rows_today, 'deposit_amount'),
+        },
+        'month': {
+            'quote_count': int(quote_count or 0),
+            'sales_amount': money_sum(rows_month, 'amount1', 'amount2'),
+            'deposit_amount': money_sum(rows_month, 'deposit_amount'),
+        },
+        'operations': {
+            'repeat_customer_candidates': [{'contact_phone': row['contact_phone'], 'count': row['cnt']} for row in repeat_candidates],
+            'live_vehicle_count': int(latest_locations or 0),
+            'evidence_count': int(evidence_count or 0),
+            'checklist_count': int(checklist_count or 0),
+        },
+        'feature_status': [
+            {'key': 'quote_ai', 'label': '자동 견적 생성', 'status': '활성'},
+            {'key': 'schedule_conflict', 'label': '일정 충돌 분석', 'status': '활성'},
+            {'key': 'vehicle_tracking', 'label': '차량 위치 / 자동 상태 체크', 'status': '준비완료'},
+            {'key': 'deposit_alert', 'label': '계약금 / 잔금 알림', 'status': '준비완료'},
+            {'key': 'crm', 'label': '고객 CRM 누적', 'status': '활성'},
+            {'key': 'reviews_ai', 'label': '리뷰 자동 수집 / AI 답변', 'status': '준비완료'},
+            {'key': 'dashboard', 'label': '대시보드', 'status': '활성'},
+            {'key': 'checklist', 'label': '작업 체크리스트', 'status': '준비완료'},
+            {'key': 'evidence', 'label': '사진/영상 증빙', 'status': '준비완료'},
+            {'key': 'attendance', 'label': '출퇴근 / 급여 계산', 'status': '준비완료'},
+        ],
+    }
 
 @app.post("/api/inquiries")
 def create_inquiry(payload: InquiryIn, user=Depends(require_user)):

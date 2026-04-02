@@ -658,6 +658,59 @@ CREATE TABLE IF NOT EXISTS quote_form_submissions (
     FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+
+CREATE TABLE IF NOT EXISTS work_checklist_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    move_type TEXT NOT NULL DEFAULT 'same_day',
+    name TEXT NOT NULL DEFAULT '',
+    items_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS work_checklists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quote_submission_id INTEGER,
+    checklist_name TEXT NOT NULL DEFAULT '',
+    items_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (quote_submission_id) REFERENCES quote_form_submissions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS work_media_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quote_submission_id INTEGER,
+    media_type TEXT NOT NULL DEFAULT 'photo',
+    file_url TEXT NOT NULL DEFAULT '',
+    caption TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (quote_submission_id) REFERENCES quote_form_submissions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS vehicle_live_locations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    latitude REAL NOT NULL DEFAULT 0,
+    longitude REAL NOT NULL DEFAULT 0,
+    location_status TEXT NOT NULL DEFAULT '대기',
+    geofence_label TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS employee_attendance_summary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    work_date TEXT NOT NULL DEFAULT '',
+    scheduled_minutes INTEGER NOT NULL DEFAULT 0,
+    worked_minutes INTEGER NOT NULL DEFAULT 0,
+    estimated_pay INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS inquiries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -2067,6 +2120,55 @@ def init_db() -> None:
             'summary_title': "TEXT NOT NULL DEFAULT ''",
             'status': "TEXT NOT NULL DEFAULT 'received'",
             'payload_json': "TEXT NOT NULL DEFAULT '{}'",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+
+        checklist_templates_sql = "CREATE TABLE IF NOT EXISTS work_checklist_templates (id INTEGER PRIMARY KEY AUTOINCREMENT, move_type TEXT NOT NULL DEFAULT 'same_day', name TEXT NOT NULL DEFAULT '', items_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+        conn.execute(_sqlite_schema_to_postgres(checklist_templates_sql) if DB_ENGINE == 'postgresql' else checklist_templates_sql)
+        _ensure_columns(conn, 'work_checklist_templates', {
+            'move_type': "TEXT NOT NULL DEFAULT 'same_day'",
+            'name': "TEXT NOT NULL DEFAULT ''",
+            'items_json': "TEXT NOT NULL DEFAULT '[]'",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        checklists_sql = "CREATE TABLE IF NOT EXISTS work_checklists (id INTEGER PRIMARY KEY AUTOINCREMENT, quote_submission_id INTEGER, checklist_name TEXT NOT NULL DEFAULT '', items_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', FOREIGN KEY (quote_submission_id) REFERENCES quote_form_submissions(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(checklists_sql) if DB_ENGINE == 'postgresql' else checklists_sql)
+        _ensure_columns(conn, 'work_checklists', {
+            'quote_submission_id': 'INTEGER',
+            'checklist_name': "TEXT NOT NULL DEFAULT ''",
+            'items_json': "TEXT NOT NULL DEFAULT '[]'",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        evidence_sql = "CREATE TABLE IF NOT EXISTS work_media_evidence (id INTEGER PRIMARY KEY AUTOINCREMENT, quote_submission_id INTEGER, media_type TEXT NOT NULL DEFAULT 'photo', file_url TEXT NOT NULL DEFAULT '', caption TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '', FOREIGN KEY (quote_submission_id) REFERENCES quote_form_submissions(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(evidence_sql) if DB_ENGINE == 'postgresql' else evidence_sql)
+        _ensure_columns(conn, 'work_media_evidence', {
+            'quote_submission_id': 'INTEGER',
+            'media_type': "TEXT NOT NULL DEFAULT 'photo'",
+            'file_url': "TEXT NOT NULL DEFAULT ''",
+            'caption': "TEXT NOT NULL DEFAULT ''",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        vehicle_live_sql = "CREATE TABLE IF NOT EXISTS vehicle_live_locations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, latitude REAL NOT NULL DEFAULT 0, longitude REAL NOT NULL DEFAULT 0, location_status TEXT NOT NULL DEFAULT '대기', geofence_label TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(vehicle_live_sql) if DB_ENGINE == 'postgresql' else vehicle_live_sql)
+        _ensure_columns(conn, 'vehicle_live_locations', {
+            'user_id': 'INTEGER',
+            'latitude': 'REAL NOT NULL DEFAULT 0',
+            'longitude': 'REAL NOT NULL DEFAULT 0',
+            'location_status': "TEXT NOT NULL DEFAULT '대기'",
+            'geofence_label': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        attendance_summary_sql = "CREATE TABLE IF NOT EXISTS employee_attendance_summary (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, work_date TEXT NOT NULL DEFAULT '', scheduled_minutes INTEGER NOT NULL DEFAULT 0, worked_minutes INTEGER NOT NULL DEFAULT 0, estimated_pay INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)"
+        conn.execute(_sqlite_schema_to_postgres(attendance_summary_sql) if DB_ENGINE == 'postgresql' else attendance_summary_sql)
+        _ensure_columns(conn, 'employee_attendance_summary', {
+            'user_id': 'INTEGER',
+            'work_date': "TEXT NOT NULL DEFAULT ''",
+            'scheduled_minutes': 'INTEGER NOT NULL DEFAULT 0',
+            'worked_minutes': 'INTEGER NOT NULL DEFAULT 0',
+            'estimated_pay': 'INTEGER NOT NULL DEFAULT 0',
             'created_at': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })

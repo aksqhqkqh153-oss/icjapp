@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AUTH_EXPIRED_EVENT, api, clearSession, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
+import { AUTH_EXPIRED_EVENT, api, clearSession, getApiBase, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
 import { SETTLEMENT_DATA } from './settlementData'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -32,6 +32,7 @@ const PAGE_TITLES = {
   '/menu-permissions': '메뉴권한',
   '/quotes': '견적',
   '/quote-forms': '견적',
+  '/operations-dashboard': '대쉬보드',
 }
 
 function pageTitle(pathname) {
@@ -404,8 +405,9 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'materialsSettlement', label: '구매결산', kind: 'link', path: '/materials?tab=settlements', adminOnly: true },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
+  { id: 'operationsDashboard', label: '대쉬보드', kind: 'link', path: '/operations-dashboard', adminOnly: true },
 ]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements']
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 2
 
@@ -5958,8 +5960,79 @@ function QuoteField({ label, required = false, children, hint = '' }) {
   return <div className="quote-form-group"><label className="quote-form-label">{required ? '＊ ' : ''}{label}</label>{hint && <div className="quote-form-hint">{hint}</div>}{children}</div>
 }
 
+
+function OperationsDashboardPage() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    let ignore = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const result = await api('/api/operations/dashboard', { cache: 'no-store' })
+        if (!ignore) setData(result)
+      } catch (err) {
+        if (!ignore) setError(err.message || '대쉬보드 정보를 불러오지 못했습니다.')
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    load()
+    return () => { ignore = true }
+  }, [])
+
+  return <div className="stack-page">
+    <section className="card">
+      <div className="between align-center">
+        <div>
+          <h2>운영 대쉬보드</h2>
+          <div className="muted small-text">자동 견적, CRM, 결산, 증빙, 출퇴근 기능의 준비/활성 상태를 한 화면에서 확인합니다.</div>
+        </div>
+        <button type="button" className="small ghost" onClick={() => window.location.reload()}>새로고침</button>
+      </div>
+      {loading && <div className="muted">불러오는 중...</div>}
+      {error && <div className="error">{error}</div>}
+      {!loading && !error && data && <>
+        <div className="quote-detail-grid">
+          <div className="quote-detail-section"><h4>오늘 운영</h4><dl>{[
+            ['오늘 일정 수', `${data.today?.schedule_count ?? 0}건`],
+            ['배정 인원 수', `${data.today?.assigned_people_count ?? 0}명`],
+            ['오늘 매출 합계', `${Number(data.today?.sales_amount ?? 0).toLocaleString()}원`],
+            ['오늘 계약금 합계', `${Number(data.today?.deposit_amount ?? 0).toLocaleString()}원`],
+          ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+          <div className="quote-detail-section"><h4>최근 30일</h4><dl>{[
+            ['최근 30일 견적 접수', `${data.month?.quote_count ?? 0}건`],
+            ['최근 30일 매출 합계', `${Number(data.month?.sales_amount ?? 0).toLocaleString()}원`],
+            ['최근 30일 계약금 합계', `${Number(data.month?.deposit_amount ?? 0).toLocaleString()}원`],
+            ['활성 차량 위치 수', `${data.operations?.live_vehicle_count ?? 0}건`],
+          ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+          <div className="quote-detail-section"><h4>운영 자동화 준비 상태</h4>
+            <div className="stack compact">
+              {(data.feature_status || []).map(item => <div key={item.key} className="quick-edit-row"><span>{item.label}</span><strong>{item.status}</strong></div>)}
+            </div>
+          </div>
+        </div>
+        <div className="quote-detail-grid">
+          <div className="quote-detail-section"><h4>CRM 중복 고객 후보</h4>
+            <div className="stack compact">
+              {(data.operations?.repeat_customer_candidates || []).length === 0 ? <div className="muted">중복 고객 후보가 없습니다.</div> : (data.operations?.repeat_customer_candidates || []).map((item, index) => <div key={`${item.contact_phone}-${index}`} className="quick-edit-row"><span>{item.contact_phone}</span><strong>{item.count}회</strong></div>)}
+            </div>
+          </div>
+          <div className="quote-detail-section"><h4>현장 운영 데이터</h4><dl>{[
+            ['증빙 파일 등록 수', `${data.operations?.evidence_count ?? 0}건`],
+            ['체크리스트 생성 수', `${data.operations?.checklist_count ?? 0}건`],
+          ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+        </div>
+      </>}
+    </section>
+  </div>
+}
+
 function QuoteRadioGroup({ name, value, options, onChange }) {
-  return <div className="quote-choice-list">{options.map(option => <label key={option} className="quote-choice quote-choice-radio"><input type="radio" name={name} checked={value === option} onChange={() => onChange(option)} /><span>{option}</span></label>)}</div>
+  return <div className="quote-choice-list">{options.map(option => <label key={option} className={`quote-choice quote-choice-radio ${value === option ? 'selected' : ''}`.trim()}><input type="radio" name={name} checked={value === option} onChange={() => onChange(option)} /><span>{option}</span></label>)}</div>
 }
 
 function QuoteCheckboxGroup({ values, options, onChange }) {
@@ -5968,7 +6041,7 @@ function QuoteCheckboxGroup({ values, options, onChange }) {
     if (current.includes(option)) onChange(current.filter(item => item !== option))
     else onChange([...current, option])
   }
-  return <div className="quote-choice-list">{options.map(option => <label key={option} className="quote-choice quote-choice-check"><input type="checkbox" checked={current.includes(option)} onChange={() => toggle(option)} /><span>{option}</span></label>)}</div>
+  return <div className="quote-choice-list">{options.map(option => <label key={option} className={`quote-choice quote-choice-check ${current.includes(option) ? 'selected' : ''}`.trim()}><input type="checkbox" checked={current.includes(option)} onChange={() => toggle(option)} /><span>{option}</span></label>)}</div>
 }
 
 
@@ -5985,6 +6058,8 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [error, setError] = useState('')
   const [adminItems, setAdminItems] = useState([])
   const [detailItem, setDetailItem] = useState(null)
+  const [operationsPreview, setOperationsPreview] = useState(null)
+  const [operationsLoading, setOperationsLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [guestIntro, setGuestIntro] = useState({
     customer_name: user?.name || user?.nickname || '',
@@ -6195,6 +6270,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   async function openDetail(itemId) {
     setDetailLoading(true)
+    setOperationsPreview(null)
     try {
       const result = await api(`/api/admin/quote-forms/${itemId}`)
       setDetailItem(result.item || null)
@@ -6202,6 +6278,47 @@ function QuoteFormsPage({ user, guestMode = false }) {
       setError(err.message || '상세작성양식을 불러오지 못했습니다.')
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+
+  async function loadOperationsPreview(itemId = detailItem?.id) {
+    if (!itemId) return
+    setOperationsLoading(true)
+    try {
+      const result = await api(`/api/admin/quote-forms/${itemId}/operations-preview`, { cache: 'no-store' })
+      setOperationsPreview(result.preview || null)
+    } catch (err) {
+      setError(err.message || '운영 미리보기를 불러오지 못했습니다.')
+    } finally {
+      setOperationsLoading(false)
+    }
+  }
+
+  async function downloadEstimateExcel(itemId = detailItem?.id) {
+    if (!itemId) return
+    try {
+      const token = sessionStorage.getItem('icj_token') || localStorage.getItem('icj_token') || ''
+      const base = getApiBase()
+      const response = await fetch(`${base}/api/admin/quote-forms/${itemId}/estimate-excel`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.detail || '견적 엑셀 다운로드에 실패했습니다.')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `estimate_${itemId}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err.message || '견적 엑셀 다운로드에 실패했습니다.')
     }
   }
 
@@ -6464,6 +6581,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
         <section className="card quote-admin-detail-card">
           <div className="between"><h3>상세작성양식</h3>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
           {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body">
+            <div className="inline-actions wrap end quote-detail-actions">
+              <button type="button" className="small" onClick={() => loadOperationsPreview()} disabled={operationsLoading}>{operationsLoading ? '분석 중...' : 'AI견적미리보기'}</button>
+              <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
+            </div>
             <div className="quote-detail-hero"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
             <div className="quote-detail-grid">
               <div className="quote-detail-section"><h4>기본 정보</h4><dl>{[
@@ -6501,6 +6622,31 @@ function QuoteFormsPage({ user, guestMode = false }) {
                 ['개인정보 수집 이용 동의', boolLabel(adminDetailPayload.privacy_agreed)],
               ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             </div>
+            {operationsPreview && <div className="quote-detail-grid">
+              <div className="quote-detail-section"><h4>AI 견적 요약</h4><dl>{[
+                ['예상 견적 범위', `${Number(operationsPreview.estimate?.estimated_low || 0).toLocaleString()}원 ~ ${Number(operationsPreview.estimate?.estimated_high || 0).toLocaleString()}원`],
+                ['추천 인원', `${operationsPreview.estimate?.recommended_crew || 0}명`],
+                ['추천 차량', `${operationsPreview.estimate?.recommended_vehicle_count || 0}대`],
+                ['난이도', operationsPreview.estimate?.difficulty_grade],
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl><div className="stack compact">{(operationsPreview.estimate?.explanation_lines || []).map((line, index) => <div key={`exp-${index}`} className="muted tiny-text">- {line}</div>)}</div></div>
+              <div className="quote-detail-section"><h4>일정 충돌 분석</h4><dl>{[
+                ['희망일', operationsPreview.schedule_analysis?.target_date],
+                ['가용 차량 수', operationsPreview.schedule_analysis?.available_vehicle_count ?? '미등록'],
+                ['기등록 차량 수', operationsPreview.schedule_analysis?.scheduled_vehicle_count ?? 0],
+                ['판정', operationsPreview.schedule_analysis?.conflict_level],
+                ['권장 조치', operationsPreview.schedule_analysis?.recommended_action],
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+              <div className="quote-detail-section"><h4>CRM / 계약금 / 체크리스트</h4><dl>{[
+                ['재방문 고객 후보', `${operationsPreview.crm_matches?.length || 0}건`],
+                ['계약금 알림', operationsPreview.deposit_alert?.message],
+                ['추천 체크리스트', operationsPreview.recommended_checklist?.name],
+              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl>
+                <div className="stack compact">
+                  {(operationsPreview.crm_matches || []).slice(0, 3).map(item => <div key={`crm-${item.id}`} className="muted tiny-text">- {item.customer_name || '-'} / {item.desired_date || '-'} / {item.summary_title || '-'}</div>)}
+                  {(operationsPreview.recommended_checklist?.items || []).slice(0, 5).map((item, index) => <div key={`cl-${index}`} className="muted tiny-text">- {item.label}</div>)}
+                </div>
+              </div>
+            </div>}
           </div>}
         </section>
       </div>}
@@ -10902,6 +11048,7 @@ function App() {
         <Route path="/warehouse" element={<WarehousePage />} />
         <Route path="/materials" element={<MaterialsPage user={user} />} />
         <Route path="/quotes" element={<QuoteFormsPage user={user} />} />
+        <Route path="/operations-dashboard" element={<OperationsDashboardPage />} />
         <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />

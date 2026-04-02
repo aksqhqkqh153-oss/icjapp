@@ -8,3 +8,5 @@ playwright==1.53.0
 selenium==4.34.2
 webdriver-manager==4.0.2
 openai==1.99.9
+
+openpyxl==3.1.5

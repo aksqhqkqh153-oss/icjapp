@@ -8291,3 +8291,8 @@ a:focus-visible {
     padding: 5px 6px;
   }
 }
+
+
+.quote-choice.selected { background: #d9ecff; border-color: #8cbef5; }
+.quote-choice:not(.selected) { background: #ececec; }
+.quote-detail-actions { margin-bottom: 12px; }
