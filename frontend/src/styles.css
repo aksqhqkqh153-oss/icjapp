@@ -8790,11 +8790,12 @@ a:focus-visible {
 
 .disposal-list-grid-row {
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) minmax(70px, .5fr) minmax(100px, .8fr) minmax(100px, .9fr) minmax(130px, 1fr) minmax(120px, .9fr) minmax(90px, .7fr) 82px;
-  gap: 8px;
+  grid-template-columns: minmax(74px, 1fr) minmax(74px, 1fr) minmax(42px, .45fr) minmax(62px, .72fr) minmax(66px, .82fr) minmax(88px, .95fr) minmax(70px, .8fr) minmax(56px, .6fr) 58px;
+  gap: 6px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 10px;
   border-bottom: 1px solid #ecf0f6;
+  font-size: 12px;
 }
 
 .disposal-list-grid-row:last-child {
@@ -8809,14 +8810,15 @@ a:focus-visible {
 
 .disposal-list-grid-button {
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) minmax(70px, .5fr) minmax(100px, .8fr) minmax(100px, .9fr) minmax(130px, 1fr) minmax(120px, .9fr) minmax(90px, .7fr);
-  gap: 8px;
+  grid-template-columns: minmax(74px, 1fr) minmax(74px, 1fr) minmax(42px, .45fr) minmax(62px, .72fr) minmax(66px, .82fr) minmax(88px, .95fr) minmax(70px, .8fr) minmax(56px, .6fr);
+  gap: 6px;
   align-items: center;
   width: 100%;
   border: 0;
   background: transparent;
   padding: 0;
   text-align: left;
+  min-width: 0;
 }
 
 .disposal-list-grid-button span,
@@ -8824,6 +8826,7 @@ a:focus-visible {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .disposal-list-grid-data-row:hover {
@@ -8831,7 +8834,9 @@ a:focus-visible {
 }
 
 .disposal-row-delete {
-  min-height: 38px;
+  min-height: 30px;
+  padding: 6px 8px;
+  font-size: 11px;
 }
 
 
@@ -8937,15 +8942,26 @@ a:focus-visible {
   }
 
   .disposal-list-grid {
-    overflow-x: auto;
+    overflow: hidden;
   }
 
   .disposal-list-grid-row {
-    min-width: 1220px;
+    min-width: 0;
+    grid-template-columns: minmax(46px, 1fr) minmax(46px, 1fr) minmax(28px, .4fr) minmax(42px, .58fr) minmax(48px, .7fr) minmax(58px, .78fr) minmax(52px, .62fr) minmax(36px, .46fr) 40px;
+    gap: 3px;
+    padding: 7px 6px;
+    font-size: 9px;
+  }
+
+  .disposal-list-grid-button {
+    grid-template-columns: minmax(46px, 1fr) minmax(46px, 1fr) minmax(28px, .4fr) minmax(42px, .58fr) minmax(48px, .7fr) minmax(58px, .78fr) minmax(52px, .62fr) minmax(36px, .46fr);
+    gap: 3px;
+    font-size: 9px;
   }
 
   .disposal-list-grid-head {
     display: grid;
+    font-size: 9px;
   }
 
   .disposal-settlement-grid {
@@ -8958,6 +8974,24 @@ a:focus-visible {
 
   .disposal-list-grid-data-row {
     padding: 12px;
+  }
+
+  .disposal-list-board-card {
+    gap: 10px;
+  }
+
+  .disposal-list-date-group {
+    gap: 6px;
+  }
+
+  .disposal-list-date-label {
+    font-size: 13px;
+  }
+
+  .disposal-row-delete {
+    min-height: 24px;
+    padding: 4px 4px;
+    font-size: 9px;
   }
 
   .disposal-filter-row {
