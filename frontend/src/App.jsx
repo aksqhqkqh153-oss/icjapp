@@ -8263,7 +8263,7 @@ function AdminModePage() {
         <div className="modal-overlay" onClick={() => setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })}>
           <div className="modal-card vehicle-exclusion-modal" onClick={e => e.stopPropagation()}>
             <div className="between">
-              <strong>차량열외 · {vehicleExceptionModal.account?.nickname || vehicleExceptionModal.account?.name || ''}</strong>
+              <strong>차량열외 · {vehicleExceptionModal.account?.name || vehicleExceptionModal.account?.nickname || ''}</strong>
               <button type="button" className="small ghost" onClick={() => setVehicleExceptionModal({ open: false, account: null, items: [], form: { start_date: '', end_date: '', reason: '' }, loading: false })}>닫기</button>
             </div>
             <div className="stack compact-gap">
