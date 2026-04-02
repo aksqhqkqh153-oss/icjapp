@@ -9619,16 +9619,18 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin: -2px 0 6px;
-  font-size: 10px;
+  min-height: 20px;
+  margin: -1px 0 7px;
+  font-size: 13px;
   line-height: 1;
   color: #64748b;
 }
 
 @media (max-width: 767px) {
   .mobile-schedule-detail-toggle-indicator {
-    margin: -4px 0 4px;
-    font-size: 8px;
+    min-height: 24px;
+    margin: -2px 0 6px;
+    font-size: 12px;
   }
 }
 
