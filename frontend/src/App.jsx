@@ -49,6 +49,42 @@ function pageTitle(pathname) {
   return PAGE_TITLES[pathname] || '앱'
 }
 
+
+function MenuIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 7.25h16" />
+      <path d="M4 12h16" />
+      <path d="M4 16.75h16" />
+    </svg>
+  )
+}
+
+function BellIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7.75 10.25a4.25 4.25 0 1 1 8.5 0v2.05c0 .78.24 1.54.69 2.17l.81 1.15a1 1 0 0 1-.82 1.58H7.07a1 1 0 0 1-.82-1.58l.81-1.15c.45-.63.69-1.39.69-2.17v-2.05Z" />
+      <path d="M10 18.25a2 2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
+function SettingsIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 3.75v2.1" />
+      <path d="M12 18.15v2.1" />
+      <path d="M20.25 12h-2.1" />
+      <path d="M5.85 12h-2.1" />
+      <path d="m17.83 6.17-1.48 1.48" />
+      <path d="m7.65 16.35-1.48 1.48" />
+      <path d="m17.83 17.83-1.48-1.48" />
+      <path d="m7.65 7.65-1.48-1.48" />
+    </svg>
+  )
+}
+
 const DEFAULT_ALERT_SETTINGS = {
   mobileEnabled: true,
   appEnabled: true,
@@ -644,8 +680,8 @@ function Layout({ children, user, onLogout }) {
       <header className="topbar topbar-fixed">
         <div className="topbar-left">
           <div className="dropdown-wrap" ref={menuRef}>
-            <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>
-              메뉴
+            <button type="button" className="ghost icon-button topbar-icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)} aria-label="메뉴">
+              <MenuIcon className="topbar-icon-svg" />
               {Number(badges.menu_count || 0) > 0 && <span className="notification-badge menu-badge">{badges.menu_count > 99 ? '99+' : badges.menu_count}</span>}
             </button>
             {menuOpen && (
@@ -681,13 +717,13 @@ function Layout({ children, user, onLogout }) {
         </div>
         <div className="page-heading">{pageTitle(location.pathname)}</div>
         <div className="topbar-right">
-          <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button active-icon notification-icon-button' : 'ghost icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
-            <span className="notification-bell">🔔</span>
+          <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button topbar-icon-button active-icon notification-icon-button' : 'ghost icon-button topbar-icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
+            <BellIcon className="topbar-icon-svg" />
             {Number(badges.notification_count || 0) > 0 && <span className="notification-badge">{badges.notification_count > 99 ? '99+' : badges.notification_count}</span>}
           </button>
           <div className="dropdown-wrap" ref={settingsRef}>
-            <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button active-icon' : 'ghost icon-button'} onClick={() => setSettingsOpen(v => !v)}>
-              설정
+            <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button topbar-icon-button active-icon' : 'ghost icon-button topbar-icon-button'} onClick={() => setSettingsOpen(v => !v)} aria-label="설정">
+              <SettingsIcon className="topbar-icon-svg" />
             </button>
             {settingsOpen && (
               <div className="dropdown-menu right">

@@ -129,37 +129,67 @@ label { font-size: 14px; color: #4f6f8c; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 .topbar-fixed {
   position: sticky;
   top: 0;
   z-index: 40;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid rgba(221, 227, 234, 0.96);
-  backdrop-filter: blur(16px);
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  backdrop-filter: none;
 }
 .topbar-left, .topbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 120px;
+  gap: 8px;
+  min-width: 96px;
 }
 .topbar-right { justify-content: flex-end; }
 .page-heading {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   text-align: center;
   flex: 1;
+  line-height: 1.2;
 }
 .icon-button {
-  min-width: 64px;
-  padding: 10px 14px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+.topbar-icon-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 14px;
+  border-color: rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  color: #111111;
+  box-shadow: none;
+}
+.topbar-icon-button:hover {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.16);
+  box-shadow: none;
+}
+.topbar-icon-svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
 }
 .active-icon {
-  border-color: rgba(29, 155, 240, 0.34);
-  background: rgba(29, 155, 240, 0.1);
+  border-color: rgba(15, 23, 42, 0.16);
+  background: #f3f4f6;
 }
 .dropdown-wrap {
   position: relative;
@@ -2263,13 +2293,6 @@ label { font-size: 14px; color: #4f6f8c; }
 
 .notification-icon-button {
   position: relative;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0 10px;
-}
-.notification-bell {
-  font-size: 18px;
-  line-height: 1;
 }
 .notification-badge {
   position: absolute;
