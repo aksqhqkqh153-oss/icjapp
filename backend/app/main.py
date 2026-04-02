@@ -982,6 +982,8 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
         incoming_qty = int(row.get('incoming_qty') or 0)
         manual_outgoing_qty = int(row.get('outgoing_qty') or 0)
         settled_outgoing_qty = int(settled_outgoing_map.get(product_id, 0) or 0)
+        reserved_outgoing_qty = pending_qty
+        total_outgoing_qty = reserved_outgoing_qty + settled_outgoing_qty + manual_outgoing_qty
         available_stock = max(0, base_current_stock - pending_qty)
         output.append({
             'product_id': product_id,
@@ -993,7 +995,8 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
             'current_stock': available_stock,
             'pending_qty': pending_qty,
             'incoming_qty': incoming_qty,
-            'outgoing_qty': settled_outgoing_qty + manual_outgoing_qty,
+            'outgoing_qty': total_outgoing_qty,
+            'reserved_outgoing_qty': reserved_outgoing_qty,
             'settled_outgoing_qty': settled_outgoing_qty,
             'manual_outgoing_qty': manual_outgoing_qty,
             'note': row.get('note', '') or '',
@@ -1107,10 +1110,16 @@ def _material_overview_payload(conn, user: dict) -> dict:
         'permissions': permissions,
         'products': effective_products,
         'pending_requests': pending_requests if permissions['can_view_requesters'] else [],
+        'settlement_pending_requests': pending_requests if permissions['can_view_settlements'] else [],
         'settled_requests': settled_requests if permissions['can_view_settlements'] else [],
         'history_requests': history_rows if permissions['can_view_history'] else [],
         'my_requests': my_request_rows if permissions['can_view_my_requests'] else [],
         'inventory_rows': inventory_rows if permissions['can_view_inventory'] else [],
+        'materials_sync_summary': {
+            'pending_request_count': len(pending_requests),
+            'settled_request_count': len(settled_requests),
+            'history_request_count': len(history_rows),
+        },
         'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
 
