@@ -9039,3 +9039,40 @@ a:focus-visible {
     line-height: 1.25;
   }
 }
+
+
+.work-excluded-edit-actions {
+  gap: 8px;
+  margin-left: auto;
+}
+
+.work-excluded-business-row {
+  align-items: center;
+}
+
+.work-excluded-business-row .work-excluded-checkbox {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.work-excluded-business-row select,
+.work-excluded-business-row input {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .work-excluded-business-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .work-excluded-business-row:not(.delete-mode) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .work-excluded-edit-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

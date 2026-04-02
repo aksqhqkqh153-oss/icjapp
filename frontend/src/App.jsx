@@ -4644,13 +4644,13 @@ function WorkSchedulePage() {
   const [loading, setLoading] = useState(true)
   const [entryForm, setEntryForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [activeFormDate, setActiveFormDate] = useState('')
-  const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_business_reasons: Array(6).fill(''), excluded_staff: '' })
-  const businessSlotCount = Math.max(6, noteForm.excluded_business_slots.length, noteForm.excluded_business_reasons.length)
+  const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: [''], excluded_business_reasons: [''], excluded_staff: '' })
+  const businessSlotCount = Math.max(1, noteForm.excluded_business_slots.length, noteForm.excluded_business_reasons.length)
   const [noteDeleteMode, setNoteDeleteMode] = useState(false)
   const [noteDeleteChecks, setNoteDeleteChecks] = useState([])
 
   function setBusinessSlotCount(nextCount) {
-    const safeCount = Math.max(6, Number(nextCount) || 6)
+    const safeCount = Math.max(1, Number(nextCount) || 1)
     setNoteForm(prev => ({
       ...prev,
       excluded_business_slots: Array.from({ length: safeCount }, (_, index) => String(prev.excluded_business_slots?.[index] || '')),
@@ -4713,8 +4713,14 @@ function WorkSchedulePage() {
     const details = Array.isArray(day.excluded_business_details) ? day.excluded_business_details : []
     setNoteForm({
       schedule_date: day.date,
-      excluded_business_slots: details.length ? details.map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business),
-      excluded_business_reasons: details.length ? details.map(item => String(item?.reason || '').trim()) : Array(6).fill(''),
+      excluded_business_slots: (() => {
+        const slots = details.length ? details.map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business)
+        return slots.length ? slots : ['']
+      })(),
+      excluded_business_reasons: (() => {
+        const reasons = details.length ? details.map(item => String(item?.reason || '').trim()) : []
+        return reasons.length ? reasons : ['']
+      })(),
       excluded_staff: day.excluded_staff || '',
     })
     setMessage('')
@@ -4726,29 +4732,40 @@ function WorkSchedulePage() {
     setNoteDeleteChecks([])
   }
 
-  function clearExcludedBusinessSlot(index) {
-    const nextSlots = [...noteForm.excluded_business_slots]
-    const nextReasons = [...(noteForm.excluded_business_reasons || Array(businessSlotCount).fill(''))]
-    nextSlots[index] = ''
-    nextReasons[index] = ''
-    setNoteForm({ ...noteForm, excluded_business_slots: nextSlots, excluded_business_reasons: nextReasons })
+
+  function addExcludedBusinessRow() {
+    setBusinessSlotCount(businessSlotCount + 1)
   }
+
+  function trimExcludedBusinessRows(nextSlots, nextReasons) {
+    const trimmedSlots = [...nextSlots]
+    const trimmedReasons = [...nextReasons]
+    while (trimmedSlots.length > 1) {
+      const lastIndex = trimmedSlots.length - 1
+      if (String(trimmedSlots[lastIndex] || '').trim() || String(trimmedReasons[lastIndex] || '').trim()) break
+      trimmedSlots.pop()
+      trimmedReasons.pop()
+    }
+    return { slots: trimmedSlots, reasons: trimmedReasons }
+  }
+
   function toggleNoteDeleteCheck(index) {
     setNoteDeleteChecks(prev => prev.includes(index) ? prev.filter(item => item !== index) : [...prev, index].sort((a, b) => a - b))
   }
 
   function applyNoteDeleteSelection() {
     if (!noteDeleteChecks.length) {
-      window.alert('삭제할 열외사업자를 선택해 주세요.')
+      setNoteDeleteMode(true)
       return
     }
-    const nextSlots = [...noteForm.excluded_business_slots]
-    const nextReasons = [...(noteForm.excluded_business_reasons || Array(businessSlotCount).fill(''))]
-    noteDeleteChecks.forEach(index => {
-      nextSlots[index] = ''
-      nextReasons[index] = ''
+    const nextSlots = noteForm.excluded_business_slots.filter((_, index) => !noteDeleteChecks.includes(index))
+    const nextReasons = (noteForm.excluded_business_reasons || Array(businessSlotCount).fill('')).filter((_, index) => !noteDeleteChecks.includes(index))
+    const trimmed = trimExcludedBusinessRows(nextSlots, nextReasons)
+    setNoteForm({
+      ...noteForm,
+      excluded_business_slots: trimmed.slots.length ? trimmed.slots : [''],
+      excluded_business_reasons: trimmed.reasons.length ? trimmed.reasons : [''],
     })
-    setNoteForm({ ...noteForm, excluded_business_slots: nextSlots, excluded_business_reasons: nextReasons })
     setNoteDeleteChecks([])
     setNoteDeleteMode(false)
   }
@@ -5028,9 +5045,12 @@ function WorkSchedulePage() {
               <div className="between work-schedule-section-head">
                 <div className="work-schedule-section-title-wrap">
                   <strong className="work-schedule-section-title">열외자 목록</strong>
-                                  </div>
+                </div>
                 {!readOnly && activeNoteDate === day.date && (
-                  <button type="button" className="small ghost" onClick={() => noteDeleteMode ? applyNoteDeleteSelection() : setNoteDeleteMode(true)}>{noteDeleteMode ? '삭제적용' : '삭제'}</button>
+                  <div className="inline-actions wrap work-excluded-edit-actions">
+                    <button type="button" className="small ghost" onClick={applyNoteDeleteSelection}>삭제</button>
+                    <button type="button" className="small ghost" onClick={addExcludedBusinessRow}>추가</button>
+                  </div>
                 )}
                 {!readOnly && <button type="button" className="small ghost" onClick={() => activeNoteDate === day.date ? closeNotes() : openNotes(day)}>{activeNoteDate === day.date ? '편집닫기' : '열외자편집'}</button>}
               </div>
@@ -5041,7 +5061,7 @@ function WorkSchedulePage() {
                   <label>열외자 목록 - 사업자</label>
                   <div className="work-excluded-business-grid with-reason">
                     {Array.from({ length: businessSlotCount }, (_, index) => noteForm.excluded_business_slots[index] || '').map((slot, index) => (
-                      <div key={`${day.date}-business-${index}`} className="work-excluded-business-row">
+                      <div key={`${day.date}-business-${index}`} className={`work-excluded-business-row ${noteDeleteMode ? 'delete-mode' : ''}`.trim()}>
                         {noteDeleteMode && (
                           <label className="checkbox-line work-excluded-checkbox">
                             <input type="checkbox" checked={noteDeleteChecks.includes(index)} onChange={() => toggleNoteDeleteCheck(index)} />
