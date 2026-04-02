@@ -203,6 +203,59 @@ function sortRecords(records, sortKey) {
   return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
 }
 
+
+function formatCurrency(value) {
+  return `${formatNumber(value)}원`
+}
+
+function getPaymentStatus(record) {
+  const status = String(record?.finalStatus || '').trim()
+  if (!status) return '미확인'
+  if (/입금|완료|정산완료/.test(status)) return '입금완료'
+  if (/미입금|대기|보류/.test(status)) return '미입금'
+  return status
+}
+
+function buildDisposalListGroups(records, sortKey) {
+  const grouped = new Map()
+  const sorted = sortRecords(records, sortKey === 'latest' ? 'latest' : 'date')
+  sorted.forEach((record) => {
+    const groupKey = String(record?.disposalDate || '날짜 미지정')
+    const groupLabel = record?.disposalDate || '날짜 미지정'
+    if (!grouped.has(groupKey)) {
+      grouped.set(groupKey, { key: groupKey, label: groupLabel, rows: [] })
+    }
+    const paymentStatus = getPaymentStatus(record)
+    const filledItems = (record.items || []).filter(item => {
+      return String(item?.itemName || '').trim() || safeNumber(item?.quantity) || safeNumber(item?.unitCost) || String(item?.reportNo || '').trim()
+    })
+    const sourceItems = filledItems.length ? filledItems : [createEmptyItem()]
+    sourceItems.forEach((item, index) => {
+      const quantity = safeNumber(item?.quantity)
+      const unitCost = safeNumber(item?.unitCost)
+      const reportAmount = quantity * unitCost
+      const finalAmount = Math.round(reportAmount * FEE_RATE)
+      grouped.get(groupKey).rows.push({
+        key: `${record.id}-${index}`,
+        recordId: record.id,
+        customerName: record.customerName || '-',
+        itemName: String(item?.itemName || '').trim() || '-',
+        quantity,
+        unitCost,
+        reportAmount,
+        finalAmount,
+        reportNo: String(item?.reportNo || '').trim() || '-',
+        paymentStatus,
+        savedAt: record.savedAt || '',
+      })
+    })
+  })
+  return Array.from(grouped.values()).map(group => ({
+    ...group,
+    rows: group.rows.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))),
+  })).sort((a, b) => String(a.label).localeCompare(String(b.label), 'ko'))
+}
+
 function DisposalTemplateTable({ title, rendered }) {
   const mergeInfo = useMemo(() => buildMergeMap(DISPOSAL_TEMPLATE.merges), [])
   const columnStyle = useMemo(() => ({
@@ -417,14 +470,14 @@ export function DisposalListPage() {
     saveRecords(next)
   }
 
-  const sortedRecords = useMemo(() => sortRecords(records, sortKey), [records, sortKey])
+  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey), [records, sortKey])
 
   return (
     <div className="stack-page disposal-page">
       <section className="card disposal-hero">
         <div>
           <h2>폐기목록</h2>
-          <p className="notice-text">폐기양식 저장 건이 목록으로 누적됩니다. 행을 누르면 상세입력창으로 이동합니다.</p>
+          <p className="notice-text">폐기양식 저장 건을 폐기날짜별로 묶어 보여줍니다. 행을 누르면 상세입력창으로 이동합니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
@@ -440,27 +493,44 @@ export function DisposalListPage() {
         </div>
       </section>
 
-      <section className="card disposal-records-card disposal-list-table-card">
-        <div className="disposal-list-table-head disposal-list-table-row">
-          <div>고객명</div>
-          <div>폐기일자</div>
-          <div>폐기장소</div>
-          <div>관할구역</div>
-          <div>최종현황</div>
-          <div>관리</div>
-        </div>
-        {sortedRecords.length === 0 ? (
+      <section className="card disposal-records-card disposal-list-board-card">
+        {groupedRows.length === 0 ? (
           <div className="empty-state">저장된 폐기목록이 없습니다.</div>
-        ) : sortedRecords.map(record => (
-          <div key={record.id} className="disposal-list-table-row disposal-list-data-row">
-            <button type="button" className="disposal-list-link-row" onClick={() => navigate(`/disposal/forms/${record.id}`)}>
-              <span>{record.customerName || '-'}</span>
-              <span>{record.disposalDate || '-'}</span>
-              <span>{record.location || '-'}</span>
-              <span>{record.district || '-'}</span>
-              <span>{record.finalStatus || '-'}</span>
-            </button>
-            <button type="button" className="ghost disposal-row-delete" onClick={() => removeRecord(record.id)}>삭제</button>
+        ) : groupedRows.map(group => (
+          <div key={group.key} className="disposal-list-date-group">
+            <div className="disposal-list-date-label">{group.label}</div>
+            <div className="disposal-list-grid">
+              <div className="disposal-list-grid-row disposal-list-grid-head">
+                <div>고객명</div>
+                <div>품목</div>
+                <div>수량</div>
+                <div>개당비용</div>
+                <div>신고합계</div>
+                <div>최종비용(수수료 포함)</div>
+                <div>폐기신고번호</div>
+                <div>입금여부</div>
+                <div>관리</div>
+              </div>
+              {group.rows.map(row => (
+                <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
+                  <button
+                    type="button"
+                    className="disposal-list-grid-button"
+                    onClick={() => navigate(`/disposal/forms/${row.recordId}`)}
+                  >
+                    <span>{row.customerName}</span>
+                    <span>{row.itemName}</span>
+                    <span>{formatNumber(row.quantity)}</span>
+                    <span>{formatCurrency(row.unitCost)}</span>
+                    <span>{formatCurrency(row.reportAmount)}</span>
+                    <span>{formatCurrency(row.finalAmount)}</span>
+                    <span>{row.reportNo}</span>
+                    <span>{row.paymentStatus}</span>
+                  </button>
+                  <button type="button" className="ghost disposal-row-delete" onClick={() => removeRecord(row.recordId)}>삭제</button>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </section>

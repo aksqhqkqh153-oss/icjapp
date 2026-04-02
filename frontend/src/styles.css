@@ -8684,30 +8684,54 @@ a:focus-visible {
   font-weight: 800;
 }
 
-.disposal-list-table-card {
+.disposal-list-board-card {
+  display: grid;
+  gap: 16px;
+}
+
+.disposal-list-date-group {
+  display: grid;
+  gap: 8px;
+}
+
+.disposal-list-date-label {
+  font-size: 16px;
+  font-weight: 800;
+  color: #344157;
+  padding-left: 2px;
+}
+
+.disposal-list-grid {
   display: grid;
   gap: 0;
+  border: 1px solid #e2e8f2;
+  border-radius: 16px;
   overflow: hidden;
+  background: #fff;
 }
 
-.disposal-list-table-row {
+.disposal-list-grid-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) minmax(0, 1.4fr) minmax(90px, .8fr) minmax(100px, .9fr) 80px;
+  grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) minmax(70px, .5fr) minmax(100px, .8fr) minmax(100px, .9fr) minmax(130px, 1fr) minmax(120px, .9fr) minmax(90px, .7fr) 82px;
   gap: 8px;
   align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e7ebf3;
+  padding: 12px 14px;
+  border-bottom: 1px solid #ecf0f6;
 }
 
-.disposal-list-table-head {
+.disposal-list-grid-row:last-child {
+  border-bottom: 0;
+}
+
+.disposal-list-grid-head {
   background: #f4f7fb;
   font-weight: 800;
   color: #44506a;
 }
 
-.disposal-list-link-row {
+.disposal-list-grid-button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) minmax(0, 1.4fr) minmax(90px, .8fr) minmax(100px, .9fr);
+  grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) minmax(70px, .5fr) minmax(100px, .8fr) minmax(100px, .9fr) minmax(130px, 1fr) minmax(120px, .9fr) minmax(90px, .7fr);
   gap: 8px;
   align-items: center;
   width: 100%;
@@ -8717,14 +8741,14 @@ a:focus-visible {
   text-align: left;
 }
 
-.disposal-plain-button {
-  border: 0;
-  background: transparent;
-  width: 100%;
-  text-align: left;
+.disposal-list-grid-button span,
+.disposal-list-grid-head div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.disposal-list-data-row:hover {
+.disposal-list-grid-data-row:hover {
   background: #fafcff;
 }
 
@@ -8834,17 +8858,16 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .disposal-list-table-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
+  .disposal-list-grid {
+    overflow-x: auto;
   }
 
-  .disposal-list-table-head {
-    display: none;
+  .disposal-list-grid-row {
+    min-width: 1220px;
   }
 
-  .disposal-list-link-row {
-    grid-template-columns: 1fr;
+  .disposal-list-grid-head {
+    display: grid;
   }
 
   .disposal-settlement-grid {
@@ -8855,13 +8878,8 @@ a:focus-visible {
     min-width: 880px;
   }
 
-  .disposal-list-data-row {
+  .disposal-list-grid-data-row {
     padding: 12px;
-  }
-
-  .disposal-list-data-row span {
-    display: block;
-    font-size: 13px;
   }
 
   .disposal-filter-row {
