@@ -3994,6 +3994,8 @@ function CalendarPage() {
             const daySummary = date ? (workDayMap.get(fmtDate(date)) || buildDayStatusForm({ date: fmtDate(date) })) : null
             const dayCapacity = daySummary ? analyzeScheduleDayCapacity(daySummary) : null
             const dayCapacityClass = daySummary ? buildCalendarDayStatusClass(daySummary) : ''
+            const isFriday = date && date.getDay() === 5
+            const shouldHighlightDayKind = Boolean(date && (isFriday || isWeekend || daySummary?.is_handless_day))
             const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
             return (
               <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${dayCapacityClass ? ` ${dayCapacityClass}` : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
@@ -4019,7 +4021,7 @@ function CalendarPage() {
                       {isMobile ? (
                         <div className="calendar-mobile-summary-stack">
                           <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
+                          <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}${shouldHighlightDayKind ? ' special-attention' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
                         </div>
                       ) : (
                         <>
@@ -4030,7 +4032,7 @@ function CalendarPage() {
                         </>
                       )}
                     </button>
-                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>}
+                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>}
 
                     {!isMobile && (
                       <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
@@ -4068,10 +4070,13 @@ function CalendarPage() {
 
         {isMobile && (
           <div className="mobile-schedule-detail-panel">
-            <div className="between">
+            <div className="mobile-schedule-detail-head">
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
+              <div className="mobile-schedule-detail-meta">
+                <span className={`mobile-schedule-kind-chip ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손' : '일'}</span>
+                <span className="mobile-schedule-vehicle-inline">가용차량수 | A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+              </div>
             </div>
-            <div className={`calendar-handless-banner ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}><span>{selectedDaySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>
             <div className="schedule-popup-list embedded">
               {detailItems.map(item => (
                 <button
