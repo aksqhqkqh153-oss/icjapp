@@ -9422,3 +9422,187 @@ a:focus-visible {
     font-size: 11px;
   }
 }
+
+
+/* 2026-04-03 schedule mobile header/detail compact refresh */
+.schedule-toolbar-main-row.single-line {
+  grid-template-columns: minmax(48px, auto) minmax(0, 1fr) auto;
+}
+
+.schedule-toolbar-actions.compact-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: auto;
+}
+
+.schedule-toolbar-actions.compact-inline > button {
+  min-width: auto;
+}
+
+.schedule-page.mobile .schedule-toolbar-updated {
+  gap: 6px;
+}
+
+.schedule-page.mobile .schedule-toolbar-main-row.single-line {
+  grid-template-columns: minmax(40px, auto) minmax(0, 1fr) auto;
+  gap: 4px;
+}
+
+.schedule-page.mobile .schedule-toolbar-side-left {
+  min-width: 36px;
+}
+
+.schedule-page.mobile .schedule-month-nav {
+  gap: 2px;
+}
+
+.schedule-page.mobile .schedule-month-label {
+  font-size: 15px;
+  min-width: 0;
+}
+
+.schedule-page.mobile .schedule-toolbar-actions.compact-inline {
+  gap: 1px;
+}
+
+.schedule-page.mobile .schedule-today-button,
+.schedule-page.mobile .schedule-settings-button,
+.schedule-page.mobile .schedule-handless-button,
+.schedule-page.mobile .schedule-month-nav .icon-month-button {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.schedule-page.mobile .schedule-add-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  font-size: 26px;
+}
+
+.schedule-page.mobile .schedule-handless-button,
+.schedule-page.mobile .schedule-settings-button,
+.schedule-page.mobile .schedule-today-button {
+  font-size: 15px;
+}
+
+.schedule-page.mobile .schedule-cell.detail-cell {
+  min-height: 76px;
+  max-height: 76px;
+}
+
+.schedule-page.mobile .calendar-cell-topline {
+  margin-bottom: 1px;
+}
+
+.schedule-page.mobile .calendar-date-select {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px 4px;
+}
+
+.schedule-page.mobile .calendar-day-summary-button.redesigned.mobile-compact {
+  min-height: 22px;
+  padding: 0;
+}
+
+.schedule-page.mobile .calendar-mobile-summary-stack.compact-topline {
+  min-height: 18px;
+  gap: 0;
+}
+
+.schedule-page.mobile .calendar-handless-pill.mobile-compact {
+  min-width: 44px;
+  font-size: 9px;
+  padding: 0 3px;
+  line-height: 1.05;
+}
+
+.mobile-schedule-detail-head.single-row-summary {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.mobile-schedule-detail-head.single-row-summary > strong {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.mobile-schedule-detail-meta.summary-inline-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.mobile-schedule-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.mobile-schedule-vehicle-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mobile-schedule-vehicle-inline {
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .mobile-schedule-detail-head.single-row-summary {
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-schedule-detail-head.single-row-summary > strong {
+    font-size: 13px;
+  }
+
+  .mobile-schedule-detail-meta.summary-inline-row {
+    width: auto;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .mobile-schedule-kind-chip {
+    min-width: 24px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .mobile-schedule-status-button {
+    gap: 4px;
+  }
+
+  .mobile-schedule-vehicle-chip {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .mobile-schedule-vehicle-inline {
+    font-size: 10px;
+  }
+}

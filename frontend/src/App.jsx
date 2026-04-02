@@ -3961,7 +3961,7 @@ function CalendarPage() {
     <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
         <div className="calendar-toolbar upgraded schedule-toolbar-updated">
-          <div className="schedule-toolbar-main-row">
+          <div className="schedule-toolbar-main-row single-line">
             <div className="schedule-toolbar-side schedule-toolbar-side-left">
               <button type="button" className="small ghost schedule-today-button" onClick={goToToday}>오늘</button>
             </div>
@@ -3972,13 +3972,11 @@ function CalendarPage() {
                 <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)} aria-label="다음 달">▶</button>
               </div>
             </div>
-            <div className="schedule-toolbar-side schedule-toolbar-side-right">
+            <div className={`inline-actions schedule-toolbar-actions compact-inline${isMobile ? ' mobile-inline' : ' desktop-inline'}`}>
+              {!readOnly && <button type="button" className="small icon-only schedule-add-button" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)} title="일정등록" aria-label="일정등록">+</button>}
+              {!readOnly && <button type="button" className="small schedule-handless-button" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손</button>}
               <button type="button" className="small ghost schedule-settings-button" onClick={() => setLegendOpen(true)} title="설정" aria-label="설정">⚙</button>
             </div>
-          </div>
-          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ' desktop-inline'}`}>
-            {!readOnly && <button type="button" className="small icon-only schedule-add-button" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)} title="일정등록" aria-label="일정등록">+</button>}
-            {!readOnly && <button type="button" className="small schedule-handless-button" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손</button>}
           </div>
         </div>
         <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
@@ -4019,8 +4017,7 @@ function CalendarPage() {
 
                     <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
                       {isMobile ? (
-                        <div className="calendar-mobile-summary-stack">
-                          <span className="calendar-mobile-vehicle-line">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                        <div className="calendar-mobile-summary-stack compact-topline">
                           <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}${shouldHighlightDayKind ? ' special-attention' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
                         </div>
                       ) : (
@@ -4070,11 +4067,14 @@ function CalendarPage() {
 
         {isMobile && (
           <div className="mobile-schedule-detail-panel">
-            <div className="mobile-schedule-detail-head">
+            <div className="mobile-schedule-detail-head single-row-summary">
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
-              <div className="mobile-schedule-detail-meta">
+              <div className="mobile-schedule-detail-meta summary-inline-row">
                 <span className={`mobile-schedule-kind-chip ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손' : '일'}</span>
-                <span className="mobile-schedule-vehicle-inline">가용차량수 | A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+                <button type="button" className="mobile-schedule-status-button" onClick={() => openCalendarStatus(selectedDaySummary)}>
+                  <span className="mobile-schedule-vehicle-chip">가용차량수 {String(selectedDaySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                  <span className="mobile-schedule-vehicle-inline">A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+                </button>
               </div>
             </div>
             <div className="schedule-popup-list embedded">
