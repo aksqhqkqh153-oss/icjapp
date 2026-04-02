@@ -1003,6 +1003,57 @@ def _material_today_inventory_rows(conn, target_date: str) -> list[dict]:
         })
     return output
 
+def _material_request_identity_candidates(user: dict) -> dict[str, set[str]]:
+    def _clean(value) -> str:
+        return str(value or '').strip()
+
+    branch_raw = _clean(user.get('branch_no'))
+    if branch_raw in {'0', '본점'}:
+        branch_label = '본점'
+    elif branch_raw.isdigit():
+        branch_label = f"{int(branch_raw)}호점"
+    else:
+        branch_label = branch_raw
+
+    name = _clean(user.get('name'))
+    nickname = _clean(user.get('nickname'))
+    email = _clean(user.get('email')).lower()
+    account_unique_id = _clean(user.get('account_unique_id'))
+
+    requester_names = set()
+    if branch_label and name:
+        requester_names.add(f'{branch_label} {name}'.strip())
+    if branch_label and nickname:
+        requester_names.add(f'{branch_label} {nickname}'.strip())
+    if branch_label and email:
+        requester_names.add(f'{branch_label} {email}'.strip())
+    if name:
+        requester_names.add(name)
+    if nickname:
+        requester_names.add(nickname)
+    if email:
+        requester_names.add(email)
+
+    unique_keys = {value for value in {account_unique_id, email} if value}
+    return {
+        'requester_names': requester_names,
+        'unique_keys': unique_keys,
+    }
+
+
+def _material_request_belongs_to_user(request_row: dict, user: dict) -> bool:
+    if int(request_row.get('user_id') or 0) == int(user.get('id') or 0):
+        return True
+    identity = _material_request_identity_candidates(user)
+    requester_unique_id = str(request_row.get('requester_unique_id') or '').strip().lower()
+    if requester_unique_id and requester_unique_id in identity['unique_keys']:
+        return True
+    requester_name = str(request_row.get('requester_name') or '').strip()
+    if requester_name and requester_name in identity['requester_names']:
+        return True
+    return False
+
+
 def _material_share_text(requests: list[dict]) -> str:
     lines = ['[구매자결산표]']
     for request in requests:
@@ -1087,7 +1138,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
     rejected_requests = [row for row in request_rows if row.get('status') == 'rejected']
     history_rows = settled_requests[:] + rejected_requests[:]
     history_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
-    my_request_rows = [row for row in request_rows if int(row.get('user_id') or 0) == int(user.get('id') or 0)]
+    my_request_rows = [row for row in request_rows if _material_request_belongs_to_user(row, user)]
     products = _material_products(conn)
     inventory_rows = _material_today_inventory_rows(conn, today_key)
     inventory_map = {int(row['product_id']): row for row in inventory_rows}
@@ -4609,7 +4660,7 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
         if not requester_name:
             requester_name = str(user.get('nickname') or user.get('email') or '구매신청자').strip()
         request_note = str(payload.request_note or '').strip()
-        requester_unique_id = str(user.get('account_unique_id') or '')
+        requester_unique_id = str(user.get('account_unique_id') or user.get('email') or '').strip().lower()
         if DB_ENGINE == 'postgresql':
             inserted_row = conn.execute(
                 '''
