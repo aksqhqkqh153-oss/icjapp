@@ -9649,12 +9649,10 @@ function MaterialsPage({ user }) {
   const visibleTabs = buildVisibleTabs(data?.permissions || {})
   const productRows = data?.products || []
   const pendingRequests = data?.pending_requests || []
-  const settlementPendingRequests = data?.settlement_pending_requests || []
   const settledRequests = data?.settled_requests || []
   const historyRequests = data?.history_requests || []
   const myRequests = data?.my_requests || []
   const inventoryRows = data?.inventory_rows || []
-  const materialsSyncSummary = data?.materials_sync_summary || { pending_request_count: 0, settled_request_count: 0, history_request_count: 0 }
   const isInventoryManager = Boolean(data?.permissions?.can_manage_inventory)
   const settlementDateOptions = Array.from(new Set(settledRequests.map(request => String(request.created_at || '').slice(0, 10)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
   const filteredSettledRequests = settlementFilterDate ? settledRequests.filter(request => String(request.created_at || '').slice(0, 10) === settlementFilterDate) : settledRequests
@@ -9694,22 +9692,12 @@ function MaterialsPage({ user }) {
     ))
   }
 
-  function isStickerMaterial(product) {
-    const name = String(product?.name || '').trim()
-    const shortName = String(product?.short_name || '').trim()
-    return name.includes('스티커') || shortName.includes('스티커')
-  }
-
   function updateQuantity(productId, value) {
     if (!canPurchaseMaterials) return
     const nextValue = String(value).replace(/[^\d]/g, '')
     const nextQuantity = nextValue ? Number(nextValue) : ''
     const product = productRows.find(item => Number(item.id) === Number(productId))
     const stock = Number(product?.current_stock || 0)
-    if (nextValue && isStickerMaterial(product) && Number(nextQuantity) % 2 !== 0) {
-      window.alert('스티커는 짝수(세트)로만 구매 가능합니다')
-      return
-    }
     if (nextValue && Number(nextQuantity) > stock) {
       window.alert('현재고보다 구매수량이 많습니다. 구매수량을 줄여주세요')
     }
@@ -9723,11 +9711,6 @@ function MaterialsPage({ user }) {
     }
     if (cartRows.length === 0) {
       setNotice('구매 수량을 입력한 뒤 진행해 주세요.')
-      return
-    }
-    const invalidStickerItem = cartRows.find(item => isStickerMaterial(item) && Number(item.quantity || 0) % 2 !== 0)
-    if (invalidStickerItem) {
-      window.alert('스티커는 짝수(세트)로만 구매 가능합니다')
       return
     }
     const confirmed = window.confirm('3333-29-1202673 카카오뱅크 (심진수)으로 입금하였습니까?')
@@ -10574,7 +10557,6 @@ function MaterialsPage({ user }) {
             const draftIncoming = Number(draftRow.incoming_qty || 0)
             const draftOutgoing = Number(draftRow.outgoing_qty || 0)
             const note = draftRow.note || ''
-            const reservedQty = Number(inventoryRow.reserved_outgoing_qty || inventoryRow.pending_qty || 0)
             const afterQty = Math.max(0, Number(product.current_stock || 0) + draftIncoming - draftOutgoing)
             return (
               <div key={`incoming-${product.id}`} className="materials-row materials-row-confirm materials-row-sales" style={getTableGridStyle('incoming')}>
@@ -10603,10 +10585,7 @@ function MaterialsPage({ user }) {
                     }}
                   />
                 </div>
-                <div>
-                  <div>{afterQty}</div>
-                  {reservedQty > 0 ? <div className="muted tiny-text">대기 {reservedQty}</div> : null}
-                </div>
+                <div>{afterQty}</div>
                 <div>
                   <input
                     className="materials-note-input"
@@ -10679,11 +10658,6 @@ function MaterialsPage({ user }) {
             </label>
             <button type="button" className="ghost materials-bottom-button" onClick={() => setSettlementFilterDate('')}>필터초기화</button>
           </div>
-          {settlementPendingRequests.length ? (
-            <div className="card muted materials-settlement-link-summary">
-              결산대기 {materialsSyncSummary.pending_request_count || settlementPendingRequests.length}건이 신청목록과 연동되어 있습니다. 신청목록에서 결산등록하면 이 화면으로 이동됩니다.
-            </div>
-          ) : null}
           {renderRequestRows(filteredSettledRequests, 'settled')}
           <div className="row gap wrap materials-actions-right materials-actions-bottom materials-settlement-actions-bottom">
             <button type="button" className="ghost materials-bottom-button" onClick={shareSettlements}>카톡공유</button>
