@@ -1060,7 +1060,7 @@ def _material_notification_lines(request_detail: dict) -> tuple[str, str]:
 
 def _notify_material_purchase_request(conn, requester_user: dict, request_detail: dict) -> None:
     admin_rows = conn.execute(
-        "SELECT id FROM users WHERE COALESCE(is_active, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) = 1 ORDER BY id"
+        "SELECT id FROM users WHERE COALESCE(is_active, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) <= 2 ORDER BY CAST(COALESCE(grade, '6') AS INTEGER), id"
     ).fetchall()
     if not admin_rows:
         return
@@ -4643,6 +4643,9 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
         detail['requester_display_name'] = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
         detail['requester_user_name'] = str(user.get('name') or '').strip()
         detail['requester_nickname'] = str(user.get('nickname') or '').strip()
+        detail['requester_branch_no'] = user.get('branch_no')
+        detail['requester_branch_label'] = ('본점' if str(user.get('branch_no') or '').strip() in {'0', '본점'} else (f"{int(user.get('branch_no'))}호점" if str(user.get('branch_no') or '').strip().isdigit() else ''))
+        detail['requester_account_unique_id'] = requester_unique_id
         try:
             _notify_material_purchase_request(conn, user, detail)
         except Exception:

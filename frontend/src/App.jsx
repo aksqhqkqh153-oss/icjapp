@@ -10019,7 +10019,7 @@ function MaterialsPage({ user }) {
       <div className={`materials-request-sheet-row materials-request-sheet-head materials-request-sheet-head-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
         {selectable ? <div className="materials-request-sheet-check">선택</div> : null}
         <div>호점</div>
-        <div>이름</div>
+        <div>이름/계정</div>
         <div>구매신청일자</div>
         <div>결산처리완료일자</div>
         <div>물품총합계</div>
@@ -10260,7 +10260,7 @@ function MaterialsPage({ user }) {
               <div className="materials-request-history-row materials-confirm-history-row materials-purchase-history-row" style={getTableGridStyle('history')}>
                 <div className="materials-history-static-cell">완료</div>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
-                <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
+                <div className="materials-request-name-cell"><strong>{meta.name}</strong>{meta.uniqueId && meta.uniqueId !== '-' ? <div className="muted tiny-text">고유ID {meta.uniqueId}</div> : null}</div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
@@ -10409,6 +10409,7 @@ function MaterialsPage({ user }) {
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
                 <div className="materials-request-name-cell">
                   <strong>{meta.name}</strong>
+                  {meta.uniqueId && meta.uniqueId !== '-' ? <div className="muted tiny-text">고유ID {meta.uniqueId}</div> : null}
                 </div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{isRejected ? <button type="button" className="ghost small" onClick={() => window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.')}>반려됨</button> : formatFullDateLabel(request.settled_at)}</div>
@@ -10474,7 +10475,10 @@ function MaterialsPage({ user }) {
     const grouped = filterMyRequests(groupedMyRequests())
     return (
       <section className="card materials-panel materials-panel-compact-head">
-        <div className="materials-summary-head-inline"><div><h3>신청현황</h3></div></div>
+        <div className="materials-summary-head-inline">
+          <div><h3>신청현황</h3></div>
+          <div className="muted tiny-text">접수 {(myRequests || []).filter(item => String(item.status || '') === 'pending' && (item.items || []).some(row => Number(row.quantity || 0) > 0)).length}건 · 결산완료 {(myRequests || []).filter(item => String(item.status || '') === 'settled').length}건 · 반려 {(myRequests || []).filter(item => String(item.status || '') === 'rejected').length}건</div>
+        </div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
