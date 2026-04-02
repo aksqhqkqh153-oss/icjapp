@@ -55,6 +55,21 @@ app.include_router(soomgo_review_router)
 
 ALLOWED_GENDERS = {'남성', '여성'}
 
+
+def _origin_allowed(origin: str) -> bool:
+    value = str(origin or '').strip()
+    if not value:
+        return False
+    if value in (settings.allowed_origins or []):
+        return True
+    pattern = str(settings.allowed_origin_regex or '').strip()
+    if pattern:
+        try:
+            return re.match(pattern, value) is not None
+        except re.error:
+            return False
+    return False
+
 def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
     gender = str(value or '').strip()
     if not gender and allow_empty:
@@ -1296,6 +1311,18 @@ async def request_logger(request: Request, call_next):
     response = await call_next(request)
     elapsed_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
     logger.info("%s %s -> %s (%sms)", request.method, request.url.path, response.status_code, elapsed_ms)
+    return response
+
+
+@app.middleware("http")
+async def ensure_api_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get('origin', '')
+    if origin and _origin_allowed(origin):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        vary = response.headers.get('Vary', '')
+        response.headers['Vary'] = 'Origin' if not vary else (vary if 'Origin' in vary else f"{vary}, Origin")
     return response
 
 
@@ -4538,6 +4565,10 @@ def save_materials_table_layout(payload: PreferenceIn, user=Depends(require_admi
 def get_materials_overview(user=Depends(require_user)):
     with get_conn() as conn:
         return _material_overview_payload(conn, user)
+
+@app.options('/api/materials/purchase-requests')
+def options_material_purchase_requests():
+    return {'ok': True}
 
 @app.post('/api/materials/purchase-requests')
 def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Depends(require_user)):
