@@ -4586,68 +4586,114 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
     valid_items = [item for item in payload.items if int(item.quantity or 0) > 0]
     if not valid_items:
         raise HTTPException(status_code=400, detail='구매 개수를 1개 이상 입력해 주세요.')
+
+    # 오래된 Railway/PostgreSQL 스키마에서도 바로 복구되도록 요청 직전에 재보정한다.
+    init_db()
     now = utcnow()
-    with get_conn() as conn:
-        products = {int(row['id']): row_to_dict(row) for row in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
-        total_amount = 0
-        request_items = []
-        for item in valid_items:
-            product = products.get(int(item.product_id))
-            if not product:
-                continue
-            qty = max(0, int(item.quantity or 0))
-            unit_price = int(product.get('unit_price') or 0)
-            line_total = qty * unit_price
-            total_amount += line_total
-            request_items.append((int(product['id']), qty, unit_price, line_total, str(item.memo or '').strip()))
-        if not request_items:
-            raise HTTPException(status_code=400, detail='유효한 자재 항목이 없습니다.')
-        requester_name = ' '.join(part for part in [
-            f"{user.get('branch_no')}호점" if user.get('branch_no') not in (None, '') else '',
-            str(user.get('name') or user.get('nickname') or user.get('email') or '').strip(),
-        ] if part).strip()
-        if not requester_name:
-            requester_name = str(user.get('nickname') or user.get('email') or '구매신청자').strip()
-        request_note = str(payload.request_note or '').strip()
-        requester_unique_id = str(user.get('account_unique_id') or '')
-        if DB_ENGINE == 'postgresql':
-            inserted_row = conn.execute(
-                '''
-                INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
-                VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
-                RETURNING id
-                ''',
-                (user['id'], requester_name, requester_unique_id, request_note, total_amount, now),
-            ).fetchone()
-            request_id = int((inserted_row or {}).get('id') or 0)
-        else:
-            conn.execute(
-                '''
-                INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
-                VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
-                ''',
-                (user['id'], requester_name, requester_unique_id, request_note, total_amount, now),
-            )
-            request_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0] or 0)
-        if request_id <= 0:
-            raise HTTPException(status_code=500, detail='구매신청 번호 생성에 실패했습니다.')
-        for product_id, qty, unit_price, line_total, memo in request_items:
-            conn.execute(
-                "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, ?, ?)",
-                (request_id, product_id, qty, unit_price, line_total, memo),
-            )
-        row = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
-        if not row:
-            raise HTTPException(status_code=500, detail='구매신청 저장 후 조회에 실패했습니다.')
-        detail = _material_request_detail(conn, row_to_dict(row))
-        detail['requester_display_name'] = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
-        detail['requester_user_name'] = str(user.get('name') or '').strip()
-        detail['requester_nickname'] = str(user.get('nickname') or '').strip()
-        try:
-            _notify_material_purchase_request(conn, user, detail)
-        except Exception:
-            logger.exception('Failed to notify material purchase request admins request_id=%s user_id=%s', request_id, user.get('id'))
-        return {'ok': True, 'request': detail}
+    try:
+        with get_conn() as conn:
+            products = {int(row['id']): row_to_dict(row) for row in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+            total_amount = 0
+            request_items = []
+            for item in valid_items:
+                product = products.get(int(item.product_id))
+                if not product:
+                    continue
+                qty = max(0, int(item.quantity or 0))
+                unit_price = int(product.get('unit_price') or 0)
+                line_total = qty * unit_price
+                total_amount += line_total
+                request_items.append((int(product['id']), qty, unit_price, line_total, str(item.memo or '').strip()))
+            if not request_items:
+                raise HTTPException(status_code=400, detail='유효한 자재 항목이 없습니다.')
+
+            requester_name = ' '.join(part for part in [
+                f"{user.get('branch_no')}호점" if user.get('branch_no') not in (None, '') else '',
+                str(user.get('name') or user.get('nickname') or user.get('email') or '').strip(),
+            ] if part).strip()
+            if not requester_name:
+                requester_name = str(user.get('nickname') or user.get('email') or '구매신청자').strip()
+            request_note = str(payload.request_note or '').strip()
+            requester_unique_id = str(user.get('account_unique_id') or '')
+
+            request_id = 0
+            if DB_ENGINE == 'postgresql':
+                try:
+                    inserted_row = conn.execute(
+                        '''
+                        INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
+                        VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
+                        RETURNING id
+                        ''',
+                        (user['id'], requester_name, requester_unique_id, request_note, total_amount, now),
+                    ).fetchone()
+                    request_id = int((inserted_row or {}).get('id') or 0)
+                except Exception:
+                    logger.exception('material purchase RETURNING insert failed; falling back to timestamp lookup user_id=%s', user.get('id'))
+                    conn.execute(
+                        '''
+                        INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
+                        VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
+                        ''',
+                        (user['id'], requester_name, requester_unique_id, request_note, total_amount, now),
+                    )
+                    fallback_row = conn.execute(
+                        '''
+                        SELECT id FROM material_purchase_requests
+                        WHERE user_id = ? AND created_at = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        ''',
+                        (user['id'], now),
+                    ).fetchone()
+                    request_id = int((fallback_row or {}).get('id') or 0)
+            else:
+                conn.execute(
+                    '''
+                    INSERT INTO material_purchase_requests(user_id, requester_name, requester_unique_id, request_note, total_amount, status, payment_confirmed, created_at, settled_at, share_snapshot_json)
+                    VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, '', '')
+                    ''',
+                    (user['id'], requester_name, requester_unique_id, request_note, total_amount, now),
+                )
+                request_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0] or 0)
+            if request_id <= 0:
+                raise HTTPException(status_code=500, detail='구매신청 번호 생성에 실패했습니다.')
+
+            for product_id, qty, unit_price, line_total, memo in request_items:
+                conn.execute(
+                    "INSERT INTO material_purchase_request_items(request_id, product_id, quantity, unit_price, line_total, memo) VALUES (?, ?, ?, ?, ?, ?)",
+                    (request_id, product_id, qty, unit_price, line_total, memo),
+                )
+
+            row = conn.execute("SELECT * FROM material_purchase_requests WHERE id = ?", (request_id,)).fetchone()
+            request_row = row_to_dict(row) if row else {
+                'id': request_id,
+                'user_id': user['id'],
+                'requester_name': requester_name,
+                'requester_unique_id': requester_unique_id,
+                'request_note': request_note,
+                'total_amount': total_amount,
+                'status': 'pending',
+                'payment_confirmed': 0,
+                'created_at': now,
+                'settled_at': '',
+                'settled_by_user_id': None,
+                'share_snapshot_json': '',
+            }
+            detail = _material_request_detail(conn, request_row)
+            detail['requester_display_name'] = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
+            detail['requester_user_name'] = str(user.get('name') or '').strip()
+            detail['requester_nickname'] = str(user.get('nickname') or '').strip()
+            try:
+                _notify_material_purchase_request(conn, user, detail)
+            except Exception:
+                logger.exception('Failed to notify material purchase request admins request_id=%s user_id=%s', request_id, user.get('id'))
+            return {'ok': True, 'request': detail}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception('create_material_purchase_request failed user_id=%s db_engine=%s', user.get('id'), DB_ENGINE)
+        raise HTTPException(status_code=500, detail='자재구매 신청 저장 중 서버 오류가 발생했습니다.')
 
 @app.post('/api/materials/purchase-requests/settle')
 def settle_material_purchase_requests(payload: MaterialSettlementProcessIn, user=Depends(require_user)):
