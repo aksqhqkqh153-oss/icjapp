@@ -8296,3 +8296,224 @@ a:focus-visible {
 .quote-choice.selected { background: #d9ecff; border-color: #8cbef5; }
 .quote-choice:not(.selected) { background: #ececec; }
 .quote-detail-actions { margin-bottom: 12px; }
+
+.disposal-page {
+  gap: 16px;
+}
+
+.disposal-hero,
+.disposal-entry-card,
+.disposal-items-card,
+.disposal-sheet-card,
+.disposal-settlement-filter-card,
+.disposal-records-card {
+  padding: 16px;
+}
+
+.disposal-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.disposal-hero h2,
+.disposal-sheet-head h3,
+.disposal-items-head h3 {
+  margin: 0 0 6px;
+}
+
+.disposal-hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.disposal-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.disposal-entry-grid-compact {
+  grid-template-columns: minmax(220px, 360px);
+}
+
+.disposal-entry-grid label,
+.disposal-status-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.disposal-entry-grid input,
+.disposal-entry-grid select,
+.disposal-items-table input {
+  width: 100%;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.disposal-saved-at {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.disposal-items-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.disposal-items-scroll,
+.disposal-sheet-scroll {
+  overflow: auto;
+}
+
+.disposal-items-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.disposal-items-table th,
+.disposal-items-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.disposal-items-table thead th,
+.disposal-items-table tfoot td {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.disposal-sheet-head {
+  margin-bottom: 12px;
+}
+
+.disposal-sheet-grid {
+  display: grid;
+  grid-auto-rows: minmax(38px, auto);
+  gap: 0;
+  min-width: 1040px;
+  border-top: 1px solid #cbd5e1;
+  border-left: 1px solid #cbd5e1;
+}
+
+.disposal-cell {
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: pre-line;
+  background: #fff;
+  font-size: 13px;
+}
+
+.disposal-cell.label-cell {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.disposal-cell.header-cell {
+  background: #eff6ff;
+  font-weight: 700;
+}
+
+.disposal-cell.title-cell {
+  background: #fef3c7;
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.disposal-cell.summary-cell {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.disposal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.disposal-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disposal-summary-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.disposal-summary-card strong {
+  font-size: 20px;
+}
+
+.disposal-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.disposal-record-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.disposal-record-head,
+.disposal-record-meta,
+.disposal-record-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.disposal-record-meta {
+  margin-top: 10px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.disposal-record-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.empty-state {
+  padding: 24px 0;
+  color: #64748b;
+}
+
+@media (max-width: 900px) {
+  .disposal-entry-grid,
+  .disposal-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .disposal-hero,
+  .disposal-items-head {
+    flex-direction: column;
+  }
+}

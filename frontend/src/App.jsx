@@ -6,6 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
+import { DisposalFormsPage, DisposalSettlementsPage } from './DisposalPages'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -33,6 +34,8 @@ const PAGE_TITLES = {
   '/quotes': '견적',
   '/quote-forms': '견적',
   '/operations-dashboard': '대쉬보드',
+  '/disposal/forms': '폐기양식',
+  '/disposal/settlements': '폐기결산',
 }
 
 function pageTitle(pathname) {
@@ -241,6 +244,8 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
+      { id: 'disposal-forms', label: '폐기양식', path: '/disposal/forms' },
+      { id: 'disposal-settlements', label: '폐기결산', path: '/disposal/settlements' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
       { id: 'reports', label: '신고관리', path: '/reports' },
     ],
@@ -11051,6 +11056,8 @@ function App() {
         <Route path="/operations-dashboard" element={<OperationsDashboardPage />} />
         <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
+        <Route path="/disposal/forms" element={<DisposalFormsPage />} />
+        <Route path="/disposal/settlements" element={<DisposalSettlementsPage />} />
         <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
