@@ -9694,12 +9694,22 @@ function MaterialsPage({ user }) {
     ))
   }
 
+  function isStickerMaterial(product) {
+    const name = String(product?.name || '').trim()
+    const shortName = String(product?.short_name || '').trim()
+    return name.includes('스티커') || shortName.includes('스티커')
+  }
+
   function updateQuantity(productId, value) {
     if (!canPurchaseMaterials) return
     const nextValue = String(value).replace(/[^\d]/g, '')
     const nextQuantity = nextValue ? Number(nextValue) : ''
     const product = productRows.find(item => Number(item.id) === Number(productId))
     const stock = Number(product?.current_stock || 0)
+    if (nextValue && isStickerMaterial(product) && Number(nextQuantity) % 2 !== 0) {
+      window.alert('스티커는 짝수(세트)로만 구매 가능합니다')
+      return
+    }
     if (nextValue && Number(nextQuantity) > stock) {
       window.alert('현재고보다 구매수량이 많습니다. 구매수량을 줄여주세요')
     }
@@ -9713,6 +9723,11 @@ function MaterialsPage({ user }) {
     }
     if (cartRows.length === 0) {
       setNotice('구매 수량을 입력한 뒤 진행해 주세요.')
+      return
+    }
+    const invalidStickerItem = cartRows.find(item => isStickerMaterial(item) && Number(item.quantity || 0) % 2 !== 0)
+    if (invalidStickerItem) {
+      window.alert('스티커는 짝수(세트)로만 구매 가능합니다')
       return
     }
     const confirmed = window.confirm('3333-29-1202673 카카오뱅크 (심진수)으로 입금하였습니까?')
