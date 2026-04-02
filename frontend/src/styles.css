@@ -9127,3 +9127,148 @@ a:focus-visible {
     justify-content: flex-end;
   }
 }
+
+
+/* 2026-04-03 schedule toolbar alignment refresh */
+.schedule-toolbar-updated {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.schedule-toolbar-main-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.schedule-toolbar-side {
+  display: flex;
+  align-items: center;
+}
+
+.schedule-toolbar-side-left {
+  justify-content: flex-start;
+}
+
+.schedule-toolbar-side-right {
+  justify-content: flex-end;
+}
+
+.schedule-toolbar-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.schedule-month-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.schedule-month-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  text-align: center;
+}
+
+.schedule-settings-button,
+.schedule-today-button,
+.schedule-add-button,
+.schedule-handless-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schedule-settings-button {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.schedule-toolbar-actions.desktop-inline {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.schedule-toolbar-actions.desktop-inline > button {
+  min-width: 44px;
+}
+
+.schedule-add-button {
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.schedule-handless-button {
+  background: #bae6fd;
+  border-color: #7dd3fc;
+  color: #0c4a6e;
+  font-weight: 700;
+}
+
+.schedule-handless-button:hover {
+  background: #7dd3fc;
+  border-color: #38bdf8;
+  color: #083344;
+}
+
+.schedule-add-band {
+  padding: 0;
+}
+
+.schedule-add-band .calendar-entry-label.plus-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+@media (max-width: 767px) {
+  .schedule-toolbar-main-row {
+    grid-template-columns: minmax(56px, auto) minmax(0, 1fr) minmax(56px, auto);
+    gap: 8px;
+  }
+
+  .schedule-month-nav {
+    gap: 6px;
+  }
+
+  .schedule-month-label {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .schedule-toolbar-actions.mobile-stacked {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .schedule-add-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 22px;
+  }
+}

@@ -3775,6 +3775,14 @@ function CalendarPage() {
     navigate(`/schedule?date=${nextSelected}`, { replace: true })
   }
 
+  function goToToday() {
+    const today = new Date()
+    const todayKey = fmtDate(today)
+    setMonthCursor(startOfMonth(today))
+    setSelectedDate(todayKey)
+    navigate(`/schedule?date=${todayKey}`, { replace: true })
+  }
+
   function openOverflowPopup(date, dayItems, event) {
     if (event) event.stopPropagation()
     const rect = event?.currentTarget?.getBoundingClientRect?.()
@@ -3952,18 +3960,25 @@ function CalendarPage() {
   return (
     <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
-        <div className="calendar-toolbar upgraded">
-          <div className="schedule-toolbar-head">
-            <div className="inline-actions">
-              <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(-1)}>◀</button>
-              <strong>{monthLabel}</strong>
-              <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)}>▶</button>
+        <div className="calendar-toolbar upgraded schedule-toolbar-updated">
+          <div className="schedule-toolbar-main-row">
+            <div className="schedule-toolbar-side schedule-toolbar-side-left">
+              <button type="button" className="small ghost schedule-today-button" onClick={goToToday}>오늘</button>
             </div>
-            <button type="button" className="small ghost schedule-legend-trigger" onClick={() => setLegendOpen(true)}>표 설명</button>
+            <div className="schedule-toolbar-center">
+              <div className="inline-actions schedule-month-nav">
+                <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(-1)} aria-label="이전 달">◀</button>
+                <strong className="schedule-month-label">{monthLabel}</strong>
+                <button type="button" className="ghost small icon-month-button" onClick={() => moveMonth(1)} aria-label="다음 달">▶</button>
+              </div>
+            </div>
+            <div className="schedule-toolbar-side schedule-toolbar-side-right">
+              <button type="button" className="small ghost schedule-settings-button" onClick={() => setLegendOpen(true)} title="설정" aria-label="설정">⚙</button>
+            </div>
           </div>
-          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ' desktop-vertical'}`}>
-            {!readOnly && <button type="button" className="small" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)}>일정등록</button>}
-            {!readOnly && <button type="button" className="small ghost" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손없는날등록</button>}
+          <div className={`inline-actions wrap schedule-toolbar-actions${isMobile ? ' mobile-stacked' : ' desktop-inline'}`}>
+            {!readOnly && <button type="button" className="small icon-only schedule-add-button" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)} title="일정등록" aria-label="일정등록">+</button>}
+            {!readOnly && <button type="button" className="small schedule-handless-button" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손</button>}
           </div>
         </div>
         <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
@@ -3993,8 +4008,8 @@ function CalendarPage() {
                           <button type="button" className="calendar-entry-band secondary filled" onClick={() => setOverflowPopup({ dateKey: fmtDate(date), items: daySummary?.entries || [], title: '스케줄목록' })}>
                             <span className="calendar-entry-label two-line">스케줄<br />목록</span>
                           </button>
-                          <button type="button" className="calendar-entry-band filled" onClick={() => openDateForm(date)}>
-                            <span className="calendar-entry-label two-line">일정<br />등록</span>
+                          <button type="button" className="calendar-entry-band filled schedule-add-band" onClick={() => openDateForm(date)} title="일정등록" aria-label="일정등록">
+                            <span className="calendar-entry-label plus-only">+</span>
                           </button>
                         </div>
                       )}
