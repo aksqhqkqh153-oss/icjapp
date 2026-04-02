@@ -53,9 +53,9 @@ function pageTitle(pathname) {
 function MenuIcon({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4 7.25h16" />
+      <path d="M4 7h16" />
       <path d="M4 12h16" />
-      <path d="M4 16.75h16" />
+      <path d="M4 17h16" />
     </svg>
   )
 }
@@ -63,8 +63,8 @@ function MenuIcon({ className = '' }) {
 function BellIcon({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M7.75 10.25a4.25 4.25 0 1 1 8.5 0v2.05c0 .78.24 1.54.69 2.17l.81 1.15a1 1 0 0 1-.82 1.58H7.07a1 1 0 0 1-.82-1.58l.81-1.15c.45-.63.69-1.39.69-2.17v-2.05Z" />
-      <path d="M10 18.25a2 2 0 0 0 4 0" />
+      <path d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v2.17c0 .88-.27 1.74-.78 2.46L5.7 15.1a1 1 0 0 0 .82 1.58h10.96a1 1 0 0 0 .82-1.58l-1.02-1.47a4.24 4.24 0 0 1-.78-2.46V9A4.5 4.5 0 0 0 12 4.5Z" />
+      <path d="M9.75 18.25a2.25 2.25 0 0 0 4.5 0" />
     </svg>
   )
 }
@@ -72,15 +72,26 @@ function BellIcon({ className = '' }) {
 function SettingsIcon({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="12" cy="12" r="3.1" />
-      <path d="M12 3.75v2.1" />
-      <path d="M12 18.15v2.1" />
-      <path d="M20.25 12h-2.1" />
-      <path d="M5.85 12h-2.1" />
-      <path d="m17.83 6.17-1.48 1.48" />
-      <path d="m7.65 16.35-1.48 1.48" />
-      <path d="m17.83 17.83-1.48-1.48" />
-      <path d="m7.65 7.65-1.48-1.48" />
+      <path d="M10.25 3.9h3.5l.45 2.13c.42.14.82.31 1.2.51l1.9-1.06 2.47 2.47-1.06 1.9c.2.38.37.78.51 1.2l2.13.45v3.5l-2.13.45c-.14.42-.31.82-.51 1.2l1.06 1.9-2.47 2.47-1.9-1.06c-.38.2-.78.37-1.2.51l-.45 2.13h-3.5l-.45-2.13a8.1 8.1 0 0 1-1.2-.51l-1.9 1.06-2.47-2.47 1.06-1.9a8.1 8.1 0 0 1-.51-1.2l-2.13-.45v-3.5l2.13-.45c.14-.42.31-.82.51-1.2l-1.06-1.9 2.47-2.47 1.9 1.06c.38-.2.78-.37 1.2-.51l.45-2.13Z" />
+      <circle cx="12" cy="12" r="2.85" />
+    </svg>
+  )
+}
+
+function ArrowLeftIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M15 5.5 8.5 12 15 18.5" />
+      <path d="M9 12h9" />
+    </svg>
+  )
+}
+
+function SearchIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path d="m15 15 4.5 4.5" />
     </svg>
   )
 }
@@ -2944,15 +2955,15 @@ function ChatRoomPage({ roomType }) {
         <header className="chat-room-topbar-section">
           <div className="chat-room-topbar-grid">
             <div className="chat-room-topbar-left">
-              <button type="button" className="small ghost icon-button" onClick={() => navigate('/chats')}>뒤로</button>
+              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => navigate('/chats')} aria-label="뒤로"><ArrowLeftIcon className="topbar-icon-svg" /></button>
               <div className="chat-room-heading compact">
                 <strong>{roomTitle}</strong>
                 <button type="button" className="chat-member-count-button" onClick={() => setMembersOpen(true)}>{roomMemberCount}명</button>
               </div>
             </div>
             <div className="chat-room-topbar-actions">
-              <button type="button" className="small ghost icon-button" onClick={() => window.alert('채팅방 검색 기능은 다음 단계에서 연결됩니다.')}>검색</button>
-              <button type="button" className="small ghost icon-button" onClick={() => setChatActionSheet({ title: roomTitle, actions: [{ label: '참여자 보기', onClick: () => setMembersOpen(true) }] })}>메뉴</button>
+              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => window.alert('채팅방 검색 기능은 다음 단계에서 연결됩니다.')} aria-label="검색"><SearchIcon className="topbar-icon-svg" /></button>
+              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => setChatActionSheet({ title: roomTitle, actions: [{ label: '참여자 보기', onClick: () => setMembersOpen(true) }] })} aria-label="메뉴"><MenuIcon className="topbar-icon-svg" /></button>
             </div>
           </div>
         </header>
@@ -3054,7 +3065,7 @@ function ChatRoomPage({ roomType }) {
           <form className="chat-compose-box compact" onSubmit={handleSend}>
             <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
             <input ref={fileInputRef} type="file" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
-            <button type="button" className="chat-plus-button" onClick={() => setPlusMenuOpen(true)}>＋</button>
+            <button type="button" className="chat-plus-button" onClick={() => setPlusMenuOpen(true)} aria-label="채팅 부가 기능">＋</button>
             <input
               value={message}
               onChange={event => setMessage(event.target.value)}
