@@ -1102,7 +1102,11 @@ function HomePage() {
       } catch (_) {}
     }
     loadWorkdayStatus()
-    return () => { ignore = true }
+    return () => {
+      ignore = true
+    }
+  }, [currentUser?.id])
+
   useEffect(() => {
     const activeState = homeSettings.activeWorkState
     if (!activeState?.started || !activeState?.workDate || !activeState?.startTime) {
@@ -1135,8 +1139,6 @@ function HomePage() {
     const seconds = String(safe % 60).padStart(2, '0')
     return `${hours}:${minutes}:${seconds}`
   }
-
-  }, [currentUser?.id])
 
   function updateQuickState(nextState) {
     setQuickState(nextState)
@@ -3877,8 +3879,8 @@ function CalendarPage() {
         .map(item => ({
           id: item.id,
           branch_no: item.branch_no,
-          name: item.nickname || item.name || item.email || `계정 ${item.id}`,
-          label: `[${item.branch_no}호점] ${item.nickname || item.name || item.email || `계정 ${item.id}`}`,
+          name: item.name || item.nickname || item.email || `계정 ${item.id}`,
+          label: `[${item.branch_no}호점] ${item.name || item.nickname || item.email || `계정 ${item.id}`}`,
         }))
       setExceptionAccounts(accounts)
       const dayItems = Array.isArray(selectedDaySummary?.auto_unavailable_business) ? selectedDaySummary.auto_unavailable_business : []
@@ -4644,6 +4646,8 @@ function WorkSchedulePage() {
   const [activeFormDate, setActiveFormDate] = useState('')
   const [noteForm, setNoteForm] = useState({ schedule_date: '', excluded_business_slots: Array(6).fill(''), excluded_business_reasons: Array(6).fill(''), excluded_staff: '' })
   const businessSlotCount = Math.max(6, noteForm.excluded_business_slots.length, noteForm.excluded_business_reasons.length)
+  const [noteDeleteMode, setNoteDeleteMode] = useState(false)
+  const [noteDeleteChecks, setNoteDeleteChecks] = useState([])
 
   function setBusinessSlotCount(nextCount) {
     const safeCount = Math.max(6, Number(nextCount) || 6)
@@ -4677,8 +4681,8 @@ function WorkSchedulePage() {
           .filter(item => !item?.archived_in_branch_status)
           .map(item => ({
             value: String(item.branch_no),
-            label: `[${branchDisplayLabel(item.branch_no, `${item.branch_no}호점`)}] [${item.nickname || item.name || item.email || `${item.branch_no}호점`}]`,
-            name: item.nickname || item.name || item.email || `${item.branch_no}호점`,
+            label: `[${branchDisplayLabel(item.branch_no, `${item.branch_no}호점`)}] [${item.name || item.nickname || item.email || `${item.branch_no}호점`}]`,
+            name: item.name || item.nickname || item.email || `${item.branch_no}호점`,
             userId: item.id,
           }))
         setBusinessExclusionOptions(branches)
@@ -4704,6 +4708,8 @@ function WorkSchedulePage() {
 
   function openNotes(day) {
     setActiveNoteDate(day.date)
+    setNoteDeleteMode(false)
+    setNoteDeleteChecks([])
     const details = Array.isArray(day.excluded_business_details) ? day.excluded_business_details : []
     setNoteForm({
       schedule_date: day.date,
@@ -4716,6 +4722,8 @@ function WorkSchedulePage() {
 
   function closeNotes() {
     setActiveNoteDate('')
+    setNoteDeleteMode(false)
+    setNoteDeleteChecks([])
   }
 
   function clearExcludedBusinessSlot(index) {
@@ -4725,6 +4733,26 @@ function WorkSchedulePage() {
     nextReasons[index] = ''
     setNoteForm({ ...noteForm, excluded_business_slots: nextSlots, excluded_business_reasons: nextReasons })
   }
+  function toggleNoteDeleteCheck(index) {
+    setNoteDeleteChecks(prev => prev.includes(index) ? prev.filter(item => item !== index) : [...prev, index].sort((a, b) => a - b))
+  }
+
+  function applyNoteDeleteSelection() {
+    if (!noteDeleteChecks.length) {
+      window.alert('삭제할 열외사업자를 선택해 주세요.')
+      return
+    }
+    const nextSlots = [...noteForm.excluded_business_slots]
+    const nextReasons = [...(noteForm.excluded_business_reasons || Array(businessSlotCount).fill(''))]
+    noteDeleteChecks.forEach(index => {
+      nextSlots[index] = ''
+      nextReasons[index] = ''
+    })
+    setNoteForm({ ...noteForm, excluded_business_slots: nextSlots, excluded_business_reasons: nextReasons })
+    setNoteDeleteChecks([])
+    setNoteDeleteMode(false)
+  }
+
 
   async function submitEntry(e) {
     e.preventDefault()
@@ -5001,7 +5029,10 @@ function WorkSchedulePage() {
                 <div className="work-schedule-section-title-wrap">
                   <strong className="work-schedule-section-title">열외자 목록</strong>
                                   </div>
-                {!readOnly && <button type="button" className="small ghost" onClick={() => openNotes(day)}>열외자편집</button>}
+                {!readOnly && activeNoteDate === day.date && (
+                  <button type="button" className="small ghost" onClick={() => noteDeleteMode ? applyNoteDeleteSelection() : setNoteDeleteMode(true)}>{noteDeleteMode ? '삭제적용' : '삭제'}</button>
+                )}
+                {!readOnly && <button type="button" className="small ghost" onClick={() => activeNoteDate === day.date ? closeNotes() : openNotes(day)}>{activeNoteDate === day.date ? '편집닫기' : '열외자편집'}</button>}
               </div>
 
             {activeNoteDate === day.date && !readOnly && (
@@ -5011,6 +5042,11 @@ function WorkSchedulePage() {
                   <div className="work-excluded-business-grid with-reason">
                     {Array.from({ length: businessSlotCount }, (_, index) => noteForm.excluded_business_slots[index] || '').map((slot, index) => (
                       <div key={`${day.date}-business-${index}`} className="work-excluded-business-row">
+                        {noteDeleteMode && (
+                          <label className="checkbox-line work-excluded-checkbox">
+                            <input type="checkbox" checked={noteDeleteChecks.includes(index)} onChange={() => toggleNoteDeleteCheck(index)} />
+                          </label>
+                        )}
                         <select value={slot} onChange={e => {
                           const nextValue = e.target.value
                           if (nextValue && noteForm.excluded_business_slots.some((selected, slotIndex) => slotIndex !== index && selected === nextValue)) {
@@ -5031,7 +5067,6 @@ function WorkSchedulePage() {
                           nextReasons[index] = e.target.value
                           setNoteForm({ ...noteForm, excluded_business_reasons: nextReasons })
                         }} />
-                        <button type="button" className="small ghost work-excluded-delete-button" onClick={() => clearExcludedBusinessSlot(index)}>열외삭제</button>
                       </div>
                     ))}
                   </div>
@@ -8102,7 +8137,7 @@ function AdminModePage() {
                         <div className="admin-summary-lines employee-summary-lines">
                           <div className="admin-summary-line admin-summary-line-primary">
                             <span>[{groupNumberDisplay(item)}]</span>
-                            <span>[{item.nickname || item.name || '이름 미입력'}]</span>
+                            <span>[{item.name || item.nickname || '이름 미입력'}]</span>
                             <span>[{item.phone || '연락처 미입력'}]</span>
                             <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
                           </div>
