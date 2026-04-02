@@ -8732,6 +8732,70 @@ a:focus-visible {
   min-height: 38px;
 }
 
+
+.disposal-settlement-board-card {
+  display: grid;
+  gap: 16px;
+}
+
+.disposal-settlement-date-group {
+  display: grid;
+  gap: 8px;
+}
+
+.disposal-settlement-date-label {
+  font-size: 16px;
+  font-weight: 800;
+  color: #344157;
+  padding-left: 2px;
+}
+
+.disposal-settlement-grid {
+  display: grid;
+  gap: 0;
+  border: 1px solid #e2e8f2;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.disposal-settlement-grid-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.1fr) minmax(100px, .9fr) minmax(80px, .55fr) minmax(110px, .9fr) minmax(110px, .9fr) minmax(110px, .9fr) minmax(110px, .9fr);
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #ecf0f6;
+}
+
+.disposal-settlement-grid-row:last-child {
+  border-bottom: 0;
+}
+
+.disposal-settlement-grid-head {
+  background: #f4f7fb;
+  font-weight: 800;
+  color: #44506a;
+}
+
+.disposal-settlement-grid-button {
+  border: 0;
+  background: #fff;
+  width: 100%;
+  text-align: left;
+}
+
+.disposal-settlement-grid-button:hover {
+  background: #fafcff;
+}
+
+.disposal-settlement-grid-button span,
+.disposal-settlement-grid-head div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .disposal-settlement-metrics {
   display: grid;
   gap: 10px;
@@ -8781,6 +8845,14 @@ a:focus-visible {
 
   .disposal-list-link-row {
     grid-template-columns: 1fr;
+  }
+
+  .disposal-settlement-grid {
+    overflow-x: auto;
+  }
+
+  .disposal-settlement-grid-row {
+    min-width: 880px;
   }
 
   .disposal-list-data-row {

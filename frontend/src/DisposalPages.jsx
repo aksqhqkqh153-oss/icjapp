@@ -468,6 +468,50 @@ export function DisposalListPage() {
   )
 }
 
+
+function formatGroupDate(value) {
+  if (!value) return '날짜 미지정'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('ko-KR')
+}
+
+function getSavedDateKey(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value || 'unknown')
+  return date.toISOString().slice(0, 10)
+}
+
+function buildSettlementGroups(records) {
+  const grouped = new Map()
+  sortRecords(records, 'latest').forEach((record) => {
+    const key = getSavedDateKey(record.savedAt)
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        key,
+        label: formatGroupDate(record.savedAt),
+        records: [],
+      })
+    }
+    grouped.get(key).records.push(record)
+  })
+  return Array.from(grouped.values())
+}
+
+function getRecordSettlementMetrics(record) {
+  const totalQty = safeNumber(record?.totals?.totalQty)
+  const reportAmount = safeNumber(record?.totals?.totalReport)
+  const finalAmount = safeNumber(record?.totals?.totalFinal)
+  const feeAmount = Math.max(0, finalAmount - reportAmount)
+  return {
+    totalQty,
+    reportAmount,
+    feeAmount,
+    cancelAmount: 0,
+    minimumFee: finalAmount,
+  }
+}
+
 export function DisposalSettlementsPage() {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
@@ -483,12 +527,14 @@ export function DisposalSettlementsPage() {
     totalFinal: records.reduce((sum, record) => sum + safeNumber(record?.totals?.totalFinal), 0),
   }), [records])
 
+  const groupedSettlements = useMemo(() => buildSettlementGroups(records), [records])
+
   return (
     <div className="stack-page disposal-page">
       <section className="card disposal-hero">
         <div>
           <h2>폐기결산</h2>
-          <p className="notice-text">한 화면에서 합계와 저장 목록을 함께 확인하도록 구성했습니다.</p>
+          <p className="notice-text">저장일 기준으로 날짜별 결산 자료를 묶어서 한 번에 확인하도록 구성했습니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
@@ -496,49 +542,51 @@ export function DisposalSettlementsPage() {
         </div>
       </section>
 
-      <section className="disposal-settlement-shell">
-        <div className="disposal-settlement-left">
-          <section className="disposal-summary-grid">
-            <div className="card disposal-summary-card"><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
-            <div className="card disposal-summary-card"><span>총 수량</span><strong>{formatNumber(summary.totalQty)}</strong></div>
-            <div className="card disposal-summary-card"><span>신고합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
-            <div className="card disposal-summary-card"><span>최종비용 합계</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
-          </section>
-          <section className="card disposal-records-card disposal-list-table-card">
-            <div className="disposal-list-table-head disposal-list-table-row">
-              <div>고객명</div>
-              <div>폐기일자</div>
-              <div>폐기장소</div>
-              <div>관할구역</div>
-              <div>최종현황</div>
+      <section className="disposal-summary-grid">
+        <div className="card disposal-summary-card"><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
+        <div className="card disposal-summary-card"><span>총 품목수</span><strong>{formatNumber(summary.totalQty)}</strong></div>
+        <div className="card disposal-summary-card"><span>폐기신고액 합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
+        <div className="card disposal-summary-card"><span>최소수수료 합계</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
+      </section>
+
+      <section className="card disposal-records-card disposal-settlement-board-card">
+        {groupedSettlements.length === 0 ? (
+          <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
+        ) : groupedSettlements.map(group => (
+          <div key={group.key} className="disposal-settlement-date-group">
+            <div className="disposal-settlement-date-label">{group.label}</div>
+            <div className="disposal-settlement-grid">
+              <div className="disposal-settlement-grid-row disposal-settlement-grid-head">
+                <div>고객명</div>
+                <div>폐기예정일</div>
+                <div>품목수</div>
+                <div>폐기신고액</div>
+                <div>폐기수수료</div>
+                <div>취소신고액</div>
+                <div>최소수수료</div>
+              </div>
+              {group.records.map(record => {
+                const metrics = getRecordSettlementMetrics(record)
+                return (
+                  <button
+                    key={record.id}
+                    type="button"
+                    className="disposal-settlement-grid-row disposal-settlement-grid-button"
+                    onClick={() => navigate(`/disposal/forms/${record.id}`)}
+                  >
+                    <span>{record.customerName || '-'}</span>
+                    <span>{record.disposalDate || '-'}</span>
+                    <span>{formatNumber(metrics.totalQty)}</span>
+                    <span>{formatNumber(metrics.reportAmount)}원</span>
+                    <span>{formatNumber(metrics.feeAmount)}원</span>
+                    <span>{formatNumber(metrics.cancelAmount)}원</span>
+                    <span>{formatNumber(metrics.minimumFee)}원</span>
+                  </button>
+                )
+              })}
             </div>
-            {records.length === 0 ? (
-              <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
-            ) : sortRecords(records, 'latest').map(record => (
-              <button key={record.id} type="button" className="disposal-list-table-row disposal-list-link-row disposal-list-data-row disposal-plain-button" onClick={() => navigate(`/disposal/forms/${record.id}`)}>
-                <span>{record.customerName || '-'}</span>
-                <span>{record.disposalDate || '-'}</span>
-                <span>{record.location || '-'}</span>
-                <span>{record.district || '-'}</span>
-                <span>{record.finalStatus || '-'}</span>
-              </button>
-            ))}
-          </section>
-        </div>
-        <div className="disposal-settlement-right">
-          <section className="card disposal-sheet-card disposal-settlement-mini-sheet">
-            <div className="disposal-sheet-head">
-              <h3>결산 요약</h3>
-              <div className="notice-text">저장 데이터 합계를 기준으로 즉시 반영됩니다.</div>
-            </div>
-            <div className="disposal-settlement-metrics">
-              <div><span>저장 건수</span><strong>{formatNumber(summary.count)}</strong></div>
-              <div><span>총 수량</span><strong>{formatNumber(summary.totalQty)}</strong></div>
-              <div><span>신고합계</span><strong>{formatNumber(summary.totalReport)}원</strong></div>
-              <div><span>최종비용</span><strong>{formatNumber(summary.totalFinal)}원</strong></div>
-            </div>
-          </section>
-        </div>
+          </div>
+        ))}
       </section>
     </div>
   )
