@@ -3712,7 +3712,6 @@ function CalendarPage() {
   const [exceptionForm, setExceptionForm] = useState({ user_id: '', start_date: initialDate, end_date: initialDate, reason: '' })
   const [exceptionItems, setExceptionItems] = useState([])
   const [editingExceptionId, setEditingExceptionId] = useState(null)
-  const [mobileCalendarCollapsed, setMobileCalendarCollapsed] = useState(false)
   const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
@@ -3960,7 +3959,7 @@ function CalendarPage() {
   }
 
   return (
-    <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}${isMobile && mobileCalendarCollapsed ? ' mobile-calendar-collapsed' : ''}`}>
+    <div className={`stack-page schedule-page${isMobile ? ' mobile' : ''}`}>
       <section className="card schedule-card">
         <div className="calendar-toolbar upgraded schedule-toolbar-updated">
           <div className="schedule-toolbar-main-row single-line">
@@ -3981,8 +3980,8 @@ function CalendarPage() {
             </div>
           </div>
         </div>
-        {!(isMobile && mobileCalendarCollapsed) && <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>}
-        {!(isMobile && mobileCalendarCollapsed) && <div className={`calendar-grid schedule-grid detail-mode${isMobile ? ' mobile-calendar-grid' : ''}`}>
+        <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
+        <div className={`calendar-grid schedule-grid detail-mode${isMobile ? ' mobile-calendar-grid' : ''}`}>
           {days.map((date, idx) => {
             const key = date ? fmtDate(date) : `blank-${idx}`
             const today = date && fmtDate(date) === fmtDate(new Date())
@@ -4066,21 +4065,11 @@ function CalendarPage() {
               </div>
             )
           })}
-        </div>}
+        </div>
 
         {isMobile && (
-          <div className={`mobile-schedule-detail-panel${mobileCalendarCollapsed ? ' expanded' : ''}`}>
-            <div className="mobile-schedule-detail-toggle-row">
-              <button
-                type="button"
-                className="mobile-schedule-collapse-toggle"
-                aria-label={mobileCalendarCollapsed ? '달력 펼치기' : '달력 접기'}
-                title={mobileCalendarCollapsed ? '달력 펼치기' : '달력 접기'}
-                onClick={() => setMobileCalendarCollapsed(prev => !prev)}
-              >
-                {mobileCalendarCollapsed ? '▼' : '▲'}
-              </button>
-            </div>
+          <div className="mobile-schedule-detail-panel">
+            <div className="mobile-schedule-detail-toggle-indicator" aria-hidden="true">▲</div>
             <div className="mobile-schedule-detail-head single-row-summary">
               <strong>{formatSelectedDateLabel(selectedDate)}</strong>
               <div className="mobile-schedule-detail-meta summary-inline-row">

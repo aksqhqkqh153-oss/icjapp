@@ -2828,27 +2828,84 @@ def _calendar_event_out(conn, row):
     item["status_b_count"] = int(item.get("status_b_count") or 0)
     item["status_c_count"] = int(item.get("status_c_count") or 0)
     return item
+def _can_access_shared_schedule(user: dict | None) -> bool:
+    try:
+        return int((user or {}).get('grade') or 6) <= 5
+    except Exception:
+        return False
+
+
+def _shared_schedule_user_ids(conn) -> list[int]:
+    rows = conn.execute(
+        """
+        SELECT id
+        FROM users
+        WHERE COALESCE(approved, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) <= 5
+        ORDER BY CAST(COALESCE(grade, '6') AS INTEGER), id
+        """
+    ).fetchall()
+    output: list[int] = []
+    for row in rows:
+        try:
+            value = int(row['id']) if hasattr(row, 'keys') else int(row[0])
+        except Exception:
+            continue
+        if value not in output:
+            output.append(value)
+    return output
+
+
+def _calendar_event_accessible(conn, event_id: int, user: dict) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        return None
+    item = row_to_dict(row)
+    owner_id = int(item.get('user_id') or 0)
+    if owner_id == int(user.get('id') or 0):
+        return item
+    if not _can_access_shared_schedule(user):
+        return None
+    owner_row = conn.execute("SELECT grade, approved FROM users WHERE id = ?", (owner_id,)).fetchone()
+    if not owner_row:
+        return None
+    owner = row_to_dict(owner_row)
+    try:
+        owner_grade = int(owner.get('grade') or 6)
+    except Exception:
+        owner_grade = 6
+    if owner_grade <= 5 and int(owner.get('approved') if owner.get('approved') is not None else 1) == 1:
+        return item
+    return None
+
+
 @app.get("/api/calendar/events")
 def get_calendar_events(start_date: str | None = None, end_date: str | None = None, user=Depends(require_user)):
     with get_conn() as conn:
-        query = "SELECT * FROM calendar_events WHERE user_id = ?"
-        params = [user["id"]]
+        if _can_access_shared_schedule(user):
+            shared_ids = _shared_schedule_user_ids(conn)
+        else:
+            shared_ids = [int(user["id"])]
+        if not shared_ids:
+            shared_ids = [int(user["id"])]
+        placeholders = ','.join('?' for _ in shared_ids)
+        query = f"SELECT * FROM calendar_events WHERE user_id IN ({placeholders})"
+        params = list(shared_ids)
         if start_date:
             query += " AND event_date >= ?"
             params.append(start_date)
         if end_date:
             query += " AND event_date <= ?"
             params.append(end_date)
-        query += " ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END"
+        query += " ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END, id"
         rows = conn.execute(query, tuple(params)).fetchall()
         return [_calendar_event_out(conn, r) for r in rows]
 @app.get("/api/calendar/events/{event_id}")
 def get_calendar_event(event_id: int, user=Depends(require_user)):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
-        if not row:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
-        return _calendar_event_out(conn, row)
+        return _calendar_event_out(conn, item)
 @app.post("/api/calendar/events")
 def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
@@ -2891,7 +2948,7 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+            raise HTTPException(status_code=404, detail="본인이 등록한 일정만 수정할 수 있습니다.")
         previous_event_date = row["event_date"]
         conn.execute(
             """
@@ -2933,6 +2990,8 @@ def delete_calendar_event(event_id: int, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
     with get_conn() as conn:
         row = conn.execute("SELECT event_date FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="본인이 등록한 일정만 삭제할 수 있습니다.")
         conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
         if row:
             _sync_work_schedule_day_note_counts(conn, user["id"], row["event_date"])
@@ -3078,7 +3137,7 @@ def _get_schedule_note_owner_id_for_user(conn, user: dict | None) -> int:
         grade = int(user.get('grade') or 6)
     except Exception:
         grade = 6
-    if grade <= 2:
+    if grade <= 5:
         return _get_shared_schedule_note_owner_id(conn)
     try:
         return int(user.get('id') or _get_shared_schedule_note_owner_id(conn))
