@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -1316,11 +1316,19 @@ async def request_logger(request: Request, call_next):
 
 @app.middleware("http")
 async def ensure_api_cors_headers(request: Request, call_next):
-    response = await call_next(request)
     origin = request.headers.get('origin', '')
+    try:
+        response = await call_next(request)
+    except HTTPException as exc:
+        response = JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
+    except Exception as exc:
+        logger.exception('Unhandled API error: %s %s', request.method, request.url.path)
+        response = JSONResponse(status_code=500, content={'detail': '서버 내부 오류가 발생했습니다.'})
     if origin and _origin_allowed(origin):
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = request.headers.get('access-control-request-headers', '*') or '*'
         vary = response.headers.get('Vary', '')
         response.headers['Vary'] = 'Origin' if not vary else (vary if 'Origin' in vary else f"{vary}, Origin")
     return response
