@@ -2831,21 +2831,26 @@ def _calendar_event_out(conn, row):
 @app.get("/api/calendar/events")
 def get_calendar_events(start_date: str | None = None, end_date: str | None = None, user=Depends(require_user)):
     with get_conn() as conn:
-        query = "SELECT * FROM calendar_events WHERE user_id = ?"
-        params = [user["id"]]
+        shared_user_ids = _get_schedule_shared_user_ids(conn, user)
+        placeholders = ','.join('?' for _ in shared_user_ids) or '?'
+        query = f"SELECT * FROM calendar_events WHERE user_id IN ({placeholders})"
+        params = list(shared_user_ids) if shared_user_ids else [int(user["id"])]
         if start_date:
             query += " AND event_date >= ?"
             params.append(start_date)
         if end_date:
             query += " AND event_date <= ?"
             params.append(end_date)
-        query += " ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END"
+        query += " ORDER BY event_date, CASE WHEN start_time = '미정' THEN '99:99' ELSE start_time END, id"
         rows = conn.execute(query, tuple(params)).fetchall()
         return [_calendar_event_out(conn, r) for r in rows]
 @app.get("/api/calendar/events/{event_id}")
 def get_calendar_event(event_id: int, user=Depends(require_user)):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        shared_user_ids = _get_schedule_shared_user_ids(conn, user)
+        placeholders = ','.join('?' for _ in shared_user_ids) or '?'
+        params = [event_id, *(shared_user_ids if shared_user_ids else [int(user["id"])])]
+        row = conn.execute(f"SELECT * FROM calendar_events WHERE id = ? AND user_id IN ({placeholders})", tuple(params)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
         return _calendar_event_out(conn, row)
@@ -3053,13 +3058,20 @@ def _vehicle_account_display_name(row: dict[str, Any] | None, default: str = '')
 SCHEDULE_EXCLUSION_REASON_PREFIX = '[스케줄열외]'
 
 
+def _is_schedule_shared_grade(grade_value: Any) -> bool:
+    try:
+        return int(grade_value or 0) in {1, 2, 3, 4, 5}
+    except Exception:
+        return False
+
+
 def _get_shared_schedule_note_owner_id(conn) -> int:
     row = conn.execute(
         """
         SELECT id
         FROM users
-        WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)
-        ORDER BY CASE WHEN grade = 1 THEN 0 ELSE 1 END, id
+        WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2, 3, 4, 5)
+        ORDER BY CASE WHEN grade = 1 THEN 0 WHEN grade = 2 THEN 1 WHEN grade = 3 THEN 2 WHEN grade = 4 THEN 3 ELSE 4 END, id
         LIMIT 1
         """
     ).fetchone()
@@ -3071,14 +3083,35 @@ def _get_shared_schedule_note_owner_id(conn) -> int:
     return 1
 
 
+def _get_schedule_shared_user_ids(conn, user: dict | None) -> list[int]:
+    if not user:
+        owner_id = _get_shared_schedule_note_owner_id(conn)
+        return [owner_id] if owner_id else []
+    if _is_schedule_shared_grade(user.get('grade')):
+        rows = conn.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE COALESCE(approved, 1) = 1
+              AND COALESCE(is_active, 1) = 1
+              AND CAST(COALESCE(grade, '6') AS INTEGER) IN (1, 2, 3, 4, 5)
+            ORDER BY id
+            """
+        ).fetchall()
+        ids = [int(row['id']) if hasattr(row, 'keys') else int(row[0]) for row in rows]
+        if ids:
+            return ids
+    try:
+        return [int(user.get('id') or _get_shared_schedule_note_owner_id(conn))]
+    except Exception:
+        owner_id = _get_shared_schedule_note_owner_id(conn)
+        return [owner_id] if owner_id else []
+
+
 def _get_schedule_note_owner_id_for_user(conn, user: dict | None) -> int:
     if not user:
         return _get_shared_schedule_note_owner_id(conn)
-    try:
-        grade = int(user.get('grade') or 6)
-    except Exception:
-        grade = 6
-    if grade <= 2:
+    if _is_schedule_shared_grade(user.get('grade')):
         return _get_shared_schedule_note_owner_id(conn)
     try:
         return int(user.get('id') or _get_shared_schedule_note_owner_id(conn))
@@ -3467,22 +3500,25 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
     base_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else datetime.now().date()
     date_keys = [(base_date + timedelta(days=index)).isoformat() for index in range(days)]
     with get_conn() as conn:
-        placeholders = ','.join('?' for _ in date_keys)
+        date_placeholders = ','.join('?' for _ in date_keys)
+        shared_user_ids = _get_schedule_shared_user_ids(conn, user)
+        user_placeholders = ','.join('?' for _ in shared_user_ids) or '?'
+        shared_user_params = tuple(shared_user_ids if shared_user_ids else [int(user['id'])])
         work_rows = conn.execute(
             f"""
             SELECT * FROM work_schedule_entries
-            WHERE user_id = ? AND schedule_date IN ({placeholders})
+            WHERE user_id IN ({user_placeholders}) AND schedule_date IN ({date_placeholders})
             ORDER BY schedule_date, CASE WHEN COALESCE(schedule_time, '') = '' THEN '99:99' ELSE schedule_time END, id
             """,
-            (user['id'], *date_keys),
+            (*shared_user_params, *date_keys),
         ).fetchall()
         event_rows = conn.execute(
             f"""
             SELECT * FROM calendar_events
-            WHERE user_id = ? AND event_date IN ({placeholders})
+            WHERE user_id IN ({user_placeholders}) AND event_date IN ({date_placeholders})
             ORDER BY event_date, CASE WHEN COALESCE(start_time, '') IN ('', '미정') THEN '99:99' ELSE start_time END, id
             """,
-            (user['id'], *date_keys),
+            (*shared_user_params, *date_keys),
         ).fetchall()
         notes_owner_id = _get_schedule_note_owner_id_for_user(conn, user)
         notes_rows = conn.execute(

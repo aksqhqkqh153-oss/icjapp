@@ -9629,9 +9629,9 @@ a:focus-visible {
   border: 0 !important;
   background: transparent !important;
   color: #475569 !important;
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1;
-  padding: 0 8px;
+  padding: 0 5px;
   box-shadow: none !important;
   transform: none !important;
   outline: none;
