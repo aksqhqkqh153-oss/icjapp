@@ -415,8 +415,9 @@ const QUICK_ACTION_LIBRARY = [
   { id: 'operationsDashboard', label: '대쉬보드', kind: 'link', path: '/operations-dashboard', adminOnly: true },
 ]
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
-const HOME_SECTION_ORDER_DEFAULT = ['quick', 'workday', 'upcoming']
-const HOME_HOLD_SECONDS_DEFAULT = 2
+const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
+const HOME_HOLD_SECONDS_DEFAULT = 1
+const QUICK_ACTION_LIMIT = 16
 
 function homeSettingsStorageKey(userId) {
   return `icj_home_settings_${userId || 'guest'}`
@@ -498,7 +499,7 @@ function getQuickActionState(userId) {
     const active = Array.isArray(parsed?.active) ? parsed.active.filter(id => known.has(id)) : fallback.active
     const archived = Array.isArray(parsed?.archived) ? parsed.archived.filter(id => known.has(id) && !active.includes(id)) : []
     const missing = QUICK_ACTION_LIBRARY.map(item => item.id).filter(id => !active.includes(id) && !archived.includes(id))
-    return { active: [...active, ...missing].slice(0, 9), archived }
+    return { active: [...active, ...missing].slice(0, QUICK_ACTION_LIMIT), archived }
   } catch (_) {
     return fallback
   }
@@ -1045,13 +1046,14 @@ function HomePage() {
   const [homeSettings, setHomeSettings] = useState(() => getHomeSettings(currentUser?.id))
   const [holdProgress, setHoldProgress] = useState(false)
   const [workdayStatus, setWorkdayStatus] = useState(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const holdTimerRef = useRef(null)
 
   useEffect(() => {
     async function load() {
       const [friends, upcoming] = await Promise.all([
         api('/api/friends'),
-        api('/api/home/upcoming-schedules'),
+        api('/api/home/upcoming-schedules?days=5'),
       ])
       let pendingMaterialsRequesterCount = 0
       try {
@@ -1066,6 +1068,7 @@ function HomePage() {
         pendingMaterialsRequesterCount,
         upcomingCount: (upcoming.days || []).reduce((acc, day) => acc + (day.items?.length || 0), 0),
         upcomingDays: upcoming.days || [],
+        upcomingItems: (upcoming.days || []).flatMap(day => (day.items || []).map((item, index) => ({ ...item, dayDate: day.date, dayLabel: day.label, sortKey: `${day.date}-${String(index).padStart(3, '0')}` }))).sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey))),
       })
     }
     load().catch(() => {})
@@ -1100,6 +1103,39 @@ function HomePage() {
     }
     loadWorkdayStatus()
     return () => { ignore = true }
+  useEffect(() => {
+    const activeState = homeSettings.activeWorkState
+    if (!activeState?.started || !activeState?.workDate || !activeState?.startTime) {
+      const latest = workdayStatus?.today
+      if (latest?.start_time && latest?.end_time) {
+        const [sh, sm] = String(latest.start_time).split(':').map(Number)
+        const [eh, em] = String(latest.end_time).split(':').map(Number)
+        if (Number.isFinite(sh) && Number.isFinite(sm) && Number.isFinite(eh) && Number.isFinite(em)) {
+          setElapsedSeconds(Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) * 60)
+          return
+        }
+      }
+      setElapsedSeconds(0)
+      return
+    }
+    const tick = () => {
+      const startAt = new Date(`${activeState.workDate}T${activeState.startTime}:00`)
+      const diff = Math.max(0, Math.floor((Date.now() - startAt.getTime()) / 1000))
+      setElapsedSeconds(diff)
+    }
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [homeSettings.activeWorkState, workdayStatus])
+
+  function formatElapsed(totalSeconds) {
+    const safe = Math.max(0, Number(totalSeconds) || 0)
+    const hours = String(Math.floor(safe / 3600)).padStart(2, '0')
+    const minutes = String(Math.floor((safe % 3600) / 60)).padStart(2, '0')
+    const seconds = String(safe % 60).padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
+  }
+
   }, [currentUser?.id])
 
   function updateQuickState(nextState) {
@@ -1142,6 +1178,7 @@ function HomePage() {
         }
         updateHomeSettings(nextState)
         setWorkdayStatus({ active: nextAction === 'start', today: item })
+        holdTimerRef.current = null
         window.alert(nextAction === 'start' ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
       } catch (err) {
         window.alert(err.message || '일시작/일종료 저장 중 오류가 발생했습니다.')
@@ -1172,8 +1209,8 @@ function HomePage() {
   }
 
   function restoreQuickAction(id) {
-    if (quickState.active.length >= 9) {
-      window.alert('빠른 확인은 최대 9개까지 배치할 수 있습니다.')
+    if (quickState.active.length >= QUICK_ACTION_LIMIT) {
+      window.alert(`빠른 확인은 최대 ${QUICK_ACTION_LIMIT}개까지 배치할 수 있습니다.`)
       return
     }
     updateQuickState({ active: [...quickState.active, id], archived: quickState.archived.filter(item => item !== id) })
@@ -1225,9 +1262,9 @@ function HomePage() {
                       <div className="menu-category-title">홈 구조 변경</div>
                       <div className="stack compact">
                         <strong className="small-text">항목위치변경</strong>
-                        {homeSettings.sectionOrder.filter(sectionId => !(employeeRestricted && sectionId === 'workday')).map(sectionId => (
+                        {homeSettings.sectionOrder.map(sectionId => (
                           <div key={`section-order-${sectionId}`} className="quick-edit-row">
-                            <span>{sectionId === 'quick' ? '빠른 확인' : sectionId === 'workday' ? '일시작~일종료' : '다가오는 일정'}</span>
+                            <span>{sectionId === 'quick' ? '빠른 확인' : '다가오는 일정'}</span>
                             <div className="inline-actions wrap end">
                               <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, -1)}>위로</button>
                               <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, 1)}>아래로</button>
@@ -1257,7 +1294,23 @@ function HomePage() {
               <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
             </div>
           </div>
-          <div className="quick-check-grid">
+          <div className="quick-check-grid quick-check-grid-16">
+            {!employeeRestricted && homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
+              <button
+                type="button"
+                className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
+                onMouseDown={startHoldAction}
+                onMouseUp={stopHoldAction}
+                onMouseLeave={stopHoldAction}
+                onTouchStart={startHoldAction}
+                onTouchEnd={stopHoldAction}
+                onTouchCancel={stopHoldAction}
+              >
+                <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
+                <span>{formatElapsed(elapsedSeconds)}</span>
+                <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
+              </button>
+            )}
             {activeQuickItems.map(item => {
               const topText = item.kind === 'metric'
                 ? String(summary?.[item.metricKey] ?? 0)
@@ -1308,53 +1361,18 @@ function HomePage() {
           )}
         </section>
       ),
-      workday: (!employeeRestricted && !homeSettings.workday.hideOnHome && homeSettings.workday.enabled) ? (
-        <section className="card" key="workday">
-          <div className="between align-center">
-            <h2>일시작 ~ 일종료</h2>
-            <div className="muted small-text">{Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)}초 이상 길게 누르기</div>
-          </div>
-          <div className="stack compact">
-            <button
-              type="button"
-              className={`quick-check-card workday-hold-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
-              onMouseDown={startHoldAction}
-              onMouseUp={stopHoldAction}
-              onMouseLeave={stopHoldAction}
-              onTouchStart={startHoldAction}
-              onTouchEnd={stopHoldAction}
-              onTouchCancel={stopHoldAction}
-            >
-              <strong>{homeSettings.activeWorkState?.started ? '일종료' : '일시작'}</strong>
-              <span>{homeSettings.activeWorkState?.started ? '현재 근무 진행중' : '현재 근무 대기중'}</span>
-            </button>
-            {(homeSettings.activeWorkState?.startTime || homeSettings.activeWorkState?.endTime) && (
-              <div className="admin-summary-line admin-summary-line-primary">
-                <span>[시작 {homeSettings.activeWorkState.startTime || '-'}]</span>
-                <span>[종료 {homeSettings.activeWorkState.endTime || '-'}]</span>
-              </div>
-            )}
-            {homeSettings.activeWorkState?.updatedAt && <div className="muted small-text">최근 변경: {new Date(homeSettings.activeWorkState.updatedAt).toLocaleString('ko-KR')}</div>}
-          </div>
-        </section>
-      ) : null,
+      workday: null,
       upcoming: (
-        <section className="card" key="upcoming">
+        <section className="card home-upcoming-card" key="upcoming">
           <div className="between"><h2>다가오는 일정</h2><Link to="/work-schedule" className="ghost-link">스케줄로 이동</Link></div>
-          <div className="list upcoming-schedule-list">
-            {(summary?.upcomingDays || []).map(day => (
-              <div className="list-item block upcoming-day-group" key={day.date}>
-                <strong>{day.label}</strong>
-                <div className="stack compact">
-                  {day.items.map((item, index) => (
-                    <div key={`${day.date}-${index}`} className="upcoming-line">
-                      <div> - [{item.time_text}] [{item.customer_name}] [{item.representative_text}] [{item.staff_text}] [{item.start_address}]</div>
-                    </div>
-                  ))}
-                </div>
+          <div className="list upcoming-schedule-list compact-home-list">
+            {(summary?.upcomingItems || []).map((item, index) => (
+              <div className="list-item block upcoming-day-group compact-item" key={`${item.dayDate}-${index}`}>
+                <strong>[{item.dayLabel}] [{item.time_text}] [{item.customer_name}]</strong>
+                <div className="upcoming-line compact-line">[{item.representative_text}] [{item.staff_text}] [{item.start_address}]</div>
               </div>
             ))}
-            {summary && summary.upcomingDays.length === 0 && <div className="muted">내 계정에 배정된 다가오는 스케줄이 없습니다.</div>}
+            {summary && (summary.upcomingItems || []).length === 0 && <div className="muted">내 계정에 배정된 5일 이내 스케줄이 없습니다.</div>}
             {!summary && <div className="muted">불러오는 중...</div>}
           </div>
         </section>

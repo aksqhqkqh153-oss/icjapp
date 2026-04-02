@@ -2503,7 +2503,7 @@ def react_group_message(message_id: int, payload: ReactionIn, user=Depends(requi
         row = conn.execute("SELECT * FROM group_room_messages WHERE id = ?", (message_id,)).fetchone()
         return enrich_chat_message(conn, row, 'group_room_messages')
 @app.get("/api/home/upcoming-schedules")
-def home_upcoming_schedules(days: int = Query(default=7, ge=1, le=31), user=Depends(require_user)):
+def home_upcoming_schedules(days: int = Query(default=5, ge=1, le=31), user=Depends(require_user)):
     start_date = datetime.now().date()
     end_date = start_date + timedelta(days=days - 1)
     with get_conn() as conn:
