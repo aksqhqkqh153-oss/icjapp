@@ -2593,12 +2593,16 @@ ${guide}`)
           <div className="chat-list-toolbar-top">
             <div className="chat-toolbar-spacer" />
             <div className="chat-search-trigger">
-              <button type="button" className="small ghost" onClick={() => setSearchOpen(v => !v)}>검색</button>
+              <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setSearchOpen(v => !v)} aria-label="검색">
+                <SearchIcon className="topbar-icon-svg" />
+              </button>
               <div className="dropdown-wrap">
-                <button type="button" className="small ghost" onClick={() => setMenuOpen(v => !v)}>메뉴</button>
+                <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setMenuOpen(v => !v)} aria-label="메뉴">
+                  <MenuIcon className="topbar-icon-svg" />
+                </button>
                 {menuOpen && (
                   <div className="dropdown-menu right">
-                    <button type="button" className="dropdown-item" onClick={handleCreateGroupRoom}>채팅개설</button>
+                    <button type="button" className="dropdown-item" onClick={() => { handleCreateGroupRoom(); setMenuOpen(false) }}>채팅개설</button>
                     <button type="button" className="dropdown-item" onClick={() => { setPinArrangeOpen(true); setMenuOpen(false) }}>채팅방고정 위치변경</button>
                   </div>
                 )}
@@ -2626,7 +2630,9 @@ ${guide}`)
                     <strong className="chat-room-name-single">{room.title}</strong>
                     {room.pinned && <span className="chat-pin-indicator" aria-label="고정">📌</span>}
                     <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
-                    <button type="button" className="small ghost chat-room-menu-button" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>메뉴</button>
+                    <button type="button" className="ghost icon-button chat-room-menu-button" aria-label="채팅방 메뉴" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>
+                      <MenuIcon className="topbar-icon-svg" />
+                    </button>
                   </div>
                   <div className="chat-room-subtitle-two-line">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
                 </div>
