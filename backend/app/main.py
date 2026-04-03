@@ -4622,6 +4622,80 @@ def _normalize_disposal_place_prefix(value: str) -> str:
     return raw
 
 
+_DISPOSAL_REGION_ALIAS_MAP: dict[str, str] = {
+    '서울특별시': '서울',
+    '서울시': '서울',
+    '서울': '서울',
+    '부산광역시': '부산',
+    '부산시': '부산',
+    '부산': '부산',
+    '대구광역시': '대구',
+    '대구시': '대구',
+    '대구': '대구',
+    '인천광역시': '인천',
+    '인천시': '인천',
+    '인천': '인천',
+    '광주광역시': '광주',
+    '광주시': '광주',
+    '광주': '광주',
+    '대전광역시': '대전',
+    '대전시': '대전',
+    '대전': '대전',
+    '울산광역시': '울산',
+    '울산시': '울산',
+    '울산': '울산',
+    '세종특별자치시': '세종',
+    '세종시': '세종',
+    '세종': '세종',
+    '경기도': '경기',
+    '경기': '경기',
+    '강원특별자치도': '강원',
+    '강원도': '강원',
+    '강원': '강원',
+    '충청북도': '충북',
+    '충북': '충북',
+    '충청남도': '충남',
+    '충남': '충남',
+    '전북특별자치도': '전북',
+    '전라북도': '전북',
+    '전북': '전북',
+    '전라남도': '전남',
+    '전남': '전남',
+    '경상북도': '경북',
+    '경북': '경북',
+    '경상남도': '경남',
+    '경남': '경남',
+    '제주특별자치도': '제주',
+    '제주도': '제주',
+    '제주': '제주',
+}
+
+
+def _strip_disposal_region_suffix(value: str) -> str:
+    token = str(value or '').strip()
+    if not token:
+        return ''
+    token = re.sub(r'(특별자치시|특별자치도|특별시|광역시|자치시|자치도)$', '', token)
+    token = re.sub(r'(시|구|군)$', '', token)
+    return token.strip()
+
+
+def _disposal_place_search_key(value: str) -> str:
+    normalized = _normalize_disposal_place_prefix(value)
+    if not normalized:
+        return ''
+    tokens = [token for token in re.split(r'\s+', normalized) if token]
+    if not tokens:
+        return ''
+    region = _DISPOSAL_REGION_ALIAS_MAP.get(tokens[0], _strip_disposal_region_suffix(tokens[0]))
+    district = ''
+    if len(tokens) >= 2:
+        district = _strip_disposal_region_suffix(tokens[1])
+    if len(tokens) >= 3 and not district:
+        district = _strip_disposal_region_suffix(tokens[2])
+    return ' '.join([part for part in [region, district] if part]).strip()
+
+
 def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
     return {
         'id': int(row['id']),
@@ -4743,6 +4817,7 @@ def delete_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=
 @app.get('/api/disposal/jurisdictions/resolve', response_model=DisposalJurisdictionResolveOut)
 def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depends(require_admin_or_subadmin)):
     normalized = _normalize_disposal_place_prefix(location)
+    search_key = _disposal_place_search_key(location)
     if not normalized:
         return DisposalJurisdictionResolveOut(matched=False)
     with get_conn() as conn:
@@ -4773,14 +4848,31 @@ def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depend
             """,
             (normalized,),
         ).fetchone()
-    if not partial:
-        return DisposalJurisdictionResolveOut(matched=False, place_prefix=normalized)
-    return DisposalJurisdictionResolveOut(
-        matched=True,
-        place_prefix=str(partial['place_prefix'] or ''),
-        district_name=str(partial['district_name'] or ''),
-        report_link=str(partial['report_link'] or ''),
-    )
+        if partial:
+            return DisposalJurisdictionResolveOut(
+                matched=True,
+                place_prefix=str(partial['place_prefix'] or ''),
+                district_name=str(partial['district_name'] or ''),
+                report_link=str(partial['report_link'] or ''),
+            )
+        rows = conn.execute(
+            """
+            SELECT place_prefix, district_name, report_link, id
+            FROM disposal_jurisdiction_mappings
+            ORDER BY id DESC
+            """
+        ).fetchall()
+    if search_key:
+        for row in rows:
+            row_place_prefix = str(row['place_prefix'] or '')
+            if _disposal_place_search_key(row_place_prefix) == search_key:
+                return DisposalJurisdictionResolveOut(
+                    matched=True,
+                    place_prefix=row_place_prefix,
+                    district_name=str(row['district_name'] or ''),
+                    report_link=str(row['report_link'] or ''),
+                )
+    return DisposalJurisdictionResolveOut(matched=False, place_prefix=normalized)
 
 
 

@@ -16,6 +16,7 @@ const FILTER_OPTIONS = [
 ]
 
 const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
+const FINAL_STATUS_SELECT_OPTIONS = [{ value: '', label: '최종현황 선택' }, ...FINAL_STATUS_OPTIONS.map(option => ({ value: option, label: option }))]
 
 function createEmptyItem() {
   return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '' }
@@ -357,11 +358,40 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
   }
 
   function handleFinalStatusKeyDown(event) {
+    const currentIndex = FINAL_STATUS_SELECT_OPTIONS.findIndex(option => option.value === (draft.finalStatus || ''))
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      const nextIndex = Math.min(currentIndex + 1, FINAL_STATUS_SELECT_OPTIONS.length - 1)
+      updateDraftField('finalStatus', FINAL_STATUS_SELECT_OPTIONS[nextIndex]?.value || '')
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      const nextIndex = Math.max(currentIndex - 1, 0)
+      updateDraftField('finalStatus', FINAL_STATUS_SELECT_OPTIONS[nextIndex]?.value || '')
+      return
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault()
+      updateDraftField('finalStatus', '')
+      return
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault()
+      updateDraftField('finalStatus', FINAL_STATUS_OPTIONS[FINAL_STATUS_OPTIONS.length - 1] || '')
+      return
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault()
       locationRef.current?.focus?.()
       return
     }
+
     if (event.key === 'Tab' && event.shiftKey) {
       event.preventDefault()
       disposalDateRef.current?.focus?.()
@@ -380,8 +410,7 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
           <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
             <select ref={finalStatusRef} className={`disposal-final-status-select ${statusClass}`.trim()} value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} onKeyDown={handleFinalStatusKeyDown}>
-              <option value="">최종현황 선택</option>
-              {FINAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              {FINAL_STATUS_SELECT_OPTIONS.map(option => <option key={option.value || 'placeholder'} value={option.value}>{option.label}</option>)}
             </select>
             <div className="disposal-final-status-overlay" aria-hidden="true">
               <DisposalFinalStatusRichLabel value={draft.finalStatus} />
