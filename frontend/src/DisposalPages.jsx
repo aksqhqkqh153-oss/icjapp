@@ -15,6 +15,8 @@ const FILTER_OPTIONS = [
   { value: 'status', label: '최종현황순' },
 ]
 
+const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
+
 function createEmptyItem() {
   return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '' }
 }
@@ -306,18 +308,59 @@ function DisposalTemplateTable({ title, rendered }) {
 }
 
 function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
+  const customerNameRef = useRef(null)
+  const disposalDateRef = useRef(null)
+  const finalStatusRef = useRef(null)
+  const locationRef = useRef(null)
+  const districtRef = useRef(null)
+
+  function moveFocus(event, nextRef, prevRef = null) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      nextRef?.current?.focus?.()
+      if (nextRef?.current?.tagName === 'SELECT') {
+        nextRef.current.size = 1
+      }
+      return
+    }
+    if (event.key === 'Tab' && event.shiftKey && prevRef?.current) {
+      event.preventDefault()
+      prevRef.current.focus?.()
+      return
+    }
+  }
+
+  function handleFinalStatusKeyDown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      locationRef.current?.focus?.()
+      return
+    }
+    if (event.key === 'Tab' && event.shiftKey) {
+      event.preventDefault()
+      disposalDateRef.current?.focus?.()
+    }
+  }
+
+  const statusClass = draft.finalStatus === '입금전'
+    ? 'disposal-status-danger'
+    : (draft.finalStatus === '입금완 / 신고완' ? 'disposal-status-primary' : (draft.finalStatus === '입금완 / 신고전' ? 'disposal-status-danger' : ''))
+
   return (
     <section className="card disposal-entry-card">
       <div className="disposal-meta-layout">
         <div className="disposal-meta-row disposal-meta-row-top">
-          <input value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} placeholder="고객명" />
-          <input value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} placeholder="폐기일자" />
-          <input value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} placeholder="최종현황" />
+          <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef)} placeholder="고객명" />
+          <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
+          <select ref={finalStatusRef} className={`disposal-final-status-select ${statusClass}`.trim()} value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} onKeyDown={handleFinalStatusKeyDown}>
+            <option value="">최종현황 선택</option>
+            {FINAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
-          <input value={draft.location} onChange={e => updateDraftField('location', e.target.value)} placeholder="폐기장소" />
+          <input ref={locationRef} value={draft.location} onChange={e => updateDraftField('location', e.target.value)} onKeyDown={e => moveFocus(e, districtRef, finalStatusRef)} placeholder="폐기장소" />
           <div className="disposal-district-field">
-            <input value={draft.district} onChange={e => updateDraftField('district', e.target.value)} placeholder="관할구역" />
+            <input ref={districtRef} value={draft.district} onChange={e => updateDraftField('district', e.target.value)} onKeyDown={e => moveFocus(e, null, locationRef)} placeholder="관할구역" />
             {districtResolved?.report_link ? (
               <a className="disposal-district-link" href={districtResolved.report_link} target="_blank" rel="noreferrer">
                 {districtResolved.district_name || draft.district} 신고 접수 바로가기

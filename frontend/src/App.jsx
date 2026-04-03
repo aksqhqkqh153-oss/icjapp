@@ -213,6 +213,20 @@ function branchDisplayLabel(value, fallback = '본점/미지정') {
   return branchOptionLabel(value)
 }
 
+function resolveBusinessBranchNo(item = {}) {
+  if (isAssignedBranchNo(item?.branch_no)) return Number(item.branch_no)
+  const text = `${String(item?.name || '').trim()} ${String(item?.nickname || '').trim()} ${String(item?.email || '').trim()}`.trim()
+  if (text.includes('심진수')) return 0
+  return null
+}
+
+function branchEditorLabel(item = {}) {
+  const branchNo = resolveBusinessBranchNo(item)
+  if (branchNo === 0) return '0본점'
+  if (Number.isFinite(branchNo)) return `${branchNo}호점`
+  return '본점/미지정'
+}
+
 
 function formatFullDateLabel(value) {
   const raw = String(value || '').slice(0, 10)
@@ -3689,14 +3703,18 @@ function ScheduleCardLine({ item, mobileCompact = false, colorized = false }) {
 
 function normalizeBusinessExclusionDetails(items = [], fallback = []) {
   const seeded = Array.isArray(items) && items.length > 0
-    ? items.map(item => ({ name: String(item?.name || item?.label || '').trim(), reason: String(item?.reason || '').trim() }))
+    ? items.map(item => ({
+        name: String(item?.name || item?.label || '').trim(),
+        reason: String(item?.reason || '').trim(),
+        branch_no: resolveBusinessBranchNo(item),
+      }))
     : (fallback || []).map(item => {
         const raw = String(item || '').trim()
         const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
-        return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
+        return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim(), branch_no: null }
       })
-  while (seeded.length < 6) seeded.push({ name: '', reason: '' })
-  return seeded.slice(0, 6)
+  while (seeded.length < 1) seeded.push({ name: '', reason: '', branch_no: null })
+  return seeded
 }
 
 function normalizeStaffExclusionDetails(items = [], fallback = []) {
@@ -3715,6 +3733,7 @@ function compactExclusionDetails(items = []) {
   return (items || []).map(item => ({
     name: String(item?.name || '').trim(),
     reason: String(item?.reason || '').trim(),
+    branch_no: resolveBusinessBranchNo(item),
   })).filter(item => item.name)
 }
 
@@ -3729,10 +3748,19 @@ function renderExclusionText(items = [], emptyLabel = '-') {
 }
 
 function formatBusinessExceptionLabel(item = {}) {
-  const branchLabel = item?.branch_no ? `[${item.branch_no}호점]` : '[미지정]'
+  const branchNo = resolveBusinessBranchNo(item)
+  const branchLabel = branchNo === 0 ? '[0본점]' : (Number.isFinite(branchNo) ? `[${branchNo}호점]` : '[미지정]')
   const nameLabel = item?.name ? `[${item.name}]` : '[이름미지정]'
   const reasonLabel = `[${String(item?.reason || '').trim() || '-'}]`
   return `${branchLabel} ${nameLabel} ${reasonLabel}`
+}
+
+function formatBusinessExceptionDetailLine(item = {}) {
+  const branchNo = resolveBusinessBranchNo(item)
+  const branchLabel = branchNo === 0 ? '0본점' : (Number.isFinite(branchNo) ? `${branchNo}호점` : '미지정')
+  const businessName = String(item?.name || '').trim() || '이름미지정'
+  const reason = String(item?.reason || '').trim() || '-'
+  return `* [${branchLabel} ${businessName}] : ${reason}`
 }
 
 function CalendarPage() {
@@ -4190,13 +4218,19 @@ function CalendarPage() {
                       <strong>* 열외자 : {exclusionCount(businessExclusionDraft) + exclusionCount(staffExclusionDraft) + ((selectedDaySummary?.auto_unavailable_business || []).length)}건</strong>
                       {Number(currentUser?.grade || 6) <= 2 ? <button type="button" className="small ghost" onClick={openExceptionManager}>열외관리</button> : null}
                     </div>
-                    <div className="muted">- 사업자</div>
-                    <div className="day-status-exclusion-list">
-                      {(selectedDaySummary?.auto_unavailable_business || []).length ? (selectedDaySummary.auto_unavailable_business || []).map(item => (
-                        <div key={`auto-exclusion-${item.exclusion_id || item.user_id}-${item.start_date || ''}`} className="day-status-exclusion-item">{formatBusinessExceptionLabel(item)}</div>
-                      )) : <div className="muted">표시할 사업자 열외가 없습니다.</div>}
+                    <div className="day-status-exclusion-group">
+                      <div className="day-status-exclusion-heading">- 사업자 : [{(selectedDaySummary?.auto_unavailable_business || []).length}명]</div>
+                      {(selectedDaySummary?.auto_unavailable_business || []).length ? (
+                        <div className="day-status-exclusion-bullets">
+                          {(selectedDaySummary.auto_unavailable_business || []).map(item => (
+                            <div key={`auto-exclusion-${item.exclusion_id || item.user_id}-${item.start_date || ''}`} className="day-status-exclusion-bullet">{formatBusinessExceptionDetailLine(item)}</div>
+                          ))}
+                        </div>
+                      ) : <div className="muted">표시할 사업자 열외가 없습니다.</div>}
                     </div>
-                    <div className="muted">- 직원 : {renderExclusionText(staffExclusionDraft)}</div>
+                    <div className="day-status-exclusion-group">
+                      <div className="day-status-exclusion-heading">- 직원 : {renderExclusionText(staffExclusionDraft)}</div>
+                    </div>
                   </div>
                   {calendarStatusForm.day_memo ? (
                     <div className="day-status-detail-row block">
@@ -4756,12 +4790,18 @@ function WorkSchedulePage() {
       if (!readOnly) {
         const branches = (adminData?.branches || [])
           .filter(item => !item?.archived_in_branch_status)
-          .map(item => ({
-            value: String(item.branch_no),
-            label: `[${branchDisplayLabel(item.branch_no, `${item.branch_no}호점`)}] [${item.name || item.nickname || item.email || `${item.branch_no}호점`}]`,
-            name: item.name || item.nickname || item.email || `${item.branch_no}호점`,
-            userId: item.id,
-          }))
+          .map(item => {
+            const branchNo = resolveBusinessBranchNo(item)
+            const branchLabel = branchNo === 0 ? '0본점' : (Number.isFinite(branchNo) ? `${branchNo}호점` : '본점/미지정')
+            const displayName = item.name || item.nickname || item.email || (branchNo === 0 ? '본점' : (Number.isFinite(branchNo) ? `${branchNo}호점` : '미지정'))
+            return {
+              value: String(branchNo ?? item.branch_no ?? ''),
+              label: `[${branchLabel}] [${displayName}]`,
+              name: displayName,
+              userId: item.id,
+              branch_no: branchNo,
+            }
+          })
         setBusinessExclusionOptions(branches)
       }
     } finally {
@@ -5174,6 +5214,8 @@ function WorkSchedulePage() {
                 </div>
                 <div className="inline-actions wrap">
                   <button>열외자 저장</button>
+                  <button type="button" className="ghost" onClick={applyNoteDeleteSelection}>삭제</button>
+                  <button type="button" className="ghost" onClick={addExcludedBusinessRow}>추가</button>
                   <button type="button" className="ghost" onClick={closeNotes}>닫기</button>
                 </div>
               </form>

@@ -1287,6 +1287,28 @@ label { font-size: 14px; color: #4f6f8c; }
   color: #0f172a;
 }
 
+.note-business-grid {
+  display: grid;
+  gap: 8px;
+}
+.work-notes-form .note-business-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.work-notes-form .note-business-row .checkbox-line.compact {
+  margin: 0;
+  min-width: 24px;
+  justify-content: center;
+}
+@media (max-width: 720px) {
+  .work-notes-form .note-business-row {
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
 @media (max-width: 860px) {
   .desktop-only { display: none; }
   .work-schedule-table,
@@ -5902,6 +5924,23 @@ a:focus-visible {
   gap: 6px;
   width: 100%;
 }
+.day-status-exclusion-group {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+.day-status-exclusion-heading {
+  font-weight: 700;
+  color: var(--text);
+}
+.day-status-exclusion-bullets {
+  display: grid;
+  gap: 6px;
+}
+.day-status-exclusion-bullet {
+  padding-left: 4px;
+  color: #334155;
+}
 .day-status-exclusion-item,
 .exception-manager-item {
   display: flex;
@@ -8877,6 +8916,7 @@ a:focus-visible {
 }
 
 .disposal-meta-layout input,
+.disposal-meta-layout select,
 .disposal-filter-row select,
 .disposal-item-card input {
   width: 100%;
@@ -8885,6 +8925,17 @@ a:focus-visible {
   border: 1px solid #cfd6e4;
   border-radius: 12px;
   background: #fff;
+}
+
+
+.disposal-final-status-select.disposal-status-danger {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.disposal-final-status-select.disposal-status-primary {
+  color: #2563eb;
+  font-weight: 800;
 }
 
 .disposal-items-grid-list {
@@ -9125,7 +9176,18 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .disposal-items-grid-list {
+  
+.disposal-final-status-select.disposal-status-danger {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.disposal-final-status-select.disposal-status-primary {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.disposal-items-grid-list {
     grid-template-columns: 1fr;
   }
 
