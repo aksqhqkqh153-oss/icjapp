@@ -7,7 +7,7 @@ const STORAGE_KEY = 'icj_disposal_records_v2'
 const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 const ITEM_ROW_COUNT = 17
-const DEFAULT_VISIBLE_ITEM_ROWS = 5
+const DEFAULT_VISIBLE_ITEM_ROWS = 8
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const FILTER_OPTIONS = [
@@ -232,6 +232,36 @@ function formatCurrencyPlain(value) {
   return formatNumber(value)
 }
 
+
+function formatExportDisplayDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const digits = raw.replace(/[^\d]/g, '')
+  if (digits.length >= 8) {
+    const year = digits.slice(0, 4)
+    const month = digits.slice(4, 6)
+    const day = digits.slice(6, 8)
+    return `${year.slice(-2)}.${month}.${day}`
+  }
+  return raw
+}
+
+function formatExportCustomerLabel(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/고객님$/.test(raw)) return raw
+  if (/님$/.test(raw)) return `${raw.replace(/님$/, '')} 고객님`
+  return `${raw} 고객님`
+}
+
+function buildExportInfoText({ customerName = '', disposalDate = '', location = '' }) {
+  return [
+    formatExportCustomerLabel(customerName),
+    formatExportDisplayDate(disposalDate),
+    String(location || '').trim(),
+  ].filter(Boolean).map(value => `[${value}]`).join(' ')
+}
+
 function sanitizeExportFilename(value) {
   return String(value || '')
     .trim()
@@ -262,8 +292,8 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const isCompany = mode === 'company'
   const padding = 40
   const titleHeight = 52
-  const subtitleHeight = 34
-  const infoHeight = 38
+  const subtitleHeight = isCompany ? 0 : 34
+  const infoHeight = 42
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
@@ -313,28 +343,30 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 1040
-    const maxLogoHeight = 440
+    const maxLogoWidth = 208
+    const maxLogoHeight = 88
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
     const logoRightPadding = 8
-    const logoTopPadding = 2
+    const logoTopPadding = 6
     const logoX = startX + tableWidth - drawWidth - logoRightPadding
-    const logoY = Math.max(8, currentY - 4 + logoTopPadding)
+    const logoY = Math.max(8, currentY + logoTopPadding)
     ctx.drawImage(logoImage, logoX, logoY, drawWidth, drawHeight)
   }
 
   currentY += titleHeight
 
-  ctx.fillStyle = '#16a34a'
-  ctx.font = '700 18px sans-serif'
-  ctx.fillText("본 견적서는 '대리신고' + '폐기스티커 부착(폐기번호 기재)' 서비스에 대한 견적입니다.", startX, currentY + subtitleHeight / 2)
-  currentY += subtitleHeight
+  if (!isCompany) {
+    ctx.fillStyle = '#16a34a'
+    ctx.font = '700 18px sans-serif'
+    ctx.fillText("본 견적서는 '대리신고' + '폐기스티커 부착' 서비스에 대한 견적입니다.", startX, currentY + subtitleHeight / 2)
+    currentY += subtitleHeight
+  }
 
   ctx.fillStyle = '#374151'
-  ctx.font = '500 18px sans-serif'
-  const infoText = [customerName || '', disposalDate || '', location || ''].filter(Boolean).join('   |   ')
+  ctx.font = '700 18px sans-serif'
+  const infoText = buildExportInfoText({ customerName, disposalDate, location })
   if (infoText) ctx.fillText(infoText, startX, currentY + infoHeight / 2)
   currentY += infoHeight
 

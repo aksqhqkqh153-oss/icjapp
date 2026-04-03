@@ -4764,9 +4764,12 @@ def _disposal_place_keys_match(left: str, right: str) -> bool:
     return (left_district == right_district) or left_district.startswith(right_district) or right_district.startswith(left_district)
 
 
-def _disposal_similarity_score(location: str, place_prefix: str) -> int:
+def _disposal_similarity_score(location: str, place_prefix: str, district_name: str = '') -> int:
     input_region, input_district = _disposal_place_search_parts(location)
     row_region, row_district = _disposal_place_search_parts(place_prefix)
+    district_alias = _strip_disposal_region_suffix(district_name)
+    if district_alias and not row_district:
+        row_district = district_alias
     if not input_region or not row_region or input_region != row_region:
         return -1
     score = 100
@@ -4774,11 +4777,19 @@ def _disposal_similarity_score(location: str, place_prefix: str) -> int:
         if input_district == row_district:
             score += 100
         elif row_district.startswith(input_district) or input_district.startswith(row_district):
-            score += 70
+            score += 80
         elif input_district in row_district or row_district in input_district:
-            score += 40
+            score += 55
         else:
-            return -1
+            compact_location = re.sub(r'\s+', '', _disposal_compact_text(location))
+            compact_district = re.sub(r'\s+', '', _disposal_compact_text(row_district))
+            compact_alias = re.sub(r'\s+', '', _disposal_compact_text(district_alias))
+            if compact_district and compact_district in compact_location:
+                score += 45
+            elif compact_alias and compact_alias in compact_location:
+                score += 45
+            else:
+                return -1
     elif input_district or row_district:
         score += 10
 
@@ -4792,11 +4803,17 @@ def _disposal_similarity_score(location: str, place_prefix: str) -> int:
 
     compact_input = re.sub(r'\s+', '', _disposal_compact_text(location))
     compact_row = re.sub(r'\s+', '', _disposal_compact_text(place_prefix))
+    compact_district_name = re.sub(r'\s+', '', _disposal_compact_text(district_name))
     if compact_input and compact_row:
         if compact_input == compact_row:
             score += 30
         elif compact_input in compact_row or compact_row in compact_input:
             score += 15
+    if compact_input and compact_district_name:
+        if compact_district_name in compact_input:
+            score += 35
+        elif any(token and token in compact_input for token in {district_alias, row_district}):
+            score += 25
     return score
 
 
@@ -4804,7 +4821,7 @@ def _disposal_find_best_jurisdiction_match(rows, location: str):
     best_row = None
     best_score = -1
     for row in rows:
-        score = _disposal_similarity_score(location, str(row['place_prefix'] or ''))
+        score = _disposal_similarity_score(location, str(row['place_prefix'] or ''), str(row['district_name'] or ''))
         if score > best_score:
             best_row = row
             best_score = score
