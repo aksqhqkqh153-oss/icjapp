@@ -498,7 +498,8 @@ export function DisposalJurisdictionRegistryPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
-  const [filterValue, setFilterValue] = useState('all')
+  const [primaryFilter, setPrimaryFilter] = useState('category')
+  const [secondaryFilter, setSecondaryFilter] = useState('updated_desc')
 
   async function load(keyword = '') {
     setLoading(true)
@@ -523,9 +524,52 @@ export function DisposalJurisdictionRegistryPage() {
   }, [canEdit, navigate])
 
   const visibleRows = useMemo(() => {
-    if (filterValue === 'all') return rows
-    return rows.filter(row => String(row.category || '기본') === filterValue)
-  }, [rows, filterValue])
+    const keyword = String(searchKeyword || '').trim().toLowerCase()
+    let filtered = rows
+    if (keyword) {
+      filtered = rows.filter(row => {
+        const fieldMap = {
+          category: String(row.category || '기본'),
+          place_prefix: String(row.place_prefix || ''),
+          district_name: String(row.district_name || ''),
+          report_link: String(row.report_link || ''),
+        }
+        const target = primaryFilter === 'all'
+          ? Object.values(fieldMap).join(' ')
+          : (fieldMap[primaryFilter] || '')
+        return target.toLowerCase().includes(keyword)
+      })
+    }
+
+    const sorted = [...filtered]
+    const compareText = (a, b, key, direction = 'asc') => {
+      const left = String(a[key] || '').toLowerCase()
+      const right = String(b[key] || '').toLowerCase()
+      return direction === 'asc' ? left.localeCompare(right, 'ko') : right.localeCompare(left, 'ko')
+    }
+    switch (secondaryFilter) {
+      case 'asc':
+        sorted.sort((a, b) => compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'asc'))
+        break
+      case 'desc':
+        sorted.sort((a, b) => compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'desc'))
+        break
+      case 'created_desc':
+        sorted.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+        break
+      case 'created_asc':
+        sorted.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+        break
+      case 'updated_asc':
+        sorted.sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')))
+        break
+      case 'updated_desc':
+      default:
+        sorted.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+        break
+    }
+    return sorted
+  }, [rows, searchKeyword, primaryFilter, secondaryFilter])
 
   function updateRow(localId, key, value) {
     setRows(prev => prev.map(row => row.localId === localId ? { ...row, [key]: value } : row))
@@ -566,7 +610,7 @@ export function DisposalJurisdictionRegistryPage() {
     setSaving(true)
     try {
       await api('/api/disposal/jurisdictions/bulk-save', { method: 'POST', body: JSON.stringify({ rows: payloadRows }) })
-      await load(searchKeyword)
+      await load('')
       window.alert('관할구역 데이터가 저장되었습니다.')
     } catch (error) {
       window.alert(error.message || '관할구역 저장 중 오류가 발생했습니다.')
@@ -587,19 +631,13 @@ export function DisposalJurisdictionRegistryPage() {
     if (!window.confirm('선택한 관할구역 항목을 삭제할까요?')) return
     try {
       await api('/api/disposal/jurisdictions/delete', { method: 'POST', body: JSON.stringify({ rows: selectedIds.map(id => ({ id })) }) })
-      await load(searchKeyword)
+      await load('')
       setSelectedIds([])
       window.alert('선택 항목이 삭제되었습니다.')
     } catch (error) {
       window.alert(error.message || '삭제 중 오류가 발생했습니다.')
     }
   }
-
-  const categoryOptions = useMemo(() => {
-    const bucket = new Set(['기본'])
-    rows.forEach(row => { if (row.category) bucket.add(row.category) })
-    return Array.from(bucket)
-  }, [rows])
 
   return (
     <div className="stack-page disposal-page">
@@ -618,12 +656,23 @@ export function DisposalJurisdictionRegistryPage() {
       <section className="card disposal-jurisdiction-toolbar-card">
         <div className="disposal-jurisdiction-toolbar">
           <div className="disposal-jurisdiction-toolbar-left">
-            <select value={filterValue} onChange={e => setFilterValue(e.target.value)}>
-              <option value="all">전체 필터</option>
-              {categoryOptions.map(option => <option key={option} value={option}>{option}</option>)}
+            <select value={primaryFilter} onChange={e => setPrimaryFilter(e.target.value)}>
+              <option value="category">1차필터: 구분</option>
+              <option value="place_prefix">1차필터: 폐기장소입력칸</option>
+              <option value="district_name">1차필터: 관할구역 입력칸</option>
+              <option value="report_link">1차필터: 관할구역 폐기신고링크 입력칸</option>
+              <option value="all">1차필터: 전체</option>
+            </select>
+            <select value={secondaryFilter} onChange={e => setSecondaryFilter(e.target.value)}>
+              <option value="asc">2차필터: 오름차순</option>
+              <option value="desc">2차필터: 내림차순</option>
+              <option value="created_desc">2차필터: 등록일순</option>
+              <option value="created_asc">2차필터: 등록일 오래된순</option>
+              <option value="updated_desc">2차필터: 수정일 최신순</option>
+              <option value="updated_asc">2차필터: 수정일 오래된순</option>
             </select>
             <input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="키워드 검색" />
-            <button type="button" className="ghost" onClick={() => load(searchKeyword)}>검색</button>
+            <button type="button" className="ghost" onClick={() => load('')}>검색</button>
             <button type="button" className="ghost active" onClick={saveRows} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
         </div>

@@ -4745,15 +4745,30 @@ def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require
 def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=Depends(require_admin_or_subadmin)):
     rows = payload.rows or []
     saved_rows: list[dict[str, Any]] = []
+    normalized_rows: list[tuple[DisposalJurisdictionRowIn, str, str, str, str]] = []
+    seen_place_prefixes: set[str] = set()
+    for item in rows:
+        place_prefix = _normalize_disposal_place_prefix(item.place_prefix)
+        district_name = str(item.district_name or '').strip()
+        if not place_prefix or not district_name:
+            continue
+        if place_prefix in seen_place_prefixes:
+            raise HTTPException(status_code=400, detail=f'중복된 폐기장소가 있습니다: {place_prefix}')
+        seen_place_prefixes.add(place_prefix)
+        category = str(item.category or '기본').strip() or '기본'
+        report_link = str(item.report_link or '').strip()
+        normalized_rows.append((item, place_prefix, district_name, category, report_link))
+
     with get_conn() as conn:
-        for item in rows:
-            place_prefix = _normalize_disposal_place_prefix(item.place_prefix)
-            district_name = str(item.district_name or '').strip()
-            if not place_prefix or not district_name:
-                continue
-            category = str(item.category or '기본').strip() or '기본'
-            report_link = str(item.report_link or '').strip()
+        for item, place_prefix, district_name, category, report_link in normalized_rows:
             now = utcnow()
+            duplicate_row = conn.execute(
+                'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ? AND id <> ?' if item.id else 'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ?',
+                (place_prefix, int(item.id)) if item.id else (place_prefix,),
+            ).fetchone()
+            if duplicate_row:
+                raise HTTPException(status_code=400, detail=f'이미 등록된 폐기장소입니다: {place_prefix}')
+
             existing = conn.execute(
                 'SELECT id FROM disposal_jurisdiction_mappings WHERE id = ?' if item.id else 'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ?',
                 (int(item.id),) if item.id else (place_prefix,),
