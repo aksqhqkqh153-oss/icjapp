@@ -10799,6 +10799,11 @@ button.disposal-items-number-cell.has-note {
   padding-left: 6px !important;
 }
 
+.disposal-items-summary-box.center {
+  justify-content: center !important;
+  text-align: center;
+}
+
 .disposal-linked-preview-card {
   border: 1px solid #d8e0ec;
   padding: 10px;
@@ -10907,7 +10912,7 @@ button.disposal-items-number-cell.has-note {
 }
 
 .disposal-linked-preview-total.wide {
-  width: min(100%, 620px);
+  width: min(100%, 760px);
   min-width: 0;
 }
 
@@ -10919,11 +10924,11 @@ button.disposal-items-number-cell.has-note {
 }
 
 .disposal-linked-preview-total.emphasize-blue {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .disposal-linked-preview-total.emphasize-blue strong {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .disposal-linked-preview-table {
@@ -10939,7 +10944,7 @@ button.disposal-items-number-cell.has-note {
 
 .disposal-linked-preview-table.customer .disposal-linked-preview-row,
 .disposal-linked-preview-table.company .disposal-linked-preview-row {
-  grid-template-columns: 40px minmax(170px, 1.95fr) minmax(62px, .62fr) minmax(96px, .78fr);
+  grid-template-columns: 40px minmax(214px, 2.25fr) minmax(62px, .62fr) minmax(72px, .56fr);
 }
 
 .disposal-linked-preview-row > div {
@@ -10960,11 +10965,11 @@ button.disposal-items-number-cell.has-note {
 }
 
 .customer-large-text .disposal-linked-preview-row > div {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .customer-large-text .disposal-linked-preview-row.head > div {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 @media (max-width: 1024px) {
@@ -11062,12 +11067,12 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-items-table-row {
-    grid-template-columns: 24px minmax(78px, 1.75fr) minmax(24px, .4fr) minmax(40px, .55fr) minmax(44px, .62fr) minmax(44px, .62fr) minmax(50px, .75fr) minmax(44px, .62fr);
+    grid-template-columns: 20px minmax(78px, 1.7fr) minmax(20px, .32fr) minmax(40px, .52fr) minmax(44px, .58fr) minmax(44px, .58fr) minmax(62px, .95fr) minmax(40px, .52fr);
     gap: 3px;
   }
 
   .disposal-items-table.delete-mode .disposal-items-table-row {
-    grid-template-columns: 22px 24px minmax(78px, 1.75fr) minmax(24px, .4fr) minmax(40px, .55fr) minmax(44px, .62fr) minmax(44px, .62fr) minmax(50px, .75fr) minmax(44px, .62fr);
+    grid-template-columns: 20px 20px minmax(78px, 1.7fr) minmax(20px, .32fr) minmax(40px, .52fr) minmax(44px, .58fr) minmax(44px, .58fr) minmax(62px, .95fr) minmax(40px, .52fr);
   }
 
   .disposal-items-table-head > div,
@@ -11147,7 +11152,7 @@ button.disposal-items-number-cell.has-note {
   .disposal-linked-preview-table.company .disposal-linked-preview-row {
     min-width: 0;
     width: 100%;
-    grid-template-columns: 28px minmax(86px, 1.7fr) minmax(34px, .55fr) minmax(62px, .72fr);
+    grid-template-columns: 28px minmax(98px, 1.9fr) minmax(34px, .5fr) minmax(48px, .46fr);
     gap: 3px;
   }
 
@@ -11163,7 +11168,7 @@ button.disposal-items-number-cell.has-note {
 
   .customer-large-text .disposal-linked-preview-row > div,
   .customer-large-text .disposal-linked-preview-row.head > div {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .disposal-linked-preview-total {
@@ -11174,11 +11179,11 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-linked-preview-total.emphasize-blue {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .disposal-linked-preview-total.emphasize-blue strong {
-    font-size: 16px;
+    font-size: 18px;
   }
 }
 

@@ -228,6 +228,10 @@ function formatCurrency(value) {
   return `${formatNumber(value)}원`
 }
 
+function formatCurrencyPlain(value) {
+  return formatNumber(value)
+}
+
 function sanitizeExportFilename(value) {
   return String(value || '')
     .trim()
@@ -245,7 +249,16 @@ async function canvasToJpegBlob(canvas, quality = 0.95) {
   })
 }
 
-function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '' }) {
+async function loadCanvasImage(src) {
+  return await new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('브랜드 이미지를 불러오지 못했습니다.'))
+    image.src = src
+  })
+}
+
+async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '' }) {
   const width = 1240
   const padding = 44
   const titleHeight = 52
@@ -268,18 +281,38 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
 
   const cols = [
     { key: 'index', label: '번호', width: 120, align: 'center' },
-    { key: 'itemName', label: '물품', width: 598, align: 'center' },
+    { key: 'itemName', label: '물품', width: 670, align: 'center' },
     { key: 'quantity', label: '개수', width: 140, align: 'center' },
-    { key: 'finalAmount', label: '개별품목비용', width: 294, align: 'right' },
+    { key: 'finalAmount', label: '개별품목비용', width: 222, align: 'right' },
   ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const startX = padding
   let currentY = padding
 
+  let logoImage = null
+  try {
+    const logoSrc = new URL('/icon-192.png', window.location.origin).toString()
+    logoImage = await loadCanvasImage(logoSrc)
+  } catch (error) {
+    logoImage = null
+  }
+
   ctx.fillStyle = '#111827'
   ctx.font = '700 28px sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText('폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
+  ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
+
+  if (logoImage) {
+    const maxLogoWidth = 120
+    const maxLogoHeight = 40
+    const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
+    const drawWidth = logoImage.width * ratio
+    const drawHeight = logoImage.height * ratio
+    const logoX = startX + tableWidth - drawWidth
+    const logoY = currentY + (titleHeight - drawHeight) / 2
+    ctx.drawImage(logoImage, logoX, logoY, drawWidth, drawHeight)
+  }
+
   currentY += titleHeight
 
   ctx.fillStyle = '#16a34a'
@@ -302,16 +335,12 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   ctx.strokeRect(startX, currentY, tableWidth, headerHeight + bodyRows * rowHeight)
 
   let x = startX
-  cols.forEach((col, idx) => {
-    ctx.lineWidth = 3
-    if (idx > 0) {
-      ctx.beginPath()
-      ctx.moveTo(x, currentY)
-      ctx.lineTo(x, currentY + headerHeight + bodyRows * rowHeight)
-      ctx.stroke()
-    }
+  cols.forEach(col => {
     ctx.fillStyle = '#f3f4f6'
     ctx.fillRect(x, currentY, col.width, headerHeight)
+    ctx.strokeStyle = '#111827'
+    ctx.lineWidth = 3
+    ctx.strokeRect(x, currentY, col.width, headerHeight)
     ctx.fillStyle = '#111827'
     ctx.font = '700 22px sans-serif'
     ctx.textAlign = 'center'
@@ -322,14 +351,11 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   for (let i = 0; i < bodyRows; i += 1) {
     const row = rows[i] || {}
     const rowY = currentY + headerHeight + i * rowHeight
-    ctx.lineWidth = 2.5
-    ctx.beginPath()
-    ctx.moveTo(startX, rowY)
-    ctx.lineTo(startX + tableWidth, rowY)
-    ctx.stroke()
-
     let colX = startX
     cols.forEach(col => {
+      ctx.strokeStyle = '#111827'
+      ctx.lineWidth = 3
+      ctx.strokeRect(colX, rowY, col.width, rowHeight)
       const rawValue = row[col.key] ?? ''
       const value = col.key === 'finalAmount' && rawValue ? formatCurrency(rawValue) : String(rawValue || '')
       ctx.fillStyle = '#111827'
@@ -349,7 +375,7 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   }
 
   const totalY = currentY + headerHeight + bodyRows * rowHeight + 22
-  const totalWidth = 532
+  const totalWidth = 650
   const totalX = startX + tableWidth - totalWidth
   ctx.fillStyle = '#eff6ff'
   ctx.fillRect(totalX, totalY, totalWidth, totalHeight)
@@ -357,7 +383,7 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   ctx.lineWidth = 3
   ctx.strokeRect(totalX, totalY, totalWidth, totalHeight)
   ctx.fillStyle = '#2563eb'
-  ctx.font = '800 26px sans-serif'
+  ctx.font = '800 28px sans-serif'
   ctx.textAlign = 'left'
   ctx.fillText('대리신고 최종 합계비용', totalX + 18, totalY + totalHeight / 2)
   ctx.textAlign = 'right'
@@ -678,7 +704,7 @@ function DisposalItemsEditor({
 
   async function saveCustomerEstimateAsJpg() {
     try {
-      const canvas = buildCustomerQuoteCanvas({
+      const canvas = await buildCustomerQuoteCanvas({
         rows: customerExportRows,
         totalFinal: rendered.totals.totalFinal || 0,
         customerName: draft.customerName,
@@ -767,8 +793,8 @@ function DisposalItemsEditor({
                   <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
                   <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
                   <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
-                  <div className="disposal-items-metric-cell">{formatCurrency(item.reportAmount || 0)}</div>
-                  <div className="disposal-items-metric-cell strong">{formatCurrency(item.finalAmount || 0)}</div>
+                  <div className="disposal-items-metric-cell">{formatCurrencyPlain(item.reportAmount || 0)}</div>
+                  <div className="disposal-items-metric-cell strong">{formatCurrencyPlain(item.finalAmount || 0)}</div>
                   <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
                   <input className="disposal-items-note-column" value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
                 </div>
@@ -777,11 +803,11 @@ function DisposalItemsEditor({
             <div className={`disposal-items-table-row disposal-items-summary-row ${deleteMode ? 'delete-mode' : ''}`.trim()}>
               {deleteMode ? <div /> : null}
               <div />
+              <div className="disposal-items-summary-box strong center">합계</div>
+              <div className="disposal-items-summary-box strong">{formatNumber(rendered.totals.totalQty)}개</div>
               <div />
-              <div className="disposal-items-summary-box strong">개수합계 {formatNumber(rendered.totals.totalQty)}</div>
-              <div />
-              <div className="disposal-items-summary-box strong">최종신고합계 {formatCurrency(rendered.totals.totalReport)}</div>
-              <div className="disposal-items-summary-box strong">최종매출합계 {formatCurrency(rendered.totals.totalFinal)}</div>
+              <div className="disposal-items-summary-box strong">{formatCurrency(rendered.totals.totalReport)}</div>
+              <div className="disposal-items-summary-box strong">{formatCurrency(rendered.totals.totalFinal)}</div>
               <div />
               <div />
             </div>
