@@ -9121,7 +9121,7 @@ a:focus-visible {
 
 .disposal-list-grid-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) minmax(90px, 1fr) minmax(54px, .45fr) minmax(82px, .7fr) minmax(92px, .8fr) minmax(122px, 1fr) minmax(100px, .85fr) minmax(74px, .58fr) 58px;
+  grid-template-columns: 28px minmax(90px, 1fr) minmax(90px, 1fr) minmax(54px, .45fr) minmax(82px, .7fr) minmax(92px, .8fr) minmax(122px, 1fr) minmax(100px, .85fr) minmax(74px, .58fr);
   gap: 8px;
   align-items: center;
   padding: 9px 10px;
@@ -9302,7 +9302,7 @@ a:focus-visible {
 
   .disposal-list-grid-row {
     min-width: 0;
-    grid-template-columns: minmax(46px, 1fr) minmax(46px, 1fr) minmax(28px, .4fr) minmax(42px, .58fr) minmax(48px, .7fr) minmax(58px, .78fr) minmax(52px, .62fr) minmax(36px, .46fr) 40px;
+    grid-template-columns: 24px minmax(46px, 1fr) minmax(46px, 1fr) minmax(28px, .4fr) minmax(42px, .58fr) minmax(48px, .7fr) minmax(58px, .78fr) minmax(52px, .62fr) minmax(36px, .46fr);
     gap: 3px;
     padding: 7px 6px;
     font-size: 9px;
@@ -9328,7 +9328,7 @@ a:focus-visible {
   }
 
   .disposal-list-grid-data-row {
-    padding: 12px;
+    padding: 8px 6px;
   }
 
   .disposal-list-board-card {

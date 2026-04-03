@@ -86,6 +86,14 @@ function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
 }
 
+function sortGroupedRows(rows = [], sortKey = 'latest') {
+  const list = [...(rows || [])]
+  if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
+  if (sortKey === 'status') return list.sort((a, b) => String(a.paymentStatus || '').localeCompare(String(b.paymentStatus || ''), 'ko'))
+  if (sortKey === 'date') return list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')))
+  return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+}
+
 function getCellRef(colIndex, rowNumber) {
   return `${TEMPLATE_COLUMNS[colIndex]}${rowNumber}`
 }
@@ -784,18 +792,46 @@ export function DisposalListPage() {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [sortKey, setSortKey] = useState('latest')
+  const [selectedRowKeys, setSelectedRowKeys] = useState([])
 
   useEffect(() => {
     setRecords(loadRecords())
   }, [])
 
-  function removeRecord(id) {
-    const next = records.filter(record => record.id !== id)
-    setRecords(next)
-    saveRecords(next)
+  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey), [records, sortKey])
+  const visibleRowKeys = useMemo(() => groupedRows.flatMap(group => group.rows.map(row => row.key)), [groupedRows])
+  const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys])
+  const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
+  const allVisibleChecked = visibleRowKeys.length > 0 && selectedVisibleCount === visibleRowKeys.length
+
+  useEffect(() => {
+    setSelectedRowKeys(prev => prev.filter(key => visibleRowKeySet.has(key)))
+  }, [visibleRowKeys.join('|')])
+
+  function toggleRowSelection(rowKey, checked) {
+    setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey), [records, sortKey])
+  function toggleAllVisibleRows(checked) {
+    setSelectedRowKeys(checked ? visibleRowKeys : [])
+  }
+
+  function removeSelectedRecords() {
+    if (!selectedRowKeys.length) {
+      window.alert('삭제할 폐기목록을 선택해주세요.')
+      return
+    }
+    const targetRecordIds = Array.from(new Set(groupedRows.flatMap(group => group.rows).filter(row => selectedRowKeys.includes(row.key)).map(row => row.recordId)))
+    if (!targetRecordIds.length) {
+      window.alert('삭제할 폐기목록을 찾지 못했습니다.')
+      return
+    }
+    if (!window.confirm('선택한 폐기목록을 삭제할까요?')) return
+    const nextRecords = records.filter(record => !targetRecordIds.includes(record.id))
+    saveRecords(nextRecords)
+    setRecords(nextRecords)
+    setSelectedRowKeys([])
+  }
 
   return (
     <div className="stack-page disposal-page">
@@ -805,6 +841,7 @@ export function DisposalListPage() {
           <p className="notice-text">폐기양식 저장 건을 폐기날짜별로 묶어 보여줍니다. 행을 누르면 상세입력창으로 이동합니다.</p>
         </div>
         <div className="disposal-hero-actions">
+          <button type="button" className="ghost" onClick={removeSelectedRecords}>삭제</button>
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
         </div>
       </section>
@@ -821,43 +858,60 @@ export function DisposalListPage() {
       <section className="card disposal-records-card disposal-list-board-card">
         {groupedRows.length === 0 ? (
           <div className="empty-state">저장된 폐기목록이 없습니다.</div>
-        ) : groupedRows.map(group => (
-          <div key={group.key} className="disposal-list-date-group">
-            <div className="disposal-list-date-label">{group.label}</div>
-            <div className="disposal-list-grid">
-              <div className="disposal-list-grid-row disposal-list-grid-head">
-                <div>고객명</div>
-                <div>품목</div>
-                <div>수량</div>
-                <div>개당비용</div>
-                <div>신고합계</div>
-                <div>최종비용(수수료 포함)</div>
-                <div>폐기신고번호</div>
-                <div>입금여부</div>
-                <div>관리</div>
-              </div>
-              {group.rows.map(row => (
-                <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
-                  <button
-                    type="button"
-                    className="disposal-list-grid-button"
-                    onClick={() => navigate(`/disposal/forms/${row.recordId}`)}
-                  >
-                    <span>{row.customerName}</span>
-                    <span>{row.itemName}</span>
-                    <span>{formatNumber(row.quantity)}</span>
-                    <span>{formatCurrency(row.unitCost)}</span>
-                    <span>{formatCurrency(row.reportAmount)}</span>
-                    <span>{formatCurrency(row.finalAmount)}</span>
-                    <span>{row.reportNo}</span>
-                    <span>{row.paymentStatus}</span>
-                  </button>
-                  <button type="button" className="ghost disposal-row-delete" onClick={() => removeRecord(row.recordId)}>삭제</button>
+        ) : groupedRows.map(group => {
+          const sortedRows = sortGroupedRows(group.rows, sortKey)
+          return (
+            <div key={group.key} className="disposal-list-date-group">
+              <div className="disposal-list-date-label">{group.label}</div>
+              <div className="disposal-list-grid">
+                <div className="disposal-list-grid-row disposal-list-grid-head">
+                  <div className="disposal-list-grid-check-cell">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleChecked}
+                      onChange={e => toggleAllVisibleRows(e.target.checked)}
+                      aria-label="전체 선택"
+                    />
+                  </div>
+                  <div>고객명</div>
+                  <div>품목</div>
+                  <div>수량</div>
+                  <div>개당비용</div>
+                  <div>신고합계</div>
+                  <div>최종비용(수수료 포함)</div>
+                  <div>폐기신고번호</div>
+                  <div>입금여부</div>
                 </div>
-              ))}
+                {sortedRows.map(row => (
+                  <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
+                    <div className="disposal-list-grid-check-cell">
+                      <input
+                        type="checkbox"
+                        checked={selectedRowKeys.includes(row.key)}
+                        onChange={e => toggleRowSelection(row.key, e.target.checked)}
+                        aria-label={`${row.customerName} 선택`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="disposal-list-grid-button"
+                      onClick={() => navigate(`/disposal/forms/${row.recordId}`)}
+                    >
+                      <span>{row.customerName}</span>
+                      <span>{row.itemName}</span>
+                      <span>{formatNumber(row.quantity)}</span>
+                      <span>{formatCurrency(row.unitCost)}</span>
+                      <span>{formatCurrency(row.reportAmount)}</span>
+                      <span>{formatCurrency(row.finalAmount)}</span>
+                      <span>{row.reportNo}</span>
+                      <span>{row.paymentStatus}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </section>
     </div>
   )

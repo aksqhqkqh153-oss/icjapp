@@ -3956,6 +3956,16 @@ function CalendarPage() {
     }
   }
 
+  async function fetchExceptionItemsForDate(dateKey = selectedDate) {
+    try {
+      const result = await api(`/api/work-schedule?start_date=${encodeURIComponent(dateKey)}&days=1`)
+      const day = Array.isArray(result?.days) ? result.days[0] : null
+      return Array.isArray(day?.auto_unavailable_business) ? day.auto_unavailable_business : []
+    } catch {
+      return []
+    }
+  }
+
   async function openExceptionManager() {
     if (Number(currentUser?.grade || 6) > 2) return
     setExceptionManagerOpen(true)
@@ -3974,7 +3984,7 @@ function CalendarPage() {
           label: `[${item.branch_no}호점] ${item.name || item.nickname || item.email || `계정 ${item.id}`}`,
         }))
       setExceptionAccounts(accounts)
-      const dayItems = Array.isArray(selectedDaySummary?.auto_unavailable_business) ? selectedDaySummary.auto_unavailable_business : []
+      const dayItems = await fetchExceptionItemsForDate(selectedDate)
       setExceptionItems(dayItems)
       if (accounts.length) {
         setExceptionForm(prev => ({ ...prev, user_id: prev.user_id || String(accounts[0].id) }))
@@ -4013,7 +4023,7 @@ function CalendarPage() {
         await callVehicleExclusionManagerApi(userId, 'create', payload)
       }
       await load()
-      const refreshed = (workDayMap.get(selectedDate)?.auto_unavailable_business || [])
+      const refreshed = await fetchExceptionItemsForDate(selectedDate)
       setExceptionItems(refreshed)
       setExceptionAction('add')
       setEditingExceptionId(null)
@@ -4036,7 +4046,7 @@ function CalendarPage() {
     try {
       await callVehicleExclusionManagerApi(targetId, 'delete', null, exclusionId)
       await load()
-      const refreshed = (workDayMap.get(selectedDate)?.auto_unavailable_business || []).filter(entry => Number(entry?.exclusion_id || 0) !== exclusionId)
+      const refreshed = await fetchExceptionItemsForDate(selectedDate)
       setExceptionItems(refreshed)
     } catch (error) {
       window.alert(error.message || '열외삭제에 실패했습니다.')
@@ -4331,7 +4341,7 @@ function CalendarPage() {
               <button type="button" className="small" disabled={exceptionLoading} onClick={submitExceptionAction}>{exceptionAction === 'edit' ? '편집저장' : '열외추가'}</button>
             </div>
             <div className="day-status-exclusion-list exception-manager-list">
-              {(selectedDaySummary?.auto_unavailable_business || []).map(item => (
+              {(exceptionItems || []).map(item => (
                 <div key={`manager-ex-${item.exclusion_id || item.user_id}-${item.start_date || ''}`} className="exception-manager-item">
                   <div className="exception-manager-text">{formatBusinessExceptionLabel(item)}<div className="muted tiny-text">{item.start_date} ~ {item.end_date}</div></div>
                   <div className="inline-actions wrap">
@@ -4340,7 +4350,7 @@ function CalendarPage() {
                   </div>
                 </div>
               ))}
-              {!(selectedDaySummary?.auto_unavailable_business || []).length && <div className="muted">선택한 날짜의 사업자 열외 데이터가 없습니다.</div>}
+              {!(exceptionItems || []).length && <div className="muted">선택한 날짜의 사업자 열외 데이터가 없습니다.</div>}
             </div>
           </section>
         </div>
