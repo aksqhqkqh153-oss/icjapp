@@ -4029,10 +4029,15 @@ function CalendarPage() {
     const targetId = Number(item?.user_id || 0)
     const exclusionId = Number(item?.exclusion_id || 0)
     if (targetId <= 0 || exclusionId <= 0) return
+    const targetName = String(item?.display_name || item?.name || item?.nickname || item?.email || '해당 사업자').trim()
+    const confirmed = window.confirm(`[${targetName}]님을 열외목록에서 삭제하겠습니까?`)
+    if (!confirmed) return
     setExceptionLoading(true)
     try {
       await callVehicleExclusionManagerApi(targetId, 'delete', null, exclusionId)
       await load()
+      const refreshed = (workDayMap.get(selectedDate)?.auto_unavailable_business || []).filter(entry => Number(entry?.exclusion_id || 0) !== exclusionId)
+      setExceptionItems(refreshed)
     } catch (error) {
       window.alert(error.message || '열외삭제에 실패했습니다.')
     } finally {
@@ -4792,15 +4797,25 @@ function WorkSchedulePage() {
           .filter(item => !item?.archived_in_branch_status)
           .map(item => {
             const branchNo = resolveBusinessBranchNo(item)
-            const branchLabel = branchNo === 0 ? '0본점' : (Number.isFinite(branchNo) ? `${branchNo}호점` : '본점/미지정')
             const displayName = item.name || item.nickname || item.email || (branchNo === 0 ? '본점' : (Number.isFinite(branchNo) ? `${branchNo}호점` : '미지정'))
+            const isShimJinSu = String(displayName || '').trim() === '심진수'
+            const normalizedBranchNo = isShimJinSu ? 0 : branchNo
+            const branchLabel = normalizedBranchNo === 0 ? '0본점' : (Number.isFinite(normalizedBranchNo) ? `${normalizedBranchNo}호점` : '본점/미지정')
             return {
-              value: String(branchNo ?? item.branch_no ?? ''),
+              value: String(normalizedBranchNo ?? item.branch_no ?? ''),
               label: `[${branchLabel}] [${displayName}]`,
               name: displayName,
               userId: item.id,
-              branch_no: branchNo,
+              branch_no: normalizedBranchNo,
+              sortPriority: isShimJinSu ? -1 : (normalizedBranchNo === 0 ? 0 : 1),
             }
+          })
+          .sort((a, b) => {
+            const priorityDiff = Number(a.sortPriority || 0) - Number(b.sortPriority || 0)
+            if (priorityDiff !== 0) return priorityDiff
+            const branchDiff = Number(a.branch_no || 999) - Number(b.branch_no || 999)
+            if (branchDiff !== 0) return branchDiff
+            return String(a.name || '').localeCompare(String(b.name || ''), 'ko')
           })
         setBusinessExclusionOptions(branches)
       }
@@ -4871,8 +4886,13 @@ function WorkSchedulePage() {
   }
 
   function applyNoteDeleteSelection() {
-    if (!noteDeleteChecks.length) {
+    if (!noteDeleteMode) {
       setNoteDeleteMode(true)
+      setNoteDeleteChecks([])
+      return
+    }
+    if (!noteDeleteChecks.length) {
+      setNoteDeleteMode(false)
       return
     }
     const nextSlots = noteForm.excluded_business_slots.filter((_, index) => !noteDeleteChecks.includes(index))

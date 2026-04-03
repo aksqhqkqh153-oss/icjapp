@@ -307,6 +307,32 @@ function DisposalTemplateTable({ title, rendered }) {
   )
 }
 
+
+function DisposalFinalStatusRichLabel({ value }) {
+  const status = String(value || '').trim()
+  if (!status) return <span className="disposal-status-placeholder">최종현황 선택</span>
+  if (status === '입금전') return <span className="disposal-status-part danger">입금전</span>
+  if (status === '입금완 / 신고완') {
+    return (
+      <span className="disposal-status-rich">
+        <span className="disposal-status-part primary">입금완</span>
+        <span className="disposal-status-separator"> / </span>
+        <span className="disposal-status-part primary">신고완</span>
+      </span>
+    )
+  }
+  if (status === '입금완 / 신고전') {
+    return (
+      <span className="disposal-status-rich">
+        <span className="disposal-status-part primary">입금완</span>
+        <span className="disposal-status-separator"> / </span>
+        <span className="disposal-status-part danger">신고전</span>
+      </span>
+    )
+  }
+  return <span>{status}</span>
+}
+
 function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
   const customerNameRef = useRef(null)
   const disposalDateRef = useRef(null)
@@ -344,7 +370,7 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
 
   const statusClass = draft.finalStatus === '입금전'
     ? 'disposal-status-danger'
-    : (draft.finalStatus === '입금완 / 신고완' ? 'disposal-status-primary' : (draft.finalStatus === '입금완 / 신고전' ? 'disposal-status-danger' : ''))
+    : (draft.finalStatus === '입금완 / 신고완' ? 'disposal-status-primary' : (draft.finalStatus === '입금완 / 신고전' ? 'disposal-status-mixed' : ''))
 
   return (
     <section className="card disposal-entry-card">
@@ -352,10 +378,15 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
         <div className="disposal-meta-row disposal-meta-row-top">
           <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef)} placeholder="고객명" />
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
-          <select ref={finalStatusRef} className={`disposal-final-status-select ${statusClass}`.trim()} value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} onKeyDown={handleFinalStatusKeyDown}>
-            <option value="">최종현황 선택</option>
-            {FINAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-          </select>
+          <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
+            <select ref={finalStatusRef} className={`disposal-final-status-select ${statusClass}`.trim()} value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} onKeyDown={handleFinalStatusKeyDown}>
+              <option value="">최종현황 선택</option>
+              {FINAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <div className="disposal-final-status-overlay" aria-hidden="true">
+              <DisposalFinalStatusRichLabel value={draft.finalStatus} />
+            </div>
+          </div>
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
           <input ref={locationRef} value={draft.location} onChange={e => updateDraftField('location', e.target.value)} onKeyDown={e => moveFocus(e, districtRef, finalStatusRef)} placeholder="폐기장소" />

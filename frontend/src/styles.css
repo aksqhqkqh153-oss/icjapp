@@ -1351,6 +1351,27 @@ label { font-size: 14px; color: #4f6f8c; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+
+.work-excluded-business-grid.with-reason {
+  grid-template-columns: 1fr;
+}
+.work-excluded-business-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.35fr);
+  gap: 8px;
+  align-items: center;
+}
+.work-excluded-business-row.delete-mode {
+  grid-template-columns: 26px minmax(0, 1.05fr) minmax(0, 1.35fr);
+}
+.work-excluded-business-row select,
+.work-excluded-business-row input {
+  width: 100%;
+  min-width: 0;
+}
+.work-excluded-checkbox {
+  justify-content: center;
+}
 .admin-mode-page {
   display: flex;
   flex-direction: column;
@@ -1394,6 +1415,19 @@ label { font-size: 14px; color: #4f6f8c; }
   }
   .work-excluded-business-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .work-excluded-business-grid.with-reason {
+    grid-template-columns: 1fr;
+  }
+  .work-excluded-business-row,
+  .work-excluded-business-row.delete-mode {
+    grid-template-columns: 1fr;
+  }
+  .work-excluded-business-row.delete-mode {
+    gap: 6px;
+  }
+  .work-excluded-checkbox {
+    justify-content: flex-start;
   }
   .admin-account-row {
     flex-direction: column;
@@ -8936,6 +8970,51 @@ a:focus-visible {
 .disposal-final-status-select.disposal-status-primary {
   color: #2563eb;
   font-weight: 800;
+}
+
+.disposal-final-status-shell {
+  position: relative;
+}
+.disposal-final-status-shell .disposal-final-status-select {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: transparent;
+}
+.disposal-final-status-shell .disposal-final-status-select:focus {
+  color: transparent;
+}
+.disposal-final-status-shell .disposal-final-status-select option {
+  color: #1f2937;
+}
+.disposal-final-status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 10px 38px 10px 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 800;
+}
+.disposal-status-rich {
+  display: inline-flex;
+  align-items: center;
+}
+.disposal-status-part.primary {
+  color: #2563eb;
+}
+.disposal-status-part.danger {
+  color: #dc2626;
+}
+.disposal-status-separator {
+  color: #64748b;
+}
+.disposal-status-placeholder {
+  color: #6b7280;
+  font-weight: 600;
 }
 
 .disposal-items-grid-list {
