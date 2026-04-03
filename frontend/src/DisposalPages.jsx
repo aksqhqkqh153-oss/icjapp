@@ -495,108 +495,108 @@ function DisposalItemsEditor({
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
 
   return (
-    <section className="card disposal-items-card">
-      <div className="disposal-items-head disposal-items-head-bar">
-        <div>
-          <h3>폐기품목입력</h3>
-          <div className="notice-text">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
-        </div>
-        <div className="disposal-items-toolbar">
-          <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
-          <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
-          {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
-        </div>
-      </div>
-
-      <div className="disposal-items-table-wrap">
-        <div className={`disposal-items-table ${deleteMode ? 'delete-mode' : ''}`.trim()}>
-          <div className="disposal-items-table-row disposal-items-table-head">
-            {deleteMode ? <div>체크</div> : null}
-            <div>번호</div>
-            <div>물품</div>
-            <div>개수</div>
-            <div>개당신고비용</div>
-            <div>신고합계비용</div>
-            <div>최종매출비용</div>
-            <div>신고번호</div>
-            <div>메모칸</div>
+    <section className="card disposal-items-card disposal-square-ui">
+      <div className="disposal-items-section disposal-items-input-section">
+        <div className="disposal-items-head disposal-items-head-bar">
+          <div>
+            <h3>폐기품목입력</h3>
+            <div className="notice-text">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
           </div>
-          {visibleRows.map((row, index) => {
-            const item = rendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
-            return (
-              <div key={`disposal-item-row-${index}`} className="disposal-items-table-row disposal-items-table-data-row">
-                {deleteMode ? (
-                  <label className="disposal-items-delete-check">
-                    <input type="checkbox" checked={selectedItemRows.includes(index)} onChange={e => toggleItemRowSelection(index, e.target.checked)} />
-                  </label>
-                ) : null}
-                <div className="disposal-items-number-cell">{index + 1}</div>
-                <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
-                <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
-                <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
-                <div className="disposal-items-metric-cell">{formatCurrency(item.reportAmount || 0)}</div>
-                <div className="disposal-items-metric-cell strong">{formatCurrency(item.finalAmount || 0)}</div>
-                <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
-                <input value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
-              </div>
-            )
-          })}
-          <div className={`disposal-items-table-row disposal-items-summary-row ${deleteMode ? 'delete-mode' : ''}`.trim()}>
-            {deleteMode ? <div /> : null}
-            <div />
-            <div className="disposal-items-summary-label">합계</div>
-            <div className="disposal-items-metric-cell strong">{formatNumber(rendered.totals.totalQty)}</div>
-            <div />
-            <div className="disposal-items-metric-cell strong">{formatCurrency(rendered.totals.totalReport)}</div>
-            <div className="disposal-items-metric-cell strong">{formatCurrency(rendered.totals.totalFinal)}</div>
-            <div />
-            <div />
+          <div className="disposal-items-toolbar">
+            <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
+            <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
+            {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
           </div>
         </div>
-      </div>
 
-      <div className="disposal-linked-preview-grid">
-        <div className="disposal-linked-preview-card">
-          <div className="disposal-linked-preview-title">고객용</div>
-          <div className="disposal-linked-preview-table customer">
-            <div className="disposal-linked-preview-row head">
+        <div className="disposal-items-table-wrap">
+          <div className={`disposal-items-table ${deleteMode ? 'delete-mode' : ''}`.trim()}>
+            <div className="disposal-items-table-row disposal-items-table-head">
+              {deleteMode ? <div>체크</div> : null}
               <div>번호</div>
               <div>물품</div>
               <div>개수</div>
-              <div>최종매출비용</div>
+              <div className="disposal-table-multiline-head"><span>개당</span><span>신고비용</span></div>
+              <div className="disposal-table-multiline-head"><span>신고</span><span>합계비용</span></div>
+              <div className="disposal-table-multiline-head"><span>최종</span><span>매출비용</span></div>
+              <div>신고번호</div>
+              <div>메모칸</div>
             </div>
             {visibleRows.map((row, index) => {
-              const item = rendered.reportRows[index] || { finalAmount: 0 }
+              const item = rendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
               return (
-                <div key={`customer-view-${index}`} className="disposal-linked-preview-row">
-                  <div>{index + 1}</div>
-                  <div>{row?.itemName || ''}</div>
-                  <div>{row?.quantity || ''}</div>
-                  <div>{item.finalAmount ? formatCurrency(item.finalAmount) : ''}</div>
+                <div key={`disposal-item-row-${index}`} className="disposal-items-table-row disposal-items-table-data-row">
+                  {deleteMode ? (
+                    <label className="disposal-items-delete-check">
+                      <input type="checkbox" checked={selectedItemRows.includes(index)} onChange={e => toggleItemRowSelection(index, e.target.checked)} />
+                    </label>
+                  ) : null}
+                  <div className="disposal-items-number-cell">{index + 1}</div>
+                  <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
+                  <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
+                  <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
+                  <div className="disposal-items-metric-cell">{formatCurrency(item.reportAmount || 0)}</div>
+                  <div className="disposal-items-metric-cell strong">{formatCurrency(item.finalAmount || 0)}</div>
+                  <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
+                  <input value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
                 </div>
               )
             })}
+            <div className={`disposal-items-table-row disposal-items-summary-row ${deleteMode ? 'delete-mode' : ''}`.trim()}>
+              {deleteMode ? <div /> : null}
+              <div />
+              <div />
+              <div className="disposal-items-summary-box strong">개수합계 {formatNumber(rendered.totals.totalQty)}</div>
+              <div />
+              <div className="disposal-items-summary-box strong">최종신고합계 {formatCurrency(rendered.totals.totalReport)}</div>
+              <div className="disposal-items-summary-box strong">최종매출합계 {formatCurrency(rendered.totals.totalFinal)}</div>
+              <div />
+              <div />
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="disposal-linked-preview-card">
-          <div className="disposal-linked-preview-title">회사용</div>
-          <div className="disposal-linked-preview-table company">
-            <div className="disposal-linked-preview-row head">
-              <div>번호</div>
-              <div>물품</div>
-              <div>개수</div>
-              <div>신고번호</div>
-            </div>
-            {visibleRows.map((row, index) => (
-              <div key={`company-view-${index}`} className="disposal-linked-preview-row">
+      <div className="disposal-items-section disposal-linked-preview-card">
+        <div className="disposal-linked-preview-title">고객용</div>
+        <div className="disposal-linked-preview-table customer">
+          <div className="disposal-linked-preview-row head">
+            <div>번호</div>
+            <div>물품</div>
+            <div>개수</div>
+            <div>최종매출비용</div>
+          </div>
+          {visibleRows.map((row, index) => {
+            const item = rendered.reportRows[index] || { finalAmount: 0 }
+            return (
+              <div key={`customer-view-${index}`} className="disposal-linked-preview-row">
                 <div>{index + 1}</div>
                 <div>{row?.itemName || ''}</div>
                 <div>{row?.quantity || ''}</div>
-                <div>{row?.reportNo || ''}</div>
+                <div>{item.finalAmount ? formatCurrency(item.finalAmount) : ''}</div>
               </div>
-            ))}
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="disposal-items-section disposal-linked-preview-card">
+        <div className="disposal-linked-preview-title">회사용</div>
+        <div className="disposal-linked-preview-table company">
+          <div className="disposal-linked-preview-row head">
+            <div>번호</div>
+            <div>물품</div>
+            <div>개수</div>
+            <div>신고번호</div>
           </div>
+          {visibleRows.map((row, index) => (
+            <div key={`company-view-${index}`} className="disposal-linked-preview-row">
+              <div>{index + 1}</div>
+              <div>{row?.itemName || ''}</div>
+              <div>{row?.quantity || ''}</div>
+              <div>{row?.reportNo || ''}</div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
