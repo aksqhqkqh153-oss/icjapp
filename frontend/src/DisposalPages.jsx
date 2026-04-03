@@ -258,7 +258,8 @@ async function loadCanvasImage(src) {
   })
 }
 
-async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '' }) {
+async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '', mode = 'customer' }) {
+  const isCompany = mode === 'company'
   const padding = 40
   const titleHeight = 52
   const subtitleHeight = 34
@@ -268,14 +269,22 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const totalHeight = 76
   const footerGap = 24
   const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
-  const cols = [
-    { key: 'index', label: '번호', width: 100, align: 'center' },
-    { key: 'itemName', label: '품목', width: 360, align: 'center' },
-    { key: 'quantity', label: '개수', width: 96, align: 'center' },
-    { key: 'finalAmount', label: '개별품목비용', width: 156, align: 'right' },
-  ]
+  const cols = isCompany
+    ? [
+        { key: 'index', label: '번호', width: 100, align: 'center' },
+        { key: 'itemName', label: '품목', width: 360, align: 'center' },
+        { key: 'quantity', label: '개수', width: 96, align: 'center' },
+        { key: 'reportNo', label: '신고번호', width: 156, align: 'center' },
+      ]
+    : [
+        { key: 'index', label: '번호', width: 100, align: 'center' },
+        { key: 'itemName', label: '품목', width: 360, align: 'center' },
+        { key: 'quantity', label: '개수', width: 96, align: 'center' },
+        { key: 'finalAmount', label: '개별품목비용', width: 156, align: 'right' },
+      ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
-  const contentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
+  const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
+  const contentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
   const width = padding * 2 + tableWidth
   const height = Math.max(width, contentHeight)
   const canvas = document.createElement('canvas')
@@ -304,8 +313,8 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 520
-    const maxLogoHeight = 220
+    const maxLogoWidth = 1040
+    const maxLogoHeight = 440
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
@@ -325,11 +334,7 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
 
   ctx.fillStyle = '#374151'
   ctx.font = '500 18px sans-serif'
-  const infoText = [
-    customerName ? `고객명 ${customerName}` : '',
-    disposalDate ? `폐기일자 ${disposalDate}` : '',
-    location ? `폐기장소 ${location}` : '',
-  ].filter(Boolean).join('   |   ')
+  const infoText = [customerName || '', disposalDate || '', location || ''].filter(Boolean).join('   |   ')
   if (infoText) ctx.fillText(infoText, startX, currentY + infoHeight / 2)
   currentY += infoHeight
 
@@ -377,22 +382,32 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
     })
   }
 
-  const totalY = currentY + headerHeight + bodyRows * rowHeight + 22
-  const totalWidth = 650
-  const totalX = startX + tableWidth - totalWidth
-  ctx.fillStyle = '#eff6ff'
-  ctx.fillRect(totalX, totalY, totalWidth, totalHeight)
-  ctx.strokeStyle = '#2563eb'
-  ctx.lineWidth = 3
-  ctx.strokeRect(totalX, totalY, totalWidth, totalHeight)
-  ctx.fillStyle = '#2563eb'
-  ctx.font = '800 28px sans-serif'
-  ctx.textAlign = 'left'
-  ctx.fillText('대리신고 최종 합계비용', totalX + 18, totalY + totalHeight / 2)
-  ctx.textAlign = 'right'
-  ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
+  if (!isCompany) {
+    const totalY = currentY + headerHeight + bodyRows * rowHeight + 22
+    const totalWidth = 650
+    const totalX = startX + tableWidth - totalWidth
+    ctx.fillStyle = '#eff6ff'
+    ctx.fillRect(totalX, totalY, totalWidth, totalHeight)
+    ctx.strokeStyle = '#2563eb'
+    ctx.lineWidth = 3
+    ctx.strokeRect(totalX, totalY, totalWidth, totalHeight)
+    ctx.fillStyle = '#2563eb'
+    ctx.font = '800 28px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('대리신고 최종 합계비용', totalX + 18, totalY + totalHeight / 2)
+    ctx.textAlign = 'right'
+    ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
+  }
 
   return canvas
+}
+
+async function buildCustomerQuoteCanvas(options = {}) {
+  return buildEstimateQuoteCanvas({ ...options, mode: 'customer' })
+}
+
+async function buildCompanyQuoteCanvas(options = {}) {
+  return buildEstimateQuoteCanvas({ ...options, mode: 'company' })
 }
 
 function persistPreviewDraft(draft) {
@@ -661,11 +676,15 @@ function DisposalItemsEditor({
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
+  const [companySettingsOpen, setCompanySettingsOpen] = useState(false)
   const [customerSaveDirectoryHandle, setCustomerSaveDirectoryHandle] = useState(null)
+  const [companySaveDirectoryHandle, setCompanySaveDirectoryHandle] = useState(null)
   const [customerSaveDirectoryLabel, setCustomerSaveDirectoryLabel] = useState('기본 다운로드 폴더')
+  const [companySaveDirectoryLabel, setCompanySaveDirectoryLabel] = useState('기본 다운로드 폴더')
   const [showItemsHelp, setShowItemsHelp] = useState(false)
   const [activeNoteInfo, setActiveNoteInfo] = useState(null)
   const customerSettingsRef = useRef(null)
+  const companySettingsRef = useRef(null)
 
   const customerExportRows = useMemo(() => visibleRows.map((row, index) => {
     const item = rendered.reportRows[index] || { finalAmount: 0 }
@@ -677,16 +696,26 @@ function DisposalItemsEditor({
     }
   }), [visibleRows, rendered.reportRows])
 
+  const companyExportRows = useMemo(() => visibleRows.map((row, index) => ({
+    index: index + 1,
+    itemName: row?.itemName || '',
+    quantity: row?.quantity || '',
+    reportNo: row?.reportNo || '',
+  })), [visibleRows])
+
   useEffect(() => {
-    if (!customerSettingsOpen) return undefined
+    if (!customerSettingsOpen && !companySettingsOpen) return undefined
     function handleOutsideClick(event) {
-      if (!customerSettingsRef.current?.contains(event.target)) {
+      if (customerSettingsOpen && !customerSettingsRef.current?.contains(event.target)) {
         setCustomerSettingsOpen(false)
+      }
+      if (companySettingsOpen && !companySettingsRef.current?.contains(event.target)) {
+        setCompanySettingsOpen(false)
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
-  }, [customerSettingsOpen])
+  }, [customerSettingsOpen, companySettingsOpen])
 
   async function selectCustomerSaveDirectory() {
     if (!window.showDirectoryPicker) {
@@ -698,6 +727,23 @@ function DisposalItemsEditor({
       setCustomerSaveDirectoryHandle(handle)
       setCustomerSaveDirectoryLabel(handle?.name || '선택된 폴더')
       setCustomerSettingsOpen(false)
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        window.alert('견적저장위치를 지정하지 못했습니다.')
+      }
+    }
+  }
+
+  async function selectCompanySaveDirectory() {
+    if (!window.showDirectoryPicker) {
+      window.alert('현재 브라우저에서는 저장 폴더 지정을 지원하지 않습니다. 크롬 최신 브라우저에서 사용해주세요.')
+      return
+    }
+    try {
+      const handle = await window.showDirectoryPicker()
+      setCompanySaveDirectoryHandle(handle)
+      setCompanySaveDirectoryLabel(handle?.name || '선택된 폴더')
+      setCompanySettingsOpen(false)
     } catch (error) {
       if (error?.name !== 'AbortError') {
         window.alert('견적저장위치를 지정하지 못했습니다.')
@@ -833,6 +879,11 @@ function DisposalItemsEditor({
             ) : null}
           </div>
         </div>
+        <div className="disposal-linked-preview-meta customer-large-text">
+          <div>{draft.customerName || ''}</div>
+          <div>{draft.disposalDate || ''}</div>
+          <div>{draft.location || ''}</div>
+        </div>
         <div className="disposal-linked-preview-table customer customer-large-text">
           <div className="disposal-linked-preview-row head">
             <div>번호</div>
@@ -855,21 +906,38 @@ function DisposalItemsEditor({
         </div>
       </div>
 
-      <div className="disposal-items-section disposal-linked-preview-card">
-        <div className="disposal-linked-preview-title">회사용</div>
-        <div className="disposal-linked-preview-table company">
+      <div className="disposal-items-section disposal-linked-preview-card customer-preview-card">
+        <div className="disposal-linked-preview-card-head">
+          <div className="disposal-linked-preview-title customer-title">회사용</div>
+          <div className="disposal-linked-preview-actions" ref={companySettingsRef}>
+            <button type="button" className="ghost disposal-preview-save-button" onClick={saveCompanyEstimateAsJpg}>견적저장</button>
+            <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCompanySettingsOpen(prev => !prev)} aria-label="회사용 설정">⚙</button>
+            {companySettingsOpen ? (
+              <div className="disposal-settings-popover disposal-customer-settings-popover">
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCompanySaveDirectory}>견적저장위치</button>
+                <div className="disposal-settings-popover-caption">현재: {companySaveDirectoryLabel}</div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div className="disposal-linked-preview-meta customer-large-text">
+          <div>{draft.customerName || ''}</div>
+          <div>{draft.disposalDate || ''}</div>
+          <div>{draft.location || ''}</div>
+        </div>
+        <div className="disposal-linked-preview-table customer company customer-large-text">
           <div className="disposal-linked-preview-row head">
             <div>번호</div>
             <div>품목</div>
             <div>개수</div>
             <div>신고번호</div>
           </div>
-          {visibleRows.map((row, index) => (
-            <div key={`company-view-${index}`} className="disposal-linked-preview-row">
-              <div>{index + 1}</div>
-              <div>{row?.itemName || ''}</div>
-              <div>{row?.quantity || ''}</div>
-              <div>{row?.reportNo || ''}</div>
+          {companyExportRows.map(row => (
+            <div key={`company-view-${row.index}`} className="disposal-linked-preview-row">
+              <div>{row.index}</div>
+              <div>{row.itemName || ''}</div>
+              <div>{row.quantity || ''}</div>
+              <div>{row.reportNo || ''}</div>
             </div>
           ))}
         </div>
@@ -931,7 +999,7 @@ export function DisposalJurisdictionRegistryPage() {
     setLoading(true)
     try {
       const result = await api(`/api/disposal/jurisdictions${keyword ? `?q=${encodeURIComponent(keyword)}` : ''}`, { cache: 'no-store' })
-      setRows(Array.isArray(result?.rows) ? result.rows.map((row, index) => ({ ...row, localId: String(row.id || `loaded-${index}`) })) : [])
+      setRows(Array.isArray(result?.rows) ? result.rows.map((row, index) => ({ ...row, addedAt: 0, localId: String(row.id || `loaded-${index}`) })) : [])
       setSelectedIds(prev => prev.filter(id => (result?.rows || []).some(row => row.id === id)))
     } catch (error) {
       window.alert(error.message || '관할구역 데이터를 불러오지 못했습니다.')
@@ -973,25 +1041,33 @@ export function DisposalJurisdictionRegistryPage() {
       const right = String(b[key] || '').toLowerCase()
       return direction === 'asc' ? left.localeCompare(right, 'ko') : right.localeCompare(left, 'ko')
     }
+    const prioritizeNewRows = (a, b) => {
+      const aNew = !a?.id
+      const bNew = !b?.id
+      if (aNew && bNew) return Number(b?.addedAt || 0) - Number(a?.addedAt || 0)
+      if (aNew) return -1
+      if (bNew) return 1
+      return null
+    }
     switch (secondaryFilter) {
       case 'asc':
-        sorted.sort((a, b) => compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'asc'))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'asc'))
         break
       case 'desc':
-        sorted.sort((a, b) => compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'desc'))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? compareText(a, b, primaryFilter === 'all' ? 'place_prefix' : primaryFilter, 'desc'))
         break
       case 'created_desc':
-        sorted.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? String(b.created_at || '').localeCompare(String(a.created_at || '')))
         break
       case 'created_asc':
-        sorted.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? String(a.created_at || '').localeCompare(String(b.created_at || '')))
         break
       case 'updated_asc':
-        sorted.sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || '')))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? String(a.updated_at || '').localeCompare(String(b.updated_at || '')))
         break
       case 'updated_desc':
       default:
-        sorted.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+        sorted.sort((a, b) => prioritizeNewRows(a, b) ?? String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
         break
     }
     return sorted
@@ -1003,7 +1079,7 @@ export function DisposalJurisdictionRegistryPage() {
 
   function addRow() {
     const uid = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    setRows(prev => [{ id: null, localId: uid, category: '기본', place_prefix: '', district_name: '', report_link: '' }, ...prev])
+    setRows(prev => [{ id: null, localId: uid, addedAt: Date.now(), category: '기본', place_prefix: '', district_name: '', report_link: '' }, ...prev])
   }
 
   function toggleAll(checked) {

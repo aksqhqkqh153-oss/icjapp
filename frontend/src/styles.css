@@ -10891,9 +10891,34 @@ button.disposal-items-number-cell.has-note {
   text-align: right;
 }
 
+.disposal-linked-preview-card .disposal-linked-preview-table.company .disposal-linked-preview-row:not(.head) > div:nth-child(4) {
+  justify-content: center;
+  text-align: center;
+}
+
 .disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row > div:nth-child(4) {
   padding-left: 4px;
   padding-right: 8px;
+}
+
+
+.disposal-linked-preview-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.disposal-linked-preview-meta > div {
+  min-height: 36px;
+  border: 1px solid #d8e0ec;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  font-size: 16px;
+  text-align: center;
 }
 
 .disposal-linked-preview-total {
@@ -10973,6 +10998,10 @@ button.disposal-items-number-cell.has-note {
 }
 
 @media (max-width: 1024px) {
+  .disposal-linked-preview-meta {
+    grid-template-columns: 1fr;
+  }
+
   .disposal-items-table-wrap {
     overflow-x: auto;
   }
@@ -11171,7 +11200,27 @@ button.disposal-items-number-cell.has-note {
     font-size: 12px;
   }
 
-  .disposal-linked-preview-total {
+  
+.disposal-linked-preview-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.disposal-linked-preview-meta > div {
+  min-height: 36px;
+  border: 1px solid #d8e0ec;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.disposal-linked-preview-total {
     width: 100%;
     min-width: 0;
     padding: 6px 8px;
