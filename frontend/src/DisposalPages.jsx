@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { api, getStoredUser } from './api'
 import { DISPOSAL_TEMPLATE } from './disposalTemplateData'
 
 const STORAGE_KEY = 'icj_disposal_records_v2'
@@ -304,7 +305,7 @@ function DisposalTemplateTable({ title, rendered }) {
   )
 }
 
-function DisposalMetaInputs({ draft, updateDraftField }) {
+function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
   return (
     <section className="card disposal-entry-card">
       <div className="disposal-meta-layout">
@@ -315,7 +316,16 @@ function DisposalMetaInputs({ draft, updateDraftField }) {
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
           <input value={draft.location} onChange={e => updateDraftField('location', e.target.value)} placeholder="폐기장소" />
-          <input value={draft.district} onChange={e => updateDraftField('district', e.target.value)} placeholder="관할구역" />
+          <div className="disposal-district-field">
+            <input value={draft.district} onChange={e => updateDraftField('district', e.target.value)} placeholder="관할구역" />
+            {districtResolved?.report_link ? (
+              <a className="disposal-district-link" href={districtResolved.report_link} target="_blank" rel="noreferrer">
+                {districtResolved.district_name || draft.district} 신고 접수 바로가기
+              </a>
+            ) : (
+              <div className="disposal-district-hint">{districtResolved?.matched ? `${districtResolved.place_prefix} 기준 자동 반영` : '등록된 관할구역 링크 없음'}</div>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -358,6 +368,177 @@ function DisposalItemsEditor({ draft, rendered, updateItem }) {
   )
 }
 
+
+function DisposalSettingsPopover({ open, onClose, onMoveRegistry }) {
+  if (!open) return null
+  return (
+    <div className="disposal-settings-popover">
+      <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onMoveRegistry(); onClose() }}>관할구역등록</button>
+    </div>
+  )
+}
+
+export function DisposalJurisdictionRegistryPage() {
+  const navigate = useNavigate()
+  const currentUser = getStoredUser() || {}
+  const canEdit = Number(currentUser?.grade || 9) <= 2
+  const [rows, setRows] = useState([])
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [filterValue, setFilterValue] = useState('all')
+
+  async function load(keyword = '') {
+    setLoading(true)
+    try {
+      const result = await api(`/api/disposal/jurisdictions${keyword ? `?q=${encodeURIComponent(keyword)}` : ''}`, { cache: 'no-store' })
+      setRows(Array.isArray(result?.rows) ? result.rows.map((row, index) => ({ ...row, localId: String(row.id || `loaded-${index}`) })) : [])
+      setSelectedIds(prev => prev.filter(id => (result?.rows || []).some(row => row.id === id)))
+    } catch (error) {
+      window.alert(error.message || '관할구역 데이터를 불러오지 못했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load('') }, [])
+
+  const visibleRows = useMemo(() => {
+    if (filterValue === 'all') return rows
+    return rows.filter(row => String(row.category || '기본') === filterValue)
+  }, [rows, filterValue])
+
+  function updateRow(localId, key, value) {
+    setRows(prev => prev.map(row => row.localId === localId ? { ...row, [key]: value } : row))
+  }
+
+  function addRow() {
+    const uid = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    setRows(prev => [{ id: null, localId: uid, category: '기본', place_prefix: '', district_name: '', report_link: '' }, ...prev])
+  }
+
+  function toggleAll(checked) {
+    setSelectedIds(checked ? visibleRows.filter(row => row.id).map(row => row.id) : [])
+  }
+
+  function toggleOne(id, checked) {
+    if (!id) return
+    setSelectedIds(prev => checked ? Array.from(new Set([...prev, id])) : prev.filter(item => item !== id))
+  }
+
+  async function saveRows() {
+    if (!canEdit) {
+      window.alert('관할구역등록 저장 권한이 없습니다.')
+      return
+    }
+    const payloadRows = rows
+      .map(row => ({
+        id: row.id || undefined,
+        category: String(row.category || '기본').trim() || '기본',
+        place_prefix: String(row.place_prefix || '').trim(),
+        district_name: String(row.district_name || '').trim(),
+        report_link: String(row.report_link || '').trim(),
+      }))
+      .filter(row => row.place_prefix && row.district_name)
+    if (!payloadRows.length) {
+      window.alert('저장할 관할구역 데이터를 입력해주세요.')
+      return
+    }
+    setSaving(true)
+    try {
+      await api('/api/disposal/jurisdictions/bulk-save', { method: 'POST', body: JSON.stringify({ rows: payloadRows }) })
+      await load(searchKeyword)
+      window.alert('관할구역 데이터가 저장되었습니다.')
+    } catch (error) {
+      window.alert(error.message || '관할구역 저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteSelected() {
+    if (!canEdit) {
+      window.alert('관할구역등록 삭제 권한이 없습니다.')
+      return
+    }
+    if (!selectedIds.length) {
+      window.alert('삭제할 항목을 선택해주세요.')
+      return
+    }
+    if (!window.confirm('선택한 관할구역 항목을 삭제할까요?')) return
+    try {
+      await api('/api/disposal/jurisdictions/delete', { method: 'POST', body: JSON.stringify({ rows: selectedIds.map(id => ({ id })) }) })
+      await load(searchKeyword)
+      setSelectedIds([])
+      window.alert('선택 항목이 삭제되었습니다.')
+    } catch (error) {
+      window.alert(error.message || '삭제 중 오류가 발생했습니다.')
+    }
+  }
+
+  const categoryOptions = useMemo(() => {
+    const bucket = new Set(['기본'])
+    rows.forEach(row => { if (row.category) bucket.add(row.category) })
+    return Array.from(bucket)
+  }, [rows])
+
+  return (
+    <div className="stack-page disposal-page">
+      <section className="card disposal-hero">
+        <div>
+          <h2>관할구역등록</h2>
+          <p className="notice-text">폐기장소의 시/구 기준으로 관할구역명과 폐기신고 링크를 저장·관리하는 화면입니다.</p>
+        </div>
+        <div className="disposal-hero-actions">
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
+          <button type="button" className="ghost" onClick={addRow}>행추가</button>
+          <button type="button" className="ghost" onClick={deleteSelected}>선택삭제</button>
+          <button type="button" className="ghost active" onClick={saveRows} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+        </div>
+      </section>
+
+      <section className="card disposal-jurisdiction-toolbar-card">
+        <div className="disposal-jurisdiction-toolbar">
+          <div className="disposal-jurisdiction-toolbar-left">
+            <select value={filterValue} onChange={e => setFilterValue(e.target.value)}>
+              <option value="all">전체 필터</option>
+              {categoryOptions.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
+          <div className="disposal-jurisdiction-toolbar-right">
+            <input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="키워드 검색" />
+            <button type="button" className="ghost" onClick={() => load(searchKeyword)}>검색</button>
+            <button type="button" className="ghost active" onClick={saveRows} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="card disposal-records-card disposal-jurisdiction-table-card">
+        <div className="disposal-jurisdiction-grid">
+          <div className="disposal-jurisdiction-grid-row disposal-jurisdiction-grid-head">
+            <label className="disposal-jurisdiction-check-all"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every(row => row.id && selectedIds.includes(row.id))} onChange={e => toggleAll(e.target.checked)} /></label>
+            <div>구분</div>
+            <div>폐기장소 입력칸</div>
+            <div>관할구역 입력칸</div>
+            <div>관할구역 폐기신고링크 입력칸</div>
+          </div>
+          {loading ? <div className="empty-state">불러오는 중...</div> : visibleRows.map((row, index) => (
+            <div key={row.localId || row.id || `row-${index}`} className="disposal-jurisdiction-grid-row">
+              <label><input type="checkbox" checked={!!row.id && selectedIds.includes(row.id)} onChange={e => toggleOne(row.id, e.target.checked)} /></label>
+              <input value={row.category || '기본'} onChange={e => updateRow(row.localId, 'category', e.target.value)} disabled={!canEdit} placeholder="구분" />
+              <input value={row.place_prefix || ''} onChange={e => updateRow(row.localId, 'place_prefix', e.target.value)} disabled={!canEdit} placeholder="예: 서울특별시 노원구" />
+              <input value={row.district_name || ''} onChange={e => updateRow(row.localId, 'district_name', e.target.value)} disabled={!canEdit} placeholder="관할구역명" />
+              <input value={row.report_link || ''} onChange={e => updateRow(row.localId, 'report_link', e.target.value)} disabled={!canEdit} placeholder="https://..." />
+            </div>
+          ))}
+          {!loading && visibleRows.length === 0 && <div className="empty-state">등록된 관할구역 데이터가 없습니다.</div>}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export function DisposalHubPage() {
   return (
     <div className="stack-page disposal-page">
@@ -381,6 +562,9 @@ export function DisposalFormsPage() {
   const { recordId } = useParams()
   const [draft, setDraft] = useState(createInitialDraft())
   const [savedAt, setSavedAt] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [districtResolved, setDistrictResolved] = useState({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+  const settingsRef = useRef(null)
 
   useEffect(() => {
     if (!recordId) return
@@ -397,6 +581,36 @@ export function DisposalFormsPage() {
       setSavedAt(found.savedAt || '')
     }
   }, [recordId])
+
+
+useEffect(() => {
+  function handleClickOutside(event) {
+    if (!settingsRef.current || settingsRef.current.contains(event.target)) return
+    setSettingsOpen(false)
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  return () => document.removeEventListener('mousedown', handleClickOutside)
+}, [])
+
+useEffect(() => {
+  const trimmed = String(draft.location || '').trim()
+  if (!trimmed) {
+    setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+    return
+  }
+  const timer = window.setTimeout(async () => {
+    try {
+      const result = await api(`/api/disposal/jurisdictions/resolve?location=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
+      setDistrictResolved(result || { matched: false, district_name: '', report_link: '', place_prefix: '' })
+      if (result?.matched && result?.district_name) {
+        setDraft(prev => prev.district === result.district_name ? prev : ({ ...prev, district: result.district_name }))
+      }
+    } catch {
+      setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+    }
+  }, 250)
+  return () => window.clearTimeout(timer)
+}, [draft.location])
 
   const rendered = useMemo(() => buildRenderedTemplate(draft), [draft])
 
@@ -433,14 +647,18 @@ export function DisposalFormsPage() {
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
           <p className="notice-text">저장 시 폐기목록과 폐기결산에서 동시에 관리됩니다.</p>
         </div>
-        <div className="disposal-hero-actions">
+        <div className="disposal-hero-actions" ref={settingsRef}>
+          <div className="disposal-settings-inline">
+            <button type="button" className="ghost" onClick={() => setSettingsOpen(prev => !prev)}>설정</button>
+            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} />
+          </div>
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
           <button type="button" className="ghost active" onClick={saveSettlementRecord}>폐기결산 저장</button>
         </div>
       </section>
 
-      <DisposalMetaInputs draft={draft} updateDraftField={updateDraftField} />
+      <DisposalMetaInputs draft={draft} updateDraftField={updateDraftField} districtResolved={districtResolved} />
 
       <section className="disposal-form-shell">
         <div className="disposal-form-left">

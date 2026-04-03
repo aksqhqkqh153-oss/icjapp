@@ -764,6 +764,19 @@ CREATE TABLE IF NOT EXISTS region_boundaries (
     region TEXT NOT NULL,
     geojson TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS disposal_jurisdiction_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL DEFAULT '기본',
+    place_prefix TEXT NOT NULL,
+    district_name TEXT NOT NULL,
+    report_link TEXT NOT NULL DEFAULT '',
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    UNIQUE(place_prefix),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 """
 
 def insert_notification(conn: sqlite3.Connection, user_id: int, type_: str, title: str, body: str) -> None:

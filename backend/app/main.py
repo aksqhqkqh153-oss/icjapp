@@ -11,7 +11,7 @@ from typing import Any, Optional
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
@@ -136,6 +136,23 @@ class LocationIn(BaseModel):
     region: str = "서울"
 class LocationShareConsentIn(BaseModel):
     enabled: bool
+
+class DisposalJurisdictionRowIn(BaseModel):
+    id: Optional[int] = None
+    category: str = '기본'
+    place_prefix: str
+    district_name: str
+    report_link: str = ''
+
+class DisposalJurisdictionBulkSaveIn(BaseModel):
+    rows: list[DisposalJurisdictionRowIn] = Field(default_factory=list)
+
+class DisposalJurisdictionResolveOut(BaseModel):
+    matched: bool
+    place_prefix: str = ''
+    district_name: str = ''
+    report_link: str = ''
+
 class FeedPostIn(BaseModel):
     content: str
     image_url: str = ""
@@ -4584,11 +4601,166 @@ def get_preferences(user=Depends(require_user)):
     with get_conn() as conn:
         row = conn.execute("SELECT data FROM preferences WHERE user_id = ?", (user["id"],)).fetchone()
         return json.loads(row["data"]) if row else {}
+
 @app.post("/api/preferences")
 def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
     with get_conn() as conn:
         conn.execute("INSERT OR REPLACE INTO preferences(user_id, data) VALUES (?, ?)", (user["id"], json.dumps(payload.data, ensure_ascii=False)))
         return {"ok": True}
+
+
+def _normalize_disposal_place_prefix(value: str) -> str:
+    raw = re.sub(r'\s+', ' ', str(value or '').strip())
+    if not raw:
+        return ''
+    match = re.search(r'((?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시))\s+[가-힣0-9]+(?:구|군|시))', raw)
+    if match:
+        return match.group(1).strip()
+    tokens = raw.split(' ')
+    if len(tokens) >= 2:
+        return ' '.join(tokens[:2]).strip()
+    return raw
+
+
+def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
+    return {
+        'id': int(row['id']),
+        'category': str(row['category'] or '기본'),
+        'place_prefix': str(row['place_prefix'] or ''),
+        'district_name': str(row['district_name'] or ''),
+        'report_link': str(row['report_link'] or ''),
+        'created_at': str(row['created_at'] or ''),
+        'updated_at': str(row['updated_at'] or ''),
+    }
+
+
+@app.get('/api/disposal/jurisdictions')
+def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_user)):
+    keyword = str(q or '').strip()
+    with get_conn() as conn:
+        if keyword:
+            like = f'%{keyword}%'
+            rows = conn.execute(
+                """
+                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                FROM disposal_jurisdiction_mappings
+                WHERE category LIKE ? OR place_prefix LIKE ? OR district_name LIKE ? OR report_link LIKE ?
+                ORDER BY place_prefix COLLATE NOCASE, id DESC
+                """,
+                (like, like, like, like),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                FROM disposal_jurisdiction_mappings
+                ORDER BY place_prefix COLLATE NOCASE, id DESC
+                """
+            ).fetchall()
+    return {'rows': [_disposal_jurisdiction_row_to_dict(row) for row in rows]}
+
+
+@app.post('/api/disposal/jurisdictions/bulk-save')
+def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=Depends(require_admin_or_subadmin)):
+    rows = payload.rows or []
+    saved_rows: list[dict[str, Any]] = []
+    with get_conn() as conn:
+        for item in rows:
+            place_prefix = _normalize_disposal_place_prefix(item.place_prefix)
+            district_name = str(item.district_name or '').strip()
+            if not place_prefix or not district_name:
+                continue
+            category = str(item.category or '기본').strip() or '기본'
+            report_link = str(item.report_link or '').strip()
+            now = utcnow()
+            existing = conn.execute(
+                'SELECT id FROM disposal_jurisdiction_mappings WHERE id = ?' if item.id else 'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ?',
+                (int(item.id),) if item.id else (place_prefix,),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE disposal_jurisdiction_mappings
+                    SET category = ?, place_prefix = ?, district_name = ?, report_link = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (category, place_prefix, district_name, report_link, now, int(existing['id'])),
+                )
+                saved_id = int(existing['id'])
+            else:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (category, place_prefix, district_name, report_link, int(user['id']), now, now),
+                )
+                saved_id = int(cursor.lastrowid)
+            row = conn.execute(
+                """
+                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                FROM disposal_jurisdiction_mappings
+                WHERE id = ?
+                """,
+                (saved_id,),
+            ).fetchone()
+            if row:
+                saved_rows.append(_disposal_jurisdiction_row_to_dict(row))
+    return {'ok': True, 'rows': saved_rows}
+
+
+@app.post('/api/disposal/jurisdictions/delete')
+def delete_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=Depends(require_admin_or_subadmin)):
+    ids = [int(item.id) for item in (payload.rows or []) if item.id]
+    if not ids:
+        return {'ok': True, 'deleted_ids': []}
+    placeholders = ','.join('?' for _ in ids)
+    with get_conn() as conn:
+        conn.execute(f'DELETE FROM disposal_jurisdiction_mappings WHERE id IN ({placeholders})', ids)
+    return {'ok': True, 'deleted_ids': ids}
+
+
+@app.get('/api/disposal/jurisdictions/resolve', response_model=DisposalJurisdictionResolveOut)
+def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depends(require_user)):
+    normalized = _normalize_disposal_place_prefix(location)
+    if not normalized:
+        return DisposalJurisdictionResolveOut(matched=False)
+    with get_conn() as conn:
+        exact = conn.execute(
+            """
+            SELECT place_prefix, district_name, report_link
+            FROM disposal_jurisdiction_mappings
+            WHERE place_prefix = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (normalized,),
+        ).fetchone()
+        if exact:
+            return DisposalJurisdictionResolveOut(
+                matched=True,
+                place_prefix=str(exact['place_prefix'] or ''),
+                district_name=str(exact['district_name'] or ''),
+                report_link=str(exact['report_link'] or ''),
+            )
+        partial = conn.execute(
+            """
+            SELECT place_prefix, district_name, report_link
+            FROM disposal_jurisdiction_mappings
+            WHERE ? LIKE place_prefix || '%'
+            ORDER BY LENGTH(place_prefix) DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized,),
+        ).fetchone()
+    if not partial:
+        return DisposalJurisdictionResolveOut(matched=False, place_prefix=normalized)
+    return DisposalJurisdictionResolveOut(
+        matched=True,
+        place_prefix=str(partial['place_prefix'] or ''),
+        district_name=str(partial['district_name'] or ''),
+        report_link=str(partial['report_link'] or ''),
+    )
 
 
 

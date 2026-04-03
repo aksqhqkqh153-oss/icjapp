@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
-import { DisposalFormsPage, DisposalHubPage, DisposalListPage, DisposalSettlementsPage } from './DisposalPages'
+import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalSettlementsPage } from './DisposalPages'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -38,6 +38,7 @@ const PAGE_TITLES = {
   '/disposal/forms': '폐기양식',
   '/disposal/list': '폐기목록',
   '/disposal/settlements': '폐기결산',
+  '/disposal/jurisdictions': '관할구역등록',
 }
 
 function pageTitle(pathname) {
@@ -11216,6 +11217,7 @@ function App() {
         <Route path="/disposal/forms/:recordId" element={<DisposalFormsPage />} />
         <Route path="/disposal/list" element={<DisposalListPage />} />
         <Route path="/disposal/settlements" element={<DisposalSettlementsPage />} />
+        <Route path="/disposal/jurisdictions" element={<DisposalJurisdictionRegistryPage />} />
         <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />
         <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
         <Route path="/settings" element={<SettingsPage onLogout={logout} />} />

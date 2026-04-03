@@ -10237,3 +10237,106 @@ a:focus-visible {
     bottom: calc(48px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+.disposal-district-field {
+  display: grid;
+  gap: 6px;
+}
+
+.disposal-district-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.disposal-district-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.disposal-settings-inline {
+  position: relative;
+}
+
+.disposal-settings-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 152px;
+  padding: 8px;
+  border: 1px solid #d8deea;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  z-index: 20;
+}
+
+.disposal-settings-popover-item {
+  width: 100%;
+}
+
+.disposal-jurisdiction-toolbar-card {
+  padding: 14px;
+}
+
+.disposal-jurisdiction-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.disposal-jurisdiction-toolbar-left,
+.disposal-jurisdiction-toolbar-right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.disposal-jurisdiction-toolbar select,
+.disposal-jurisdiction-toolbar input,
+.disposal-jurisdiction-grid input {
+  min-height: 42px;
+  border: 1px solid #cfd6e4;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.disposal-jurisdiction-table-card {
+  overflow: auto;
+}
+
+.disposal-jurisdiction-grid {
+  display: grid;
+  gap: 8px;
+  min-width: 980px;
+}
+
+.disposal-jurisdiction-grid-row {
+  display: grid;
+  grid-template-columns: 54px 120px minmax(220px, 1.2fr) minmax(220px, 1fr) minmax(280px, 1.4fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.disposal-jurisdiction-grid-head {
+  font-weight: 800;
+  color: #334155;
+}
+
+.disposal-jurisdiction-grid-row label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .disposal-jurisdiction-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
