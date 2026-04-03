@@ -10345,49 +10345,77 @@ a:focus-visible {
 
 .disposal-jurisdiction-toolbar {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
-.disposal-jurisdiction-toolbar-left,
-.disposal-jurisdiction-toolbar-right {
-  display: flex;
+.disposal-jurisdiction-toolbar-left {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.9fr) minmax(0, 1.8fr) auto auto;
   gap: 8px;
-  flex-wrap: wrap;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.disposal-jurisdiction-toolbar-right {
+  display: none;
 }
 
 .disposal-jurisdiction-toolbar select,
 .disposal-jurisdiction-toolbar input,
 .disposal-jurisdiction-grid input {
-  min-height: 42px;
+  min-height: 38px;
+  width: 100%;
+  min-width: 0;
   border: 1px solid #cfd6e4;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
-  padding: 10px 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.disposal-jurisdiction-toolbar button,
+.disposal-jurisdiction-grid-row label {
+  flex-shrink: 0;
 }
 
 .disposal-jurisdiction-table-card {
-  overflow: auto;
+  overflow: hidden;
 }
 
 .disposal-jurisdiction-grid {
   display: grid;
-  gap: 8px;
-  min-width: 980px;
+  gap: 6px;
+  width: 100%;
 }
 
 .disposal-jurisdiction-grid-row {
   display: grid;
-  grid-template-columns: 54px 120px minmax(220px, 1.2fr) minmax(220px, 1fr) minmax(280px, 1.4fr);
-  gap: 8px;
+  grid-template-columns: 28px 68px minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 1.2fr);
+  gap: 6px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .disposal-jurisdiction-grid-head {
   font-weight: 800;
   color: #334155;
+  font-size: 12px;
+}
+
+.disposal-jurisdiction-grid-head > div {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.disposal-jurisdiction-head-spacer {
+  width: 28px;
 }
 
 .disposal-jurisdiction-grid-row label {
@@ -10396,9 +10424,31 @@ a:focus-visible {
   justify-content: center;
 }
 
+.disposal-jurisdiction-grid-row input {
+  min-width: 0;
+}
+
 @media (max-width: 900px) {
-  .disposal-jurisdiction-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+  .disposal-jurisdiction-toolbar-left {
+    grid-template-columns: 78px minmax(0, 1fr) 58px 58px;
+    gap: 5px;
+  }
+
+  .disposal-jurisdiction-toolbar select,
+  .disposal-jurisdiction-toolbar input,
+  .disposal-jurisdiction-grid input {
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .disposal-jurisdiction-grid-row {
+    grid-template-columns: 22px 48px minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.05fr);
+    gap: 4px;
+  }
+
+  .disposal-jurisdiction-grid-head {
+    font-size: 10px;
+    letter-spacing: -0.02em;
   }
 }

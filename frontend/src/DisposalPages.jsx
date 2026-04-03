@@ -531,7 +531,6 @@ export function DisposalJurisdictionRegistryPage() {
       <section className="card disposal-hero">
         <div>
           <h2>관할구역등록</h2>
-          <p className="notice-text">폐기장소의 시/구 기준으로 관할구역명과 폐기신고 링크를 저장·관리하는 화면입니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
@@ -548,8 +547,6 @@ export function DisposalJurisdictionRegistryPage() {
               <option value="all">전체 필터</option>
               {categoryOptions.map(option => <option key={option} value={option}>{option}</option>)}
             </select>
-          </div>
-          <div className="disposal-jurisdiction-toolbar-right">
             <input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="키워드 검색" />
             <button type="button" className="ghost" onClick={() => load(searchKeyword)}>검색</button>
             <button type="button" className="ghost active" onClick={saveRows} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
@@ -560,9 +557,9 @@ export function DisposalJurisdictionRegistryPage() {
       <section className="card disposal-records-card disposal-jurisdiction-table-card">
         <div className="disposal-jurisdiction-grid">
           <div className="disposal-jurisdiction-grid-row disposal-jurisdiction-grid-head">
-            <label className="disposal-jurisdiction-check-all"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every(row => row.id && selectedIds.includes(row.id))} onChange={e => toggleAll(e.target.checked)} /></label>
+            <div className="disposal-jurisdiction-head-spacer" />
             <div>구분</div>
-            <div>폐기장소 입력칸</div>
+            <div>폐기장소입력칸</div>
             <div>관할구역 입력칸</div>
             <div>관할구역 폐기신고링크 입력칸</div>
           </div>
