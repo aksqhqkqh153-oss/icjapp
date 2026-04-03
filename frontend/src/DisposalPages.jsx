@@ -280,8 +280,8 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.textBaseline = 'middle'
 
   const cols = [
-    { key: 'index', label: '번호', width: 120, align: 'center' },
-    { key: 'itemName', label: '물품', width: 670, align: 'center' },
+    { key: 'index', label: '번호', width: 140, align: 'center' },
+    { key: 'itemName', label: '품목', width: 620, align: 'center' },
     { key: 'quantity', label: '개수', width: 140, align: 'center' },
     { key: 'finalAmount', label: '개별품목비용', width: 222, align: 'right' },
   ]
@@ -303,8 +303,8 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 120
-    const maxLogoHeight = 40
+    const maxLogoWidth = 300
+    const maxLogoHeight = 120
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
@@ -762,7 +762,7 @@ function DisposalItemsEditor({
             <div className="disposal-items-table-row disposal-items-table-head">
               {deleteMode ? <div>체크</div> : null}
               <div className="disposal-table-multiline-head"><span>번</span><span>호</span></div>
-              <div>물품</div>
+              <div>품목</div>
               <div className="disposal-table-multiline-head"><span>개</span><span>수</span></div>
               <div className="disposal-table-multiline-head"><span>개당</span><span>신고비용</span></div>
               <div className="disposal-table-multiline-head"><span>신고</span><span>합계비용</span></div>
@@ -790,7 +790,7 @@ function DisposalItemsEditor({
                   >
                     {index + 1}
                   </button>
-                  <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
+                  <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="품목" />
                   <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
                   <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
                   <div className="disposal-items-metric-cell">{formatCurrencyPlain(item.reportAmount || 0)}</div>
@@ -804,16 +804,16 @@ function DisposalItemsEditor({
               {deleteMode ? <div /> : null}
               <div />
               <div className="disposal-items-summary-box strong center">합계</div>
-              <div className="disposal-items-summary-box strong">{formatNumber(rendered.totals.totalQty)}개</div>
+              <div className="disposal-items-summary-box strong center">{formatNumber(rendered.totals.totalQty)}개</div>
               <div />
-              <div className="disposal-items-summary-box strong">{formatCurrency(rendered.totals.totalReport)}</div>
-              <div className="disposal-items-summary-box strong">{formatCurrency(rendered.totals.totalFinal)}</div>
+              <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalReport)}</div>
+              <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalFinal)}</div>
               <div />
               <div />
             </div>
           </div>
         </div>
-        <div className="disposal-mobile-note-hint">* '번호'를 누르면 해당물품의 메모정보를 볼 수 있습니다.</div>
+        <div className="disposal-mobile-note-hint">* '번호'를 누르면 해당품목의 메모정보를 볼 수 있습니다.</div>
       </div>
 
       <div className="disposal-items-section disposal-linked-preview-card customer-preview-card">
@@ -833,7 +833,7 @@ function DisposalItemsEditor({
         <div className="disposal-linked-preview-table customer customer-large-text">
           <div className="disposal-linked-preview-row head">
             <div>번호</div>
-            <div>물품</div>
+            <div>품목</div>
             <div>개수</div>
             <div>개별품목비용</div>
           </div>
@@ -857,7 +857,7 @@ function DisposalItemsEditor({
         <div className="disposal-linked-preview-table company">
           <div className="disposal-linked-preview-row head">
             <div>번호</div>
-            <div>물품</div>
+            <div>품목</div>
             <div>개수</div>
             <div>신고번호</div>
           </div>

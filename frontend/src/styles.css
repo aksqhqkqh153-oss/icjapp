@@ -10697,13 +10697,13 @@ a:focus-visible {
 
 .disposal-items-table-row {
   display: grid;
-  grid-template-columns: 34px minmax(120px, 1.8fr) minmax(44px, .5fr) minmax(58px, .65fr) minmax(72px, .72fr) minmax(72px, .72fr) minmax(76px, .65fr) minmax(90px, 1fr);
+  grid-template-columns: 34px minmax(118px, 1.72fr) minmax(40px, .42fr) minmax(58px, .62fr) minmax(72px, .72fr) minmax(72px, .72fr) minmax(92px, .9fr) minmax(90px, 1fr);
   gap: 4px;
   align-items: stretch;
 }
 
 .disposal-items-table.delete-mode .disposal-items-table-row {
-  grid-template-columns: 34px 34px minmax(120px, 1.8fr) minmax(44px, .5fr) minmax(58px, .65fr) minmax(72px, .72fr) minmax(72px, .72fr) minmax(76px, .65fr) minmax(90px, 1fr);
+  grid-template-columns: 34px 34px minmax(118px, 1.72fr) minmax(40px, .42fr) minmax(58px, .62fr) minmax(72px, .72fr) minmax(72px, .72fr) minmax(92px, .9fr) minmax(90px, 1fr);
 }
 
 .disposal-items-table-head,
@@ -10944,7 +10944,7 @@ button.disposal-items-number-cell.has-note {
 
 .disposal-linked-preview-table.customer .disposal-linked-preview-row,
 .disposal-linked-preview-table.company .disposal-linked-preview-row {
-  grid-template-columns: 40px minmax(214px, 2.25fr) minmax(62px, .62fr) minmax(72px, .56fr);
+  grid-template-columns: 56px minmax(182px, 2.0fr) minmax(62px, .62fr) minmax(72px, .56fr);
 }
 
 .disposal-linked-preview-row > div {
@@ -11067,12 +11067,12 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-items-table-row {
-    grid-template-columns: 20px minmax(78px, 1.7fr) minmax(20px, .32fr) minmax(40px, .52fr) minmax(44px, .58fr) minmax(44px, .58fr) minmax(62px, .95fr) minmax(40px, .52fr);
+    grid-template-columns: 18px minmax(72px, 1.62fr) minmax(18px, .26fr) minmax(38px, .48fr) minmax(42px, .55fr) minmax(42px, .55fr) minmax(76px, 1.08fr) minmax(40px, .5fr);
     gap: 3px;
   }
 
   .disposal-items-table.delete-mode .disposal-items-table-row {
-    grid-template-columns: 20px 20px minmax(78px, 1.7fr) minmax(20px, .32fr) minmax(40px, .52fr) minmax(44px, .58fr) minmax(44px, .58fr) minmax(62px, .95fr) minmax(40px, .52fr);
+    grid-template-columns: 18px 18px minmax(72px, 1.62fr) minmax(18px, .26fr) minmax(38px, .48fr) minmax(42px, .55fr) minmax(42px, .55fr) minmax(76px, 1.08fr) minmax(40px, .5fr);
   }
 
   .disposal-items-table-head > div,
@@ -11200,4 +11200,37 @@ button.disposal-items-number-cell.has-note {
   .disposal-inline-popup-body {
     font-size: 12px;
   }
+}
+
+
+.disposal-items-table-data-row > input:nth-child(2),
+.disposal-items-table-data-row > input:nth-child(3),
+.disposal-items-table-data-row > input:nth-child(4),
+.disposal-items-table-data-row > input:nth-child(7),
+.disposal-items-table-data-row > input:nth-child(8) {
+  text-align: center;
+}
+
+.disposal-items-table.delete-mode .disposal-items-table-data-row > input:nth-child(3),
+.disposal-items-table.delete-mode .disposal-items-table-data-row > input:nth-child(4),
+.disposal-items-table.delete-mode .disposal-items-table-data-row > input:nth-child(5),
+.disposal-items-table.delete-mode .disposal-items-table-data-row > input:nth-child(8),
+.disposal-items-table.delete-mode .disposal-items-table-data-row > input:nth-child(9) {
+  text-align: center;
+}
+
+.disposal-items-summary-row > div:nth-child(4),
+.disposal-items-summary-row > div:nth-child(6),
+.disposal-items-summary-row > div:nth-child(7) {
+  justify-content: center !important;
+  text-align: center !important;
+  padding-left: 4px !important;
+}
+
+.disposal-items-table.delete-mode .disposal-items-summary-row > div:nth-child(5),
+.disposal-items-table.delete-mode .disposal-items-summary-row > div:nth-child(7),
+.disposal-items-table.delete-mode .disposal-items-summary-row > div:nth-child(8) {
+  justify-content: center !important;
+  text-align: center !important;
+  padding-left: 4px !important;
 }
