@@ -4641,7 +4641,7 @@ def _disposal_jurisdiction_order_by_sql() -> str:
 
 
 @app.get('/api/disposal/jurisdictions')
-def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_user)):
+def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_admin_or_subadmin)):
     keyword = str(q or '').strip()
     order_by_sql = _disposal_jurisdiction_order_by_sql()
     with get_conn() as conn:
@@ -4695,14 +4695,27 @@ def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, us
                 )
                 saved_id = int(existing['id'])
             else:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (category, place_prefix, district_name, report_link, int(user['id']), now, now),
-                )
-                saved_id = int(cursor.lastrowid)
+                if DB_ENGINE == 'postgresql':
+                    row = conn.execute(
+                        """
+                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        RETURNING id
+                        """,
+                        (category, place_prefix, district_name, report_link, int(user['id']), now, now),
+                    ).fetchone()
+                    if not row:
+                        raise HTTPException(status_code=500, detail='관할구역 데이터를 저장하지 못했습니다.')
+                    saved_id = int(row['id'])
+                else:
+                    cursor = conn.execute(
+                        """
+                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (category, place_prefix, district_name, report_link, int(user['id']), now, now),
+                    )
+                    saved_id = int(cursor.lastrowid)
             row = conn.execute(
                 """
                 SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
@@ -4728,7 +4741,7 @@ def delete_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=
 
 
 @app.get('/api/disposal/jurisdictions/resolve', response_model=DisposalJurisdictionResolveOut)
-def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depends(require_user)):
+def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depends(require_admin_or_subadmin)):
     normalized = _normalize_disposal_place_prefix(location)
     if not normalized:
         return DisposalJurisdictionResolveOut(matched=False)

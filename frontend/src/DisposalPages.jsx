@@ -443,8 +443,8 @@ function DisposalItemsEditor({ draft, rendered, updateItem }) {
 }
 
 
-function DisposalSettingsPopover({ open, onClose, onMoveRegistry }) {
-  if (!open) return null
+function DisposalSettingsPopover({ open, onClose, onMoveRegistry, canManageJurisdictions }) {
+  if (!open || !canManageJurisdictions) return null
   return (
     <div className="disposal-settings-popover">
       <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onMoveRegistry(); onClose() }}>관할구역등록</button>
@@ -476,7 +476,14 @@ export function DisposalJurisdictionRegistryPage() {
     }
   }
 
-  useEffect(() => { load('') }, [])
+  useEffect(() => {
+    if (!canEdit) {
+      window.alert('관리자 또는 부관리자만 접근할 수 있습니다.')
+      navigate('/disposal/forms', { replace: true })
+      return
+    }
+    load('')
+  }, [canEdit, navigate])
 
   const visibleRows = useMemo(() => {
     if (filterValue === 'all') return rows
@@ -721,7 +728,7 @@ useEffect(() => {
         <div className="disposal-hero-actions" ref={settingsRef}>
           <div className="disposal-settings-inline">
             <button type="button" className="ghost" onClick={() => setSettingsOpen(prev => !prev)}>설정</button>
-            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} />
+            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
           </div>
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
