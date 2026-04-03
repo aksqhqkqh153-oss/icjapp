@@ -10771,6 +10771,26 @@ a:focus-visible {
   justify-content: center;
 }
 
+
+.disposal-linked-preview-total {
+  margin-top: 8px;
+  margin-left: auto;
+  width: fit-content;
+  min-width: 240px;
+  border: 1px solid #d8e0ec;
+  background: #f8fafc;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.disposal-linked-preview-total strong {
+  font-size: 12px;
+}
+
 @media (max-width: 1024px) {
   .disposal-items-table-wrap {
     overflow-x: auto;

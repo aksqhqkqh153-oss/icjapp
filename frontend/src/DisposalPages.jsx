@@ -578,6 +578,10 @@ function DisposalItemsEditor({
             )
           })}
         </div>
+        <div className="disposal-linked-preview-total">
+          <span>대리신고 최종 합계비용</span>
+          <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
+        </div>
       </div>
 
       <div className="disposal-items-section disposal-linked-preview-card">
