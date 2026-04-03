@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
-import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalSettlementsPage } from './DisposalPages'
+import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalPreviewPage, DisposalSettlementsPage } from './DisposalPages'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -36,6 +36,7 @@ const PAGE_TITLES = {
   '/operations-dashboard': '대쉬보드',
   '/disposal': '폐기',
   '/disposal/forms': '폐기양식',
+  '/disposal/forms/preview': '폐기견적서 전체 미리보기',
   '/disposal/list': '폐기목록',
   '/disposal/settlements': '폐기결산',
   '/disposal/jurisdictions': '관할구역등록',
@@ -45,6 +46,7 @@ function pageTitle(pathname) {
   if (pathname.startsWith('/schedule/new')) return '일정등록'
   if (/^\/schedule\/\d+\/edit$/.test(pathname)) return '일정수정'
   if (/^\/schedule\/\d+$/.test(pathname)) return '일정상세'
+  if (pathname === '/disposal/forms/preview') return '폐기견적서 전체 미리보기'
   if (/^\/disposal\/forms\/[^/]+$/.test(pathname)) return '폐기양식 상세'
   if (pathname.startsWith('/chats/direct/') || pathname.startsWith('/chats/group/')) return '채팅방'
   return PAGE_TITLES[pathname] || '앱'
@@ -11286,6 +11288,7 @@ function App() {
         <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
         <Route path="/disposal" element={<DisposalHubPage />} />
         <Route path="/disposal/forms" element={<DisposalFormsPage />} />
+        <Route path="/disposal/forms/preview" element={<DisposalPreviewPage />} />
         <Route path="/disposal/forms/:recordId" element={<DisposalFormsPage />} />
         <Route path="/disposal/list" element={<DisposalListPage />} />
         <Route path="/disposal/settlements" element={<DisposalSettlementsPage />} />

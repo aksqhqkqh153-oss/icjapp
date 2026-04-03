@@ -4709,6 +4709,26 @@ def _disposal_place_search_key(value: str) -> str:
     return ' '.join([part for part in [region, district] if part]).strip()
 
 
+def _disposal_place_search_parts(value: str) -> tuple[str, str]:
+    search_key = _disposal_place_search_key(value)
+    parts = [part for part in search_key.split(' ') if part]
+    if not parts:
+        return ('', '')
+    if len(parts) == 1:
+        return (parts[0], '')
+    return (parts[0], parts[1])
+
+
+def _disposal_place_keys_match(left: str, right: str) -> bool:
+    left_region, left_district = _disposal_place_search_parts(left)
+    right_region, right_district = _disposal_place_search_parts(right)
+    if not left_region or not right_region or left_region != right_region:
+        return False
+    if not left_district or not right_district:
+        return left_region == right_region
+    return (left_district == right_district) or left_district.startswith(right_district) or right_district.startswith(left_district)
+
+
 def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
     return {
         'id': int(row['id']),
@@ -4893,7 +4913,7 @@ def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depend
     if search_key:
         for row in rows:
             row_place_prefix = str(row['place_prefix'] or '')
-            if _disposal_place_search_key(row_place_prefix) == search_key:
+            if _disposal_place_keys_match(row_place_prefix, search_key):
                 return DisposalJurisdictionResolveOut(
                     matched=True,
                     place_prefix=row_place_prefix,

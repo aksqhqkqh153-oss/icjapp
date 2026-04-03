@@ -7,6 +7,8 @@ const STORAGE_KEY = 'icj_disposal_records_v2'
 const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 const ITEM_ROW_COUNT = 17
+const DEFAULT_VISIBLE_ITEM_ROWS = 5
+const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const FILTER_OPTIONS = [
   { value: 'latest', label: '최신 저장순' },
@@ -29,7 +31,7 @@ function createInitialDraft() {
     district: '',
     finalStatus: '',
     customerName: '',
-    items: Array.from({ length: ITEM_ROW_COUNT }, () => createEmptyItem()),
+    items: Array.from({ length: DEFAULT_VISIBLE_ITEM_ROWS }, () => createEmptyItem()),
   }
 }
 
@@ -45,9 +47,11 @@ function formatNumber(value) {
 
 function normalizeRecordShape(record) {
   if (!record || typeof record !== 'object') return null
-  const items = Array.from({ length: ITEM_ROW_COUNT }, (_, index) => ({
+  const sourceItems = Array.isArray(record.items) ? record.items : []
+  const visibleItemCount = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, Math.min(ITEM_ROW_COUNT, sourceItems.length || DEFAULT_VISIBLE_ITEM_ROWS))
+  const items = Array.from({ length: visibleItemCount }, (_, index) => ({
     ...createEmptyItem(),
-    ...(record.items?.[index] || {}),
+    ...(sourceItems[index] || {}),
   }))
   return {
     id: String(record.id || `disposal-${Date.now()}`),
@@ -135,7 +139,11 @@ function buildMergeMap(merges) {
 
 function buildRenderedTemplate(draft) {
   const nextRows = DISPOSAL_TEMPLATE.rows.map((row) => [...row])
-  const items = (draft?.items || []).slice(0, ITEM_ROW_COUNT).map(item => ({
+  const sourceItems = Array.from({ length: ITEM_ROW_COUNT }, (_, index) => ({
+    ...createEmptyItem(),
+    ...((draft?.items || [])[index] || {}),
+  }))
+  const items = sourceItems.slice(0, ITEM_ROW_COUNT).map(item => ({
     itemName: String(item?.itemName || ''),
     quantity: safeNumber(item?.quantity),
     unitCost: safeNumber(item?.unitCost),
@@ -202,7 +210,7 @@ function makeRecordFromDraft(draft, totals, existingId = '') {
     district: draft.district,
     finalStatus: draft.finalStatus,
     customerName: draft.customerName,
-    items: draft.items,
+    items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
     totals,
   })
 }
@@ -218,6 +226,33 @@ function sortRecords(records, sortKey) {
 
 function formatCurrency(value) {
   return `${formatNumber(value)}원`
+}
+
+function persistPreviewDraft(draft) {
+  try {
+    sessionStorage.setItem(DISPOSAL_PREVIEW_SESSION_KEY, JSON.stringify({
+      customerName: String(draft?.customerName || ''),
+      disposalDate: String(draft?.disposalDate || ''),
+      location: String(draft?.location || ''),
+      district: String(draft?.district || ''),
+      finalStatus: String(draft?.finalStatus || ''),
+      items: Array.from({ length: Math.min(ITEM_ROW_COUNT, Math.max(DEFAULT_VISIBLE_ITEM_ROWS, (draft?.items || []).length || DEFAULT_VISIBLE_ITEM_ROWS)) }, (_, index) => ({
+        ...createEmptyItem(),
+        ...((draft?.items || [])[index] || {}),
+      })),
+    }))
+  } catch {}
+}
+
+function loadPreviewDraft() {
+  try {
+    const raw = sessionStorage.getItem(DISPOSAL_PREVIEW_SESSION_KEY)
+    if (!raw) return createInitialDraft()
+    const parsed = JSON.parse(raw)
+    return normalizeRecordShape({ ...parsed, id: 'preview', savedAt: new Date().toISOString(), totals: { totalQty: 0, totalReport: 0, totalFinal: 0 } }) || createInitialDraft()
+  } catch {
+    return createInitialDraft()
+  }
 }
 
 function getPaymentStatus(record) {
@@ -446,51 +481,139 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
   )
 }
 
-function DisposalItemsEditor({ draft, rendered, updateItem }) {
+function DisposalItemsEditor({
+  draft,
+  rendered,
+  updateItem,
+  addItemRow,
+  deleteMode,
+  selectedItemRows,
+  toggleDeleteMode,
+  toggleItemRowSelection,
+  deleteSelectedItemRows,
+}) {
+  const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
+
   return (
     <section className="card disposal-items-card">
-      <div className="disposal-items-head">
-        <h3>폐기 품목 입력</h3>
-        <div className="notice-text">수량 × 1개당 비용 = 신고합계, 신고합계 × 1.3 = 최종비용으로 자동 계산됩니다.</div>
+      <div className="disposal-items-head disposal-items-head-bar">
+        <div>
+          <h3>폐기품목입력</h3>
+          <div className="notice-text">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
+        </div>
+        <div className="disposal-items-toolbar">
+          <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
+          <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
+          {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
+        </div>
       </div>
-      <div className="disposal-items-grid-list">
-        {rendered.reportRows.map((item, index) => (
-          <div key={`disposal-item-${index}`} className="disposal-item-card">
-            <div className="disposal-item-card-head">#{index + 1}</div>
-            <input value={draft.items[index]?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="폐기 품목" />
-            <div className="disposal-item-row-two">
-              <input inputMode="numeric" value={draft.items[index]?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="수량" />
-              <input inputMode="numeric" value={draft.items[index]?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="1개당 비용" />
-            </div>
-            <div className="disposal-item-row-two muted-metrics">
-              <div>신고합계 {formatNumber(item.reportAmount)}원</div>
-              <div>최종비용 {formatNumber(item.finalAmount)}원</div>
-            </div>
-            <div className="disposal-item-row-two">
-              <input value={draft.items[index]?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="폐기 신고 번호" />
-              <input value={draft.items[index]?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="비고" />
-            </div>
+
+      <div className="disposal-items-table-wrap">
+        <div className={`disposal-items-table ${deleteMode ? 'delete-mode' : ''}`.trim()}>
+          <div className="disposal-items-table-row disposal-items-table-head">
+            {deleteMode ? <div>체크</div> : null}
+            <div>번호</div>
+            <div>물품</div>
+            <div>개수</div>
+            <div>개당신고비용</div>
+            <div>신고합계비용</div>
+            <div>최종매출비용</div>
+            <div>신고번호</div>
+            <div>메모칸</div>
           </div>
-        ))}
+          {visibleRows.map((row, index) => {
+            const item = rendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
+            return (
+              <div key={`disposal-item-row-${index}`} className="disposal-items-table-row disposal-items-table-data-row">
+                {deleteMode ? (
+                  <label className="disposal-items-delete-check">
+                    <input type="checkbox" checked={selectedItemRows.includes(index)} onChange={e => toggleItemRowSelection(index, e.target.checked)} />
+                  </label>
+                ) : null}
+                <div className="disposal-items-number-cell">{index + 1}</div>
+                <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
+                <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
+                <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
+                <div className="disposal-items-metric-cell">{formatCurrency(item.reportAmount || 0)}</div>
+                <div className="disposal-items-metric-cell strong">{formatCurrency(item.finalAmount || 0)}</div>
+                <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
+                <input value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
+              </div>
+            )
+          })}
+          <div className={`disposal-items-table-row disposal-items-summary-row ${deleteMode ? 'delete-mode' : ''}`.trim()}>
+            {deleteMode ? <div /> : null}
+            <div />
+            <div className="disposal-items-summary-label">합계</div>
+            <div className="disposal-items-metric-cell strong">{formatNumber(rendered.totals.totalQty)}</div>
+            <div />
+            <div className="disposal-items-metric-cell strong">{formatCurrency(rendered.totals.totalReport)}</div>
+            <div className="disposal-items-metric-cell strong">{formatCurrency(rendered.totals.totalFinal)}</div>
+            <div />
+            <div />
+          </div>
+        </div>
       </div>
-      <div className="disposal-inline-summary">
-        <span>총 수량 {formatNumber(rendered.totals.totalQty)}</span>
-        <span>신고합계 {formatNumber(rendered.totals.totalReport)}원</span>
-        <span>최종비용 {formatNumber(rendered.totals.totalFinal)}원</span>
+
+      <div className="disposal-linked-preview-grid">
+        <div className="disposal-linked-preview-card">
+          <div className="disposal-linked-preview-title">고객용</div>
+          <div className="disposal-linked-preview-table customer">
+            <div className="disposal-linked-preview-row head">
+              <div>번호</div>
+              <div>물품</div>
+              <div>개수</div>
+              <div>최종매출비용</div>
+            </div>
+            {visibleRows.map((row, index) => {
+              const item = rendered.reportRows[index] || { finalAmount: 0 }
+              return (
+                <div key={`customer-view-${index}`} className="disposal-linked-preview-row">
+                  <div>{index + 1}</div>
+                  <div>{row?.itemName || ''}</div>
+                  <div>{row?.quantity || ''}</div>
+                  <div>{item.finalAmount ? formatCurrency(item.finalAmount) : ''}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="disposal-linked-preview-card">
+          <div className="disposal-linked-preview-title">회사용</div>
+          <div className="disposal-linked-preview-table company">
+            <div className="disposal-linked-preview-row head">
+              <div>번호</div>
+              <div>물품</div>
+              <div>개수</div>
+              <div>신고번호</div>
+            </div>
+            {visibleRows.map((row, index) => (
+              <div key={`company-view-${index}`} className="disposal-linked-preview-row">
+                <div>{index + 1}</div>
+                <div>{row?.itemName || ''}</div>
+                <div>{row?.quantity || ''}</div>
+                <div>{row?.reportNo || ''}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
 
-function DisposalSettingsPopover({ open, onClose, onMoveRegistry, canManageJurisdictions }) {
-  if (!open || !canManageJurisdictions) return null
+function DisposalSettingsPopover({ open, onClose, onMoveRegistry, onOpenPreview, canManageJurisdictions }) {
+  if (!open) return null
   return (
     <div className="disposal-settings-popover">
-      <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onMoveRegistry(); onClose() }}>관할구역등록</button>
+      <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); onClose() }}>폐기견적서 전체 미리보기</button>
+      {canManageJurisdictions ? <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onMoveRegistry(); onClose() }}>관할구역등록</button> : null}
     </div>
   )
 }
+
 
 export function DisposalJurisdictionRegistryPage() {
   const navigate = useNavigate()
@@ -731,6 +854,8 @@ export function DisposalFormsPage() {
   const [savedAt, setSavedAt] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [districtResolved, setDistrictResolved] = useState({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [selectedItemRows, setSelectedItemRows] = useState([])
   const settingsRef = useRef(null)
 
   useEffect(() => {
@@ -743,7 +868,7 @@ export function DisposalFormsPage() {
         location: found.location || '',
         district: found.district || '',
         finalStatus: found.finalStatus || '',
-        items: Array.from({ length: ITEM_ROW_COUNT }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+        items: Array.from({ length: Math.max(DEFAULT_VISIBLE_ITEM_ROWS, Math.min(ITEM_ROW_COUNT, found.items?.length || DEFAULT_VISIBLE_ITEM_ROWS)) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
       })
       setSavedAt(found.savedAt || '')
     }
@@ -786,6 +911,10 @@ useEffect(() => {
 
   const rendered = useMemo(() => buildRenderedTemplate(draft), [draft])
 
+  useEffect(() => {
+    setSelectedItemRows(prev => prev.filter(index => index < (draft.items || []).length))
+  }, [draft.items.length])
+
   function updateDraftField(key, value) {
     setDraft(prev => ({ ...prev, [key]: value }))
   }
@@ -795,6 +924,50 @@ useEffect(() => {
       ...prev,
       items: prev.items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
     }))
+  }
+
+  function addItemRow() {
+    setDraft(prev => {
+      if ((prev.items || []).length >= ITEM_ROW_COUNT) {
+        window.alert(`폐기품목입력은 최대 ${ITEM_ROW_COUNT}줄까지 추가할 수 있습니다.`)
+        return prev
+      }
+      return { ...prev, items: [...(prev.items || []), createEmptyItem()] }
+    })
+  }
+
+  function toggleDeleteMode() {
+    setDeleteMode(prev => {
+      const next = !prev
+      if (!next) setSelectedItemRows([])
+      return next
+    })
+  }
+
+  function toggleItemRowSelection(index, checked) {
+    setSelectedItemRows(prev => checked ? Array.from(new Set([...prev, index])).sort((a, b) => a - b) : prev.filter(item => item !== index))
+  }
+
+  function deleteSelectedItemRows() {
+    if (!selectedItemRows.length) {
+      window.alert('삭제할 품목을 선택해주세요.')
+      return
+    }
+    setDraft(prev => {
+      const selectedSet = new Set(selectedItemRows)
+      const remaining = (prev.items || []).filter((_, index) => !selectedSet.has(index))
+      return {
+        ...prev,
+        items: (remaining.length ? remaining : [createEmptyItem()]).concat(Array.from({ length: Math.max(0, DEFAULT_VISIBLE_ITEM_ROWS - Math.max(1, remaining.length)) }, () => createEmptyItem())).slice(0, ITEM_ROW_COUNT),
+      }
+    })
+    setSelectedItemRows([])
+    setDeleteMode(false)
+  }
+
+  function openPreviewPage() {
+    persistPreviewDraft(draft)
+    navigate('/disposal/forms/preview')
   }
 
   function resetDraft() {
@@ -822,7 +995,7 @@ useEffect(() => {
         <div className="disposal-hero-actions" ref={settingsRef}>
           <div className="disposal-settings-inline">
             <button type="button" className="ghost" onClick={() => setSettingsOpen(prev => !prev)}>설정</button>
-            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
+            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
           </div>
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
@@ -832,15 +1005,50 @@ useEffect(() => {
 
       <DisposalMetaInputs draft={draft} updateDraftField={updateDraftField} districtResolved={districtResolved} />
 
-      <section className="disposal-form-shell">
+      <section className="disposal-form-shell disposal-form-shell-single">
         <div className="disposal-form-left">
-          <DisposalItemsEditor draft={draft} rendered={rendered} updateItem={updateItem} />
+          <DisposalItemsEditor
+            draft={draft}
+            rendered={rendered}
+            updateItem={updateItem}
+            addItemRow={addItemRow}
+            deleteMode={deleteMode}
+            selectedItemRows={selectedItemRows}
+            toggleDeleteMode={toggleDeleteMode}
+            toggleItemRowSelection={toggleItemRowSelection}
+            deleteSelectedItemRows={deleteSelectedItemRows}
+          />
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>
-        <div className="disposal-form-right">
-          <DisposalTemplateTable title="폐기견적서 전체 미리보기" rendered={rendered} />
+      </section>
+    </div>
+  )
+}
+
+export function DisposalPreviewPage() {
+  const navigate = useNavigate()
+  const [draft, setDraft] = useState(() => loadPreviewDraft())
+
+  useEffect(() => {
+    setDraft(loadPreviewDraft())
+  }, [])
+
+  const rendered = useMemo(() => buildRenderedTemplate(draft), [draft])
+
+  return (
+    <div className="stack-page disposal-page">
+      <section className="card disposal-hero">
+        <div>
+          <h2>폐기견적서 전체 미리보기</h2>
+          <p className="notice-text">설정 버튼에서 호출한 현재 입력값 기준 미리보기 화면입니다.</p>
+        </div>
+        <div className="disposal-hero-actions">
+          <button type="button" className="ghost" onClick={() => navigate(-1)}>뒤로가기</button>
+          <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
         </div>
       </section>
+
+      <DisposalTemplateTable title="폐기견적서 전체 미리보기" rendered={rendered} />
     </div>
   )
 }
