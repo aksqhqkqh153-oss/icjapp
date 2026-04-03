@@ -4634,27 +4634,34 @@ def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
     }
 
 
+def _disposal_jurisdiction_order_by_sql() -> str:
+    if DB_ENGINE == 'postgresql':
+        return 'LOWER(place_prefix), id DESC'
+    return 'place_prefix COLLATE NOCASE, id DESC'
+
+
 @app.get('/api/disposal/jurisdictions')
 def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_user)):
     keyword = str(q or '').strip()
+    order_by_sql = _disposal_jurisdiction_order_by_sql()
     with get_conn() as conn:
         if keyword:
             like = f'%{keyword}%'
             rows = conn.execute(
-                """
+                f"""
                 SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
                 FROM disposal_jurisdiction_mappings
                 WHERE category LIKE ? OR place_prefix LIKE ? OR district_name LIKE ? OR report_link LIKE ?
-                ORDER BY place_prefix COLLATE NOCASE, id DESC
+                ORDER BY {order_by_sql}
                 """,
                 (like, like, like, like),
             ).fetchall()
         else:
             rows = conn.execute(
-                """
+                f"""
                 SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
                 FROM disposal_jurisdiction_mappings
-                ORDER BY place_prefix COLLATE NOCASE, id DESC
+                ORDER BY {order_by_sql}
                 """
             ).fetchall()
     return {'rows': [_disposal_jurisdiction_row_to_dict(row) for row in rows]}
