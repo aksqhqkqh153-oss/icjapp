@@ -634,6 +634,8 @@ function DisposalItemsEditor({
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
   const [customerSaveDirectoryHandle, setCustomerSaveDirectoryHandle] = useState(null)
   const [customerSaveDirectoryLabel, setCustomerSaveDirectoryLabel] = useState('기본 다운로드 폴더')
+  const [showItemsHelp, setShowItemsHelp] = useState(false)
+  const [activeNoteInfo, setActiveNoteInfo] = useState(null)
   const customerSettingsRef = useRef(null)
 
   const customerExportRows = useMemo(() => visibleRows.map((row, index) => {
@@ -720,9 +722,9 @@ function DisposalItemsEditor({
         <div className="disposal-items-head disposal-items-head-bar">
           <div>
             <h3>폐기품목입력</h3>
-            <div className="notice-text">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
           </div>
           <div className="disposal-items-toolbar">
+            <button type="button" className="ghost" onClick={() => setShowItemsHelp(true)}>설명</button>
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
             {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
@@ -733,14 +735,14 @@ function DisposalItemsEditor({
           <div className={`disposal-items-table ${deleteMode ? 'delete-mode' : ''}`.trim()}>
             <div className="disposal-items-table-row disposal-items-table-head">
               {deleteMode ? <div>체크</div> : null}
-              <div>번호</div>
+              <div className="disposal-table-multiline-head"><span>번</span><span>호</span></div>
               <div>물품</div>
-              <div>개수</div>
+              <div className="disposal-table-multiline-head"><span>개</span><span>수</span></div>
               <div className="disposal-table-multiline-head"><span>개당</span><span>신고비용</span></div>
               <div className="disposal-table-multiline-head"><span>신고</span><span>합계비용</span></div>
               <div className="disposal-table-multiline-head"><span>최종</span><span>매출비용</span></div>
               <div>신고번호</div>
-              <div>메모칸</div>
+              <div className="disposal-items-note-column">메모칸</div>
             </div>
             {visibleRows.map((row, index) => {
               const item = rendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
@@ -751,14 +753,24 @@ function DisposalItemsEditor({
                       <input type="checkbox" checked={selectedItemRows.includes(index)} onChange={e => toggleItemRowSelection(index, e.target.checked)} />
                     </label>
                   ) : null}
-                  <div className="disposal-items-number-cell">{index + 1}</div>
+                  <button
+                    type="button"
+                    className={`disposal-items-number-cell ${String(row?.note || '').trim() ? 'has-note' : ''}`.trim()}
+                    onClick={() => {
+                      if (!String(row?.note || '').trim()) return
+                      setActiveNoteInfo({ index: index + 1, itemName: row?.itemName || '', note: row?.note || '' })
+                    }}
+                    title={String(row?.note || '').trim() ? '메모 보기' : '메모 없음'}
+                  >
+                    {index + 1}
+                  </button>
                   <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="물품" />
                   <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
                   <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
                   <div className="disposal-items-metric-cell">{formatCurrency(item.reportAmount || 0)}</div>
                   <div className="disposal-items-metric-cell strong">{formatCurrency(item.finalAmount || 0)}</div>
                   <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
-                  <input value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
+                  <input className="disposal-items-note-column" value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
                 </div>
               )
             })}
@@ -775,6 +787,7 @@ function DisposalItemsEditor({
             </div>
           </div>
         </div>
+        <div className="disposal-mobile-note-hint">* '번호'를 누르면 해당물품의 메모정보를 볼 수 있습니다.</div>
       </div>
 
       <div className="disposal-items-section disposal-linked-preview-card customer-preview-card">
@@ -832,6 +845,31 @@ function DisposalItemsEditor({
           ))}
         </div>
       </div>
+
+      {showItemsHelp ? (
+        <div className="disposal-inline-popup-backdrop" onClick={() => setShowItemsHelp(false)}>
+          <div className="disposal-inline-popup" onClick={e => e.stopPropagation()}>
+            <div className="disposal-inline-popup-title">폐기품목입력 설명</div>
+            <div className="disposal-inline-popup-body">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
+            <div className="disposal-inline-popup-actions">
+              <button type="button" className="ghost" onClick={() => setShowItemsHelp(false)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activeNoteInfo ? (
+        <div className="disposal-inline-popup-backdrop" onClick={() => setActiveNoteInfo(null)}>
+          <div className="disposal-inline-popup note-popup" onClick={e => e.stopPropagation()}>
+            <div className="disposal-inline-popup-title">품목 메모</div>
+            <div className="disposal-inline-popup-subtitle">번호 {activeNoteInfo.index}{activeNoteInfo.itemName ? ` · ${activeNoteInfo.itemName}` : ''}</div>
+            <div className="disposal-inline-popup-body">{activeNoteInfo.note}</div>
+            <div className="disposal-inline-popup-actions">
+              <button type="button" className="ghost" onClick={() => setActiveNoteInfo(null)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
