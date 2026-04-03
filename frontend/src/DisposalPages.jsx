@@ -791,6 +791,47 @@ function DisposalItemsEditor({
     }
   }
 
+
+  async function saveCompanyEstimateAsJpg() {
+    try {
+      const canvas = await buildCompanyQuoteCanvas({
+        rows: companyExportRows,
+        customerName: draft.customerName,
+        disposalDate: draft.disposalDate,
+        location: draft.location,
+      })
+      const blob = await canvasToJpegBlob(canvas)
+      const filename = `${sanitizeExportFilename(draft.customerName || '회사용견적서')}_${sanitizeExportFilename(draft.disposalDate || new Date().toISOString().slice(0, 10))}_회사용.jpg`
+
+      if (companySaveDirectoryHandle) {
+        const permission = await companySaveDirectoryHandle.queryPermission?.({ mode: 'readwrite' })
+        if (permission !== 'granted') {
+          const requested = await companySaveDirectoryHandle.requestPermission?.({ mode: 'readwrite' })
+          if (requested !== 'granted') throw new Error('저장 폴더 쓰기 권한이 허용되지 않았습니다.')
+        }
+        const fileHandle = await companySaveDirectoryHandle.getFileHandle(filename, { create: true })
+        const writable = await fileHandle.createWritable()
+        await writable.write(blob)
+        await writable.close()
+        window.alert(`회사용 견적서가 저장되었습니다.
+저장위치: ${companySaveDirectoryLabel}`)
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      window.alert('회사용 견적서 JPG 파일 다운로드가 시작되었습니다.')
+    } catch (error) {
+      window.alert(error?.message || '회사용 견적서를 저장하지 못했습니다.')
+    }
+  }
+
   return (
     <section className="card disposal-items-card disposal-square-ui">
       <div className="disposal-items-section disposal-items-input-section">
