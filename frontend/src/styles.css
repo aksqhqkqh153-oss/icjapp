@@ -10733,6 +10733,13 @@ a:focus-visible {
   background: #ffffff;
 }
 
+.disposal-linked-preview-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 
 .disposal-linked-preview-title {
   font-weight: 700;
@@ -10742,6 +10749,49 @@ a:focus-visible {
 
 .disposal-linked-preview-card .disposal-linked-preview-title {
   font-size: 13px;
+}
+
+.disposal-linked-preview-card .customer-title {
+  margin-bottom: 0;
+  font-size: 18px;
+}
+
+.disposal-linked-preview-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.disposal-preview-save-button,
+.disposal-preview-settings-button {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.disposal-preview-settings-button {
+  min-width: 34px;
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.disposal-customer-settings-popover {
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  min-width: 180px;
+}
+
+.disposal-settings-popover-caption {
+  padding: 0 10px 10px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+  word-break: break-all;
 }
 
 .disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row > div:nth-child(1),
@@ -10754,7 +10804,12 @@ a:focus-visible {
   text-align: center;
 }
 
-.disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row > div:nth-child(4) {
+.disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row.head > div:nth-child(4) {
+  justify-content: center;
+  text-align: center;
+}
+
+.disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row:not(.head) > div:nth-child(4) {
   justify-content: flex-end;
   text-align: right;
 }
@@ -10774,19 +10829,24 @@ a:focus-visible {
   font-size: 11px;
 }
 
-.disposal-linked-preview-card .disposal-linked-preview-total {
+.disposal-linked-preview-total.wide {
+  width: min(100%, 620px);
+  min-width: 0;
+}
+
+.disposal-linked-preview-total.emphasize-blue,
+.disposal-linked-preview-total.emphasize-blue span,
+.disposal-linked-preview-total.emphasize-blue strong {
   color: #2563eb;
   font-weight: 800;
 }
 
-.disposal-linked-preview-card .disposal-linked-preview-total span,
-.disposal-linked-preview-card .disposal-linked-preview-total strong {
-  color: #2563eb;
-  font-weight: 800;
+.disposal-linked-preview-total.emphasize-blue {
+  font-size: 18px;
 }
 
-.disposal-linked-preview-card .disposal-linked-preview-total strong {
-  font-size: 16px;
+.disposal-linked-preview-total.emphasize-blue strong {
+  font-size: 20px;
 }
 
 .disposal-linked-preview-table {
@@ -10802,17 +10862,18 @@ a:focus-visible {
 
 .disposal-linked-preview-table.customer .disposal-linked-preview-row,
 .disposal-linked-preview-table.company .disposal-linked-preview-row {
-  grid-template-columns: 34px minmax(130px, 1.7fr) minmax(48px, .55fr) minmax(88px, .9fr);
+  grid-template-columns: 40px minmax(140px, 1.7fr) minmax(62px, .62fr) minmax(126px, 1fr);
 }
 
 .disposal-linked-preview-row > div {
-  min-height: 32px;
+  min-height: 36px;
   border: 1px solid #d8e0ec;
   background: #fff;
   display: flex;
   align-items: center;
   padding: 4px 6px;
   font-size: 11px;
+  min-width: 0;
 }
 
 .disposal-linked-preview-row.head > div {
@@ -10821,24 +10882,12 @@ a:focus-visible {
   justify-content: center;
 }
 
-
-.disposal-linked-preview-total {
-  margin-top: 8px;
-  margin-left: auto;
-  width: fit-content;
-  min-width: 240px;
-  border: 1px solid #d8e0ec;
-  background: #f8fafc;
-  padding: 8px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 11px;
+.customer-large-text .disposal-linked-preview-row > div {
+  font-size: 14px;
 }
 
-.disposal-linked-preview-total strong {
-  font-size: 12px;
+.customer-large-text .disposal-linked-preview-row.head > div {
+  font-size: 14px;
 }
 
 @media (max-width: 1024px) {
@@ -10966,6 +11015,33 @@ a:focus-visible {
     font-size: 15px;
   }
 
+  .disposal-linked-preview-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .disposal-linked-preview-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .disposal-preview-save-button,
+  .disposal-preview-settings-button {
+    min-height: 28px;
+    font-size: 11px;
+  }
+
+  .disposal-customer-settings-popover {
+    right: 0;
+    left: auto;
+    min-width: 150px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .disposal-settings-popover-caption {
+    font-size: 10px;
+  }
+
   .disposal-linked-preview-table.customer,
   .disposal-linked-preview-table.company {
     width: 100%;
@@ -10976,18 +11052,23 @@ a:focus-visible {
   .disposal-linked-preview-table.company .disposal-linked-preview-row {
     min-width: 0;
     width: 100%;
-    grid-template-columns: 24px minmax(64px, 1.45fr) minmax(26px, .45fr) minmax(64px, .9fr);
+    grid-template-columns: 28px minmax(70px, 1.45fr) minmax(34px, .55fr) minmax(82px, .95fr);
     gap: 3px;
   }
 
   .disposal-linked-preview-row > div {
     min-height: 28px;
     padding: 3px 4px;
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1.1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .customer-large-text .disposal-linked-preview-row > div,
+  .customer-large-text .disposal-linked-preview-row.head > div {
+    font-size: 10px;
   }
 
   .disposal-linked-preview-total {
@@ -10997,7 +11078,11 @@ a:focus-visible {
     font-size: 12px;
   }
 
-  .disposal-linked-preview-card .disposal-linked-preview-total strong {
+  .disposal-linked-preview-total.emphasize-blue {
     font-size: 14px;
+  }
+
+  .disposal-linked-preview-total.emphasize-blue strong {
+    font-size: 16px;
   }
 }

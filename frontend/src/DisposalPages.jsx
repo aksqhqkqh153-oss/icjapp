@@ -228,6 +228,138 @@ function formatCurrency(value) {
   return `${formatNumber(value)}원`
 }
 
+function sanitizeExportFilename(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '_')
+    .slice(0, 60) || '고객용견적서'
+}
+
+async function canvasToJpegBlob(canvas, quality = 0.95) {
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob)
+      else reject(new Error('이미지 변환에 실패했습니다.'))
+    }, 'image/jpeg', quality)
+  })
+}
+
+function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '' }) {
+  const width = 1240
+  const padding = 44
+  const titleHeight = 52
+  const infoHeight = 38
+  const headerHeight = 58
+  const rowHeight = 54
+  const totalHeight = 76
+  const footerGap = 24
+  const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
+  const height = padding * 2 + titleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.textBaseline = 'middle'
+
+  const cols = [
+    { key: 'index', label: '번호', width: 120, align: 'center' },
+    { key: 'itemName', label: '물품', width: 500, align: 'center' },
+    { key: 'quantity', label: '개수', width: 140, align: 'center' },
+    { key: 'finalAmount', label: '개별품목비용', width: 392, align: 'right' },
+  ]
+  const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
+  const startX = padding
+  let currentY = padding
+
+  ctx.fillStyle = '#111827'
+  ctx.font = '700 28px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText('고객용 폐기 견적서', startX, currentY + titleHeight / 2)
+  currentY += titleHeight
+
+  ctx.fillStyle = '#374151'
+  ctx.font = '500 18px sans-serif'
+  const infoText = [
+    customerName ? `고객명 ${customerName}` : '',
+    disposalDate ? `폐기일자 ${disposalDate}` : '',
+    location ? `폐기장소 ${location}` : '',
+  ].filter(Boolean).join('   |   ')
+  if (infoText) ctx.fillText(infoText, startX, currentY + infoHeight / 2)
+  currentY += infoHeight
+
+  ctx.strokeStyle = '#111827'
+  ctx.lineWidth = 2
+  ctx.strokeRect(startX, currentY, tableWidth, headerHeight + bodyRows * rowHeight)
+
+  let x = startX
+  cols.forEach((col, idx) => {
+    ctx.lineWidth = 1.5
+    if (idx > 0) {
+      ctx.beginPath()
+      ctx.moveTo(x, currentY)
+      ctx.lineTo(x, currentY + headerHeight + bodyRows * rowHeight)
+      ctx.stroke()
+    }
+    ctx.fillStyle = '#f3f4f6'
+    ctx.fillRect(x, currentY, col.width, headerHeight)
+    ctx.fillStyle = '#111827'
+    ctx.font = '700 22px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(col.label, x + col.width / 2, currentY + headerHeight / 2)
+    x += col.width
+  })
+
+  for (let i = 0; i < bodyRows; i += 1) {
+    const row = rows[i] || {}
+    const rowY = currentY + headerHeight + i * rowHeight
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(startX, rowY)
+    ctx.lineTo(startX + tableWidth, rowY)
+    ctx.stroke()
+
+    let colX = startX
+    cols.forEach(col => {
+      const rawValue = row[col.key] ?? ''
+      const value = col.key === 'finalAmount' && rawValue ? formatCurrency(rawValue) : String(rawValue || '')
+      ctx.fillStyle = '#111827'
+      ctx.font = '500 20px sans-serif'
+      if (col.align === 'right') {
+        ctx.textAlign = 'right'
+        ctx.fillText(value, colX + col.width - 16, rowY + rowHeight / 2)
+      } else if (col.align === 'center') {
+        ctx.textAlign = 'center'
+        ctx.fillText(value, colX + col.width / 2, rowY + rowHeight / 2)
+      } else {
+        ctx.textAlign = 'left'
+        ctx.fillText(value, colX + 16, rowY + rowHeight / 2)
+      }
+      colX += col.width
+    })
+  }
+
+  const totalY = currentY + headerHeight + bodyRows * rowHeight + 22
+  const totalWidth = 532
+  const totalX = startX + tableWidth - totalWidth
+  ctx.fillStyle = '#eff6ff'
+  ctx.fillRect(totalX, totalY, totalWidth, totalHeight)
+  ctx.strokeStyle = '#2563eb'
+  ctx.lineWidth = 2
+  ctx.strokeRect(totalX, totalY, totalWidth, totalHeight)
+  ctx.fillStyle = '#2563eb'
+  ctx.font = '800 26px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText('대리신고 최종 합계비용', totalX + 18, totalY + totalHeight / 2)
+  ctx.textAlign = 'right'
+  ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
+
+  return canvas
+}
+
 function persistPreviewDraft(draft) {
   try {
     sessionStorage.setItem(DISPOSAL_PREVIEW_SESSION_KEY, JSON.stringify({
@@ -493,6 +625,88 @@ function DisposalItemsEditor({
   deleteSelectedItemRows,
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
+  const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
+  const [customerSaveDirectoryHandle, setCustomerSaveDirectoryHandle] = useState(null)
+  const [customerSaveDirectoryLabel, setCustomerSaveDirectoryLabel] = useState('기본 다운로드 폴더')
+  const customerSettingsRef = useRef(null)
+
+  const customerExportRows = useMemo(() => visibleRows.map((row, index) => {
+    const item = rendered.reportRows[index] || { finalAmount: 0 }
+    return {
+      index: index + 1,
+      itemName: row?.itemName || '',
+      quantity: row?.quantity || '',
+      finalAmount: item.finalAmount || 0,
+    }
+  }), [visibleRows, rendered.reportRows])
+
+  useEffect(() => {
+    if (!customerSettingsOpen) return undefined
+    function handleOutsideClick(event) {
+      if (!customerSettingsRef.current?.contains(event.target)) {
+        setCustomerSettingsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [customerSettingsOpen])
+
+  async function selectCustomerSaveDirectory() {
+    if (!window.showDirectoryPicker) {
+      window.alert('현재 브라우저에서는 저장 폴더 지정을 지원하지 않습니다. 크롬 최신 브라우저에서 사용해주세요.')
+      return
+    }
+    try {
+      const handle = await window.showDirectoryPicker()
+      setCustomerSaveDirectoryHandle(handle)
+      setCustomerSaveDirectoryLabel(handle?.name || '선택된 폴더')
+      setCustomerSettingsOpen(false)
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        window.alert('견적저장위치를 지정하지 못했습니다.')
+      }
+    }
+  }
+
+  async function saveCustomerEstimateAsJpg() {
+    try {
+      const canvas = buildCustomerQuoteCanvas({
+        rows: customerExportRows,
+        totalFinal: rendered.totals.totalFinal || 0,
+        customerName: draft.customerName,
+        disposalDate: draft.disposalDate,
+        location: draft.location,
+      })
+      const blob = await canvasToJpegBlob(canvas)
+      const filename = `${sanitizeExportFilename(draft.customerName || '고객용견적서')}_${sanitizeExportFilename(draft.disposalDate || new Date().toISOString().slice(0, 10))}.jpg`
+
+      if (customerSaveDirectoryHandle) {
+        const permission = await customerSaveDirectoryHandle.queryPermission?.({ mode: 'readwrite' })
+        if (permission !== 'granted') {
+          const requested = await customerSaveDirectoryHandle.requestPermission?.({ mode: 'readwrite' })
+          if (requested !== 'granted') throw new Error('저장 폴더 쓰기 권한이 허용되지 않았습니다.')
+        }
+        const fileHandle = await customerSaveDirectoryHandle.getFileHandle(filename, { create: true })
+        const writable = await fileHandle.createWritable()
+        await writable.write(blob)
+        await writable.close()
+        window.alert(`고객용 견적서가 저장되었습니다.\n저장위치: ${customerSaveDirectoryLabel}`)
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      window.alert('고객용 견적서 JPG 파일 다운로드가 시작되었습니다.')
+    } catch (error) {
+      window.alert(error?.message || '고객용 견적서를 저장하지 못했습니다.')
+    }
+  }
 
   return (
     <section className="card disposal-items-card disposal-square-ui">
@@ -557,28 +771,37 @@ function DisposalItemsEditor({
         </div>
       </div>
 
-      <div className="disposal-items-section disposal-linked-preview-card">
-        <div className="disposal-linked-preview-title">고객용</div>
-        <div className="disposal-linked-preview-table customer">
+      <div className="disposal-items-section disposal-linked-preview-card customer-preview-card">
+        <div className="disposal-linked-preview-card-head">
+          <div className="disposal-linked-preview-title customer-title">고객용</div>
+          <div className="disposal-linked-preview-actions" ref={customerSettingsRef}>
+            <button type="button" className="ghost disposal-preview-save-button" onClick={saveCustomerEstimateAsJpg}>견적저장</button>
+            <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCustomerSettingsOpen(prev => !prev)} aria-label="고객용 설정">⚙</button>
+            {customerSettingsOpen ? (
+              <div className="disposal-settings-popover disposal-customer-settings-popover">
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCustomerSaveDirectory}>견적저장위치</button>
+                <div className="disposal-settings-popover-caption">현재: {customerSaveDirectoryLabel}</div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div className="disposal-linked-preview-table customer customer-large-text">
           <div className="disposal-linked-preview-row head">
             <div>번호</div>
             <div>물품</div>
             <div>개수</div>
             <div>개별품목비용</div>
           </div>
-          {visibleRows.map((row, index) => {
-            const item = rendered.reportRows[index] || { finalAmount: 0 }
-            return (
-              <div key={`customer-view-${index}`} className="disposal-linked-preview-row">
-                <div>{index + 1}</div>
-                <div>{row?.itemName || ''}</div>
-                <div>{row?.quantity || ''}</div>
-                <div>{item.finalAmount ? formatCurrency(item.finalAmount) : ''}</div>
-              </div>
-            )
-          })}
+          {customerExportRows.map(row => (
+            <div key={`customer-view-${row.index}`} className="disposal-linked-preview-row">
+              <div>{row.index}</div>
+              <div>{row.itemName || ''}</div>
+              <div>{row.quantity || ''}</div>
+              <div>{row.finalAmount ? formatCurrency(row.finalAmount) : ''}</div>
+            </div>
+          ))}
         </div>
-        <div className="disposal-linked-preview-total">
+        <div className="disposal-linked-preview-total wide emphasize-blue">
           <span>대리신고 최종 합계비용</span>
           <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
         </div>
