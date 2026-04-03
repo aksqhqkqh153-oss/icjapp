@@ -259,8 +259,7 @@ async function loadCanvasImage(src) {
 }
 
 async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '' }) {
-  const width = 1240
-  const padding = 44
+  const padding = 40
   const titleHeight = 52
   const subtitleHeight = 34
   const infoHeight = 38
@@ -269,7 +268,16 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const totalHeight = 76
   const footerGap = 24
   const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
-  const height = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
+  const cols = [
+    { key: 'index', label: '번호', width: 100, align: 'center' },
+    { key: 'itemName', label: '품목', width: 360, align: 'center' },
+    { key: 'quantity', label: '개수', width: 96, align: 'center' },
+    { key: 'finalAmount', label: '개별품목비용', width: 156, align: 'right' },
+  ]
+  const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
+  const contentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
+  const width = padding * 2 + tableWidth
+  const height = Math.max(width, contentHeight)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -279,13 +287,6 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillRect(0, 0, width, height)
   ctx.textBaseline = 'middle'
 
-  const cols = [
-    { key: 'index', label: '번호', width: 140, align: 'center' },
-    { key: 'itemName', label: '품목', width: 620, align: 'center' },
-    { key: 'quantity', label: '개수', width: 140, align: 'center' },
-    { key: 'finalAmount', label: '개별품목비용', width: 222, align: 'right' },
-  ]
-  const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const startX = padding
   let currentY = padding
 
