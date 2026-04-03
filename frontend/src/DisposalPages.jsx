@@ -564,7 +564,7 @@ function DisposalItemsEditor({
             <div>번호</div>
             <div>물품</div>
             <div>개수</div>
-            <div>최종매출비용</div>
+            <div>개별품목비용</div>
           </div>
           {visibleRows.map((row, index) => {
             const item = rendered.reportRows[index] || { finalAmount: 0 }
