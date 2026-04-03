@@ -4609,19 +4609,54 @@ def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
         return {"ok": True}
 
 
-def _normalize_disposal_place_prefix(value: str) -> str:
+def _disposal_compact_text(value: str) -> str:
     raw = str(value or '').strip()
     if not raw:
         return ''
     raw = raw.replace(',', ' ')
+    raw = re.sub(r'[^가-힣0-9\s]', ' ', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
+    return raw
+
+
+_DISPOSAL_SHORT_REGION_NAMES = (
+    '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'
+)
+
+
+_DISPOSAL_LONG_REGION_NAMES = (
+    '서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시',
+    '경기도', '강원특별자치도', '강원도', '충청북도', '충청남도', '전북특별자치도', '전라북도', '전라남도', '경상북도', '경상남도', '제주특별자치도', '제주도'
+)
+
+
+def _normalize_disposal_place_prefix(value: str) -> str:
+    raw = _disposal_compact_text(value)
+    if not raw:
+        return ''
     raw = re.sub(r'([가-힣])(특별시|광역시|특별자치시|특별자치도|도|시|구|군)', r'\1\2 ', raw)
     raw = re.sub(r'\s+', ' ', raw).strip()
     match = re.search(r'((?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시))\s+[가-힣0-9]+(?:구|군|시))', raw)
     if match:
         return match.group(1).strip()
-    short_match = re.search(r'((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주))\s+([가-힣0-9]+(?:구|군|시)?)', raw)
+    short_match = re.search(r'((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주))\s*([가-힣0-9]+(?:구|군|시)?)', raw)
     if short_match:
         return f"{short_match.group(1)} {short_match.group(2)}".strip()
+
+    compact = re.sub(r'\s+', '', raw)
+    for region in sorted(_DISPOSAL_LONG_REGION_NAMES, key=len, reverse=True):
+        if compact.startswith(region):
+            tail = compact[len(region):]
+            district_match = re.match(r'([가-힣0-9]+(?:구|군|시)?)', tail)
+            if district_match:
+                return f"{region} {district_match.group(1)}".strip()
+    for region in sorted(_DISPOSAL_SHORT_REGION_NAMES, key=len, reverse=True):
+        if compact.startswith(region):
+            tail = compact[len(region):]
+            district_match = re.match(r'([가-힣0-9]+(?:구|군|시)?)', tail)
+            if district_match:
+                return f"{region} {district_match.group(1)}".strip()
+
     tokens = raw.split(' ')
     if len(tokens) >= 2:
         return ' '.join(tokens[:2]).strip()
@@ -4727,6 +4762,53 @@ def _disposal_place_keys_match(left: str, right: str) -> bool:
     if not left_district or not right_district:
         return left_region == right_region
     return (left_district == right_district) or left_district.startswith(right_district) or right_district.startswith(left_district)
+
+
+def _disposal_similarity_score(location: str, place_prefix: str) -> int:
+    input_region, input_district = _disposal_place_search_parts(location)
+    row_region, row_district = _disposal_place_search_parts(place_prefix)
+    if not input_region or not row_region or input_region != row_region:
+        return -1
+    score = 100
+    if input_district and row_district:
+        if input_district == row_district:
+            score += 100
+        elif row_district.startswith(input_district) or input_district.startswith(row_district):
+            score += 70
+        elif input_district in row_district or row_district in input_district:
+            score += 40
+        else:
+            return -1
+    elif input_district or row_district:
+        score += 10
+
+    normalized_input = _normalize_disposal_place_prefix(location)
+    normalized_row = _normalize_disposal_place_prefix(place_prefix)
+    if normalized_input and normalized_row:
+        if normalized_input == normalized_row:
+            score += 50
+        elif normalized_input in normalized_row or normalized_row in normalized_input:
+            score += 20
+
+    compact_input = re.sub(r'\s+', '', _disposal_compact_text(location))
+    compact_row = re.sub(r'\s+', '', _disposal_compact_text(place_prefix))
+    if compact_input and compact_row:
+        if compact_input == compact_row:
+            score += 30
+        elif compact_input in compact_row or compact_row in compact_input:
+            score += 15
+    return score
+
+
+def _disposal_find_best_jurisdiction_match(rows, location: str):
+    best_row = None
+    best_score = -1
+    for row in rows:
+        score = _disposal_similarity_score(location, str(row['place_prefix'] or ''))
+        if score > best_score:
+            best_row = row
+            best_score = score
+    return best_row if best_score >= 0 else None
 
 
 def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
@@ -4886,23 +4968,6 @@ def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depend
                 district_name=str(exact['district_name'] or ''),
                 report_link=str(exact['report_link'] or ''),
             )
-        partial = conn.execute(
-            """
-            SELECT place_prefix, district_name, report_link
-            FROM disposal_jurisdiction_mappings
-            WHERE ? LIKE place_prefix || '%'
-            ORDER BY LENGTH(place_prefix) DESC, id DESC
-            LIMIT 1
-            """,
-            (normalized,),
-        ).fetchone()
-        if partial:
-            return DisposalJurisdictionResolveOut(
-                matched=True,
-                place_prefix=str(partial['place_prefix'] or ''),
-                district_name=str(partial['district_name'] or ''),
-                report_link=str(partial['report_link'] or ''),
-            )
         rows = conn.execute(
             """
             SELECT place_prefix, district_name, report_link, id
@@ -4920,16 +4985,15 @@ def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depend
                     district_name=str(row['district_name'] or ''),
                     report_link=str(row['report_link'] or ''),
                 )
+    best_row = _disposal_find_best_jurisdiction_match(rows, location)
+    if best_row:
+        return DisposalJurisdictionResolveOut(
+            matched=True,
+            place_prefix=str(best_row['place_prefix'] or ''),
+            district_name=str(best_row['district_name'] or ''),
+            report_link=str(best_row['report_link'] or ''),
+        )
     return DisposalJurisdictionResolveOut(matched=False, place_prefix=normalized)
-
-
-
-def _normalize_materials_table_device(value: str) -> str:
-    raw = str(value or '').strip().lower()
-    return 'mobile' if raw == 'mobile' else 'desktop'
-
-def _get_materials_table_layout_key(device: str) -> str:
-    return f'materials_table_layout_{_normalize_materials_table_device(device)}_json'
 
 
 @app.get('/api/warehouse/state')

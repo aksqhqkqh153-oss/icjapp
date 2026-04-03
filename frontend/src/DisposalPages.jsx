@@ -292,7 +292,7 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
 
   let logoImage = null
   try {
-    const logoSrc = new URL('/icon-192.png', window.location.origin).toString()
+    const logoSrc = new URL('/disposal-customer-logo.png', window.location.origin).toString()
     logoImage = await loadCanvasImage(logoSrc)
   } catch (error) {
     logoImage = null
@@ -304,13 +304,15 @@ async function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 300
-    const maxLogoHeight = 120
+    const maxLogoWidth = 520
+    const maxLogoHeight = 220
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
-    const logoX = startX + tableWidth - drawWidth
-    const logoY = currentY + (titleHeight - drawHeight) / 2
+    const logoRightPadding = 8
+    const logoTopPadding = 2
+    const logoX = startX + tableWidth - drawWidth - logoRightPadding
+    const logoY = Math.max(8, currentY - 4 + logoTopPadding)
     ctx.drawImage(logoImage, logoX, logoY, drawWidth, drawHeight)
   }
 
