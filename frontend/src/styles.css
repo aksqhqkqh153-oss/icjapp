@@ -8978,26 +8978,26 @@ a:focus-visible {
 .disposal-final-status-shell .disposal-final-status-select {
   position: relative;
   z-index: 1;
-  color: transparent;
-  caret-color: transparent;
+  color: #111827;
+  caret-color: auto;
+  font-weight: 700;
+  appearance: auto;
+  -webkit-appearance: menulist;
+  text-rendering: optimizeLegibility;
 }
 .disposal-final-status-shell .disposal-final-status-select:focus {
-  color: transparent;
+  color: #111827;
+}
+.disposal-final-status-shell .disposal-final-status-select.is-placeholder {
+  color: #6b7280;
+  font-weight: 600;
+}
+.disposal-final-status-shell .disposal-final-status-select.has-value {
+  color: #111827;
 }
 .disposal-final-status-shell .disposal-final-status-select option {
   color: #1f2937;
-}
-.disposal-final-status-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  padding: 10px 38px 10px 12px;
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 800;
+  background: #ffffff;
 }
 .disposal-status-rich {
   display: inline-flex;

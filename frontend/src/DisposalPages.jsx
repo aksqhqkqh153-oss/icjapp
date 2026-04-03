@@ -417,12 +417,15 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
           <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef)} placeholder="고객명" />
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
           <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
-            <select ref={finalStatusRef} className={`disposal-final-status-select ${statusClass}`.trim()} value={draft.finalStatus} onChange={e => updateDraftField('finalStatus', e.target.value)} onKeyDown={handleFinalStatusKeyDown}>
+            <select
+              ref={finalStatusRef}
+              className={`disposal-final-status-select ${statusClass} ${draft.finalStatus ? 'has-value' : 'is-placeholder'}`.trim()}
+              value={draft.finalStatus}
+              onChange={e => updateDraftField('finalStatus', e.target.value)}
+              onKeyDown={handleFinalStatusKeyDown}
+            >
               {FINAL_STATUS_SELECT_OPTIONS.map(option => <option key={option.value || 'placeholder'} value={option.value}>{option.label}</option>)}
             </select>
-            <div className="disposal-final-status-overlay" aria-hidden="true">
-              <DisposalFinalStatusRichLabel value={draft.finalStatus} />
-            </div>
           </div>
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
@@ -760,19 +763,24 @@ useEffect(() => {
   const trimmed = String(draft.location || '').trim()
   if (!trimmed) {
     setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+    setDraft(prev => prev.district ? ({ ...prev, district: '' }) : prev)
     return
   }
   const timer = window.setTimeout(async () => {
     try {
       const result = await api(`/api/disposal/jurisdictions/resolve?location=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
-      setDistrictResolved(result || { matched: false, district_name: '', report_link: '', place_prefix: '' })
-      if (result?.matched && result?.district_name) {
-        setDraft(prev => prev.district === result.district_name ? prev : ({ ...prev, district: result.district_name }))
-      }
+      const normalizedResult = result || { matched: false, district_name: '', report_link: '', place_prefix: '' }
+      setDistrictResolved(normalizedResult)
+      setDraft(prev => {
+        if (normalizedResult?.matched && normalizedResult?.district_name) {
+          return prev.district === normalizedResult.district_name ? prev : ({ ...prev, district: normalizedResult.district_name })
+        }
+        return prev.district ? ({ ...prev, district: '' }) : prev
+      })
     } catch {
       setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
     }
-  }, 250)
+  }, 180)
   return () => window.clearTimeout(timer)
 }, [draft.location])
 

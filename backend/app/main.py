@@ -4610,12 +4610,18 @@ def save_preferences(payload: PreferenceIn, user=Depends(require_user)):
 
 
 def _normalize_disposal_place_prefix(value: str) -> str:
-    raw = re.sub(r'\s+', ' ', str(value or '').strip())
+    raw = str(value or '').strip()
     if not raw:
         return ''
+    raw = raw.replace(',', ' ')
+    raw = re.sub(r'([가-힣])(특별시|광역시|특별자치시|특별자치도|도|시|구|군)', r'\1\2 ', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
     match = re.search(r'((?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시))\s+[가-힣0-9]+(?:구|군|시))', raw)
     if match:
         return match.group(1).strip()
+    short_match = re.search(r'((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주))\s+([가-힣0-9]+(?:구|군|시)?)', raw)
+    if short_match:
+        return f"{short_match.group(1)} {short_match.group(2)}".strip()
     tokens = raw.split(' ')
     if len(tokens) >= 2:
         return ' '.join(tokens[:2]).strip()
@@ -4684,15 +4690,22 @@ def _disposal_place_search_key(value: str) -> str:
     normalized = _normalize_disposal_place_prefix(value)
     if not normalized:
         return ''
-    tokens = [token for token in re.split(r'\s+', normalized) if token]
+    compact = re.sub(r'\s+', ' ', normalized).strip()
+    tokens = [token for token in re.split(r'\s+', compact) if token]
     if not tokens:
         return ''
     region = _DISPOSAL_REGION_ALIAS_MAP.get(tokens[0], _strip_disposal_region_suffix(tokens[0]))
     district = ''
-    if len(tokens) >= 2:
-        district = _strip_disposal_region_suffix(tokens[1])
-    if len(tokens) >= 3 and not district:
-        district = _strip_disposal_region_suffix(tokens[2])
+    for token in tokens[1:]:
+        stripped = _strip_disposal_region_suffix(token)
+        if stripped:
+            district = stripped
+            break
+    if not district and len(tokens) == 1:
+        short_match = re.match(r'^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)([가-힣0-9]+)$', tokens[0])
+        if short_match:
+            region = short_match.group(1)
+            district = _strip_disposal_region_suffix(short_match.group(2))
     return ' '.join([part for part in [region, district] if part]).strip()
 
 
