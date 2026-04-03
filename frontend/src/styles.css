@@ -10814,6 +10814,11 @@ a:focus-visible {
   text-align: right;
 }
 
+.disposal-linked-preview-card .disposal-linked-preview-table.customer .disposal-linked-preview-row > div:nth-child(4) {
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
 .disposal-linked-preview-total {
   margin-top: 8px;
   margin-left: auto;
@@ -10862,7 +10867,7 @@ a:focus-visible {
 
 .disposal-linked-preview-table.customer .disposal-linked-preview-row,
 .disposal-linked-preview-table.company .disposal-linked-preview-row {
-  grid-template-columns: 40px minmax(140px, 1.7fr) minmax(62px, .62fr) minmax(126px, 1fr);
+  grid-template-columns: 40px minmax(170px, 1.95fr) minmax(62px, .62fr) minmax(96px, .78fr);
 }
 
 .disposal-linked-preview-row > div {
@@ -11052,7 +11057,7 @@ a:focus-visible {
   .disposal-linked-preview-table.company .disposal-linked-preview-row {
     min-width: 0;
     width: 100%;
-    grid-template-columns: 28px minmax(70px, 1.45fr) minmax(34px, .55fr) minmax(82px, .95fr);
+    grid-template-columns: 28px minmax(86px, 1.7fr) minmax(34px, .55fr) minmax(62px, .72fr);
     gap: 3px;
   }
 

@@ -249,13 +249,14 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   const width = 1240
   const padding = 44
   const titleHeight = 52
+  const subtitleHeight = 34
   const infoHeight = 38
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
   const footerGap = 24
   const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
-  const height = padding * 2 + titleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
+  const height = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalHeight + footerGap
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -267,9 +268,9 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
 
   const cols = [
     { key: 'index', label: '번호', width: 120, align: 'center' },
-    { key: 'itemName', label: '물품', width: 500, align: 'center' },
+    { key: 'itemName', label: '물품', width: 598, align: 'center' },
     { key: 'quantity', label: '개수', width: 140, align: 'center' },
-    { key: 'finalAmount', label: '개별품목비용', width: 392, align: 'right' },
+    { key: 'finalAmount', label: '개별품목비용', width: 294, align: 'right' },
   ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const startX = padding
@@ -278,8 +279,13 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   ctx.fillStyle = '#111827'
   ctx.font = '700 28px sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText('고객용 폐기 견적서', startX, currentY + titleHeight / 2)
+  ctx.fillText('폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
   currentY += titleHeight
+
+  ctx.fillStyle = '#16a34a'
+  ctx.font = '700 18px sans-serif'
+  ctx.fillText("본 견적서는 '대리신고' + '폐기스티커 부착(폐기번호 기재)' 서비스에 대한 견적입니다.", startX, currentY + subtitleHeight / 2)
+  currentY += subtitleHeight
 
   ctx.fillStyle = '#374151'
   ctx.font = '500 18px sans-serif'
@@ -292,12 +298,12 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   currentY += infoHeight
 
   ctx.strokeStyle = '#111827'
-  ctx.lineWidth = 2
+  ctx.lineWidth = 3
   ctx.strokeRect(startX, currentY, tableWidth, headerHeight + bodyRows * rowHeight)
 
   let x = startX
   cols.forEach((col, idx) => {
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = 3
     if (idx > 0) {
       ctx.beginPath()
       ctx.moveTo(x, currentY)
@@ -316,7 +322,7 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   for (let i = 0; i < bodyRows; i += 1) {
     const row = rows[i] || {}
     const rowY = currentY + headerHeight + i * rowHeight
-    ctx.lineWidth = 1
+    ctx.lineWidth = 2.5
     ctx.beginPath()
     ctx.moveTo(startX, rowY)
     ctx.lineTo(startX + tableWidth, rowY)
@@ -348,7 +354,7 @@ function buildCustomerQuoteCanvas({ rows = [], totalFinal = 0, customerName = ''
   ctx.fillStyle = '#eff6ff'
   ctx.fillRect(totalX, totalY, totalWidth, totalHeight)
   ctx.strokeStyle = '#2563eb'
-  ctx.lineWidth = 2
+  ctx.lineWidth = 3
   ctx.strokeRect(totalX, totalY, totalWidth, totalHeight)
   ctx.fillStyle = '#2563eb'
   ctx.font = '800 26px sans-serif'
