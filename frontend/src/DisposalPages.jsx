@@ -314,9 +314,10 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
       ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
+  const contentWidth = padding * 2 + tableWidth
   const contentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
-  const width = padding * 2 + tableWidth
-  const height = Math.max(width, contentHeight)
+  const width = Math.max(contentWidth, Math.ceil(contentHeight * (4 / 3)))
+  const height = Math.ceil(width * (3 / 4))
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -326,8 +327,10 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillRect(0, 0, width, height)
   ctx.textBaseline = 'middle'
 
-  const startX = padding
-  let currentY = padding
+  const extraX = Math.max(0, (width - contentWidth) / 2)
+  const extraY = Math.max(0, (height - contentHeight) / 2)
+  const startX = padding + extraX
+  let currentY = padding + extraY
 
   let logoImage = null
   try {
