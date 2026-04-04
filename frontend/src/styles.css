@@ -11283,3 +11283,141 @@ button.disposal-items-number-cell.has-note {
   text-align: center !important;
   padding-left: 4px !important;
 }
+
+
+/* 2026-04-04 mobile schedule/calendar improvements */
+.schedule-page.mobile .schedule-card.mobile-calendar-collapsed {
+  padding-bottom: 12px;
+}
+
+.schedule-page.mobile .mobile-schedule-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.schedule-page.mobile .mobile-schedule-detail-panel.collapsed {
+  margin-top: 0;
+  padding-top: 10px;
+}
+
+.schedule-page.mobile .mobile-schedule-detail-toggle-indicator {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.schedule-page.mobile .mobile-schedule-detail-head.single-row-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.schedule-page.mobile .mobile-schedule-selected-date {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.schedule-page.mobile .mobile-schedule-detail-meta.summary-inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.schedule-page.mobile .mobile-schedule-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.schedule-page.mobile .mobile-schedule-vehicle-chip,
+.schedule-page.mobile .mobile-schedule-vehicle-inline {
+  white-space: nowrap;
+}
+
+.work-schedule-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-schedule-date-inline {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .work-schedule-page.mobile {
+    min-height: calc(100vh - 124px);
+    max-height: calc(100vh - 124px);
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    padding-bottom: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day {
+    height: calc(100vh - 124px);
+    min-height: calc(100vh - 124px);
+    max-height: calc(100vh - 124px);
+    overflow: hidden;
+    scroll-snap-align: start;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 7fr) minmax(0, auto) minmax(0, 3fr);
+    gap: 10px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-head {
+    align-items: center;
+  }
+
+  .work-schedule-page.mobile .work-schedule-headline {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-headline strong,
+  .work-schedule-page.mobile .work-schedule-headline .work-schedule-date-inline {
+    white-space: nowrap;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section {
+    min-height: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section:first-of-type {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .work-schedule-page.mobile .work-schedule-list.unified-list {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .work-schedule-page.mobile .work-exclusion-section {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .work-schedule-page.mobile .work-exclusion-section .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-exclusion-section .work-notes-form {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
