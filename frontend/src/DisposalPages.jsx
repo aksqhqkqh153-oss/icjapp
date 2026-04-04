@@ -759,19 +759,37 @@ function DisposalItemsEditor({
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [customerSettingsOpen, companySettingsOpen])
 
+  function getDirectoryPickerErrorMessage(error) {
+    const rawMessage = String(error?.message || '')
+    const normalizedMessage = rawMessage.toLowerCase()
+
+    if (
+      normalizedMessage.includes('system files')
+      || normalizedMessage.includes('could not be opened')
+      || normalizedMessage.includes('not allowed')
+      || normalizedMessage.includes('permission')
+    ) {
+      return '선택한 폴더는 브라우저 보안정책상 사용할 수 없습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 선택해주세요.\n\n시스템 폴더는 강제로 열 수 없습니다.'
+    }
+
+    return '견적저장위치를 지정하지 못했습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 다시 선택해주세요.'
+  }
+
   async function selectCustomerSaveDirectory() {
     if (!window.showDirectoryPicker) {
       window.alert('현재 브라우저에서는 저장 폴더 지정을 지원하지 않습니다. 크롬 최신 브라우저에서 사용해주세요.')
       return
     }
     try {
-      const handle = await window.showDirectoryPicker()
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       setCustomerSaveDirectoryHandle(handle)
       setCustomerSaveDirectoryLabel(handle?.name || '선택된 폴더')
       setCustomerSettingsOpen(false)
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        window.alert('견적저장위치를 지정하지 못했습니다.')
+        setCustomerSaveDirectoryHandle(null)
+        setCustomerSaveDirectoryLabel('미지정')
+        window.alert(getDirectoryPickerErrorMessage(error))
       }
     }
   }
@@ -782,13 +800,15 @@ function DisposalItemsEditor({
       return
     }
     try {
-      const handle = await window.showDirectoryPicker()
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       setCompanySaveDirectoryHandle(handle)
       setCompanySaveDirectoryLabel(handle?.name || '선택된 폴더')
       setCompanySettingsOpen(false)
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        window.alert('견적저장위치를 지정하지 못했습니다.')
+        setCompanySaveDirectoryHandle(null)
+        setCompanySaveDirectoryLabel('미지정')
+        window.alert(getDirectoryPickerErrorMessage(error))
       }
     }
   }
