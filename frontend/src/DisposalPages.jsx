@@ -1449,7 +1449,6 @@ useEffect(() => {
       <section className="card disposal-hero">
         <div>
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
-          <p className="notice-text">저장 시 폐기목록과 폐기결산에서 동시에 관리됩니다.</p>
         </div>
         <div className="disposal-hero-actions" ref={settingsRef}>
           <div className="disposal-settings-inline">

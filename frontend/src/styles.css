@@ -8619,6 +8619,15 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 
+.disposal-hero-actions > .ghost,
+.disposal-hero-actions > .disposal-settings-inline {
+  min-width: 0;
+}
+
+.disposal-hero-actions > .ghost {
+  white-space: nowrap;
+}
+
 .disposal-entry-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9290,8 +9299,14 @@ a:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .disposal-meta-row-top,
-  .disposal-meta-row-bottom,
+  .disposal-meta-row-top {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .disposal-meta-row-bottom {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, .95fr);
+  }
+
   .disposal-inline-summary {
     grid-template-columns: 1fr;
   }
@@ -11060,6 +11075,60 @@ button.disposal-items-number-cell.has-note {
   .disposal-page .disposal-linked-preview-card {
     padding-left: 8px;
     padding-right: 8px;
+  }
+
+
+  .disposal-page .disposal-hero {
+    gap: 8px;
+  }
+
+  .disposal-page .disposal-hero-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .disposal-page .disposal-hero-actions > .ghost,
+  .disposal-page .disposal-hero-actions > .disposal-settings-inline {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .disposal-page .disposal-hero-actions > .ghost,
+  .disposal-page .disposal-hero-actions .ghost {
+    min-height: 34px;
+    padding: 6px 4px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .disposal-page .disposal-settings-inline {
+    display: block;
+  }
+
+  .disposal-page .disposal-settings-inline > button {
+    width: 100%;
+  }
+
+  .disposal-page .disposal-meta-layout {
+    gap: 8px;
+  }
+
+  .disposal-page .disposal-meta-row {
+    gap: 8px;
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .disposal-page .disposal-district-link,
+  .disposal-page .disposal-district-hint {
+    font-size: 11px;
   }
 
   .disposal-items-head h3 {
