@@ -302,16 +302,16 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
   const cols = isCompany
     ? [
-        { key: 'index', label: '번호', width: 100, align: 'center' },
-        { key: 'itemName', label: '품목', width: 360, align: 'center' },
-        { key: 'quantity', label: '개수', width: 96, align: 'center' },
-        { key: 'reportNo', label: '신고번호', width: 156, align: 'center' },
+        { key: 'index', label: '번호', width: 118, align: 'center' },
+        { key: 'itemName', label: '품목', width: 520, align: 'center' },
+        { key: 'quantity', label: '개수', width: 126, align: 'center' },
+        { key: 'reportNo', label: '신고번호', width: 236, align: 'center' },
       ]
     : [
-        { key: 'index', label: '번호', width: 100, align: 'center' },
-        { key: 'itemName', label: '품목', width: 360, align: 'center' },
-        { key: 'quantity', label: '개수', width: 96, align: 'center' },
-        { key: 'finalAmount', label: '개별품목비용', width: 156, align: 'right' },
+        { key: 'index', label: '번호', width: 118, align: 'center' },
+        { key: 'itemName', label: '품목', width: 520, align: 'center' },
+        { key: 'quantity', label: '개수', width: 126, align: 'center' },
+        { key: 'finalAmount', label: '개별품목비용', width: 236, align: 'right' },
       ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
@@ -351,8 +351,8 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 208
-    const maxLogoHeight = 88
+    const maxLogoWidth = 244
+    const maxLogoHeight = 96
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
