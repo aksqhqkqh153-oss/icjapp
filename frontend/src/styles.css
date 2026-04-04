@@ -11028,7 +11028,8 @@ button.disposal-items-number-cell.has-note {
 
 @media (max-width: 720px) {
   .disposal-items-head-bar {
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
   }
 
   .disposal-items-table-wrap {
@@ -11080,35 +11081,47 @@ button.disposal-items-number-cell.has-note {
 
   .disposal-page .disposal-hero {
     gap: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+  }
+
+  .disposal-page .disposal-hero-title-wrap {
+    flex: 0 0 auto;
   }
 
   .disposal-page .disposal-hero-actions {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
+    width: auto;
+    min-width: 0;
   }
 
   .disposal-page .disposal-hero-actions > .ghost,
   .disposal-page .disposal-hero-actions > .disposal-settings-inline {
-    width: 100%;
+    width: auto;
     min-width: 0;
   }
 
   .disposal-page .disposal-hero-actions > .ghost,
   .disposal-page .disposal-hero-actions .ghost {
-    min-height: 34px;
-    padding: 6px 4px;
-    font-size: 12px;
+    min-height: 30px;
+    padding: 4px 6px;
+    font-size: 11px;
     white-space: nowrap;
   }
 
   .disposal-page .disposal-settings-inline {
-    display: block;
+    display: flex;
+    align-items: center;
   }
 
   .disposal-page .disposal-settings-inline > button {
-    width: 100%;
+    width: auto;
   }
 
   .disposal-page .disposal-meta-layout {
@@ -11144,8 +11157,10 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-items-toolbar {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
   }
 
   .disposal-items-toolbar .ghost {
@@ -11214,13 +11229,14 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-linked-preview-card-head {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .disposal-linked-preview-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
+    flex-wrap: nowrap;
   }
 
   .disposal-preview-save-button,
@@ -11301,6 +11317,24 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-linked-preview-total.emphasize-blue strong {
+    font-size: 18px;
+  }
+
+  .disposal-page .disposal-hero h2,
+  .disposal-items-head h3,
+  .disposal-linked-preview-card .customer-title {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .disposal-page .disposal-hero h2 {
+    font-size: 18px;
+  }
+
+  .disposal-icon-button,
+  .disposal-preview-settings-button {
+    min-width: 28px;
+    padding: 2px 4px !important;
     font-size: 18px;
   }
 }

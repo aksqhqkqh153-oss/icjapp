@@ -941,7 +941,6 @@ function DisposalItemsEditor({
               <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalReport)}</div>
               <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalFinal)}</div>
               <div />
-              <div />
             </div>
           </div>
         </div>
@@ -1447,17 +1446,17 @@ useEffect(() => {
   return (
     <div className="stack-page disposal-page">
       <section className="card disposal-hero">
-        <div>
+        <div className="disposal-hero-title-wrap">
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
         </div>
-        <div className="disposal-hero-actions" ref={settingsRef}>
+        <div className="disposal-hero-actions disposal-hero-actions-inline" ref={settingsRef}>
           <div className="disposal-settings-inline">
-            <button type="button" className="ghost" onClick={() => setSettingsOpen(prev => !prev)}>설정</button>
+            <button type="button" className="ghost disposal-icon-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">⚙</button>
             <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
           </div>
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
-          <button type="button" className="ghost active" onClick={saveSettlementRecord}>폐기결산 저장</button>
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>목록</button>
+          <button type="button" className="ghost active" onClick={saveSettlementRecord}>견적저장</button>
         </div>
       </section>
 
@@ -1800,7 +1799,7 @@ export function DisposalSettlementsPage() {
           <h2>폐기결산</h2>
         </div>
         <div className="disposal-hero-actions">
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>목록</button>
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
         </div>
       </section>
