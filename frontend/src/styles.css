@@ -11366,6 +11366,7 @@ button.disposal-items-number-cell.has-note {
     overflow-y: auto;
     scroll-snap-type: y mandatory;
     padding-bottom: 0;
+    gap: 0;
   }
 
   .work-schedule-page.mobile .work-schedule-day {
@@ -11376,11 +11377,18 @@ button.disposal-items-number-cell.has-note {
     scroll-snap-align: start;
     display: grid;
     grid-template-rows: auto minmax(0, 7fr) minmax(0, 3fr);
-    gap: 10px;
+    gap: 0;
+    padding: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 1px solid #cbd5e1;
+    background: #f8fafc;
   }
 
   .work-schedule-page.mobile .work-schedule-head {
     align-items: center;
+    padding: 12px 14px 8px;
   }
 
   .work-schedule-page.mobile .work-schedule-headline {
@@ -11402,30 +11410,65 @@ button.disposal-items-number-cell.has-note {
   .work-schedule-page.mobile .work-schedule-main-top {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 10px;
+    gap: 8px;
     overflow: hidden;
+    padding: 0 14px 0;
   }
 
   .work-schedule-page.mobile .work-schedule-main-top > .work-schedule-section {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section-head {
+    padding: 0;
+  }
+
+  .work-schedule-page.mobile .work-day-status-button {
+    margin: 0;
   }
 
   .work-schedule-page.mobile .work-schedule-list.unified-list {
     min-height: 0;
     overflow-y: auto;
+    border: 0;
+    background: transparent;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-item:first-child {
+    border-top: 1px solid #e2e8f0;
   }
 
   .work-schedule-page.mobile .work-exclusion-section {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
+    border: 0;
+    border-top: 1px solid #cbd5e1;
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 14px 12px;
+    margin: 0;
   }
 
   .work-schedule-page.mobile .work-exclusion-section .work-schedule-exclusion,
   .work-schedule-page.mobile .work-exclusion-section .work-notes-form {
     min-height: 0;
     overflow-y: auto;
+  }
+
+  .work-schedule-page.mobile .work-exclusion-section .work-schedule-exclusion {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .work-schedule-page.mobile .work-notes-form {
+    border: 0;
+    padding: 0;
+    background: transparent;
   }
 }
