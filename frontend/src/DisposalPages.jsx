@@ -290,14 +290,15 @@ async function loadCanvasImage(src) {
 
 async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '', mode = 'customer' }) {
   const isCompany = mode === 'company'
-  const padding = 40
+  const outerMargin = 36
+  const padding = 28
   const titleHeight = 52
   const subtitleHeight = isCompany ? 0 : 34
   const infoHeight = 42
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
-  const footerGap = 24
+  const footerGap = 20
   const bodyRows = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, rows.length)
   const cols = isCompany
     ? [
@@ -314,10 +315,15 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
       ]
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
-  const contentWidth = padding * 2 + tableWidth
-  const contentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
-  const width = Math.max(contentWidth, Math.ceil(contentHeight * (4 / 3)))
-  const height = Math.ceil(width * (3 / 4))
+  const rawContentWidth = padding * 2 + tableWidth
+  const rawContentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
+  const width = 1600
+  const height = 1200
+  const availableWidth = width - outerMargin * 2
+  const availableHeight = height - outerMargin * 2
+  const scale = Math.min(availableWidth / rawContentWidth, availableHeight / rawContentHeight)
+  const contentWidth = rawContentWidth * scale
+  const contentHeight = rawContentHeight * scale
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -326,11 +332,10 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, width, height)
   ctx.textBaseline = 'middle'
+  ctx.scale(scale, scale)
 
-  const extraX = Math.max(0, (width - contentWidth) / 2)
-  const extraY = Math.max(0, (height - contentHeight) / 2)
-  const startX = padding + extraX
-  let currentY = padding + extraY
+  const startX = (width / scale - rawContentWidth) / 2
+  let currentY = (height / scale - rawContentHeight) / 2
 
   let logoImage = null
   try {
