@@ -292,9 +292,9 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const isCompany = mode === 'company'
   const outerMargin = 36
   const padding = 28
-  const titleHeight = 52
+  const titleHeight = isCompany ? 112 : 52
   const subtitleHeight = isCompany ? 0 : 34
-  const infoHeight = 42
+  const infoHeight = isCompany ? 52 : 42
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
@@ -303,9 +303,9 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   const cols = isCompany
     ? [
         { key: 'index', label: '번호', width: 118, align: 'center' },
-        { key: 'itemName', label: '품목', width: 520, align: 'center' },
+        { key: 'itemName', label: '품목', width: 416, align: 'center' },
         { key: 'quantity', label: '개수', width: 126, align: 'center' },
-        { key: 'reportNo', label: '신고번호', width: 236, align: 'center' },
+        { key: 'reportNo', label: '신고번호', width: 340, align: 'center' },
       ]
     : [
         { key: 'index', label: '번호', width: 118, align: 'center' },
@@ -351,15 +351,17 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = 244
-    const maxLogoHeight = 96
+    const maxLogoWidth = isCompany ? 264 : 244
+    const maxLogoHeight = isCompany ? 72 : 96
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
     const logoRightPadding = 8
-    const logoTopPadding = 6
+    const logoTopPadding = isCompany ? 12 : 6
     const logoX = startX + tableWidth - drawWidth - logoRightPadding
-    const logoY = Math.max(8, currentY + logoTopPadding)
+    const logoY = isCompany
+      ? currentY + (titleHeight - drawHeight) / 2
+      : Math.max(8, currentY + logoTopPadding)
     ctx.drawImage(logoImage, logoX, logoY, drawWidth, drawHeight)
   }
 
