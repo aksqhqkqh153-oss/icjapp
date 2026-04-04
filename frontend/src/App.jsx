@@ -7944,13 +7944,13 @@ function AdminModePage() {
                       {ADMIN_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   )}
+                </div>
+                <div className="inline-actions wrap admin-section-save-actions account-manage-toolbar-actions">
                   <button type="button" className={accountManageTab === 'list' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('list')}>목록</button>
                   <button type="button" className={accountManageTab === 'edit' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('edit')}>수정</button>
                   <button type="button" className={accountManageTab === 'create' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('create')}>추가</button>
                   <button type="button" className={accountManageTab === 'switch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('switch')}>전환</button>
                   <button type="button" className={accountManageTab === 'delete' ? 'small selected-toggle' : 'small ghost'} onClick={() => setAccountManageTab('delete')}>삭제</button>
-                </div>
-                <div className="inline-actions wrap admin-section-save-actions account-manage-toolbar-actions">
                   {accountManageTab === 'create' && actorGrade <= 2 && (
                     <button type="submit" form="admin-create-account-form" className="small">계정생성</button>
                   )}

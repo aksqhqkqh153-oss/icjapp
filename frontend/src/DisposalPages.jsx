@@ -8,6 +8,7 @@ const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 const ITEM_ROW_COUNT = 17
 const DEFAULT_VISIBLE_ITEM_ROWS = 8
+const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const FILTER_OPTIONS = [
@@ -20,6 +21,23 @@ const FILTER_OPTIONS = [
 const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
 const FINAL_STATUS_SELECT_OPTIONS = [{ value: '', label: '최종현황 선택' }, ...FINAL_STATUS_OPTIONS.map(option => ({ value: option, label: option }))]
 
+
+function getDefaultVisibleItemRows() {
+  try {
+    const raw = Number(localStorage.getItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY) || DEFAULT_VISIBLE_ITEM_ROWS)
+    if (!Number.isFinite(raw)) return DEFAULT_VISIBLE_ITEM_ROWS
+    return Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(raw)))
+  } catch {
+    return DEFAULT_VISIBLE_ITEM_ROWS
+  }
+}
+
+function setDefaultVisibleItemRowsStorage(value) {
+  try {
+    localStorage.setItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY, String(Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(value)))))
+  } catch {}
+}
+
 function createEmptyItem() {
   return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '' }
 }
@@ -31,7 +49,7 @@ function createInitialDraft() {
     district: '',
     finalStatus: '',
     customerName: '',
-    items: Array.from({ length: DEFAULT_VISIBLE_ITEM_ROWS }, () => createEmptyItem()),
+    items: Array.from({ length: getDefaultVisibleItemRows() }, () => createEmptyItem()),
   }
 }
 
@@ -48,7 +66,8 @@ function formatNumber(value) {
 function normalizeRecordShape(record) {
   if (!record || typeof record !== 'object') return null
   const sourceItems = Array.isArray(record.items) ? record.items : []
-  const visibleItemCount = Math.max(DEFAULT_VISIBLE_ITEM_ROWS, Math.min(ITEM_ROW_COUNT, sourceItems.length || DEFAULT_VISIBLE_ITEM_ROWS))
+  const defaultVisibleRows = getDefaultVisibleItemRows()
+  const visibleItemCount = Math.max(defaultVisibleRows, Math.min(ITEM_ROW_COUNT, sourceItems.length || defaultVisibleRows))
   const items = Array.from({ length: visibleItemCount }, (_, index) => ({
     ...createEmptyItem(),
     ...(sourceItems[index] || {}),
@@ -901,11 +920,18 @@ function DisposalItemsEditor({
           <div>
             <h3>폐기품목입력</h3>
           </div>
-          <div className="disposal-items-toolbar">
+          <div className="disposal-items-toolbar" ref={itemSettingsRef}>
             <button type="button" className="ghost" onClick={() => setShowItemsHelp(true)}>설명</button>
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
+            <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기품목입력 설정">⚙</button>
             {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
+            {itemSettingsOpen ? (
+              <div className="disposal-settings-popover disposal-item-settings-popover">
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
+                <div className="disposal-settings-popover-caption">현재: {defaultVisibleRows}칸</div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1334,7 +1360,10 @@ export function DisposalFormsPage() {
   const [districtResolved, setDistrictResolved] = useState({ matched: false, district_name: '', report_link: '', place_prefix: '' })
   const [deleteMode, setDeleteMode] = useState(false)
   const [selectedItemRows, setSelectedItemRows] = useState([])
+  const [itemSettingsOpen, setItemSettingsOpen] = useState(false)
+  const [defaultVisibleRows, setDefaultVisibleRows] = useState(() => getDefaultVisibleItemRows())
   const settingsRef = useRef(null)
+  const itemSettingsRef = useRef(null)
 
   useEffect(() => {
     if (!recordId) return
@@ -1346,7 +1375,7 @@ export function DisposalFormsPage() {
         location: found.location || '',
         district: found.district || '',
         finalStatus: found.finalStatus || '',
-        items: Array.from({ length: Math.max(DEFAULT_VISIBLE_ITEM_ROWS, Math.min(ITEM_ROW_COUNT, found.items?.length || DEFAULT_VISIBLE_ITEM_ROWS)) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
       })
       setSavedAt(found.savedAt || '')
     }
@@ -1355,8 +1384,8 @@ export function DisposalFormsPage() {
 
 useEffect(() => {
   function handleClickOutside(event) {
-    if (!settingsRef.current || settingsRef.current.contains(event.target)) return
-    setSettingsOpen(false)
+    if (settingsRef.current && !settingsRef.current.contains(event.target)) setSettingsOpen(false)
+    if (itemSettingsRef.current && !itemSettingsRef.current.contains(event.target)) setItemSettingsOpen(false)
   }
   document.addEventListener('mousedown', handleClickOutside)
   return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -1436,11 +1465,29 @@ useEffect(() => {
       const remaining = (prev.items || []).filter((_, index) => !selectedSet.has(index))
       return {
         ...prev,
-        items: (remaining.length ? remaining : [createEmptyItem()]).concat(Array.from({ length: Math.max(0, DEFAULT_VISIBLE_ITEM_ROWS - Math.max(1, remaining.length)) }, () => createEmptyItem())).slice(0, ITEM_ROW_COUNT),
+        items: (remaining.length ? remaining : [createEmptyItem()]).concat(Array.from({ length: Math.max(0, getDefaultVisibleItemRows() - Math.max(1, remaining.length)) }, () => createEmptyItem())).slice(0, ITEM_ROW_COUNT),
       }
     })
     setSelectedItemRows([])
     setDeleteMode(false)
+  }
+
+  function configureDefaultVisibleRows() {
+    const input = window.prompt(`기본품목칸 수를 입력해 주세요. (1~${ITEM_ROW_COUNT})`, String(defaultVisibleRows || getDefaultVisibleItemRows()))
+    if (input === null) return
+    const nextValue = Math.max(1, Math.min(ITEM_ROW_COUNT, Number(input) || getDefaultVisibleItemRows()))
+    setDefaultVisibleRows(nextValue)
+    setDefaultVisibleItemRowsStorage(nextValue)
+    setDraft(prev => {
+      const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+      if (currentItems.length >= nextValue) return prev
+      return {
+        ...prev,
+        items: currentItems.concat(Array.from({ length: nextValue - currentItems.length }, () => createEmptyItem())),
+      }
+    })
+    setItemSettingsOpen(false)
+    window.alert(`기본품목칸 수가 ${nextValue}칸으로 변경되었습니다.`)
   }
 
   function openPreviewPage() {
