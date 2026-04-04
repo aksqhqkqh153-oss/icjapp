@@ -11375,7 +11375,7 @@ button.disposal-items-number-cell.has-note {
     overflow: hidden;
     scroll-snap-align: start;
     display: grid;
-    grid-template-rows: auto auto minmax(0, 7fr) minmax(0, auto) minmax(0, 3fr);
+    grid-template-rows: auto minmax(0, 7fr) minmax(0, 3fr);
     gap: 10px;
   }
 
@@ -11393,11 +11393,20 @@ button.disposal-items-number-cell.has-note {
     white-space: nowrap;
   }
 
-  .work-schedule-page.mobile .work-schedule-section {
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-exclusion-section {
     min-height: 0;
   }
 
-  .work-schedule-page.mobile .work-schedule-section:first-of-type {
+  .work-schedule-page.mobile .work-schedule-main-top {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top > .work-schedule-section {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
@@ -11411,7 +11420,6 @@ button.disposal-items-number-cell.has-note {
   .work-schedule-page.mobile .work-exclusion-section {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    min-height: 0;
     overflow: hidden;
   }
 

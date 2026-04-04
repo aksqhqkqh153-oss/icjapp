@@ -5085,19 +5085,20 @@ function WorkSchedulePage() {
               </div>
             </div>
 
-            <button type="button" className="work-day-status-button" onClick={() => openStatusEditor(day)} disabled={readOnly}>
-              <span className="work-day-status-vehicle">가용차량 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-              <span className="work-day-status-divider" />
-              <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
-            </button>
+            <div className="work-schedule-main-top">
+              <button type="button" className="work-day-status-button" onClick={() => openStatusEditor(day)} disabled={readOnly}>
+                <span className="work-day-status-vehicle">가용차량 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                <span className="work-day-status-divider" />
+                <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
+              </button>
 
-            <section className="work-schedule-section">
-              <div className="between work-schedule-section-head">
-                <div className="work-schedule-section-title-wrap">
-                  <strong className="work-schedule-section-title">스케줄 목록</strong>
-                                  </div>
-                {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
-              </div>
+              <section className="work-schedule-section">
+                <div className="between work-schedule-section-head">
+                  <div className="work-schedule-section-title-wrap">
+                    <strong className="work-schedule-section-title">스케줄 목록</strong>
+                  </div>
+                  {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
+                </div>
 
             {activeFormDate === day.date && !readOnly && (
               <form onSubmit={submitEntry} className="work-schedule-entry-form">
@@ -5177,23 +5178,24 @@ function WorkSchedulePage() {
 
               {day.entries.length === 0 && <div className="muted">등록된 스케줄이 없습니다.</div>}
             </div>
-            </section>
+              </section>
 
-            {activeStatusDate === day.date && !readOnly && (
-              <form onSubmit={submitStatusEditor} className="work-day-status-editor">
-                <div className="between work-day-status-editor-head">
-                  <button type="button" className="ghost small" onClick={() => setActiveStatusDate('')}>뒤로가기</button>
-                  <button type="submit" className="small">저장</button>
-                </div>
-                <div className="work-day-status-editor-grid">
-                  <label>가용차량수(자동연동)<input type="number" min="0" value={statusForm.available_vehicle_count} readOnly disabled /></label>
-                  <label>A : 숫자입력칸<input type="number" min="0" value={statusForm.status_a_count} onChange={e => setStatusForm({ ...statusForm, status_a_count: Number(e.target.value || 0) })} /></label>
-                  <label>B : 숫자입력칸<input type="number" min="0" value={statusForm.status_b_count} onChange={e => setStatusForm({ ...statusForm, status_b_count: Number(e.target.value || 0) })} /></label>
-                  <label>C : 숫자입력칸<input type="number" min="0" value={statusForm.status_c_count} onChange={e => setStatusForm({ ...statusForm, status_c_count: Number(e.target.value || 0) })} /></label>
-                </div>
-                <textarea value={statusForm.day_memo} onChange={e => setStatusForm({ ...statusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
-              </form>
-            )}
+              {activeStatusDate === day.date && !readOnly && (
+                <form onSubmit={submitStatusEditor} className="work-day-status-editor">
+                  <div className="between work-day-status-editor-head">
+                    <button type="button" className="ghost small" onClick={() => setActiveStatusDate('')}>뒤로가기</button>
+                    <button type="submit" className="small">저장</button>
+                  </div>
+                  <div className="work-day-status-editor-grid">
+                    <label>가용차량수(자동연동)<input type="number" min="0" value={statusForm.available_vehicle_count} readOnly disabled /></label>
+                    <label>A : 숫자입력칸<input type="number" min="0" value={statusForm.status_a_count} onChange={e => setStatusForm({ ...statusForm, status_a_count: Number(e.target.value || 0) })} /></label>
+                    <label>B : 숫자입력칸<input type="number" min="0" value={statusForm.status_b_count} onChange={e => setStatusForm({ ...statusForm, status_b_count: Number(e.target.value || 0) })} /></label>
+                    <label>C : 숫자입력칸<input type="number" min="0" value={statusForm.status_c_count} onChange={e => setStatusForm({ ...statusForm, status_c_count: Number(e.target.value || 0) })} /></label>
+                  </div>
+                  <textarea value={statusForm.day_memo} onChange={e => setStatusForm({ ...statusForm, day_memo: e.target.value })} placeholder="상세 메모 입력" className="work-day-status-editor-memo" />
+                </form>
+              )}
+            </div>
 
             <section className="work-schedule-section work-exclusion-section">
               <div className="between work-schedule-section-head">
