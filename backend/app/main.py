@@ -429,7 +429,10 @@ def _bearer_token(authorization: Optional[str]) -> Optional[str]:
     return authorization
 GRADE_LABELS = {1: '관리자', 2: '부관리자', 3: '중간관리자', 4: '사업자', 5: '직원', 6: '일반', 7: '기타'}
 def _get_admin_setting(conn, key: str, default: str = '') -> str:
-    row = conn.execute("SELECT value FROM admin_settings WHERE key = ?", (key,)).fetchone()
+    try:
+        row = conn.execute("SELECT value FROM admin_settings WHERE key = ?", (key,)).fetchone()
+    except Exception:
+        return default
     if not row or row['value'] in (None, ''):
         return default
     return str(row['value'])

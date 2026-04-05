@@ -734,6 +734,11 @@ function DisposalItemsEditor({
   toggleDeleteMode,
   toggleItemRowSelection,
   deleteSelectedItemRows,
+  itemSettingsOpen,
+  setItemSettingsOpen,
+  defaultVisibleRows,
+  configureDefaultVisibleRows,
+  itemSettingsRef,
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
@@ -1541,6 +1546,11 @@ useEffect(() => {
             toggleDeleteMode={toggleDeleteMode}
             toggleItemRowSelection={toggleItemRowSelection}
             deleteSelectedItemRows={deleteSelectedItemRows}
+            itemSettingsOpen={itemSettingsOpen}
+            setItemSettingsOpen={setItemSettingsOpen}
+            defaultVisibleRows={defaultVisibleRows}
+            configureDefaultVisibleRows={configureDefaultVisibleRows}
+            itemSettingsRef={itemSettingsRef}
           />
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>

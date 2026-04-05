@@ -11670,3 +11670,48 @@ button.disposal-items-number-cell.has-note {
     background: transparent;
   }
 }
+
+
+/* 2026-04-04 schedule mobile full width refinement */
+@media (max-width: 768px) {
+  .page-container.schedule-wide {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .work-schedule-page.mobile {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .work-schedule-page.mobile .work-schedule-card {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-head {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form,
+  .work-schedule-page.mobile .work-schedule-line-item,
+  .work-schedule-page.mobile .work-schedule-entry-form,
+  .work-schedule-page.mobile .work-day-status-editor,
+  .work-schedule-page.mobile .work-day-status-editor-grid,
+  .work-schedule-page.mobile .work-schedule-table,
+  .work-schedule-page.mobile .work-schedule-assignee-table {
+    width: 100%;
+    max-width: 100%;
+  }
+}
