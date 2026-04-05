@@ -63,6 +63,22 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('ko-KR')
 }
 
+function normalizeSearchText(value) {
+  return String(value || '').replace(/\s+/g, '').trim().toLowerCase()
+}
+
+function makeCustomerLocationKey(customerName, location) {
+  const customerKey = normalizeSearchText(customerName)
+  const locationKey = normalizeSearchText(location)
+  return `${customerKey}__${locationKey}`
+}
+
+function findMatchingRecord(records = [], draft = {}) {
+  const targetKey = makeCustomerLocationKey(draft?.customerName, draft?.location)
+  if (!targetKey || targetKey === '__') return null
+  return (records || []).find(record => makeCustomerLocationKey(record?.customerName, record?.location) === targetKey) || null
+}
+
 function normalizeRecordShape(record) {
   if (!record || typeof record !== 'object') return null
   const sourceItems = Array.isArray(record.items) ? record.items : []
@@ -83,6 +99,7 @@ function normalizeRecordShape(record) {
     items,
     totals: {
       totalQty: safeNumber(record?.totals?.totalQty),
+      totalUnitCost: safeNumber(record?.totals?.totalUnitCost),
       totalReport: safeNumber(record?.totals?.totalReport),
       totalFinal: safeNumber(record?.totals?.totalFinal),
     },
@@ -175,6 +192,7 @@ function buildRenderedTemplate(draft) {
     finalAmount: Math.round(item.quantity * item.unitCost * FEE_RATE),
   }))
   const totalQty = reportRows.reduce((sum, item) => sum + item.quantity, 0)
+  const totalUnitCost = reportRows.reduce((sum, item) => sum + item.unitCost, 0)
   const totalReport = reportRows.reduce((sum, item) => sum + item.reportAmount, 0)
   const totalFinal = reportRows.reduce((sum, item) => sum + item.finalAmount, 0)
 
@@ -215,12 +233,18 @@ function buildRenderedTemplate(draft) {
 
   return {
     rows: nextRows,
-    totals: { totalQty, totalReport, totalFinal },
+    totals: { totalQty, totalUnitCost, totalReport, totalFinal },
     reportRows,
   }
 }
 
 function makeRecordFromDraft(draft, totals, existingId = '') {
+  const normalizedTotals = {
+    totalQty: safeNumber(totals?.totalQty),
+    totalUnitCost: safeNumber(totals?.totalUnitCost),
+    totalReport: safeNumber(totals?.totalReport),
+    totalFinal: safeNumber(totals?.totalFinal),
+  }
   return normalizeRecordShape({
     id: existingId || `disposal-${Date.now()}`,
     savedAt: new Date().toISOString(),
@@ -230,8 +254,15 @@ function makeRecordFromDraft(draft, totals, existingId = '') {
     finalStatus: draft.finalStatus,
     customerName: draft.customerName,
     items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
-    totals,
+    totals: normalizedTotals,
   })
+}
+
+function upsertRecordByCustomerLocation(records, nextRecord) {
+  const existing = findMatchingRecord(records, nextRecord)
+  const nextId = existing?.id || nextRecord.id
+  const normalizedNext = normalizeRecordShape({ ...nextRecord, id: nextId, savedAt: new Date().toISOString() })
+  return [normalizedNext, ...(records || []).filter(record => record.id !== nextId)].slice(0, 300)
 }
 
 function sortRecords(records, sortKey) {
@@ -500,22 +531,45 @@ function loadPreviewDraft() {
 
 function getPaymentStatus(record) {
   const status = String(record?.finalStatus || '').trim()
-  if (!status) return '미확인'
-  if (/입금|완료|정산완료/.test(status)) return '입금완료'
-  if (/미입금|대기|보류/.test(status)) return '미입금'
+  if (!status) return '미입금'
+  if (/입금전|미입금|대기|보류/.test(status)) return '미입금'
+  if (/입금완|완료|정산완료/.test(status)) return '완료'
   return status
 }
 
-function buildDisposalListGroups(records, sortKey) {
+function getFinalStatusFromPaymentStatus(value, currentFinalStatus = '') {
+  const current = String(currentFinalStatus || '').trim()
+  if (value === '완료') {
+    if (current === '입금완 / 신고완') return '입금완 / 신고완'
+    return '입금완 / 신고전'
+  }
+  return '입금전'
+}
+
+function buildDisposalListGroups(records, sortKey, searchQuery = '') {
   const grouped = new Map()
   const sorted = sortRecords(records, sortKey === 'latest' ? 'latest' : 'date')
+  const normalizedQuery = normalizeSearchText(searchQuery)
   sorted.forEach((record) => {
-    const groupKey = String(record?.disposalDate || '날짜 미지정')
-    const groupLabel = record?.disposalDate || '날짜 미지정'
-    if (!grouped.has(groupKey)) {
-      grouped.set(groupKey, { key: groupKey, label: groupLabel, rows: [] })
+    const customerGroupKey = makeCustomerLocationKey(record?.customerName, record?.location) || String(record?.id || '')
+    const searchable = normalizeSearchText([record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
+    if (normalizedQuery && !searchable.includes(normalizedQuery)) return
+    if (!grouped.has(customerGroupKey)) {
+      grouped.set(customerGroupKey, {
+        key: customerGroupKey,
+        label: `${record?.customerName || '고객명 미지정'}${record?.location ? ` · ${record.location}` : ''}`,
+        recordId: record.id,
+        customerName: record.customerName || '-',
+        location: record.location || '-',
+        disposalDate: record.disposalDate || '-',
+        paymentStatus: getPaymentStatus(record),
+        finalStatus: record.finalStatus || '',
+        savedAt: record.savedAt || '',
+        rows: [],
+        totals: { quantity: 0, unitCost: 0, reportAmount: 0, finalAmount: 0 },
+      })
     }
-    const paymentStatus = getPaymentStatus(record)
+    const group = grouped.get(customerGroupKey)
     const filledItems = (record.items || []).filter(item => {
       return String(item?.itemName || '').trim() || safeNumber(item?.quantity) || safeNumber(item?.unitCost) || String(item?.reportNo || '').trim()
     })
@@ -525,25 +579,27 @@ function buildDisposalListGroups(records, sortKey) {
       const unitCost = safeNumber(item?.unitCost)
       const reportAmount = quantity * unitCost
       const finalAmount = Math.round(reportAmount * FEE_RATE)
-      grouped.get(groupKey).rows.push({
+      group.rows.push({
         key: `${record.id}-${index}`,
         recordId: record.id,
-        customerName: record.customerName || '-',
         itemName: String(item?.itemName || '').trim() || '-',
         quantity,
         unitCost,
         reportAmount,
         finalAmount,
-        reportNo: String(item?.reportNo || '').trim() || '-',
-        paymentStatus,
-        savedAt: record.savedAt || '',
       })
+      group.totals.quantity += quantity
+      group.totals.unitCost += unitCost
+      group.totals.reportAmount += reportAmount
+      group.totals.finalAmount += finalAmount
     })
   })
-  return Array.from(grouped.values()).map(group => ({
-    ...group,
-    rows: group.rows.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))),
-  })).sort((a, b) => String(a.label).localeCompare(String(b.label), 'ko'))
+  return Array.from(grouped.values())
+    .map(group => ({
+      ...group,
+      rows: sortGroupedRows(group.rows, sortKey),
+    }))
+    .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
 }
 
 function DisposalTemplateTable({ title, rendered }) {
@@ -739,6 +795,7 @@ function DisposalItemsEditor({
   defaultVisibleRows,
   configureDefaultVisibleRows,
   itemSettingsRef,
+  onAutoSaveRecord,
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
@@ -839,6 +896,8 @@ function DisposalItemsEditor({
 
   async function saveCustomerEstimateAsJpg() {
     try {
+      const autoSavedRecord = makeRecordFromDraft(draft, rendered.totals)
+      onAutoSaveRecord?.(autoSavedRecord)
       const canvas = await buildCustomerQuoteCanvas({
         rows: customerExportRows,
         totalFinal: rendered.totals.totalFinal || 0,
@@ -1506,8 +1565,9 @@ useEffect(() => {
   }
 
   function saveSettlementRecord() {
-    const nextRecord = makeRecordFromDraft(draft, rendered.totals, recordId)
     const current = loadRecords()
+    const matchedRecord = recordId ? null : findMatchingRecord(current, draft)
+    const nextRecord = makeRecordFromDraft(draft, rendered.totals, recordId || matchedRecord?.id || '')
     const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
     saveRecords(next)
     setSavedAt(nextRecord.savedAt)
@@ -1551,6 +1611,10 @@ useEffect(() => {
             defaultVisibleRows={defaultVisibleRows}
             configureDefaultVisibleRows={configureDefaultVisibleRows}
             itemSettingsRef={itemSettingsRef}
+            onAutoSaveRecord={nextRecord => {
+              const nextRecords = upsertRecordByCustomerLocation(loadRecords(), nextRecord)
+              saveRecords(nextRecords)
+            }}
           />
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>
@@ -1592,12 +1656,15 @@ export function DisposalListPage() {
   const [records, setRecords] = useState([])
   const [sortKey, setSortKey] = useState('latest')
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
+  const [paymentEditMode, setPaymentEditMode] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     setRecords(loadRecords())
   }, [])
 
-  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey), [records, sortKey])
+  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, searchQuery), [records, sortKey, searchQuery])
   const visibleRowKeys = useMemo(() => groupedRows.flatMap(group => group.rows.map(row => row.key)), [groupedRows])
   const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys])
   const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
@@ -1613,6 +1680,18 @@ export function DisposalListPage() {
 
   function toggleAllVisibleRows(checked) {
     setSelectedRowKeys(checked ? visibleRowKeys : [])
+  }
+
+  function updatePaymentStatus(recordId, nextStatus) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, finalStatus: getFinalStatusFromPaymentStatus(nextStatus, record.finalStatus), savedAt: record.savedAt }) : record)
+    saveRecords(nextRecords)
+    setRecords(nextRecords)
+  }
+
+  function applySearch() {
+    setSearchQuery(searchInput.trim())
   }
 
   function removeSelectedRecords() {
@@ -1637,20 +1716,28 @@ export function DisposalListPage() {
       <section className="card disposal-hero">
         <div>
           <h2>폐기목록</h2>
-          <p className="notice-text">폐기양식 저장 건을 폐기날짜별로 묶어 보여줍니다. 행을 누르면 상세입력창으로 이동합니다.</p>
+          <p className="notice-text">고객명 + 폐기장소 기준으로 묶어 표시하며, 같은 고객 기록은 최신 저장 내용으로 갱신됩니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={removeSelectedRecords}>삭제</button>
+          <button type="button" className={`ghost ${paymentEditMode ? 'active' : ''}`.trim()} onClick={() => setPaymentEditMode(prev => !prev)}>편집</button>
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
         </div>
       </section>
 
       <section className="card disposal-settlement-filter-card">
-        <div className="disposal-filter-row">
-          <div className="disposal-filter-chip-label">정렬필터</div>
-          <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
-            {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+        <div className="disposal-filter-row disposal-filter-row-extended">
+          <div className="disposal-filter-inline-group">
+            <div className="disposal-filter-chip-label">정렬필터</div>
+            <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
+              {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </div>
+          <div className="disposal-filter-inline-group disposal-filter-search-group">
+            <div className="disposal-filter-chip-label">검색</div>
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="이름, 주소, 날짜 검색" />
+            <button type="button" className="ghost" onClick={applySearch}>검색</button>
+          </div>
         </div>
       </section>
 
@@ -1658,55 +1745,65 @@ export function DisposalListPage() {
         {groupedRows.length === 0 ? (
           <div className="empty-state">저장된 폐기목록이 없습니다.</div>
         ) : groupedRows.map(group => {
-          const sortedRows = sortGroupedRows(group.rows, sortKey)
+          const allGroupChecked = group.rows.length > 0 && group.rows.every(row => selectedRowKeys.includes(row.key))
           return (
-            <div key={group.key} className="disposal-list-date-group">
-              <div className="disposal-list-date-label">{group.label}</div>
-              <div className="disposal-list-grid">
+            <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
+              <div className="disposal-list-date-label disposal-customer-group-label">
+                <div>
+                  <strong>{group.customerName}</strong>
+                  <span>{group.disposalDate}</span>
+                  <span>{group.location}</span>
+                </div>
+                <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
+              </div>
+              <div className="disposal-list-grid disposal-list-grid-customer">
                 <div className="disposal-list-grid-row disposal-list-grid-head">
                   <div className="disposal-list-grid-check-cell">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleChecked}
-                      onChange={e => toggleAllVisibleRows(e.target.checked)}
-                      aria-label="전체 선택"
-                    />
+                    <input type="checkbox" checked={allGroupChecked} onChange={e => {
+                      const nextKeys = group.rows.map(row => row.key)
+                      setSelectedRowKeys(prev => e.target.checked ? Array.from(new Set([...prev, ...nextKeys])) : prev.filter(key => !nextKeys.includes(key)))
+                    }} aria-label="그룹 선택" />
                   </div>
-                  <div>고객명</div>
                   <div>품목</div>
                   <div>수량</div>
                   <div>개당비용</div>
                   <div>신고합계</div>
-                  <div>최종비용(수수료 포함)</div>
-                  <div>폐기신고번호</div>
+                  <div>최종비용</div>
                   <div>입금여부</div>
                 </div>
-                {sortedRows.map(row => (
+                {group.rows.map((row, index) => (
                   <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
                     <div className="disposal-list-grid-check-cell">
-                      <input
-                        type="checkbox"
-                        checked={selectedRowKeys.includes(row.key)}
-                        onChange={e => toggleRowSelection(row.key, e.target.checked)}
-                        aria-label={`${row.customerName} 선택`}
-                      />
+                      <input type="checkbox" checked={selectedRowKeys.includes(row.key)} onChange={e => toggleRowSelection(row.key, e.target.checked)} aria-label={`${group.customerName} ${row.itemName} 선택`} />
                     </div>
-                    <button
-                      type="button"
-                      className="disposal-list-grid-button"
-                      onClick={() => navigate(`/disposal/forms/${row.recordId}`)}
-                    >
-                      <span>{row.customerName}</span>
+                    <button type="button" className="disposal-list-grid-button disposal-list-grid-button-customer" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>
                       <span>{row.itemName}</span>
                       <span>{formatNumber(row.quantity)}</span>
                       <span>{formatCurrency(row.unitCost)}</span>
                       <span>{formatCurrency(row.reportAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
-                      <span>{row.reportNo}</span>
-                      <span>{row.paymentStatus}</span>
                     </button>
+                    <div className="disposal-list-grid-payment-cell">
+                      {paymentEditMode ? (
+                        <select value={group.paymentStatus} onChange={e => updatePaymentStatus(group.recordId, e.target.value)}>
+                          <option value="완료">완료</option>
+                          <option value="미입금">미입금</option>
+                        </select>
+                      ) : (
+                        <span>{group.paymentStatus}</span>
+                      )}
+                    </div>
                   </div>
                 ))}
+                <div className="disposal-list-grid-row disposal-list-grid-summary-row">
+                  <div />
+                  <div className="strong">합계</div>
+                  <div>{formatNumber(group.totals.quantity)}</div>
+                  <div>{formatCurrency(group.totals.unitCost)}</div>
+                  <div>{formatCurrency(group.totals.reportAmount)}</div>
+                  <div>{formatCurrency(group.totals.finalAmount)}</div>
+                  <div>{group.paymentStatus}</div>
+                </div>
               </div>
             </div>
           )
