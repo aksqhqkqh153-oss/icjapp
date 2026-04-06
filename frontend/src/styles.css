@@ -12490,15 +12490,16 @@ body[data-theme="dark"] a { color: inherit; }
 .work-shift-title-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .work-shift-description { margin-top: 6px; }
 .work-shift-table-wrap { overflow:auto; margin-top:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); }
-.work-shift-table { border-collapse: separate; border-spacing: 0; min-width: 1800px; width:max-content; }
+.work-shift-table { border-collapse: separate; border-spacing: 0; min-width: 1240px; width:max-content; }
 .work-shift-table th, .work-shift-table td { border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:0; text-align:center; font-size:12px; }
-.work-shift-table thead th { position: sticky; top: 0; background: var(--card); z-index: 4; padding: 8px 6px; font-weight: 700; white-space: nowrap; }
-.work-shift-table .sticky.left { position: sticky; left: 0; z-index: 5; background: var(--card); }
-.work-shift-table .sticky.left.second { left: 86px; z-index: 5; }
-.work-shift-table .head-name, .work-shift-table .name-cell { width: 86px; min-width: 86px; max-width: 86px; padding: 8px 6px; white-space: nowrap; }
-.work-shift-table .head-day, .work-shift-table .day-cell { width: 42px; min-width: 42px; max-width: 42px; }
-.work-shift-table .head-summary, .work-shift-table .summary-cell { width: 56px; min-width: 56px; max-width: 56px; padding: 8px 4px; white-space: nowrap; }
-.work-shift-table .name-cell { background: var(--card); font-weight: 600; }
+.work-shift-table thead th { position: sticky; top: 0; background: var(--card); z-index: 4; padding: 8px 4px; font-weight: 700; white-space: nowrap; }
+.work-shift-table .sticky.left { position: sticky; left: 0; z-index: 7; background: #fff4bf; background-clip: padding-box; }
+.work-shift-table .sticky.left.second { left: 58px; z-index: 7; }
+.work-shift-table .head-name, .work-shift-table .name-cell { width: 58px; min-width: 58px; max-width: 58px; padding: 8px 4px; white-space: nowrap; }
+.work-shift-table .head-day, .work-shift-table .day-cell { width: 30px; min-width: 30px; max-width: 30px; }
+.work-shift-table .head-summary, .work-shift-table .summary-cell { width: 34px; min-width: 34px; max-width: 34px; padding: 8px 3px; white-space: nowrap; }
+.work-shift-table .head-summary:first-of-type, .work-shift-table .summary-cell:first-of-type { width: 46px; min-width: 46px; max-width: 46px; }
+.work-shift-table .name-cell { background: #fff4bf; font-weight: 600; }
 .work-shift-table .summary-cell { background: rgba(255, 244, 177, 0.32); font-weight: 700; }
 .work-shift-table .day-cell.disabled { background: rgba(0,0,0,0.04); }
 .work-shift-input { width:100%; min-height:34px; border:0; background:transparent; text-align:center; font-size:12px; padding:6px 2px; outline:none; }
@@ -12840,14 +12841,14 @@ body[data-theme="dark"] a { color: inherit; }
 .work-shift-table .sticky.left,
 .work-shift-table .sticky.left.second,
 .work-shift-table .name-cell {
-  background: var(--card) !important;
-  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.16);
+  background: #fff4bf !important;
+  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.16), 10px 0 0 #fff4bf;
 }
 
 .work-shift-table tbody tr.is-selected .sticky.left,
 .work-shift-table tbody tr.is-selected .sticky.left.second,
 .work-shift-table tbody tr.is-selected .name-cell {
-  background: color-mix(in srgb, var(--card) 78%, #dbeafe 22%) !important;
+  background: #fff0a8 !important;
 }
 
 .work-shift-name-input {
@@ -12862,35 +12863,53 @@ body[data-theme="dark"] a { color: inherit; }
 }
 
 @media (max-width: 768px) {
+  .work-shift-page-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: calc(100vh - 118px);
+  }
+
   .work-shift-toolbar.mobile {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: 4px;
+    align-items: start;
   }
 
   .work-shift-title-wrap {
     flex-wrap: nowrap;
     justify-content: flex-start;
-    gap: 6px;
+    gap: 4px;
+    width: 100%;
   }
 
   .work-shift-title-wrap h2 {
     margin: 0;
     font-size: 18px;
     white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .work-shift-section-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+    flex: 1 1 auto;
   }
 
   .work-shift-section-tabs button,
   .work-shift-edit-actions button,
   .work-shift-date-selectors .small-select {
     font-size: 11px;
-    min-height: 30px;
-    padding: 4px 6px;
+    min-height: 28px;
+    padding: 3px 6px;
+    white-space: nowrap;
   }
 
   .work-shift-toolbar-side {
     width: 100%;
     align-items: flex-end;
+    gap: 4px;
   }
 
   .work-shift-date-selectors,
@@ -12899,26 +12918,81 @@ body[data-theme="dark"] a { color: inherit; }
     width: 100%;
   }
 
+  .work-shift-summary-card {
+    margin-top: 4px;
+    padding: 9px 10px;
+  }
+
   .work-shift-summary-grid {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .work-shift-summary-grid strong {
+    font-size: 11px;
+  }
+
+  .work-shift-summary-grid span {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .work-shift-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: min(43vh, 430px);
+    margin-top: 4px;
+  }
+
+  .work-shift-table {
+    min-width: 980px;
   }
 
   .work-shift-table .head-name, .work-shift-table .name-cell {
-    width: 66px;
-    min-width: 66px;
-    max-width: 66px;
-    font-size: 13px;
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+    font-size: 12px;
+    padding-inline: 2px;
+  }
+
+  .work-shift-table .head-day, .work-shift-table .day-cell {
+    width: 26px;
+    min-width: 26px;
+    max-width: 26px;
+  }
+
+  .work-shift-table .head-summary, .work-shift-table .summary-cell {
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    padding-inline: 2px;
+  }
+
+  .work-shift-table .head-summary:first-of-type, .work-shift-table .summary-cell:first-of-type {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
   }
 
   .work-shift-table .sticky.left.second {
-    left: 66px;
+    left: 50px;
   }
 
   .work-shift-table th,
   .work-shift-table td,
   .work-shift-name-input,
   .work-shift-input {
-    font-size: 13px;
+    font-size: 11px;
+  }
+
+  .work-shift-input,
+  .work-shift-name-input {
+    min-height: 24px;
+    padding: 3px 1px;
+  }
+
+  .admin-status-category-tabs button {
+    font-size: 12px;
   }
 }

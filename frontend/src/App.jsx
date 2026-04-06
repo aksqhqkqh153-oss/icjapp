@@ -7723,7 +7723,6 @@ function WorkShiftSchedulePage() {
             </div>
           </div>
         </div>
-        <div className="muted work-shift-description">{sectionId === 'business' ? '사업자 근무스케줄' : '직원 근무스케줄'} · 엑셀 템플릿 기준</div>
         {selectedSummary ? (
           <section className="work-shift-summary-card">
             <div className="work-shift-summary-grid">
