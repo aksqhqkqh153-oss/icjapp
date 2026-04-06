@@ -221,44 +221,96 @@ const GENDER_OPTIONS = ['남성', '여성']
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
-const POLICY_CARD_PLACEHOLDERS = Array.from({ length: 15 }, (_, index) => ({
-  id: `placeholder-${index + 1}`,
-  label: '준비중',
-}))
-
-const POLICY_CONTENT = {
-  business: {
-    label: '사업자',
-    allowed: user => Number(user?.grade || 6) <= 4,
-    lines: [
-      '사업자 휴가 규정',
-      '휴가 일정은 사전 공유 후 확정합니다.',
-      '업무 인수인계가 필요한 경우 메모를 함께 남깁니다.',
-      '긴급 변경은 관리자와 별도 협의합니다.',
-    ],
+const POLICY_CONTENT_DEFAULTS = {
+  vacation: {
+    business: {
+      label: '사업자',
+      allowed: user => Number(user?.grade || 6) <= 4,
+      defaultContent: [
+        '개요',
+        '',
+        '사업자 연차 사용 규정',
+        '',
+        '구분',
+        '분기마다 4일의 연차',
+        '1분기 4일 / 2분기 4일 / 3분기 4일 / 4분기 4일',
+        '',
+        '분기구분',
+        '1월 / 2월 / 3월 / 4월 / 5월 / 6월 / 7월 / 8월 / 9월 / 10월 / 11월 / 12월',
+        '',
+        '연간 가능한 총 사용일수',
+        '총 16일',
+        '',
+        '기본신청기준',
+        '- 가능: 2주(14일) 전 미리 신청 시 가능',
+        '- 가능: 주말, 공휴일, 손 없는 날 사용 가능',
+        '- 불가: 14일 이내 신청',
+        '- 불가: 이미 풀 스케줄일 경우',
+        '- 예외: 급작스런 경조사 및 특수한 날은 사유에 따라 승인 가능',
+        '',
+        '특별신청기준',
+        '결혼식 / 신혼여행 시 기타로 분류',
+        '',
+        '개요',
+        '',
+        '사업자 월차 사용 규정',
+        '',
+        '구분',
+        '월마다 1일의 월차',
+        '1월~12월 각 월 1일',
+        '',
+        '연간 가능한 총 사용일수',
+        '총 12일',
+        '',
+        '기본신청기준',
+        '- 가능: 1주(7일) 전 미리 신청 시 가능',
+        '- 불가: 7일 이내 신청',
+        '- 불가: 주말, 공휴일, 손 없는 날, 이미 풀 스케줄일 경우',
+        '- 불가: 월차와 연차를 같은 달에 동시 사용',
+      ].join('\n'),
+    },
+    field: {
+      label: '현장직원',
+      allowed: user => Number(user?.grade || 6) <= 5,
+      defaultContent: '현장직원 휴가 규정을 입력해 주세요.',
+    },
+    office: {
+      label: '본사직원',
+      allowed: user => Number(user?.grade || 6) <= 4,
+      defaultContent: '본사직원 휴가 규정을 입력해 주세요.',
+    },
   },
-  field: {
-    label: '현장직원',
-    allowed: user => Number(user?.grade || 6) <= 5,
-    lines: [
-      '현장직원 휴가 규정',
-      '배정 일정과 겹치지 않게 사전 신청합니다.',
-      '확정 전에는 대체 인력 여부를 먼저 확인합니다.',
-      '당일 변경은 승인 후 반영합니다.',
-    ],
+  welfare: {
+    business: {
+      label: '사업자',
+      allowed: user => Number(user?.grade || 6) <= 4,
+      defaultContent: '사업자 복지 규정을 입력해 주세요.',
+    },
+    field: {
+      label: '현장직원',
+      allowed: user => Number(user?.grade || 6) <= 5,
+      defaultContent: '현장직원 복지 규정을 입력해 주세요.',
+    },
+    office: {
+      label: '본사직원',
+      allowed: user => Number(user?.grade || 6) <= 4,
+      defaultContent: '본사직원 복지 규정을 입력해 주세요.',
+    },
   },
-  office: {
-    label: '사무직원',
-    allowed: user => Number(user?.grade || 6) <= 4,
-    lines: [
-      '사무직원 휴가 규정',
-      '업무 마감 일정 기준으로 사전 신청합니다.',
-      '인수인계 문서를 남긴 뒤 승인받습니다.',
-      '긴급 휴가는 관리자 확인 후 등록합니다.',
-    ],
+  schedule: {
+    common: {
+      label: '공용',
+      allowed: () => true,
+      defaultContent: '공용 스케줄 규정을 입력해 주세요.',
+    },
   },
 }
 
+const POLICY_CATEGORY_OPTIONS = [
+  { id: 'vacation', label: '휴가' },
+  { id: 'welfare', label: '복지' },
+  { id: 'schedule', label: '스케줄' },
+]
 function normalizeGenderValue(value) {
   const gender = String(value || '').trim()
   if (!gender) return ''
@@ -377,6 +429,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'quotes', label: '견적', path: '/quotes' },
       { id: 'workday-history', label: '일시작종료', path: '/workday-history' },
       { id: 'points', label: '포인트', path: '/points' },
+      { id: 'policies', label: '규정', path: '/policies' },
     ],
   },
   {
@@ -386,7 +439,6 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
       { id: 'disposal', label: '폐기', path: '/disposal' },
-      { id: 'policies', label: '규정', path: '/policies' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
       { id: 'reports', label: '신고관리', path: '/reports' },
     ],
@@ -7167,69 +7219,138 @@ function MenuPermissionPage() {
 
 function PoliciesPage() {
   const user = getStoredUser()
+  const canEdit = Number(user?.grade || 9) <= 2
   const [category, setCategory] = useState('vacation')
   const [selectedPolicy, setSelectedPolicy] = useState('business')
-  const policyEntries = [
-    { id: 'business', ...POLICY_CONTENT.business },
-    { id: 'field', ...POLICY_CONTENT.field },
-    { id: 'office', ...POLICY_CONTENT.office },
-  ]
-  const currentPolicy = policyEntries.find(item => item.id === selectedPolicy) || policyEntries[0]
+  const [policyMap, setPolicyMap] = useState({})
+  const [draft, setDraft] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const categoryMap = POLICY_CONTENT_DEFAULTS[category] || {}
+  const policyEntries = Object.entries(categoryMap).map(([id, item]) => ({ id, ...item }))
+  const currentPolicy = policyEntries.find(item => item.id === selectedPolicy) || policyEntries[0] || null
+  const currentKey = currentPolicy ? `${category}:${currentPolicy.id}` : ''
+  const currentContent = currentKey ? String(policyMap[currentKey] ?? currentPolicy?.defaultContent ?? '') : ''
 
   useEffect(() => {
-    if (!currentPolicy?.allowed(user)) {
-      const nextAllowed = policyEntries.find(item => item.allowed(user))
-      if (nextAllowed) setSelectedPolicy(nextAllowed.id)
+    let ignore = false
+    setLoading(true)
+    api('/api/policies-content')
+      .then(result => {
+        if (ignore) return
+        const nextMap = result?.contents && typeof result.contents === 'object' ? result.contents : {}
+        setPolicyMap(nextMap)
+      })
+      .catch(() => {
+        if (!ignore) setPolicyMap({})
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => { ignore = true }
+  }, [])
+
+  useEffect(() => {
+    const nextEntries = Object.entries(POLICY_CONTENT_DEFAULTS[category] || {}).map(([id, item]) => ({ id, ...item }))
+    const current = nextEntries.find(item => item.id === selectedPolicy)
+    if (!current || !current.allowed(user)) {
+      const nextAllowed = nextEntries.find(item => item.allowed(user)) || nextEntries[0]
+      if (nextAllowed && nextAllowed.id !== selectedPolicy) setSelectedPolicy(nextAllowed.id)
     }
-  }, [currentPolicy, policyEntries, user])
+  }, [category, selectedPolicy, user])
+
+  useEffect(() => {
+    setDraft(currentContent)
+    setMessage('')
+  }, [currentContent, currentKey])
+
+  async function handleSave() {
+    if (!currentPolicy || !canEdit) return
+    setSaving(true)
+    setMessage('')
+    try {
+      const result = await api('/api/policies-content', {
+        method: 'POST',
+        body: JSON.stringify({ data: { category, target: currentPolicy.id, content: draft } }),
+      })
+      const nextMap = result?.contents && typeof result.contents === 'object' ? result.contents : {}
+      setPolicyMap(nextMap)
+      setMessage('저장되었습니다.')
+    } catch (error) {
+      setMessage(error.message || '저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="stack settings-page-shell">
       <section className="card settings-category-card">
         <h2>규정</h2>
         <div className="settings-category-row">
-          <button type="button" className={category === 'vacation' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('vacation')}>휴가</button>
-          {POLICY_CARD_PLACEHOLDERS.map(item => (
-            <button key={item.id} type="button" className="ghost settings-category-chip" disabled>{item.label}</button>
+          {POLICY_CATEGORY_OPTIONS.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={category === item.id ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'}
+              onClick={() => setCategory(item.id)}
+            >
+              {item.label}
+            </button>
           ))}
         </div>
       </section>
 
-      {category === 'vacation' ? (
-        <section className="card settings-theme-card">
-          <h3>휴가 규정</h3>
-          <div className="quick-check-grid quick-check-grid-16 policy-grid">
-            {policyEntries.map(item => {
-              const allowed = item.allowed(user)
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`quick-check-card ${selectedPolicy === item.id ? 'policy-card-active' : ''}`.trim()}
-                  onClick={() => allowed && setSelectedPolicy(item.id)}
-                  disabled={!allowed}
-                  title={allowed ? `${item.label} 규정 보기` : '현재 계정으로는 볼 수 없습니다.'}
-                >
-                  <strong>{item.label}</strong>
-                  <span>{allowed ? '규정 보기' : '권한 없음'}</span>
-                </button>
-              )
-            })}
-          </div>
-          {currentPolicy?.allowed(user) ? (
-            <div className="list">
-              <div className="list-item block">
-                <strong>{currentPolicy.label} 휴가 규정</strong>
-                <div className="stack compact">
-                  {currentPolicy.lines.map((line, index) => <div key={`${currentPolicy.id}-${index}`} className="muted">{line}</div>)}
+      <section className="card settings-theme-card">
+        <h3>{POLICY_CATEGORY_OPTIONS.find(item => item.id === category)?.label || '규정'} 규정</h3>
+        <div className="quick-check-grid quick-check-grid-16 policy-grid">
+          {policyEntries.map(item => {
+            const allowed = item.allowed(user)
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`quick-check-card ${selectedPolicy === item.id ? 'policy-card-active' : ''}`.trim()}
+                onClick={() => allowed && setSelectedPolicy(item.id)}
+                disabled={!allowed}
+                title={allowed ? `${item.label} 규정 보기` : '현재 계정으로는 볼 수 없습니다.'}
+              >
+                <strong>{item.label}</strong>
+                <span>{allowed ? '규정 보기' : '권한 없음'}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {loading ? <div className="muted">불러오는 중...</div> : null}
+        {!loading && currentPolicy?.allowed(user) ? (
+          <div className="stack compact">
+            <div className="list-item block">
+              <strong>{currentPolicy.label} {POLICY_CATEGORY_OPTIONS.find(item => item.id === category)?.label || '규정'}</strong>
+              {canEdit ? (
+                <div className="stack compact policy-editor-wrap">
+                  <textarea
+                    className="input policy-editor-textarea"
+                    value={draft}
+                    onChange={event => setDraft(event.target.value)}
+                    rows={18}
+                    placeholder="규정 내용을 입력해 주세요."
+                  />
+                  <div className="row gap policy-editor-actions">
+                    <button type="button" className="primary" onClick={handleSave} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+                    {message ? <span className="muted">{message}</span> : null}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="policy-content-prewrap">{currentContent}</div>
+              )}
             </div>
-          ) : (
-            <div className="error">현재 계정은 해당 규정을 볼 수 없습니다.</div>
-          )}
-        </section>
-      ) : null}
+          </div>
+        ) : null}
+        {!loading && currentPolicy && !currentPolicy.allowed(user) ? <div className="error">현재 계정은 해당 규정을 볼 수 없습니다.</div> : null}
+      </section>
     </div>
   )
 }

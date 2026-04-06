@@ -12277,3 +12277,25 @@ body[data-theme="dark"] a { color: inherit; }
     min-height: 30px;
   }
 }
+
+.policy-editor-wrap {
+  margin-top: 12px;
+}
+
+.policy-editor-textarea {
+  width: 100%;
+  min-height: 360px;
+  resize: vertical;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.policy-editor-actions {
+  align-items: center;
+}
+
+.policy-content-prewrap {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  color: var(--text-main);
+}
