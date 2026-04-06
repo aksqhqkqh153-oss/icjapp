@@ -2493,7 +2493,7 @@ export function DisposalSettlementsPage() {
         {settlementRows.length === 0 ? (
           <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
         ) : (
-          <div className="disposal-month-settlement-table">
+          <div className="disposal-month-settlement-table simple-sheet">
             <div className="disposal-month-settlement-row disposal-month-settlement-head">
               <div>일자</div>
               <div>구분</div>
@@ -2509,15 +2509,25 @@ export function DisposalSettlementsPage() {
               <div>비고</div>
             </div>
             {visibleRows.map(row => row.kind === 'summary' ? (
-              <button key={row.key} type="button" className="disposal-month-settlement-row disposal-month-settlement-summary" onClick={() => toggleRow(row.toggleKey)}>
+              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-summary">
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`} className={index === 11 ? 'toggle-cell' : ''}>{index === 11 ? (expandedKeys[row.toggleKey] ? '접기' : '펼치기') : cell}</div>
+                  <div key={`${row.key}-${index}`} className={index === 11 ? 'toggle-cell' : ''}>
+                    {index === 11 ? (
+                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={() => toggleRow(row.toggleKey)}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
+                    ) : cell}
+                  </div>
                 ))}
-              </button>
+              </div>
             ) : (
-              <button key={row.key} type="button" className="disposal-month-settlement-row disposal-month-settlement-detail" onClick={() => navigate(`/disposal/forms/${row.recordId}`)}>
-                {row.cells.map((cell, index) => <div key={`${row.key}-${index}`}>{cell}</div>)}
-              </button>
+              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-detail">
+                {row.cells.map((cell, index) => (
+                  <div key={`${row.key}-${index}`}>
+                    {index === 3 ? (
+                      <button type="button" className="disposal-month-settlement-link-button" onClick={() => navigate(`/disposal/forms/${row.recordId}`)}>{cell}</button>
+                    ) : cell}
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}

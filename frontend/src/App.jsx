@@ -7698,6 +7698,8 @@ function WorkShiftSchedulePage() {
   const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
   const dayCount = daysInMonthFromParts(year, month)
   const cellRefs = useRef({})
+  const tableWrapRef = useRef(null)
+  const dragStateRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false })
   const currentUser = getStoredUser()
   const currentUserName = String(currentUser?.name || currentUser?.nickname || currentUser?.email || '알수없음').trim()
   const [logOpen, setLogOpen] = useState(false)
@@ -7862,6 +7864,45 @@ function WorkShiftSchedulePage() {
     focusCell(nextRow, nextColumn)
   }
 
+  function handleTablePointerDown(event) {
+    if (isMobile || event.button !== 0) return
+    const wrapNode = tableWrapRef.current
+    if (!wrapNode) return
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    const interactive = target.closest('input, textarea, select, button, a, label')
+    if (interactive && !target.classList.contains('work-shift-table-wrap')) return
+    dragStateRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: wrapNode.scrollLeft,
+      scrollTop: wrapNode.scrollTop,
+      moved: false,
+    }
+    wrapNode.classList.add('is-dragging')
+  }
+
+  function handleTablePointerMove(event) {
+    if (isMobile) return
+    const wrapNode = tableWrapRef.current
+    const drag = dragStateRef.current
+    if (!wrapNode || !drag.active) return
+    const deltaX = event.clientX - drag.startX
+    const deltaY = event.clientY - drag.startY
+    if (!drag.moved && (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3)) {
+      drag.moved = true
+    }
+    wrapNode.scrollLeft = drag.scrollLeft - deltaX
+    wrapNode.scrollTop = drag.scrollTop - deltaY
+  }
+
+  function handleTablePointerUp() {
+    const wrapNode = tableWrapRef.current
+    dragStateRef.current = { active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false }
+    wrapNode?.classList.remove('is-dragging')
+  }
+
   const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
   const selectedSummary = useMemo(() => {
     if (!selectedRow) return null
@@ -7985,12 +8026,19 @@ function WorkShiftSchedulePage() {
             <div className="work-shift-summary-detail">* 세부내용 : {selectedSummary.detailText}</div>
           </section>
         ) : null}
-        <div className="work-shift-table-wrap">
+        <div
+          ref={tableWrapRef}
+          className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
+          onMouseDown={handleTablePointerDown}
+          onMouseMove={handleTablePointerMove}
+          onMouseLeave={handleTablePointerUp}
+          onMouseUp={handleTablePointerUp}
+        >
           <table className="work-shift-table">
             <thead>
               <tr>
-                <th className="sticky left head-name work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
-                <th className="sticky left second head-name work-shift-head-cell">성명</th>
+                <th className="sticky left head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
+                <th className="sticky left second head-name name-cell-person work-shift-head-cell">성명</th>
                 {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
                 {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
               </tr>
