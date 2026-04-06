@@ -2032,6 +2032,8 @@ def init_db() -> None:
             'vehicle_available': 'INTEGER NOT NULL DEFAULT 1',
             'show_in_branch_status': 'INTEGER',
             'show_in_employee_status': 'INTEGER',
+            'show_in_field_employee_status': 'INTEGER',
+            'show_in_hq_status': 'INTEGER',
             'name': "TEXT DEFAULT ''",
             'account_unique_id': "TEXT DEFAULT ''",
             'group_number': 'INTEGER NOT NULL DEFAULT 0',

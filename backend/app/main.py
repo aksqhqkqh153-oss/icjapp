@@ -342,6 +342,8 @@ class AdminUserDetailIn(BaseModel):
     vehicle_available: bool = True
     show_in_branch_status: bool = False
     show_in_employee_status: bool = False
+    show_in_field_employee_status: bool = False
+    show_in_hq_status: bool = False
     archived_in_branch_status: bool = False
 class AdminUserDetailsBulkIn(BaseModel):
     users: list[AdminUserDetailIn] = []
@@ -564,8 +566,15 @@ def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     item['account_type'] = _normalize_account_type(item)
     branch_flag = item.get('show_in_branch_status')
     employee_flag = item.get('show_in_employee_status')
+    field_employee_flag = item.get('show_in_field_employee_status')
+    hq_flag = item.get('show_in_hq_status')
+    inferred_employee = bool(employee_flag) if employee_flag is not None else item['account_type'] == 'employee'
+    inferred_hq = bool(hq_flag) if hq_flag is not None else _is_head_office_staff(item)
+    inferred_field = bool(field_employee_flag) if field_employee_flag is not None else (inferred_employee and not inferred_hq)
     item['show_in_branch_status'] = bool(branch_flag) if branch_flag is not None else item['account_type'] == 'business'
-    item['show_in_employee_status'] = bool(employee_flag) if employee_flag is not None else item['account_type'] == 'employee'
+    item['show_in_employee_status'] = inferred_employee
+    item['show_in_field_employee_status'] = inferred_field
+    item['show_in_hq_status'] = inferred_hq
     item['archived_in_branch_status'] = bool(item.get('archived_in_branch_status', 0))
     return item
 
@@ -1223,6 +1232,9 @@ def _material_overview_payload(conn, user: dict) -> dict:
     my_request_rows: list[dict] = []
 
     if user_id > 0:
+        identity = _material_request_identity_candidates(user)
+        unique_keys = sorted(identity.get('unique_keys') or [])
+        requester_names = sorted(identity.get('requester_names') or [])
         own_rows = [
             _material_request_detail(conn, row_to_dict(row))
             for row in conn.execute(
@@ -1230,9 +1242,30 @@ def _material_overview_payload(conn, user: dict) -> dict:
                 (user_id,),
             ).fetchall()
         ]
-        for row in own_rows:
+        extra_rows = []
+        if unique_keys:
+            placeholders = ','.join('?' for _ in unique_keys)
+            extra_rows.extend([
+                _material_request_detail(conn, row_to_dict(row))
+                for row in conn.execute(
+                    f"SELECT * FROM material_purchase_requests WHERE COALESCE(requester_unique_id, '') IN ({placeholders}) ORDER BY created_at DESC, id DESC LIMIT 1000",
+                    tuple(unique_keys),
+                ).fetchall()
+            ])
+        if requester_names:
+            placeholders = ','.join('?' for _ in requester_names)
+            extra_rows.extend([
+                _material_request_detail(conn, row_to_dict(row))
+                for row in conn.execute(
+                    f"SELECT * FROM material_purchase_requests WHERE COALESCE(requester_name, '') IN ({placeholders}) ORDER BY created_at DESC, id DESC LIMIT 1000",
+                    tuple(requester_names),
+                ).fetchall()
+            ])
+        for row in own_rows + extra_rows:
             row_id = int(row.get('id') or 0)
             if row_id <= 0 or row_id in my_request_seen_ids:
+                continue
+            if not _material_request_belongs_to_user(row, user):
                 continue
             my_request_seen_ids.add(row_id)
             my_request_rows.append(row)
@@ -4387,7 +4420,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status, archived_in_branch_status
+                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, archived_in_branch_status
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
@@ -4395,8 +4428,8 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
     user_dicts = [_serialize_admin_user_row(row) for row in users]
     branches = [item for item in user_dicts if item.get('show_in_branch_status')]
     active_branches = [item for item in branches if not item.get('archived_in_branch_status')]
-    employees = [item for item in user_dicts if item.get('show_in_employee_status')]
-    head_office_staff = [item for item in user_dicts if _is_head_office_staff(item)]
+    employees = [item for item in user_dicts if item.get('show_in_field_employee_status') or (item.get('show_in_employee_status') and not item.get('show_in_hq_status'))]
+    head_office_staff = [item for item in user_dicts if item.get('show_in_hq_status') or _is_head_office_staff(item)]
     return {
         'config': {'total_vehicle_count': total_vehicle_count, 'branch_count_override': branch_count_override},
         'permission_config': permission_config,
@@ -4505,7 +4538,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'group_number', 'group_number_text', 'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'archived_in_branch_status',
+        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'show_in_field_employee_status', 'show_in_hq_status', 'archived_in_branch_status',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -4536,7 +4569,9 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             current_or_next_grade = int(data.get('grade') or existing['grade'] or 6)
             data['vehicle_available'] = 0 if _is_staff_grade(current_or_next_grade) else (1 if bool(data.get('vehicle_available', True)) else 0)
             data['show_in_branch_status'] = 1 if bool(data.get('show_in_branch_status', False)) else 0
-            data['show_in_employee_status'] = 1 if bool(data.get('show_in_employee_status', False)) else 0
+            data['show_in_field_employee_status'] = 1 if bool(data.get('show_in_field_employee_status', False)) else 0
+            data['show_in_hq_status'] = 1 if bool(data.get('show_in_hq_status', False)) else 0
+            data['show_in_employee_status'] = 1 if (data['show_in_field_employee_status'] or data['show_in_hq_status'] or bool(data.get('show_in_employee_status', False))) else 0
             data['archived_in_branch_status'] = 1 if bool(data.get('archived_in_branch_status', False)) else 0
             data['name'] = str(data.get('name') or '').strip()
             data['nickname'] = str(data.get('nickname') or '').strip()

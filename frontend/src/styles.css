@@ -12510,3 +12510,101 @@ body[data-theme="dark"] a { color: inherit; }
   .work-shift-table .head-name, .work-shift-table .name-cell { width: 72px; min-width:72px; max-width:72px; }
   .work-shift-table .sticky.left.second { left: 72px; }
 }
+
+
+/* 2026-04-06 mobile disposal/admin follow-up */
+@media (max-width: 768px) {
+  .disposal-form-hero {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+  .disposal-form-hero-title-inline,
+  .disposal-form-hero-actions-inline {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    width: 100%;
+  }
+  .disposal-form-hero-title-inline {
+    justify-content: flex-end;
+  }
+  .disposal-form-hero-title-inline h2 {
+    margin-right: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 18px;
+    white-space: nowrap;
+  }
+  .disposal-form-hero-actions-inline {
+    flex-wrap: nowrap !important;
+  }
+  .disposal-form-hero-actions-inline .disposal-settings-inline,
+  .disposal-form-hero-actions-inline > button,
+  .disposal-form-hero-actions-inline .disposal-icon-button {
+    flex: 0 0 auto;
+  }
+  .disposal-meta-row-top {
+    grid-template-columns: minmax(0, .84fr) minmax(0, 1fr) minmax(0, .98fr) minmax(0, 1.02fr);
+    gap: 4px;
+  }
+  .disposal-meta-row-bottom {
+    grid-template-columns: minmax(0, 1.36fr) minmax(0, .84fr);
+    gap: 4px;
+  }
+  .disposal-meta-layout input,
+  .disposal-meta-layout select {
+    min-height: 36px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .admin-status-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .admin-status-title-row {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+  .admin-status-title-row h2 {
+    margin: 0;
+    font-size: 18px;
+    white-space: nowrap;
+  }
+  .admin-status-category-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+  .admin-status-category-tabs > button {
+    min-width: 0;
+    padding: 4px 4px;
+    font-size: 14px !important;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary {
+    grid-template-columns: minmax(42px, .64fr) minmax(56px, .9fr) minmax(58px, .86fr) minmax(0, 1.9fr);
+    gap: 4px;
+    font-size: 14px !important;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary span:last-child {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.2;
+  }
+}

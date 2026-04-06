@@ -3905,8 +3905,8 @@ function normalizeStaffExclusionDetails(items = [], fallback = []) {
         const match = raw.match(/^(.*?)(?:\s*\(사유\s*:\s*(.*?)\))?$/)
         return { name: String(match?.[1] || raw).replace(/-열외$/, '').trim(), reason: String(match?.[2] || '').trim() }
       })
-  while (seeded.length < 6) seeded.push({ name: '', reason: '' })
-  return seeded.slice(0, 6)
+  while (seeded.length < 1) seeded.push({ name: '', reason: '' })
+  return seeded.slice(0, 1)
 }
 
 function compactExclusionDetails(items = []) {
@@ -7945,6 +7945,8 @@ function AdminModePage() {
       vehicle_available: isStaffGradeValue(row?.grade) ? false : parseVehicleAvailable(row.vehicle_available),
       show_in_branch_status: !!row.show_in_branch_status,
       show_in_employee_status: !!row.show_in_employee_status,
+      show_in_field_employee_status: !!(row.show_in_field_employee_status ?? (row.show_in_employee_status && !row.show_in_hq_status)),
+      show_in_hq_status: !!(row.show_in_hq_status),
       archived_in_branch_status: !!row.archived_in_branch_status,
       group_number: rawGroupNumber,
       group_number_text: rawGroupNumber,
@@ -8187,17 +8189,23 @@ function AdminModePage() {
     if (target === 'branch') {
       nextRow.show_in_branch_status = true
       nextRow.archived_in_branch_status = false
+      nextRow.show_in_field_employee_status = false
+      nextRow.show_in_hq_status = false
       nextRow.show_in_employee_status = false
       if (!String(nextRow.position_title || '').trim()) nextRow.position_title = '호점대표'
     } else if (target === 'employee') {
       nextRow.show_in_branch_status = false
       nextRow.archived_in_branch_status = false
+      nextRow.show_in_field_employee_status = true
+      nextRow.show_in_hq_status = false
       nextRow.show_in_employee_status = true
       if (String(nextRow.position_title || '').includes('본사')) nextRow.position_title = '현장직원'
       if (!String(nextRow.position_title || '').trim()) nextRow.position_title = '현장직원'
     } else if (target === 'hq') {
       nextRow.show_in_branch_status = false
       nextRow.archived_in_branch_status = false
+      nextRow.show_in_field_employee_status = false
+      nextRow.show_in_hq_status = true
       nextRow.show_in_employee_status = true
       nextRow.position_title = '본사직원'
     }
@@ -8215,7 +8223,7 @@ function AdminModePage() {
     })
     setEmployeeRows(prev => {
       const exists = prev.some(item => item.id === nextRow.id)
-      if (nextRow.show_in_employee_status) {
+      if (nextRow.show_in_field_employee_status || nextRow.show_in_hq_status || nextRow.show_in_employee_status) {
         return exists ? prev.map(item => item.id === nextRow.id ? nextRow : item) : [...prev, nextRow]
       }
       return prev.filter(item => item.id !== nextRow.id)
@@ -8244,6 +8252,12 @@ function AdminModePage() {
     if (target === 'branch') {
       nextRow.show_in_branch_status = false
       nextRow.archived_in_branch_status = false
+    } else if (target === 'employee') {
+      nextRow.show_in_field_employee_status = false
+      nextRow.show_in_employee_status = !!nextRow.show_in_hq_status
+    } else if (target === 'hq') {
+      nextRow.show_in_hq_status = false
+      nextRow.show_in_employee_status = !!nextRow.show_in_field_employee_status
     } else {
       nextRow.show_in_employee_status = false
     }
@@ -8346,8 +8360,8 @@ function AdminModePage() {
   const visibleBranchRows = sortedBranchRows.filter(item => !item.archived_in_branch_status)
   const archivedBranchRows = sortedBranchRows.filter(item => item.archived_in_branch_status)
   const franchiseRows = visibleBranchRows.filter(item => franchisePositionSet.has(defaultPositionForRow(item)))
-  const fieldEmployeeRows = sortedEmployeeRows.filter(item => !isHeadOfficeRow(item))
-  const headOfficeRows = sortedEmployeeRows.filter(item => isHeadOfficeRow(item))
+  const fieldEmployeeRows = sortedEmployeeRows.filter(item => item.show_in_field_employee_status || (item.show_in_employee_status && !item.show_in_hq_status && !isHeadOfficeRow(item)))
+  const headOfficeRows = sortedEmployeeRows.filter(item => item.show_in_hq_status || (item.show_in_employee_status && isHeadOfficeRow(item)))
   const combinedStatusRows = applyAdminSort([...visibleBranchRows, ...fieldEmployeeRows, ...headOfficeRows.filter(item => !fieldEmployeeRows.some(emp => emp.id === item.id))], 'status')
   const franchiseCount = franchiseRows.length
   const derivedTotalVehicleCount = franchiseRows.filter(item => parseVehicleAvailable(item?.vehicle_available)).length
@@ -8677,8 +8691,9 @@ function AdminModePage() {
                               <label>MBTI <input value={item.mbti || ''} onChange={e => updateAccountRow(item.id, { mbti: e.target.value })} /></label>
                               <label>구글이메일 <input value={item.google_email || ''} onChange={e => updateAccountRow(item.id, { google_email: e.target.value })} /></label>
                               <label>주민등록번호 <input value={item.resident_id || ''} onChange={e => updateAccountRow(item.id, { resident_id: e.target.value })} /></label>
-                              <label className="check"><input type="checkbox" checked={!!item.show_in_branch_status} onChange={e => updateAccountRow(item.id, { show_in_branch_status: e.target.checked })} /> 가맹현황 포함</label>
-                              <label className="check"><input type="checkbox" checked={!!item.show_in_employee_status} onChange={e => updateAccountRow(item.id, { show_in_employee_status: e.target.checked })} /> 직원현황 포함</label>
+                              <label className="check"><input type="checkbox" checked={!!item.show_in_branch_status} onChange={e => updateAccountRow(item.id, { show_in_branch_status: e.target.checked, show_in_field_employee_status: false, show_in_hq_status: false, show_in_employee_status: false })} /> 가맹현황 포함</label>
+                              <label className="check"><input type="checkbox" checked={!!item.show_in_field_employee_status} onChange={e => updateAccountRow(item.id, { show_in_branch_status: false, show_in_field_employee_status: e.target.checked, show_in_hq_status: false, show_in_employee_status: e.target.checked })} /> 현장직원 포함</label>
+                              <label className="check"><input type="checkbox" checked={!!item.show_in_hq_status} onChange={e => updateAccountRow(item.id, { show_in_branch_status: false, show_in_field_employee_status: false, show_in_hq_status: e.target.checked, show_in_employee_status: e.target.checked })} /> 본사직원 포함</label>
                               <label className="check"><input type="checkbox" checked={!!item.approved} onChange={e => updateAccountRow(item.id, { approved: e.target.checked })} /> 승인됨</label>
                             </div>
                           )}
@@ -10477,13 +10492,16 @@ function MaterialsPage({ user }) {
     if (!confirmed) return
     setSaving(true)
     try {
-      await api('/api/materials/purchase-requests', {
+      const createdResult = await api('/api/materials/purchase-requests', {
         method: 'POST',
         body: JSON.stringify({
           request_note: requestNote,
           items: cartRows.map(item => ({ product_id: item.id, quantity: item.quantity })),
         }),
       })
+      if (createdResult?.request) {
+        setData(prev => prev ? ({ ...prev, my_requests: [createdResult.request, ...(prev.my_requests || [])] }) : prev)
+      }
       setNotice('자재구매 신청이 완료되었습니다. 신청현황 화면으로 이동합니다.')
       setSalesError('')
       setQuantities({})
