@@ -1171,6 +1171,13 @@ def _material_request_belongs_to_user(request_row: dict, user: dict) -> bool:
     requester_name = str(request_row.get('requester_name') or '').strip()
     if requester_name and requester_name in identity['requester_names']:
         return True
+    normalized_requester_name = requester_name.replace(' ', '').lower()
+    for candidate in identity['requester_names']:
+        normalized_candidate = str(candidate or '').replace(' ', '').lower()
+        if not normalized_candidate:
+            continue
+        if normalized_candidate in normalized_requester_name or normalized_requester_name in normalized_candidate:
+            return True
     return False
 
 

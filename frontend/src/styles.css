@@ -12719,3 +12719,206 @@ body[data-theme="dark"] a { color: inherit; }
     padding: 11px 12px;
   }
 }
+
+/* 2026-04-06 mobile/admin/work-shift refinements */
+@media (max-width: 768px) {
+  .admin-status-category-tabs button {
+    font-size: 11px;
+  }
+
+  .disposal-page .disposal-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .disposal-page .disposal-hero-title-wrap {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .disposal-page .disposal-hero-title-wrap h2 {
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .disposal-page .disposal-hero-actions {
+    flex-wrap: nowrap;
+    gap: 3px;
+  }
+
+  .disposal-page .disposal-hero-actions > .ghost,
+  .disposal-page .disposal-hero-actions .ghost,
+  .disposal-page .disposal-settings-inline > button {
+    min-height: 28px;
+    padding: 4px 5px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .disposal-page .disposal-meta-layout {
+    gap: 6px;
+  }
+
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .disposal-page .disposal-meta-row.disposal-meta-row-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select {
+    font-size: 12px;
+    padding: 7px 8px;
+    min-height: 36px;
+  }
+
+  .disposal-page .disposal-district-link,
+  .disposal-page .disposal-district-hint {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+}
+
+.work-shift-toolbar-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.work-shift-section-tabs,
+.work-shift-date-selectors,
+.work-shift-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.work-shift-summary-card {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 94%, #eff6ff 6%);
+  padding: 12px 14px;
+}
+
+.work-shift-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.work-shift-summary-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.work-shift-summary-grid strong {
+  font-size: 12px;
+}
+
+.work-shift-summary-grid span {
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.work-shift-table tbody tr.is-selected td {
+  background: color-mix(in srgb, var(--card) 72%, #dbeafe 28%);
+}
+
+.work-shift-table .sticky.left,
+.work-shift-table .sticky.left.second,
+.work-shift-table .name-cell {
+  background: var(--card) !important;
+  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.16);
+}
+
+.work-shift-table tbody tr.is-selected .sticky.left,
+.work-shift-table tbody tr.is-selected .sticky.left.second,
+.work-shift-table tbody tr.is-selected .name-cell {
+  background: color-mix(in srgb, var(--card) 78%, #dbeafe 22%) !important;
+}
+
+.work-shift-name-input {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 4px;
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .work-shift-toolbar.mobile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .work-shift-title-wrap {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .work-shift-title-wrap h2 {
+    margin: 0;
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .work-shift-section-tabs button,
+  .work-shift-edit-actions button,
+  .work-shift-date-selectors .small-select {
+    font-size: 11px;
+    min-height: 30px;
+    padding: 4px 6px;
+  }
+
+  .work-shift-toolbar-side {
+    width: 100%;
+    align-items: flex-end;
+  }
+
+  .work-shift-date-selectors,
+  .work-shift-edit-actions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .work-shift-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .work-shift-table .head-name, .work-shift-table .name-cell {
+    width: 66px;
+    min-width: 66px;
+    max-width: 66px;
+    font-size: 13px;
+  }
+
+  .work-shift-table .sticky.left.second {
+    left: 66px;
+  }
+
+  .work-shift-table th,
+  .work-shift-table td,
+  .work-shift-name-input,
+  .work-shift-input {
+    font-size: 13px;
+  }
+}

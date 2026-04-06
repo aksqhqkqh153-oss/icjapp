@@ -7602,6 +7602,7 @@ function computeWorkShiftSummary(days = []) {
 }
 
 function WorkShiftSchedulePage() {
+  const isMobile = useIsMobile()
   const today = new Date()
   const currentYear = today.getFullYear()
   const currentMonth = today.getMonth() + 1
@@ -7612,6 +7613,8 @@ function WorkShiftSchedulePage() {
   const [sectionId, setSectionId] = useState('business')
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth)
+  const [editNamesMode, setEditNamesMode] = useState(false)
+  const [selectedRowKey, setSelectedRowKey] = useState('')
   const template = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
   const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
   const dayCount = daysInMonthFromParts(year, month)
@@ -7631,6 +7634,7 @@ function WorkShiftSchedulePage() {
     } catch (_) {}
     nextRows = nextRows.map(row => ({ ...row, summary: computeWorkShiftSummary(row.days) }))
     setRows(nextRows)
+    setSelectedRowKey(prev => prev || String(nextRows[0]?.row || nextRows[0]?.c2 || ''))
   }, [sectionId, year, month])
 
   useEffect(() => {
@@ -7657,13 +7661,42 @@ function WorkShiftSchedulePage() {
     }))
   }
 
+  function updateRowName(rowIndex, value) {
+    setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c2: value } : row)))
+  }
+
+  const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
+  const selectedSummary = useMemo(() => {
+    if (!selectedRow) return null
+    const normalized = (selectedRow.days || []).map(value => String(value || '').trim())
+    const count = target => normalized.filter(value => value === target).length
+    return {
+      personName: String(selectedRow.c2 || '').trim() || '-',
+      groupLabel: String(selectedRow.c1 || '').trim() || '-',
+      oneCount: count('1'),
+      twoCount: count('2'),
+      longDistanceCount: count('장'),
+      hasLongDistance: count('장') > 0,
+      vacationItems: [
+        ['휴무', count('휴')],
+        ['월차', count('월')],
+        ['연차', count('연')],
+        ['병가', count('병')],
+        ['예비', count('예')],
+        ['기타', count('기')],
+      ].filter(([, value]) => value > 0),
+      annualCount: count('연'),
+      quarterlyAnnualCount: count('연'),
+    }
+  }, [selectedRow])
+
   return (
     <div className="stack-page">
       <section className="card work-shift-page-card">
-        <div className="work-shift-toolbar">
+        <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
           <div className="work-shift-title-wrap">
             <h2>근무스케줄</h2>
-            <div className="inline-actions wrap">
+            <div className="inline-actions wrap work-shift-section-tabs">
               {sectionOptions.map(option => (
                 <button
                   key={option.id}
@@ -7676,16 +7709,33 @@ function WorkShiftSchedulePage() {
               ))}
             </div>
           </div>
-          <div className="inline-actions wrap">
-            <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
-              {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
-            </select>
-            <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
-              {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
-            </select>
+          <div className="work-shift-toolbar-side">
+            <div className="inline-actions wrap work-shift-date-selectors">
+              <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
+                {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
+              </select>
+              <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
+                {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
+              </select>
+            </div>
+            <div className="inline-actions wrap work-shift-edit-actions">
+              <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>편집</button>
+            </div>
           </div>
         </div>
         <div className="muted work-shift-description">{sectionId === 'business' ? '사업자 근무스케줄' : '직원 근무스케줄'} · 엑셀 템플릿 기준</div>
+        {selectedSummary ? (
+          <section className="work-shift-summary-card">
+            <div className="work-shift-summary-grid">
+              <div><strong>선택 성명</strong><span>{selectedSummary.personName}</span></div>
+              <div><strong>구분</strong><span>{selectedSummary.groupLabel}</span></div>
+              <div><strong>이사규모(1~2)</strong><span>1톤 {selectedSummary.oneCount}회 / 2톤 {selectedSummary.twoCount}회</span></div>
+              <div><strong>장거리 일정 유무</strong><span>{selectedSummary.hasLongDistance ? `있음 (${selectedSummary.longDistanceCount}회)` : '없음'}</span></div>
+              <div><strong>일자별 연차항목 및 사유</strong><span>{selectedSummary.vacationItems.length ? selectedSummary.vacationItems.map(([label, value]) => `${label} ${value}회`).join(' / ') : '없음'}</span></div>
+              <div><strong>분기연차 사용일수</strong><span>{selectedSummary.quarterlyAnnualCount}일</span></div>
+            </div>
+          </section>
+        ) : null}
         <div className="work-shift-table-wrap">
           <table className="work-shift-table">
             <thead>
@@ -7697,26 +7747,32 @@ function WorkShiftSchedulePage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, rowIndex) => (
-                <tr key={`${sectionId}-${row.row || rowIndex}`}>
-                  <td className="sticky left name-cell">{row.c1}</td>
-                  <td className="sticky left second name-cell">{row.c2}</td>
-                  {Array.from({ length: 31 }, (_, dayIndex) => {
-                    const disabled = dayIndex + 1 > dayCount
-                    return (
-                      <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
-                        <input
-                          className="work-shift-input"
-                          value={row.days?.[dayIndex] || ''}
-                          onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
-                          disabled={disabled}
-                        />
-                      </td>
-                    )
-                  })}
-                  {(row.summary || []).map((value, index) => <td key={`value-${index}`} className="summary-cell">{value}</td>)}
-                </tr>
-              ))}
+              {rows.map((row, rowIndex) => {
+                const rowKey = String(row.row || row.c2 || rowIndex)
+                const selected = rowKey === String(selectedRowKey || '')
+                return (
+                  <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
+                    <td className="sticky left name-cell">{row.c1}</td>
+                    <td className="sticky left second name-cell">
+                      {editNamesMode ? <input className="work-shift-name-input" value={row.c2 || ''} onChange={event => updateRowName(rowIndex, event.target.value)} /> : (row.c2 || '')}
+                    </td>
+                    {Array.from({ length: 31 }, (_, dayIndex) => {
+                      const disabled = dayIndex + 1 > dayCount
+                      return (
+                        <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
+                          <input
+                            className="work-shift-input"
+                            value={row.days?.[dayIndex] || ''}
+                            onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
+                            disabled={disabled}
+                          />
+                        </td>
+                      )
+                    })}
+                    {(row.summary || []).map((value, index) => <td key={`value-${index}`} className="summary-cell">{value}</td>)}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
