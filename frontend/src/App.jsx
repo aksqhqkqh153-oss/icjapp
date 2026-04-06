@@ -7763,7 +7763,7 @@ function WorkShiftSchedulePage() {
   const dayCount = daysInMonthFromParts(year, month)
   const cellRefs = useRef({})
   const tableWrapRef = useRef(null)
-  const dragStateRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false })
+  const dragStateRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false, suppressClick: false })
   const currentUser = getStoredUser()
   const currentUserName = String(currentUser?.name || currentUser?.nickname || currentUser?.email || '알수없음').trim()
   const [logOpen, setLogOpen] = useState(false)
@@ -7981,6 +7981,7 @@ function WorkShiftSchedulePage() {
       scrollLeft: wrapNode.scrollLeft,
       scrollTop: wrapNode.scrollTop,
       moved: false,
+      suppressClick: false,
     }
     wrapNode.classList.add('is-dragging')
   }
@@ -7994,16 +7995,47 @@ function WorkShiftSchedulePage() {
     const deltaY = event.clientY - drag.startY
     if (!drag.moved && (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3)) {
       drag.moved = true
+      drag.suppressClick = true
+      if (document.activeElement instanceof HTMLElement && wrapNode.contains(document.activeElement)) {
+        document.activeElement.blur()
+      }
     }
+    if (!drag.moved) return
+    event.preventDefault()
     wrapNode.scrollLeft = drag.scrollLeft - deltaX
     wrapNode.scrollTop = drag.scrollTop - deltaY
   }
 
   function handleTablePointerUp() {
     const wrapNode = tableWrapRef.current
-    dragStateRef.current = { active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false }
+    const suppressClick = Boolean(dragStateRef.current?.suppressClick)
+    dragStateRef.current = { active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, moved: false, suppressClick: false }
     wrapNode?.classList.remove('is-dragging')
+    if (suppressClick) {
+      window.setTimeout(() => {
+        dragStateRef.current.suppressClick = false
+      }, 0)
+    }
   }
+
+  useEffect(() => {
+    if (isMobile) return undefined
+
+    function handleWindowMouseMove(event) {
+      handleTablePointerMove(event)
+    }
+
+    function handleWindowMouseUp() {
+      handleTablePointerUp()
+    }
+
+    window.addEventListener('mousemove', handleWindowMouseMove)
+    window.addEventListener('mouseup', handleWindowMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove)
+      window.removeEventListener('mouseup', handleWindowMouseUp)
+    }
+  }, [isMobile])
 
   const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
   const visibleVacationRequests = useMemo(() => {
@@ -8307,6 +8339,13 @@ function WorkShiftSchedulePage() {
             onMouseMove={handleTablePointerMove}
             onMouseLeave={handleTablePointerUp}
             onMouseUp={handleTablePointerUp}
+            onClickCapture={event => {
+              if (dragStateRef.current?.suppressClick) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+            }}
+            onDragStart={event => event.preventDefault()}
           >
             <table className="work-shift-table spreadsheet-like">
               <thead>

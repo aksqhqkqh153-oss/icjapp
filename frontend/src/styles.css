@@ -12496,6 +12496,8 @@ body[data-theme="dark"] a { color: inherit; }
 .work-shift-description { margin-top: 4px; }
 .work-shift-table-wrap { overflow:auto; flex:1 1 auto; min-height:0; margin-top:8px; border:1px solid var(--line); border-radius:14px; background:var(--card); scrollbar-gutter: stable both-edges; }
 .work-shift-table-wrap.drag-scroll-enabled { cursor: grab; }
+.work-shift-table-wrap.drag-scroll-enabled .work-shift-table,
+.work-shift-table-wrap.drag-scroll-enabled .work-shift-table * { -webkit-user-drag:none; }
 .work-shift-table-wrap.drag-scroll-enabled.is-dragging { cursor: grabbing; user-select:none; }
 .work-shift-table-wrap.drag-scroll-enabled.is-dragging * { cursor: grabbing !important; user-select:none !important; }
 .work-shift-table { border-collapse: separate; border-spacing: 0; min-width: 1450px; width:max-content; table-layout: fixed; }
