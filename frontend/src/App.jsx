@@ -7658,9 +7658,8 @@ function buildYearlyWorkShiftSummary(sectionId, year, selectedRow, fallbackRows 
 
     const normalizedDays = (matchedRow.days || []).map(value => String(value || '').trim())
     const annualCount = normalizedDays.filter(value => value === '연').length
-    const monthlyLeaveCount = normalizedDays.filter(value => value === '월').length
     totalAnnualCount += annualCount
-    totalMonthlyLeaveCount += monthlyLeaveCount
+    totalMonthlyLeaveCount += annualCount
     quarterlyAnnualCounts[Math.floor((targetMonth - 1) / 3)] += annualCount
   }
 
