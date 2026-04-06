@@ -7615,6 +7615,60 @@ function workShiftLogStorageKey(sectionId, year, month) {
   return `icj_work_shift_schedule_log_${sectionId}_${year}-${String(month).padStart(2, '0')}`
 }
 
+function parseStoredWorkShiftRows(sectionId, year, month, fallbackRows = []) {
+  if (typeof window === 'undefined') return cloneWorkShiftRows(fallbackRows)
+  try {
+    const raw = window.localStorage.getItem(workShiftStorageKey(sectionId, year, month))
+    if (!raw) return cloneWorkShiftRows(fallbackRows)
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed?.rows)) {
+      return cloneWorkShiftRows(parsed.rows)
+    }
+    return cloneWorkShiftRows(fallbackRows)
+  } catch (_) {
+    return cloneWorkShiftRows(fallbackRows)
+  }
+}
+
+function buildYearlyWorkShiftSummary(sectionId, year, selectedRow, fallbackRows = []) {
+  if (!selectedRow) {
+    return {
+      totalAnnualCount: 0,
+      totalMonthlyLeaveCount: 0,
+      quarterlyAnnualCounts: [0, 0, 0, 0],
+    }
+  }
+
+  const targetGroup = String(selectedRow.c1 || '').trim()
+  const targetName = String(selectedRow.c2 || '').trim()
+  const quarterlyAnnualCounts = [0, 0, 0, 0]
+  let totalAnnualCount = 0
+  let totalMonthlyLeaveCount = 0
+
+  for (let targetMonth = 1; targetMonth <= 12; targetMonth += 1) {
+    const monthRows = parseStoredWorkShiftRows(sectionId, year, targetMonth, fallbackRows)
+    const matchedRow = monthRows.find(row => {
+      const rowName = String(row?.c2 || '').trim()
+      const rowGroup = String(row?.c1 || '').trim()
+      return rowName === targetName && rowGroup === targetGroup
+    })
+    if (!matchedRow) continue
+
+    const normalizedDays = (matchedRow.days || []).map(value => String(value || '').trim())
+    const annualCount = normalizedDays.filter(value => value === '연').length
+    const monthlyLeaveCount = normalizedDays.filter(value => value === '월').length
+    totalAnnualCount += annualCount
+    totalMonthlyLeaveCount += monthlyLeaveCount
+    quarterlyAnnualCounts[Math.floor((targetMonth - 1) / 3)] += annualCount
+  }
+
+  return {
+    totalAnnualCount,
+    totalMonthlyLeaveCount,
+    quarterlyAnnualCounts,
+  }
+}
+
 function createWorkShiftLogEntry({ userName, sectionLabel, cellLabel, beforeValue, afterValue }) {
   const stamp = new Date().toLocaleString('ko-KR')
   return {
@@ -7822,6 +7876,7 @@ function WorkShiftSchedulePage() {
       ['기타', count('기')],
     ].filter(([, value]) => value > 0)
     const totalJobs = count('1') + count('2') + count('장')
+    const yearlySummary = buildYearlyWorkShiftSummary(sectionId, year, selectedRow, template.rows || [])
     return {
       personName: String(selectedRow.c2 || '').trim() || '-',
       groupLabel: String(selectedRow.c1 || '').trim() || '-',
@@ -7831,13 +7886,14 @@ function WorkShiftSchedulePage() {
       longDistanceCount: count('장'),
       hasLongDistance: count('장') > 0,
       vacationItems,
+      totalAnnualCount: yearlySummary.totalAnnualCount,
+      totalMonthlyLeaveCount: yearlySummary.totalMonthlyLeaveCount,
+      quarterlyAnnualCounts: yearlySummary.quarterlyAnnualCounts,
       monthlyAnnualCount: count('연'),
       monthlyMonthlyLeaveCount: count('월'),
-      quarterlyAnnualCount: count('연'),
-      quarterlyMonthlyLeaveCount: count('월'),
       detailText: vacationItems.length ? vacationItems.map(([label, value]) => `${label}${value}`).join(', ') : '없음',
     }
-  }, [selectedRow])
+  }, [sectionId, selectedRow, template.rows, year])
 
   return (
     <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
@@ -7915,12 +7971,16 @@ function WorkShiftSchedulePage() {
               <span>장거리 {selectedSummary.longDistanceCount}</span>
             </div>
             <div className="work-shift-summary-compact-row">
-              <span>월간 : 연차 {selectedSummary.monthlyAnnualCount}</span>
-              <span>월차 {selectedSummary.monthlyMonthlyLeaveCount}</span>
+              <span>총 연차 / 월차 사용수 : 연차 : {selectedSummary.totalAnnualCount} / 월차 : {selectedSummary.totalMonthlyLeaveCount}</span>
             </div>
             <div className="work-shift-summary-compact-row">
-              <span>분기 : 연차 {selectedSummary.quarterlyAnnualCount}</span>
-              <span>월차 {selectedSummary.quarterlyMonthlyLeaveCount}</span>
+              <span>분기별 연차 사용 : 1분기 연차수 : {selectedSummary.quarterlyAnnualCounts[0]} | 2분기 연차수 : {selectedSummary.quarterlyAnnualCounts[1]} | 3분기 연차수 : {selectedSummary.quarterlyAnnualCounts[2]} | 4분기 연차수 : {selectedSummary.quarterlyAnnualCounts[3]}</span>
+            </div>
+            <div className="work-shift-summary-compact-row">
+              <span>월 연차 사용 : {selectedSummary.monthlyAnnualCount}</span>
+            </div>
+            <div className="work-shift-summary-compact-row">
+              <span>월간별 월차 사용 : {selectedSummary.monthlyMonthlyLeaveCount}</span>
             </div>
             <div className="work-shift-summary-detail">* 세부내용 : {selectedSummary.detailText}</div>
           </section>
