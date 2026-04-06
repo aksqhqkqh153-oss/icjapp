@@ -407,6 +407,7 @@ const ADMIN_SORT_OPTIONS = [
   { value: 'position_title', label: '직급별 기준' },
   { value: 'role', label: '직책별 기준' },
   { value: 'grade', label: '계정권한 기준' },
+  { value: 'created_desc', label: '최신가입순' },
   { value: 'email', label: '아이디 기준' },
   { value: 'custom', label: '사용자 지정' },
 ]
@@ -418,6 +419,7 @@ const ADMIN_CUSTOM_SORT_FIELDS = [
   { value: 'position_title', label: '직급별 기준' },
   { value: 'role', label: '직책별 기준' },
   { value: 'grade', label: '계정권한 기준' },
+  { value: 'created_desc', label: '최신가입순' },
   { value: 'email', label: '아이디 기준' },
 ]
 
@@ -7956,13 +7958,15 @@ function WorkShiftSchedulePage() {
             </div>
           </div>
           <div className="work-shift-toolbar-side">
-            <div className="inline-actions wrap work-shift-date-selectors">
-              <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
-                {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
-              </select>
-              <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
-                {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
-              </select>
+            <div className="work-shift-toolbar-inline-row">
+              <div className="inline-actions work-shift-date-selectors work-shift-date-selectors-inline">
+                <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
+                  {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
+                </select>
+                <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
+                  {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
+                </select>
+              </div>
               <div className="work-shift-toolbar-actions">
                 <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>{editNamesMode ? '편집중' : '편집'}</button>
                 <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
@@ -8945,6 +8949,11 @@ function AdminModePage() {
     if (key === 'position_title') return defaultPositionForRow(item) || 'zzz'
     if (key === 'role') return String(item?.role || '')
     if (key === 'grade') return String(Number(item?.grade || 999)).padStart(3, '0')
+    if (key === 'created_desc') {
+      const raw = item?.created_at ? Date.parse(item.created_at) : 0
+      const ts = Number.isFinite(raw) ? raw : 0
+      return String(9999999999999 - ts).padStart(13, '0')
+    }
     if (key === 'email') return String(item?.email || '').toLowerCase()
     return ''
   }
