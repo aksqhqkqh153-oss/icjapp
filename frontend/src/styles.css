@@ -12037,12 +12037,12 @@ button.disposal-items-number-cell.has-note {
 }
 
 .disposal-list-grid-customer .disposal-list-grid-row {
-  grid-template-columns: 28px minmax(140px, 1.35fr) minmax(72px, 0.6fr) minmax(108px, 0.95fr) minmax(108px, 0.95fr) minmax(118px, 1fr) minmax(118px, 0.95fr);
+  grid-template-columns: 28px minmax(96px, 1.15fr) minmax(52px, 0.45fr) minmax(84px, 0.72fr) minmax(84px, 0.72fr) minmax(92px, 0.8fr) minmax(92px, 0.78fr) minmax(62px, 0.5fr) minmax(62px, 0.5fr);
 }
 
 .disposal-list-grid-button-customer {
   grid-column: 2 / span 5;
-  grid-template-columns: minmax(140px, 1.35fr) minmax(72px, 0.6fr) minmax(108px, 0.95fr) minmax(108px, 0.95fr) minmax(118px, 1fr);
+  grid-template-columns: minmax(96px, 1.15fr) minmax(52px, 0.45fr) minmax(84px, 0.72fr) minmax(84px, 0.72fr) minmax(92px, 0.8fr);
 }
 
 .disposal-list-grid-payment-cell {
@@ -13333,4 +13333,26 @@ body:not([data-theme="dark"]) .app-search-result-item * {
   .disposal-month-settlement-row {
     min-width: 1460px;
   }
+}
+
+
+.work-shift-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-shift-head-cell {
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.work-shift-branch-input,
+.work-shift-name-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }

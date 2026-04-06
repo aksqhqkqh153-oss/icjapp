@@ -7667,6 +7667,24 @@ function WorkShiftSchedulePage() {
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c2: value } : row)))
   }
 
+  function updateRowBranch(rowIndex, value) {
+    setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c1: value } : row)))
+  }
+
+  function addScheduleRow() {
+    setRows(prev => {
+      const nextRowNumber = prev.reduce((max, row) => Math.max(max, Number(row?.row || 0) || 0), 0) + 1
+      const nextRow = {
+        row: nextRowNumber,
+        c1: sectionId === 'business' ? '' : '',
+        c2: '',
+        days: Array.from({ length: 31 }, () => ''),
+        summary: computeWorkShiftSummary(Array.from({ length: 31 }, () => '')),
+      }
+      return [...prev, nextRow]
+    })
+  }
+
   function registerCellRef(rowIndex, columnIndex, node) {
     if (!node) {
       delete cellRefs.current[`${rowIndex}-${columnIndex}`]
@@ -7773,7 +7791,10 @@ function WorkShiftSchedulePage() {
               <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
                 {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
               </select>
-              <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>편집</button>
+              <div className="work-shift-toolbar-actions">
+                <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>편집</button>
+                <button type="button" className="small ghost" onClick={addScheduleRow}>추가</button>
+              </div>
             </div>
           </div>
         </div>
@@ -7802,9 +7823,9 @@ function WorkShiftSchedulePage() {
           <table className="work-shift-table">
             <thead>
               <tr>
-                <th className="sticky left head-name">{sectionId === 'business' ? '호점' : '구분'}</th>
-                <th className="sticky left second head-name">성명</th>
-                {dayLabels.map((label, index) => <th key={index} className="head-day">{label}</th>)}
+                <th className="sticky left head-name work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
+                <th className="sticky left second head-name work-shift-head-cell">성명</th>
+                {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
                 {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
               </tr>
             </thead>
@@ -7814,7 +7835,16 @@ function WorkShiftSchedulePage() {
                 const selected = rowKey === String(selectedRowKey || '')
                 return (
                   <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
-                    <td className="sticky left name-cell">{row.c1}</td>
+                    <td className="sticky left name-cell">
+                      {editNamesMode ? (
+                        <input
+                          className="work-shift-branch-input"
+                          value={row.c1 || ''}
+                          onFocus={() => setSelectedRowKey(rowKey)}
+                          onChange={event => updateRowBranch(rowIndex, event.target.value)}
+                        />
+                      ) : (row.c1 || '')}
+                    </td>
                     <td className="sticky left second name-cell">
                       {editNamesMode ? (
                         <input

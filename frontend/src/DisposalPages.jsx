@@ -185,9 +185,9 @@ function saveRecords(records) {
 
 function sortGroupedRows(rows = [], sortKey = 'latest') {
   const list = [...(rows || [])]
-  if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
-  if (sortKey === 'status') return list.sort((a, b) => String(a.paymentStatus || '').localeCompare(String(b.paymentStatus || ''), 'ko'))
-  if (sortKey === 'date') return list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')))
+  if (sortKey === 'customer') return list.sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || ''), 'ko'))
+  if (sortKey === 'status') return list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
+  if (sortKey === 'date') return list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
   return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
 }
 
@@ -700,6 +700,10 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
       group.rows.push({
         key: `${record.id}-${index}`,
         recordId: record.id,
+        customerName: record.customerName || '',
+        disposalDate: record.disposalDate || '',
+        finalStatus: record.finalStatus || '',
+        savedAt: record.savedAt || '',
         itemName: String(item?.itemName || '').trim() || '-',
         quantity,
         unitCost,
@@ -712,12 +716,16 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
       group.totals.finalAmount += finalAmount
     })
   })
-  return Array.from(grouped.values())
+  const list = Array.from(grouped.values())
     .map(group => ({
       ...group,
       rows: sortGroupedRows(group.rows, sortKey),
     }))
-    .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+
+  if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
+  if (sortKey === 'date') return list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
+  if (sortKey === 'status') return list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
+  return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
 }
 
 

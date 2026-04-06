@@ -20,6 +20,7 @@ export default function AuthPage({ onLogin }) {
   const [phoneCode, setPhoneCode] = useState('')
   const [phoneHelp, setPhoneHelp] = useState('')
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const turnstile = useTurnstileConfig()
   const [captchaToken, setCaptchaToken] = useState('')
@@ -44,6 +45,7 @@ export default function AuthPage({ onLogin }) {
       return
     }
     setError('')
+    setMessage('')
     setForm(prev => ({ ...prev, phone_verification_token: '' }))
     const data = await api('/api/auth/phone/request-code', { method: 'POST', body: JSON.stringify({ phone: form.phone, captcha_token: captchaToken }) })
     setCaptchaVersion(v => v + 1)
@@ -91,6 +93,7 @@ export default function AuthPage({ onLogin }) {
     e.preventDefault()
     setBusy(true)
     setError('')
+    setMessage('')
     try {
       const path = isSignup ? '/api/auth/signup' : '/api/auth/login'
       const payload = isSignup
@@ -109,6 +112,16 @@ export default function AuthPage({ onLogin }) {
             captcha_token: captchaToken,
           }
       const data = await api(path, { method: 'POST', body: JSON.stringify(payload) })
+      if (isSignup) {
+        setMessage(data.message || '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.')
+        setForm({ login_id: '', recovery_email: '', password: '', nickname: '', phone: '', phone_verification_token: '' })
+        setPhoneCode('')
+        setPhoneHelp('')
+        setCaptchaToken('')
+        setCaptchaVersion(v => v + 1)
+        navigate('/login')
+        return
+      }
       setSession(data.token || data.access_token || '', data.user, true)
       onLogin(data.user)
     } catch (err) {
@@ -165,6 +178,7 @@ export default function AuthPage({ onLogin }) {
           ) : null}
 
           <TurnstileWidget enabled={turnstile.turnstile_enabled} siteKey={turnstile.turnstile_site_key} onToken={setCaptchaToken} refreshKey={`${isSignup ? 'signup' : 'login'}-${captchaVersion}`} />
+          {message ? <div className="alert success">{message}</div> : null}
           {error ? <div className="alert error">{error}</div> : null}
           <button disabled={busy || (isSignup && !form.phone_verification_token) || (turnstile.turnstile_enabled && !captchaToken)}>{busy ? '처리 중...' : isSignup ? '계정 생성' : '로그인'}</button>
 

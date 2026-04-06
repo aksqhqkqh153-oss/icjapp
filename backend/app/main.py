@@ -1955,7 +1955,7 @@ def signup(payload: SignupIn):
         conn.execute(
             """
             INSERT INTO users(email, password_hash, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, created_at)
-            VALUES (?, ?, ?, 'user', 6, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, 'user', 7, 0, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 account_id,
@@ -1976,12 +1976,26 @@ def signup(payload: SignupIn):
             "INSERT INTO preferences(user_id, data) VALUES (?, ?)",
             (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)),
         )
-        token = make_token()
-        conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, user_id, utcnow()))
-        user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        user_payload = user_public_dict(user)
-        user_payload['permission_config'] = _get_permission_config(conn)
-        return {'access_token': token, 'user': user_payload}
+        admin_rows = conn.execute(
+            "SELECT id FROM users WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)"
+        ).fetchall()
+        notification_title = '회원가입 승인 요청'
+        notification_body = f"신규 회원가입 신청: {nickname} ({account_id})"
+        for admin_row in admin_rows:
+            insert_notification(conn, int(admin_row['id']), 'signup_request', notification_title, notification_body)
+        return {
+            'ok': True,
+            'pending_approval': True,
+            'message': '회원가입 신청이 완료되었습니다. 관리자 승인 후 일반 권한으로 로그인할 수 있습니다.',
+            'user': {
+                'id': user_id,
+                'email': account_id,
+                'nickname': nickname,
+                'grade': 7,
+                'grade_label': '기타',
+                'approved': False,
+            },
+        }
 
 @app.post('/api/auth/find-account')
 def find_account(payload: AccountFindIn):
@@ -2013,7 +2027,9 @@ def login(payload: LoginIn):
             raise HTTPException(status_code=401, detail='해당 계정의 비밀번호가 틀렸습니다.')
         grade = int(account['grade'] or 6)
         approved = int(account['approved'] if account['approved'] is not None else 1)
-        if grade == 7 and not approved:
+        if grade == 7:
+            raise HTTPException(status_code=403, detail="현재 계정은 기타 권한입니다. 관리자 승인 후 일반 권한으로 변경되어야 로그인할 수 있습니다.")
+        if not approved:
             raise HTTPException(status_code=403, detail="관리자 승인 후 로그인할 수 있습니다.")
         token = make_token()
         conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, account["id"], utcnow()))
