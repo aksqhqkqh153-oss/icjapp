@@ -6144,6 +6144,7 @@ function ScheduleDetailPage() {
 
 function NotificationsPage({ user }) {
   const navigate = useNavigate()
+  const canReviewSignupRequests = Number(user?.grade || 0) <= 2
   const [items, setItems] = useState([])
   const [prefs, setPrefs] = useState({})
   const [settingsView, setSettingsView] = useState('list')
@@ -6174,6 +6175,10 @@ function NotificationsPage({ user }) {
     }
     if (item?.type === 'materials_pending_settlement' || item?.type === 'materials_purchase_request') {
       navigate('/materials?tab=requesters')
+      return
+    }
+    if (item?.type === 'signup_request' && canReviewSignupRequests) {
+      navigate('/admin-mode?panel=signup-approvals')
       return
     }
     await load().catch(() => {})
@@ -7835,7 +7840,7 @@ function WorkShiftSchedulePage() {
   }, [selectedRow])
 
   return (
-    <div className="stack-page">
+    <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
       <section className="card work-shift-page-card">
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
           <div className="work-shift-title-wrap">
@@ -7902,8 +7907,8 @@ function WorkShiftSchedulePage() {
         {selectedSummary ? (
           <section className="work-shift-summary-card compact">
             <div className="work-shift-summary-compact-row primary">
-              <span className="work-shift-summary-chip">{selectedSummary.groupLabel}</span>
-              <strong>{selectedSummary.personName}</strong>
+              <span className="work-shift-summary-chip">호점 {selectedSummary.groupLabel}</span>
+              <strong>성명 {selectedSummary.personName}</strong>
               <span>총건수 {selectedSummary.totalJobs}건</span>
               <span>1건 {selectedSummary.oneCount}</span>
               <span>2건 {selectedSummary.twoCount}</span>
@@ -7917,7 +7922,7 @@ function WorkShiftSchedulePage() {
               <span>분기 : 연차 {selectedSummary.quarterlyAnnualCount}</span>
               <span>월차 {selectedSummary.quarterlyMonthlyLeaveCount}</span>
             </div>
-            <div className="work-shift-summary-detail">* {selectedSummary.detailText}</div>
+            <div className="work-shift-summary-detail">* 세부내용 : {selectedSummary.detailText}</div>
           </section>
         ) : null}
         <div className="work-shift-table-wrap">
@@ -8139,6 +8144,7 @@ function SettingsPage({ onLogout }) {
 function AdminModePage() {
   const currentUser = getStoredUser()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isMobile = useIsMobile()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -8206,6 +8212,8 @@ function AdminModePage() {
   const [statusMoveSelection, setStatusMoveSelection] = useState({ branch: '', employee: '', hq: '' })
   const [statusDeletePickerOpen, setStatusDeletePickerOpen] = useState({ branch: false, employee: false, hq: false })
   const [statusDeleteSelection, setStatusDeleteSelection] = useState({ branch: '', employee: '', hq: '' })
+  const authoritySectionRef = useRef(null)
+  const pendingApprovalSectionRef = useRef(null)
   const ACCOUNTS_PER_PAGE = 10
 
   function isStaffGradeValue(value) {
@@ -8234,6 +8242,10 @@ function AdminModePage() {
   function vehicleAvailableSelectValue(item) {
     return parseVehicleAvailable(item?.vehicle_available) ? '가용' : '불가'
   }
+
+  const pendingSignupAccounts = useMemo(() => {
+    return (accountRows || []).filter(item => Number(item?.grade || 0) === 7 || !item?.approved)
+  }, [accountRows])
 
   async function load() {
     setLoading(true)
@@ -8280,6 +8292,15 @@ function AdminModePage() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    const panel = String(searchParams.get('panel') || '').trim()
+    if (panel !== 'signup-approvals') return
+    setAuthorityOpen(true)
+    window.setTimeout(() => {
+      pendingApprovalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+  }, [searchParams])
+
   async function saveConfig() {
     await api('/api/admin-mode/config', {
       method: 'POST',
@@ -8300,6 +8321,46 @@ function AdminModePage() {
       body: JSON.stringify({ accounts: accountRows.map(({ id, grade, approved, position_title, vehicle_available }) => ({ id, grade: Number(grade), approved, position_title: position_title || '', vehicle_available: parseVehicleAvailable(vehicle_available) })) }),
     })
     setMessage('계정 권한 정보가 저장되었습니다.')
+    await load()
+  }
+
+  async function approvePendingSignup(target) {
+    if (!target?.id) return
+    await api('/api/admin/accounts/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        accounts: [{
+          id: target.id,
+          grade: 6,
+          approved: true,
+          position_title: target.position_title || '',
+          vehicle_available: parseVehicleAvailable(target.vehicle_available),
+        }],
+      }),
+    })
+    setMessage(`${target.name || target.nickname || target.email || '계정'} 계정을 일반 권한으로 승인했습니다.`)
+    if (pendingSignupAccounts.filter(item => Number(item.id) !== Number(target.id)).length === 0) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('panel')
+      setSearchParams(nextParams)
+    }
+    await load()
+  }
+
+  async function rejectPendingSignup(target) {
+    if (!target?.id) return
+    const label = target.name || target.nickname || target.email || `계정 ${target.id}`
+    if (!window.confirm(`${label} 회원가입 신청을 거절하고 계정을 삭제할까요?`)) return
+    await api('/api/admin/accounts/delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids: [Number(target.id)] }),
+    })
+    setMessage(`${label} 회원가입 신청을 거절했습니다.`)
+    if (pendingSignupAccounts.filter(item => Number(item.id) !== Number(target.id)).length === 0) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('panel')
+      setSearchParams(nextParams)
+    }
     await load()
   }
 
@@ -9434,6 +9495,32 @@ function AdminModePage() {
                 {actorGrade === 1 && <button type="button" className="small ghost" onClick={() => navigate('/menu-permissions')}>메뉴권한</button>}
                 <button type="button" className="small ghost admin-search-icon" onClick={() => setSearchOpen(true)}>검색</button>
               </div>
+            </div>
+            <div ref={pendingApprovalSectionRef} className="signup-approval-section">
+              <div className="between signup-approval-section-head">
+                <strong>회원가입 승인대기 목록</strong>
+                <span className="muted small-text">대기 {pendingSignupAccounts.length}건</span>
+              </div>
+              {pendingSignupAccounts.length === 0 ? (
+                <div className="muted signup-approval-empty">승인 대기 중인 회원가입 신청이 없습니다.</div>
+              ) : (
+                <div className="signup-approval-list">
+                  {pendingSignupAccounts.map(item => (
+                    <div key={`pending-signup-${item.id}`} className="signup-approval-row">
+                      <div className="signup-approval-meta">
+                        <strong>{item.name || item.nickname || '이름 미입력'}</strong>
+                        <span>{item.email || '-'}</span>
+                        <span>{item.phone || '-'}</span>
+                        <span>{item.created_at ? String(item.created_at).replace('T', ' ').slice(0, 16) : '-'}</span>
+                      </div>
+                      <div className="signup-approval-actions">
+                        <button type="button" className="small" onClick={() => approvePendingSignup(item)}>승인</button>
+                        <button type="button" className="small ghost" onClick={() => rejectPendingSignup(item)}>거절</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="admin-account-table">
           {pagedAccounts.map(item => (

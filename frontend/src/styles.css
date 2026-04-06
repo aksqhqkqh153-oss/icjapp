@@ -13370,3 +13370,224 @@ body:not([data-theme="dark"]) .app-search-result-item * {
   min-width: 0;
   box-sizing: border-box;
 }
+
+/* 2026-04-06 overrides: signup approvals, disposal list alignment, work shift desktop */
+.signup-approval-section {
+  margin-bottom: 14px;
+  border: 1px solid #d9e2ef;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px;
+}
+.signup-approval-section-head {
+  margin-bottom: 10px;
+}
+.signup-approval-empty {
+  padding: 10px 2px 2px;
+}
+.signup-approval-list {
+  display: grid;
+  gap: 8px;
+}
+.signup-approval-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.signup-approval-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.signup-approval-meta span,
+.signup-approval-meta strong {
+  white-space: nowrap;
+}
+.signup-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.disposal-list-grid {
+  border: 1px solid #111827;
+}
+.disposal-list-grid-row,
+.disposal-list-grid-button {
+  gap: 0 !important;
+}
+.disposal-list-grid-row {
+  padding: 0 !important;
+  align-items: stretch !important;
+}
+.disposal-list-grid-row > div,
+.disposal-list-grid-row > label,
+.disposal-list-grid-button > span {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+  text-align: center !important;
+  border-right: 1px solid #111827;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.disposal-list-grid-row > div:last-child,
+.disposal-list-grid-row > label:last-child,
+.disposal-list-grid-button > span:last-child {
+  border-right: 0;
+}
+.disposal-list-grid-check-cell {
+  justify-content: center !important;
+}
+.disposal-list-grid-button {
+  text-align: center !important;
+}
+.disposal-list-grid-button-customer {
+  grid-column: 2 / span 6;
+}
+.disposal-list-grid-customer .disposal-list-grid-row {
+  grid-template-columns: 42px minmax(90px, 1.2fr) minmax(74px, 0.65fr) minmax(92px, 0.78fr) minmax(96px, 0.82fr) minmax(90px, 0.72fr) minmax(96px, 0.82fr) minmax(74px, 0.58fr) minmax(74px, 0.58fr);
+}
+.disposal-list-grid-button-customer {
+  grid-template-columns: minmax(90px, 1.2fr) minmax(74px, 0.65fr) minmax(92px, 0.78fr) minmax(96px, 0.82fr) minmax(90px, 0.72fr) minmax(96px, 0.82fr);
+}
+.disposal-list-grid-summary-row {
+  background: #f8fafc;
+}
+
+.work-shift-screen-shell.desktop {
+  height: calc(100vh - 92px);
+  overflow: hidden;
+}
+.work-shift-screen-shell.desktop .work-shift-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.work-shift-screen-shell.desktop .work-shift-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: start;
+}
+.work-shift-screen-shell.desktop .work-shift-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.work-shift-screen-shell.desktop .work-shift-toolbar-side {
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+.work-shift-screen-shell.desktop .work-shift-summary-card.compact {
+  margin-top: 0;
+  padding: 8px 12px;
+  flex: 0 0 auto;
+}
+.work-shift-screen-shell.desktop .work-shift-summary-compact-row {
+  font-size: 12px;
+  gap: 4px 12px;
+}
+.work-shift-screen-shell.desktop .work-shift-summary-detail {
+  font-size: 11px;
+}
+.work-shift-screen-shell.desktop .work-shift-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin-top: 0;
+  overflow: auto;
+}
+.work-shift-screen-shell.desktop .work-shift-table {
+  min-width: 1320px;
+}
+.work-shift-screen-shell.desktop .work-shift-table thead th {
+  z-index: 7;
+  background: #f8fafc;
+}
+.work-shift-screen-shell.desktop .work-shift-table .sticky.left,
+.work-shift-screen-shell.desktop .work-shift-table .sticky.left.second,
+.work-shift-screen-shell.desktop .work-shift-table .name-cell,
+.work-shift-screen-shell.desktop .work-shift-table tbody tr.is-selected .sticky.left,
+.work-shift-screen-shell.desktop .work-shift-table tbody tr.is-selected .sticky.left.second,
+.work-shift-screen-shell.desktop .work-shift-table tbody tr.is-selected .name-cell {
+  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.18);
+  background-clip: padding-box;
+}
+.work-shift-screen-shell.desktop .work-shift-table .head-name,
+.work-shift-screen-shell.desktop .work-shift-table .name-cell {
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  font-size: 11px;
+  padding-inline: 2px;
+}
+.work-shift-screen-shell.desktop .work-shift-table th:nth-child(2),
+.work-shift-screen-shell.desktop .work-shift-table td:nth-child(2) {
+  width: 78px;
+  min-width: 78px;
+  max-width: 78px;
+}
+.work-shift-screen-shell.desktop .work-shift-table .sticky.left.second {
+  left: 58px;
+}
+.work-shift-screen-shell.desktop .work-shift-table .head-day,
+.work-shift-screen-shell.desktop .work-shift-table .day-cell {
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+}
+.work-shift-screen-shell.desktop .work-shift-table .head-summary,
+.work-shift-screen-shell.desktop .work-shift-table .summary-cell {
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  padding-inline: 2px;
+  font-size: 10px;
+}
+.work-shift-screen-shell.desktop .work-shift-table .head-summary:first-of-type,
+.work-shift-screen-shell.desktop .work-shift-table .summary-cell:first-of-type {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+.work-shift-screen-shell.desktop .work-shift-table th,
+.work-shift-screen-shell.desktop .work-shift-table td,
+.work-shift-screen-shell.desktop .work-shift-input,
+.work-shift-screen-shell.desktop .work-shift-name-input,
+.work-shift-screen-shell.desktop .work-shift-branch-input {
+  font-size: 10px;
+}
+.work-shift-screen-shell.desktop .work-shift-input,
+.work-shift-screen-shell.desktop .work-shift-name-input,
+.work-shift-screen-shell.desktop .work-shift-branch-input {
+  min-height: 24px;
+  padding: 2px 1px;
+}
+
+@media (max-width: 900px) {
+  .signup-approval-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .signup-approval-actions {
+    justify-content: flex-end;
+  }
+}

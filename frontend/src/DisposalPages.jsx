@@ -183,12 +183,16 @@ function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
 }
 
+function compareDisposalValue(a, b, sortKey = 'latest') {
+  if (sortKey === 'customer') return String(a?.customerName || a?.itemName || '').localeCompare(String(b?.customerName || b?.itemName || ''), 'ko')
+  if (sortKey === 'status') return String(a?.finalStatus || '').localeCompare(String(b?.finalStatus || ''), 'ko')
+  if (sortKey === 'date') return String(a?.disposalDate || '').localeCompare(String(b?.disposalDate || ''), 'ko')
+  return String(b?.savedAt || '').localeCompare(String(a?.savedAt || ''))
+}
+
 function sortGroupedRows(rows = [], sortKey = 'latest') {
   const list = [...(rows || [])]
-  if (sortKey === 'customer') return list.sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || ''), 'ko'))
-  if (sortKey === 'status') return list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
-  if (sortKey === 'date') return list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
-  return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+  return list.sort((a, b) => compareDisposalValue(a, b, sortKey) || String(a?.itemName || '').localeCompare(String(b?.itemName || ''), 'ko'))
 }
 
 function getCellRef(colIndex, rowNumber) {
@@ -669,7 +673,7 @@ function getFinalStatusFromFlags(isPaid, isReported) {
 
 function buildDisposalListGroups(records, sortKey, searchQuery = '') {
   const grouped = new Map()
-  const sorted = sortRecords(records, sortKey === 'latest' ? 'latest' : 'date')
+  const sorted = sortRecords(records, sortKey)
   const normalizedQuery = normalizeSearchText(searchQuery)
   sorted.forEach((record) => {
     const customerGroupKey = makeCustomerLocationKey(record?.customerName, record?.location) || String(record?.id || '')
