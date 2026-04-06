@@ -402,6 +402,10 @@ function isReadOnlyMember(user) {
   return Number(user?.grade || 6) === 6
 }
 
+function canAccessStaffRoutes(user) {
+  return Number(user?.grade || 6) <= 5
+}
+
 function isEmployeeRestrictedUser(user) {
   const accountType = String(user?.account_type || '').trim().toLowerCase()
   return accountType === 'employee' || Number(user?.grade || 6) === 5
@@ -618,6 +622,7 @@ function Layout({ children, user, onLogout }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [expandedMenuItems, setExpandedMenuItems] = useState({ disposal: false })
   const menuRef = useRef(null)
   const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
@@ -660,6 +665,7 @@ function Layout({ children, user, onLogout }) {
   useEffect(() => {
     setMenuOpen(false)
     setSettingsOpen(false)
+    setExpandedMenuItems({ disposal: false })
   }, [location.pathname])
 
   useEffect(() => {
@@ -719,14 +725,53 @@ function Layout({ children, user, onLogout }) {
                     <div className="menu-category-title">{section.label}</div>
                     {section.items.length === 0 ? (
                       <div className="dropdown-item muted menu-category-empty">표시 가능한 메뉴가 없습니다.</div>
-                    ) : section.items.map(item => (
-                      <button key={item.id} type="button" className="dropdown-item menu-category-item" onClick={() => {
-                        navigate(item.path)
-                        setMenuOpen(false)
-                      }}>
-                        {item.label}
-                      </button>
-                    ))}
+                    ) : section.items.map(item => {
+                      if (item.id === 'disposal') {
+                        const expanded = !!expandedMenuItems.disposal
+                        const disposalLinks = [
+                          { key: 'forms', label: '양식', path: '/disposal/forms' },
+                          { key: 'list', label: '목록', path: '/disposal/list' },
+                          { key: 'settlements', label: '결산', path: '/disposal/settlements' },
+                        ]
+                        return (
+                          <div key={item.id} className="menu-category-submenu">
+                            <button
+                              type="button"
+                              className="dropdown-item menu-category-item menu-category-item-expand"
+                              onClick={() => setExpandedMenuItems(prev => ({ ...prev, disposal: !prev.disposal }))}
+                            >
+                              <span>{item.label}</span>
+                              <span className="menu-category-expand-icon">{expanded ? '−' : '+'}</span>
+                            </button>
+                            {expanded ? (
+                              <div className="menu-category-submenu-list">
+                                {disposalLinks.map(link => (
+                                  <button
+                                    key={link.key}
+                                    type="button"
+                                    className="dropdown-item menu-category-item menu-category-subitem"
+                                    onClick={() => {
+                                      navigate(link.path)
+                                      setMenuOpen(false)
+                                    }}
+                                  >
+                                    {link.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      }
+                      return (
+                        <button key={item.id} type="button" className="dropdown-item menu-category-item" onClick={() => {
+                          navigate(item.path)
+                          setMenuOpen(false)
+                        }}>
+                          {item.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 ))}
                 {isAdministrator(user) && (
@@ -778,11 +823,13 @@ function Layout({ children, user, onLogout }) {
 
 function AuthPage({ onLogin }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [accounts, setAccounts] = useState([])
   const [form, setForm] = useState({ email: 'admin@example.com', password: 'admin1234' })
   const [autoLogin, setAutoLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const notice = location.state?.notice || ''
   useEffect(() => {
     api('/api/demo-accounts').then(setAccounts).catch(() => {})
   }, [])
@@ -809,6 +856,7 @@ function AuthPage({ onLogin }) {
       <section className="auth-card">
         <h1>로그인</h1>
         <p className="muted">로그인 후 앱 메인 화면으로 이동합니다.</p>
+        {notice ? <div className="card notice-text" style={{ marginBottom: 12 }}>{notice}</div> : null}
         <form onSubmit={submit} className="stack">
           <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" autoComplete="username" />
           <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" autoComplete="current-password" />
@@ -7049,22 +7097,39 @@ function SettingsPage({ onLogout }) {
   const [inquiry, setInquiry] = useState({ category: '기능문의', title: '', content: '' })
   const [message, setMessage] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [category, setCategory] = useState('theme')
+  const [theme, setTheme] = useState(() => getStoredThemePreference())
+
+  useEffect(() => {
+    applyAppTheme(theme)
+    try {
+      localStorage.setItem(APP_THEME_STORAGE_KEY, theme)
+    } catch (_) {}
+  }, [theme])
+
   async function load() {
     const [p, b] = await Promise.all([api('/api/preferences'), api('/api/blocked-users')])
     setPrefs(p)
     setBlocks(b)
+    const savedTheme = p?.theme === 'dark' ? 'dark' : p?.theme === 'light' ? 'light' : getStoredThemePreference()
+    setTheme(savedTheme)
   }
   useEffect(() => { load() }, [])
+
   async function savePrefs() {
-    await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: prefs }) })
+    const nextPrefs = { ...prefs, theme }
+    await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: nextPrefs }) })
+    setPrefs(nextPrefs)
     setMessage('설정이 저장되었습니다.')
   }
+
   async function submitInquiry(e) {
     e.preventDefault()
     await api('/api/inquiries', { method: 'POST', body: JSON.stringify(inquiry) })
     setInquiry({ category: '기능문의', title: '', content: '' })
     setMessage('문의가 접수되었습니다.')
   }
+
   async function deleteAccount() {
     if (!window.confirm('계정삭제시 관련 정보가 삭제됩니다. 그래도 삭제하시겠습니까?')) {
       return
@@ -7081,40 +7146,85 @@ function SettingsPage({ onLogout }) {
       setDeleting(false)
     }
   }
+
   return (
-    <div className="grid2">
-      <section className="card">
-        <h2>환경설정</h2>
-        <label className="check"><input type="checkbox" checked={!!prefs.groupChatNotifications} onChange={e => setPrefs({ ...prefs, groupChatNotifications: e.target.checked })} /> 그룹채팅 알림</label>
-        <label className="check"><input type="checkbox" checked={!!prefs.directChatNotifications} onChange={e => setPrefs({ ...prefs, directChatNotifications: e.target.checked })} /> 1:1 채팅 알림</label>
-        <label className="check"><input type="checkbox" checked={!!prefs.likeNotifications} onChange={e => setPrefs({ ...prefs, likeNotifications: e.target.checked })} /> 좋아요 알림</label>
-        <div className="inline-actions wrap">
-          <button onClick={savePrefs}>설정 저장</button>
-          <button type="button" className="danger" onClick={deleteAccount} disabled={deleting}>{deleting ? '삭제 중...' : '계정삭제'}</button>
-        </div>
-        <div className="muted small-text">계정삭제시 관련 정보가 삭제됩니다. 삭제 후에는 복구할 수 없습니다.</div>
-        <h3>차단 사용자</h3>
-        <div className="list">
-          {blocks.map(item => (
-            <div className="list-item block" key={item.id}>
-              <strong>{item.blocked_user.nickname}</strong>
-              <div className="muted">{item.reason}</div>
-            </div>
-          ))}
-          {blocks.length === 0 && <div className="muted">차단된 사용자가 없습니다.</div>}
+    <div className="stack settings-page-shell">
+      <section className="card settings-category-card">
+        <h2>설정</h2>
+        <div className="settings-category-row">
+          <button type="button" className={category === 'theme' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('theme')}>테마변경</button>
+          <button type="button" className={category === 'notifications' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('notifications')}>알림설정</button>
+          <button type="button" className={category === 'blocked' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('blocked')}>차단목록</button>
+          <button type="button" className={category === 'inquiry' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('inquiry')}>문의접수</button>
+          <button type="button" className={category === 'account' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('account')}>계정관리</button>
         </div>
       </section>
-      <section className="card">
-        <h2>문의 접수</h2>
-        <form onSubmit={submitInquiry} className="stack">
-          <input value={inquiry.category} placeholder="문의 분류" onChange={e => setInquiry({ ...inquiry, category: e.target.value })} />
-          <input value={inquiry.title} placeholder="문의 제목" onChange={e => setInquiry({ ...inquiry, title: e.target.value })} />
-          <textarea value={inquiry.content} placeholder="문의 내용" onChange={e => setInquiry({ ...inquiry, content: e.target.value })} />
-          <button>문의 등록</button>
-        </form>
-        {message && <div className="success">{message}</div>}
-        {toast && <div className="mention-toast action-toast">{toast}</div>}
-      </section>
+
+      {category === 'theme' ? (
+        <section className="card settings-theme-card">
+          <h3>테마변경</h3>
+          <div className="settings-theme-options">
+            <button type="button" className={theme === 'light' ? 'ghost settings-theme-option active' : 'ghost settings-theme-option'} onClick={() => setTheme('light')}>흰색테마</button>
+            <button type="button" className={theme === 'dark' ? 'ghost settings-theme-option active' : 'ghost settings-theme-option'} onClick={() => setTheme('dark')}>검정테마</button>
+          </div>
+          <div className="inline-actions wrap">
+            <button type="button" onClick={savePrefs}>설정 저장</button>
+          </div>
+          {message ? <div className="success">{message}</div> : null}
+        </section>
+      ) : null}
+
+      {category === 'notifications' ? (
+        <section className="card">
+          <h3>알림설정</h3>
+          <label className="check"><input type="checkbox" checked={!!prefs.groupChatNotifications} onChange={e => setPrefs({ ...prefs, groupChatNotifications: e.target.checked })} /> 그룹채팅 알림</label>
+          <label className="check"><input type="checkbox" checked={!!prefs.directChatNotifications} onChange={e => setPrefs({ ...prefs, directChatNotifications: e.target.checked })} /> 1:1 채팅 알림</label>
+          <label className="check"><input type="checkbox" checked={!!prefs.likeNotifications} onChange={e => setPrefs({ ...prefs, likeNotifications: e.target.checked })} /> 좋아요 알림</label>
+          <div className="inline-actions wrap">
+            <button type="button" onClick={savePrefs}>설정 저장</button>
+          </div>
+          {message ? <div className="success">{message}</div> : null}
+        </section>
+      ) : null}
+
+      {category === 'blocked' ? (
+        <section className="card">
+          <h3>차단 사용자</h3>
+          <div className="list">
+            {blocks.map(item => (
+              <div className="list-item block" key={item.id}>
+                <strong>{item.blocked_user.nickname}</strong>
+                <div className="muted">{item.reason}</div>
+              </div>
+            ))}
+            {blocks.length === 0 && <div className="muted">차단된 사용자가 없습니다.</div>}
+          </div>
+        </section>
+      ) : null}
+
+      {category === 'inquiry' ? (
+        <section className="card">
+          <h3>문의 접수</h3>
+          <form onSubmit={submitInquiry} className="stack">
+            <input value={inquiry.category} placeholder="문의 분류" onChange={e => setInquiry({ ...inquiry, category: e.target.value })} />
+            <input value={inquiry.title} placeholder="문의 제목" onChange={e => setInquiry({ ...inquiry, title: e.target.value })} />
+            <textarea value={inquiry.content} placeholder="문의 내용" onChange={e => setInquiry({ ...inquiry, content: e.target.value })} />
+            <button>문의 등록</button>
+          </form>
+          {message ? <div className="success">{message}</div> : null}
+        </section>
+      ) : null}
+
+      {category === 'account' ? (
+        <section className="card">
+          <h3>계정관리</h3>
+          <div className="inline-actions wrap">
+            <button type="button" className="danger" onClick={deleteAccount} disabled={deleting}>{deleting ? '삭제 중...' : '계정삭제'}</button>
+            <button type="button" className="ghost" onClick={onLogout}>로그아웃</button>
+          </div>
+          <div className="muted small-text">계정삭제시 관련 정보가 삭제됩니다. 삭제 후에는 복구할 수 없습니다.</div>
+        </section>
+      ) : null}
     </div>
   )
 }
@@ -11219,6 +11329,10 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    applyAppTheme(getStoredThemePreference())
+  }, [])
+
+  useEffect(() => {
     if (!user || !getStoredUser()) return
     api('/api/me').then((res) => {
       if (res?.user) {
@@ -11258,10 +11372,12 @@ function App() {
         <Route path="/signup" element={<SignupPage onLogin={setUser} />} />
         <Route path="/find-account" element={<FindAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace state={{ notice: "로그인을 먼저 진행해주세요" }} />} />
       </Routes>
     )
   }
+
+  const staffAllowed = canAccessStaffRoutes(user)
 
   return (
     <>
@@ -11269,45 +11385,45 @@ function App() {
       <AppAssignmentNotificationWatcher user={user} />
       <Layout user={user} onLogout={logout}>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/friends" element={<FriendsPage />} />
-        <Route path="/chats" element={<ChatsPage />} />
-        <Route path="/chats/direct/:targetUserId" element={<ChatRoomPage roomType="direct" />} />
-        <Route path="/chats/group/:roomId" element={<ChatRoomPage roomType="group" />} />
-        <Route path="/calendar" element={<Navigate to="/schedule" replace />} />
-        <Route path="/schedule" element={<CalendarPage />} />
-        <Route path="/schedule/new" element={<ScheduleFormPage mode="create" />} />
-        <Route path="/schedule/handless" element={<HandlessDaysPage />} />
-        <Route path="/work-schedule" element={<WorkSchedulePage />} />
-        <Route path="/schedule/:eventId" element={<ScheduleDetailPage />} />
-        <Route path="/schedule/:eventId/edit" element={<ScheduleFormPage mode="edit" />} />
-        <Route path="/profile" element={<ProfilePage onUserUpdate={(u) => { setUser(u); localStorage.setItem('icj_user', JSON.stringify(u)) }} />} />
-        <Route path="/meetups" element={<MeetupsPage />} />
-        <Route path="/boards" element={<BoardsPage />} />
-        <Route path="/notifications" element={<NotificationsPage user={user} />} />
-        <Route path="/points" element={<PointsPage />} />
-        <Route path="/warehouse" element={<WarehousePage />} />
-        <Route path="/materials" element={<MaterialsPage user={user} />} />
-        <Route path="/quotes" element={<QuoteFormsPage user={user} />} />
-        <Route path="/operations-dashboard" element={<OperationsDashboardPage />} />
-        <Route path="/quote-forms" element={<Navigate to="/quotes" replace />} />
-        <Route path="/storage-status" element={<PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." />} />
-        <Route path="/disposal" element={<DisposalHubPage />} />
-        <Route path="/disposal/forms" element={<DisposalFormsPage />} />
-        <Route path="/disposal/forms/preview" element={<DisposalPreviewPage />} />
-        <Route path="/disposal/forms/:recordId" element={<DisposalFormsPage />} />
-        <Route path="/disposal/list" element={<DisposalListPage />} />
-        <Route path="/disposal/settlements" element={<DisposalSettlementsPage />} />
-        <Route path="/disposal/jurisdictions" element={<DisposalJurisdictionRegistryPage />} />
-        <Route path="/settlements" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />} />
-        <Route path="/soomgo-review-finder" element={<SoomgoReviewFinderPage />} />
-        <Route path="/settings" element={<SettingsPage onLogout={logout} />} />
-        <Route path="/workday-history" element={isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 일시작종료 기능을 사용할 수 없습니다." /> : <WorkdayHistoryPage />} />
-        <Route path="/admin-mode" element={canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />} />
-        <Route path="/menu-permissions" element={isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />} />
-        <Route path="/reports" element={canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={staffAllowed ? <HomePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/map" element={staffAllowed ? <MapPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/friends" element={staffAllowed ? <FriendsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/chats" element={staffAllowed ? <ChatsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/chats/direct/:targetUserId" element={staffAllowed ? <ChatRoomPage roomType="direct" /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/chats/group/:roomId" element={staffAllowed ? <ChatRoomPage roomType="group" /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/calendar" element={staffAllowed ? <Navigate to="/schedule" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule" element={staffAllowed ? <CalendarPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule/new" element={staffAllowed ? <ScheduleFormPage mode="create" /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule/handless" element={staffAllowed ? <HandlessDaysPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/work-schedule" element={staffAllowed ? <WorkSchedulePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule/:eventId" element={staffAllowed ? <ScheduleDetailPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule/:eventId/edit" element={staffAllowed ? <ScheduleFormPage mode="edit" /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/profile" element={staffAllowed ? <ProfilePage onUserUpdate={(u) => { setUser(u); localStorage.setItem('icj_user', JSON.stringify(u)) }} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/meetups" element={staffAllowed ? <MeetupsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/boards" element={staffAllowed ? <BoardsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/notifications" element={staffAllowed ? <NotificationsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/points" element={staffAllowed ? <PointsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/warehouse" element={staffAllowed ? <WarehousePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/materials" element={staffAllowed ? <MaterialsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/quotes" element={staffAllowed ? <QuoteFormsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/operations-dashboard" element={staffAllowed ? <OperationsDashboardPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/quote-forms" element={staffAllowed ? <Navigate to="/quotes" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/storage-status" element={staffAllowed ? <PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal" element={staffAllowed ? <DisposalHubPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms" element={staffAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms/preview" element={staffAllowed ? <DisposalPreviewPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms/:recordId" element={staffAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/list" element={staffAllowed ? <DisposalListPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/settlements" element={staffAllowed ? <DisposalSettlementsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal/jurisdictions" element={staffAllowed ? <DisposalJurisdictionRegistryPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/workday-history" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 일시작종료 기능을 사용할 수 없습니다." /> : <WorkdayHistoryPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/admin-mode" element={staffAllowed ? (canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/menu-permissions" element={staffAllowed ? (isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/reports" element={staffAllowed ? (canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="*" element={staffAllowed ? <Navigate to="/" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
       </Routes>
           </Layout>
     </>
