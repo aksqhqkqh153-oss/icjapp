@@ -13236,3 +13236,6 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     background-clip: padding-box;
   }
 }
+
+.disposal-list-top-controls { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+.disposal-payment-badge.is-mixed { background: rgba(245, 158, 11, 0.14); color: #b45309; border-color: rgba(245, 158, 11, 0.28); }

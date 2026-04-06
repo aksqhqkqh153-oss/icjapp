@@ -303,7 +303,7 @@ const POLICY_CONTENT_DEFAULTS = {
   schedule: {
     common: {
       label: '공용',
-      allowed: () => true,
+      allowed: user => Number(user?.grade || 9) <= 5,
       defaultContent: '공용 스케줄 규정을 입력해 주세요.',
     },
   },

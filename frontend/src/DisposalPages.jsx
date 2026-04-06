@@ -23,7 +23,7 @@ const FILTER_OPTIONS = [
   { value: 'status', label: '최종현황순' },
 ]
 
-const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
+const FINAL_STATUS_OPTIONS = ['입금전 / 신고전', '입금완 / 신고전', '입금완 / 신고완']
 const DEFAULT_CUSTOMER_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
 const DEFAULT_COMPANY_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
 const EXPORT_TEMPLATE_TOKEN_ALIASES = {
@@ -637,18 +637,28 @@ function loadPreviewDraft() {
 function getPaymentStatus(record) {
   const status = String(record?.finalStatus || '').trim()
   if (!status) return '미입금'
-  if (/입금전|미입금|대기|보류/.test(status)) return '미입금'
-  if (/입금완|완료|정산완료/.test(status)) return '완료'
-  return status
+  if (/입금완/.test(status)) return '완료'
+  return '미입금'
+}
+
+function getReportStatus(record) {
+  const status = String(record?.finalStatus || '').trim()
+  if (!status) return '신고전'
+  if (/신고완/.test(status)) return '완료'
+  return '신고전'
+}
+
+function composeFinalStatus(isPaid, isReported) {
+  return `${isPaid ? '입금완' : '입금전'} / ${isReported ? '신고완' : '신고전'}`
 }
 
 function getFinalStatusFromPaymentStatus(value, currentFinalStatus = '') {
-  const current = String(currentFinalStatus || '').trim()
-  if (value === '완료') {
-    if (current === '입금완 / 신고완') return '입금완 / 신고완'
-    return '입금완 / 신고전'
-  }
-  return '입금전'
+  const reportDone = /신고완/.test(String(currentFinalStatus || '').trim())
+  return composeFinalStatus(value === '완료', reportDone)
+}
+
+function getFinalStatusFromFlags(isPaid, isReported) {
+  return composeFinalStatus(!!isPaid, !!isReported)
 }
 
 function buildDisposalListGroups(records, sortKey, searchQuery = '') {
@@ -669,6 +679,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         location: record.location || '-',
         disposalDate: record.disposalDate || '-',
         paymentStatus: getPaymentStatus(record),
+        reportStatus: getReportStatus(record),
         finalStatus: record.finalStatus || '',
         settlementTransferredAt: record.settlementTransferredAt || '',
         savedAt: record.savedAt || '',
@@ -810,7 +821,15 @@ function DisposalTemplateTable({ title, rendered }) {
 function DisposalFinalStatusRichLabel({ value }) {
   const status = String(value || '').trim()
   if (!status) return <span className="disposal-status-placeholder">최종현황 선택</span>
-  if (status === '입금전') return <span className="disposal-status-part danger">입금전</span>
+  if (status === '입금전 / 신고전') {
+    return (
+      <span className="disposal-status-rich">
+        <span className="disposal-status-part danger">입금전</span>
+        <span className="disposal-status-separator"> / </span>
+        <span className="disposal-status-part danger">신고전</span>
+      </span>
+    )
+  }
   if (status === '입금완 / 신고완') {
     return (
       <span className="disposal-status-rich">
@@ -1917,23 +1936,34 @@ export function DisposalListPage() {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  function updatePaymentStatus(recordId, isChecked) {
+  function updateRecordStatuses(recordId, nextPaid, nextReported) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
-    const nextStatus = isChecked ? '완료' : '미입금'
-    const nextFinalStatus = getFinalStatusFromPaymentStatus(nextStatus, target.finalStatus)
+    const nextFinalStatus = getFinalStatusFromFlags(nextPaid, nextReported)
     const nextRecords = records.map(record => {
       if (record.id !== recordId) return record
       const nextRecord = normalizeRecordShape({
         ...record,
         finalStatus: nextFinalStatus,
-        settlementTransferredAt: isChecked ? (record.settlementTransferredAt || '') : '',
+        settlementTransferredAt: nextPaid ? (record.settlementTransferredAt || '') : '',
       })
       return nextRecord
     })
     saveRecords(nextRecords)
     setRecords(nextRecords)
     setPendingSettlementMessages(prev => Array.from(new Set([...prev.filter(message => message !== buildPendingSettlementChangeMessage(target)), buildPendingSettlementChangeMessage({ ...target, finalStatus: nextFinalStatus })])))
+  }
+
+  function updatePaymentStatus(recordId, isChecked) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    updateRecordStatuses(recordId, isChecked, getReportStatus(target) === '완료')
+  }
+
+  function updateReportStatus(recordId, isChecked) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    updateRecordStatuses(recordId, getPaymentStatus(target) === '완료', isChecked)
   }
 
   function applySearch() {
@@ -1997,28 +2027,25 @@ export function DisposalListPage() {
         </div>
       </section>
 
-      <section className="card disposal-settlement-filter-card">
-        <div className="disposal-filter-row disposal-filter-row-extended">
+
+      <section className="card disposal-records-card disposal-list-board-card">
+        <div className="disposal-list-top-controls">
           <div className="disposal-filter-inline-group">
-            <div className="disposal-filter-chip-label">정렬필터</div>
             <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
               {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group">
-            <div className="disposal-filter-chip-label">검색</div>
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="플랫폼, 이름, 주소, 날짜 검색" />
             <button type="button" className="ghost" onClick={applySearch}>검색</button>
           </div>
         </div>
-      </section>
-
-      <section className="card disposal-records-card disposal-list-board-card">
         {groupedRows.length === 0 ? (
           <div className="empty-state">저장된 폐기목록이 없습니다.</div>
         ) : groupedRows.map(group => {
           const allGroupChecked = group.rows.length > 0 && group.rows.every(row => selectedRowKeys.includes(row.key))
           const isPaid = group.paymentStatus === '완료'
+          const isReported = group.reportStatus === '완료'
           const isTransferred = !!group.settlementTransferredAt
           return (
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
@@ -2034,7 +2061,7 @@ export function DisposalListPage() {
                     <button type="button" className="ghost small active" onClick={() => moveToSettlement(group.recordId)}>결산진행</button>
                   )}
                   {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
-                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완' : '미입금'}</span>
+                  <span className={`disposal-payment-badge ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
                   <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
                 </div>
               </div>
@@ -2052,6 +2079,7 @@ export function DisposalListPage() {
                   <div>신고합계</div>
                   <div>최종비용</div>
                   <div>입금여부</div>
+                  <div>신고여부</div>
                 </div>
                 {group.rows.map((row) => (
                   <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
@@ -2065,6 +2093,7 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.reportAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
+                    <div className="disposal-list-grid-payment-cell" />
                     <div className="disposal-list-grid-payment-cell" />
                   </div>
                 ))}
@@ -2080,6 +2109,11 @@ export function DisposalListPage() {
                       <input type="checkbox" checked={isPaid} onChange={e => updatePaymentStatus(group.recordId, e.target.checked)} />
                     </label>
                   </div>
+                  <div className="disposal-list-grid-payment-cell">
+                    <label className="disposal-payment-toggle" aria-label="신고 여부 체크">
+                      <input type="checkbox" checked={isReported} onChange={e => updateReportStatus(group.recordId, e.target.checked)} />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2087,33 +2121,6 @@ export function DisposalListPage() {
         })}
       </section>
 
-      <section className="card disposal-records-card disposal-daily-summary-card">
-        <div className="disposal-sheet-title">일자별 결산 내역</div>
-        {dailySettlementSummary.length === 0 ? (
-          <div className="empty-state">표시할 일자별 결산 내역이 없습니다.</div>
-        ) : (
-          <div className="disposal-settlement-grid disposal-daily-summary-grid">
-            <div className="disposal-settlement-grid-row disposal-settlement-grid-head">
-              <div>폐기날짜</div>
-              <div>고객수</div>
-              <div>품목수 합계</div>
-              <div>신고합계 합계</div>
-              <div>최종비용 합계</div>
-              <div>입금완료 합계</div>
-            </div>
-            {dailySettlementSummary.map(item => (
-              <div key={item.key} className="disposal-settlement-grid-row">
-                <div>{item.label}</div>
-                <div>{formatNumber(item.customerCount)}</div>
-                <div>{formatNumber(item.totalQty)}</div>
-                <div>{formatCurrency(item.totalReportAmount)}</div>
-                <div>{formatCurrency(item.totalFinalAmount)}</div>
-                <div>{formatCurrency(item.totalPaidFinalAmount)}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
 
       <DisposalConfirmModal
         open={!!pendingNavigationPath && pendingSettlementMessages.length > 0}
