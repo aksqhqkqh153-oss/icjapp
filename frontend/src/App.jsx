@@ -7682,6 +7682,39 @@ function createWorkShiftLogEntry({ userName, sectionLabel, cellLabel, beforeValu
   }
 }
 
+function workShiftVacationStorageKey() {
+  return 'icj_work_shift_vacation_requests'
+}
+
+function loadWorkShiftVacationRequests() {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(workShiftVacationStorageKey())
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch (_) {
+    return []
+  }
+}
+
+function saveWorkShiftVacationRequests(items) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(workShiftVacationStorageKey(), JSON.stringify(Array.isArray(items) ? items : []))
+  } catch (_) {}
+}
+
+function canEditWorkShiftSchedule(user) {
+  const grade = Number(user?.grade || 6)
+  const positionTitle = String(user?.position_title || '').trim()
+  return grade <= 2 || positionTitle === '부팀장'
+}
+
+function canSubmitWorkShiftVacation(user) {
+  const grade = Number(user?.grade || 9)
+  return grade >= 1 && grade <= 5
+}
+
 function WorkShiftSchedulePage() {
   const isMobile = useIsMobile()
   const today = new Date()
@@ -7706,6 +7739,19 @@ function WorkShiftSchedulePage() {
   const currentUserName = String(currentUser?.name || currentUser?.nickname || currentUser?.email || '알수없음').trim()
   const [logOpen, setLogOpen] = useState(false)
   const [changeLogs, setChangeLogs] = useState([])
+  const [workMode, setWorkMode] = useState('view')
+  const canEditSchedule = canEditWorkShiftSchedule(currentUser)
+  const canRequestVacation = canSubmitWorkShiftVacation(currentUser)
+  const [vacationRequests, setVacationRequests] = useState(() => loadWorkShiftVacationRequests())
+  const [vacationForm, setVacationForm] = useState(() => ({
+    sectionId: 'business',
+    requestType: '연차',
+    startDate: '',
+    endDate: '',
+    reason: '',
+    branchLabel: String(currentUser?.branch_no || '').trim(),
+    applicantName: String(currentUser?.name || currentUser?.nickname || '').trim(),
+  }))
 
   useEffect(() => {
     const templateSection = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
@@ -7747,6 +7793,19 @@ function WorkShiftSchedulePage() {
     } catch (_) {}
   }, [changeLogs, sectionId, year, month])
 
+  useEffect(() => {
+    saveWorkShiftVacationRequests(vacationRequests)
+  }, [vacationRequests])
+
+  useEffect(() => {
+    setVacationForm(prev => ({
+      ...prev,
+      sectionId,
+      branchLabel: prev.branchLabel || String(currentUser?.branch_no || '').trim(),
+      applicantName: prev.applicantName || String(currentUser?.name || currentUser?.nickname || '').trim(),
+    }))
+  }, [sectionId, currentUser?.branch_no, currentUser?.name, currentUser?.nickname])
+
   const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
   const dayLabels = Array.from({ length: 31 }, (_, index) => {
@@ -7768,7 +7827,7 @@ function WorkShiftSchedulePage() {
   }
 
   function updateCell(rowIndex, dayIndex, value) {
-    if (!editNamesMode) return
+    if (!editNamesMode || !canEditSchedule) return
     const nextValue = String(value || '').trim().slice(0, 2)
     const row = rows[rowIndex] || {}
     const beforeValue = String(row.days?.[dayIndex] || '')
@@ -7783,7 +7842,7 @@ function WorkShiftSchedulePage() {
   }
 
   function updateRowName(rowIndex, value) {
-    if (!editNamesMode) return
+    if (!editNamesMode || !canEditSchedule) return
     const beforeValue = String(rows[rowIndex]?.c2 || '')
     if (beforeValue === value) return
     appendChangeLog(`${rowIndex}열1행`, beforeValue, value)
@@ -7791,7 +7850,7 @@ function WorkShiftSchedulePage() {
   }
 
   function updateRowBranch(rowIndex, value) {
-    if (!editNamesMode) return
+    if (!editNamesMode || !canEditSchedule) return
     const beforeValue = String(rows[rowIndex]?.c1 || '')
     if (beforeValue === value) return
     appendChangeLog(`${rowIndex}열0행`, beforeValue, value)
@@ -7799,6 +7858,7 @@ function WorkShiftSchedulePage() {
   }
 
   function addScheduleRow() {
+    if (!canEditSchedule) return
     setRows(prev => {
       const nextRowNumber = prev.reduce((max, row) => Math.max(max, Number(row?.row || 0) || 0), 0) + 1
       const nextRow = {
@@ -7906,6 +7966,66 @@ function WorkShiftSchedulePage() {
   }
 
   const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
+  const visibleVacationRequests = useMemo(() => {
+    const myName = String(currentUser?.name || currentUser?.nickname || '').trim()
+    const myEmail = String(currentUser?.email || '').trim()
+    const items = Array.isArray(vacationRequests) ? [...vacationRequests] : []
+    const filtered = canEditSchedule
+      ? items
+      : items.filter(item => String(item.applicantName || '').trim() === myName || String(item.email || '').trim() === myEmail)
+    return filtered.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+  }, [vacationRequests, currentUser, canEditSchedule])
+
+  function submitVacationRequest(event) {
+    event.preventDefault()
+    if (!canRequestVacation) {
+      window.alert('현재 계정은 휴가신청 권한이 없습니다.')
+      return
+    }
+    const applicantName = String(vacationForm.applicantName || currentUser?.name || currentUser?.nickname || '').trim()
+    const startDate = String(vacationForm.startDate || '').trim()
+    const endDate = String(vacationForm.endDate || '').trim()
+    if (!applicantName || !startDate || !endDate) {
+      window.alert('성명, 시작일, 종료일을 입력해주세요.')
+      return
+    }
+    if (endDate < startDate) {
+      window.alert('종료일은 시작일보다 빠를 수 없습니다.')
+      return
+    }
+    const createdAt = new Date().toISOString()
+    const payload = {
+      id: `${createdAt}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt,
+      createdAtLabel: new Date(createdAt).toLocaleString('ko-KR'),
+      grade: Number(currentUser?.grade || 6),
+      gradeLabel: gradeLabel(currentUser?.grade),
+      positionTitle: String(currentUser?.position_title || '').trim(),
+      email: String(currentUser?.email || '').trim(),
+      sectionId: vacationForm.sectionId || sectionId,
+      sectionLabel: (sectionOptions.find(option => option.id === (vacationForm.sectionId || sectionId))?.label) || '사업자',
+      requestType: String(vacationForm.requestType || '연차').trim(),
+      startDate,
+      endDate,
+      reason: String(vacationForm.reason || '').trim(),
+      branchLabel: String(vacationForm.branchLabel || currentUser?.branch_no || '').trim(),
+      applicantName,
+      status: '신청완료',
+    }
+    setVacationRequests(prev => [payload, ...prev])
+    setVacationForm(prev => ({
+      ...prev,
+      requestType: '연차',
+      startDate: '',
+      endDate: '',
+      reason: '',
+      applicantName,
+      branchLabel: String(prev.branchLabel || currentUser?.branch_no || '').trim(),
+      sectionId,
+    }))
+    window.alert('휴가신청이 접수되었습니다.')
+  }
+
   const selectedSummary = useMemo(() => {
     if (!selectedRow) return null
     const normalized = (selectedRow.days || []).map(value => String(value || '').trim())
@@ -7944,6 +8064,10 @@ function WorkShiftSchedulePage() {
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
           <div className="work-shift-title-wrap">
             <h2>근무스케줄</h2>
+            <div className="inline-actions wrap work-shift-mode-tabs">
+              <button type="button" className={workMode === 'vacation' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
+              <button type="button" className={workMode === 'view' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('view')}>편집/보기</button>
+            </div>
             <div className="inline-actions wrap work-shift-section-tabs">
               {sectionOptions.map(option => (
                 <button
@@ -7967,15 +8091,111 @@ function WorkShiftSchedulePage() {
                   {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
                 </select>
               </div>
-              <div className="work-shift-toolbar-actions">
-                <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>{editNamesMode ? '편집중' : '편집'}</button>
-                <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
-                <button type="button" className="small ghost" onClick={addScheduleRow}>추가</button>
-              </div>
+              {workMode === 'view' ? (
+                <div className="work-shift-toolbar-actions">
+                  <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => canEditSchedule && setEditNamesMode(prev => !prev)} disabled={!canEditSchedule}>{editNamesMode ? '편집중' : '편집'}</button>
+                  <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
+                  <button type="button" className="small ghost" onClick={addScheduleRow} disabled={!canEditSchedule}>추가</button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
-        {logOpen ? (
+
+        {workMode === 'vacation' ? (
+          <>
+            <section className="work-shift-vacation-card">
+              <div className="work-shift-vacation-head">
+                <strong>휴가신청</strong>
+                <span className="muted">관리자~직원 계정은 신청 가능 / 편집권한은 관리자, 부관리자, 부팀장만 허용</span>
+              </div>
+              {canRequestVacation ? (
+                <form className="work-shift-vacation-form" onSubmit={submitVacationRequest}>
+                  <label>
+                    <span>구분</span>
+                    <select className="input" value={vacationForm.sectionId} onChange={event => setVacationForm(prev => ({ ...prev, sectionId: event.target.value }))}>
+                      {sectionOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>휴가종류</span>
+                    <select className="input" value={vacationForm.requestType} onChange={event => setVacationForm(prev => ({ ...prev, requestType: event.target.value }))}>
+                      {['연차', '월차', '휴무', '병가', '예비군', '기타'].map(option => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>호점</span>
+                    <input className="input" value={vacationForm.branchLabel} onChange={event => setVacationForm(prev => ({ ...prev, branchLabel: event.target.value }))} placeholder="예: 본점 / 3호점" />
+                  </label>
+                  <label>
+                    <span>성명</span>
+                    <input className="input" value={vacationForm.applicantName} onChange={event => setVacationForm(prev => ({ ...prev, applicantName: event.target.value }))} placeholder="성명 입력" />
+                  </label>
+                  <label>
+                    <span>시작일</span>
+                    <input className="input" type="date" value={vacationForm.startDate} onChange={event => setVacationForm(prev => ({ ...prev, startDate: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>종료일</span>
+                    <input className="input" type="date" value={vacationForm.endDate} onChange={event => setVacationForm(prev => ({ ...prev, endDate: event.target.value }))} />
+                  </label>
+                  <label className="span-2">
+                    <span>사유</span>
+                    <textarea className="input" rows="3" value={vacationForm.reason} onChange={event => setVacationForm(prev => ({ ...prev, reason: event.target.value }))} placeholder="휴가 사유 입력" />
+                  </label>
+                  <div className="span-2 work-shift-vacation-submit-row">
+                    <button type="submit">휴가신청 접수</button>
+                  </div>
+                </form>
+              ) : (
+                <div className="muted">현재 계정은 휴가신청 권한이 없습니다.</div>
+              )}
+            </section>
+
+            <section className="work-shift-vacation-card">
+              <div className="work-shift-vacation-head">
+                <strong>{canEditSchedule ? '휴가신청 전체목록' : '내 휴가신청 목록'}</strong>
+                <span className="muted">총 {visibleVacationRequests.length}건</span>
+              </div>
+              {visibleVacationRequests.length === 0 ? (
+                <div className="muted">접수된 휴가신청이 없습니다.</div>
+              ) : (
+                <div className="work-shift-vacation-table-wrap">
+                  <table className="work-shift-vacation-table">
+                    <thead>
+                      <tr>
+                        <th>접수일시</th>
+                        <th>구분</th>
+                        <th>휴가종류</th>
+                        <th>호점</th>
+                        <th>성명</th>
+                        <th>기간</th>
+                        <th>사유</th>
+                        <th>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleVacationRequests.map(item => (
+                        <tr key={item.id}>
+                          <td>{item.createdAtLabel}</td>
+                          <td>{item.sectionLabel}</td>
+                          <td>{item.requestType}</td>
+                          <td>{item.branchLabel || '-'}</td>
+                          <td>{item.applicantName || '-'}</td>
+                          <td>{item.startDate} ~ {item.endDate}</td>
+                          <td>{item.reason || '-'}</td>
+                          <td>{item.status || '신청완료'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
+
+        {workMode === 'view' && logOpen ? (
           <section className="work-shift-log-card">
             <div className="work-shift-log-head">
               <strong>편집기록</strong>
@@ -8005,7 +8225,12 @@ function WorkShiftSchedulePage() {
             )}
           </section>
         ) : null}
-        {selectedSummary ? (
+
+        {workMode === 'view' && !canEditSchedule ? (
+          <div className="work-shift-readonly-notice">현재 계정은 편집 권한이 없어 보기만 가능합니다.</div>
+        ) : null}
+
+        {workMode === 'view' && selectedSummary ? (
           <section className="work-shift-summary-card compact">
             <div className="work-shift-summary-compact-row primary">
               <span className="work-shift-summary-chip">호점 {selectedSummary.groupLabel}</span>
@@ -8030,84 +8255,87 @@ function WorkShiftSchedulePage() {
             <div className="work-shift-summary-detail">* 세부내용 : {selectedSummary.detailText}</div>
           </section>
         ) : null}
-        <div
-          ref={tableWrapRef}
-          className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
-          onMouseDown={handleTablePointerDown}
-          onMouseMove={handleTablePointerMove}
-          onMouseLeave={handleTablePointerUp}
-          onMouseUp={handleTablePointerUp}
-        >
-          <table className="work-shift-table">
-            <thead>
-              <tr>
-                <th className="sticky left head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
-                <th className="sticky left second head-name name-cell-person work-shift-head-cell">성명</th>
-                {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
-                {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, rowIndex) => {
-                const rowKey = String(row.row || row.c2 || rowIndex)
-                const selected = rowKey === String(selectedRowKey || '')
-                return (
-                  <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
-                    <td className="sticky left name-cell">
-                      {editNamesMode ? (
-                        <input
-                          className="work-shift-branch-input"
-                          value={row.c1 || ''}
-                          onFocus={() => setSelectedRowKey(rowKey)}
-                          onChange={event => updateRowBranch(rowIndex, event.target.value)}
-                        />
-                      ) : (row.c1 || '')}
-                    </td>
-                    <td className="sticky left second name-cell">
-                      {editNamesMode ? (
-                        <input
-                          className="work-shift-name-input"
-                          value={row.c2 || ''}
-                          ref={node => registerCellRef(rowIndex, 0, node)}
-                          onFocus={() => setSelectedRowKey(rowKey)}
-                          onChange={event => updateRowName(rowIndex, event.target.value)}
-                          onKeyDown={event => {
-                            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
-                              event.preventDefault()
-                              moveFocus(rowIndex, 0, event.key)
-                            }
-                          }}
-                        />
-                      ) : (row.c2 || '')}
-                    </td>
-                    {Array.from({ length: 31 }, (_, dayIndex) => {
-                      const disabled = dayIndex + 1 > dayCount
-                      return (
-                        <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
+
+        {workMode === 'view' ? (
+          <div
+            ref={tableWrapRef}
+            className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
+            onMouseDown={handleTablePointerDown}
+            onMouseMove={handleTablePointerMove}
+            onMouseLeave={handleTablePointerUp}
+            onMouseUp={handleTablePointerUp}
+          >
+            <table className="work-shift-table">
+              <thead>
+                <tr>
+                  <th className="sticky left head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
+                  <th className="sticky left second head-name name-cell-person work-shift-head-cell">성명</th>
+                  {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
+                  {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => {
+                  const rowKey = String(row.row || row.c2 || rowIndex)
+                  const selected = rowKey === String(selectedRowKey || '')
+                  return (
+                    <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
+                      <td className="sticky left name-cell">
+                        {editNamesMode && canEditSchedule ? (
                           <input
-                            className="work-shift-input"
-                            value={row.days?.[dayIndex] || ''}
+                            className="work-shift-branch-input"
+                            value={row.c1 || ''}
                             onFocus={() => setSelectedRowKey(rowKey)}
-                            ref={node => registerCellRef(rowIndex, dayIndex + 1, node)}
-                            onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
+                            onChange={event => updateRowBranch(rowIndex, event.target.value)}
+                          />
+                        ) : (row.c1 || '')}
+                      </td>
+                      <td className="sticky left second name-cell">
+                        {editNamesMode && canEditSchedule ? (
+                          <input
+                            className="work-shift-name-input"
+                            value={row.c2 || ''}
+                            ref={node => registerCellRef(rowIndex, 0, node)}
+                            onFocus={() => setSelectedRowKey(rowKey)}
+                            onChange={event => updateRowName(rowIndex, event.target.value)}
                             onKeyDown={event => {
                               if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                                 event.preventDefault()
-                                moveFocus(rowIndex, dayIndex + 1, event.key)
+                                moveFocus(rowIndex, 0, event.key)
                               }
                             }}
-                            disabled={disabled || !editNamesMode}
                           />
-                        </td>
-                      )
-                    })}
-                    {(row.summary || []).map((value, index) => <td key={`value-${index}`} className="summary-cell">{value}</td>)}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                        ) : (row.c2 || '')}
+                      </td>
+                      {Array.from({ length: 31 }, (_, dayIndex) => {
+                        const disabled = dayIndex + 1 > dayCount
+                        return (
+                          <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
+                            <input
+                              className="work-shift-input"
+                              value={row.days?.[dayIndex] || ''}
+                              onFocus={() => setSelectedRowKey(rowKey)}
+                              ref={node => registerCellRef(rowIndex, dayIndex + 1, node)}
+                              onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
+                              onKeyDown={event => {
+                                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                                  event.preventDefault()
+                                  moveFocus(rowIndex, dayIndex + 1, event.key)
+                                }
+                              }}
+                              disabled={disabled || !editNamesMode || !canEditSchedule}
+                            />
+                          </td>
+                        )
+                      })}
+                      {(row.summary || []).map((value, index) => <td key={`value-${index}`} className="summary-cell">{value}</td>)}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
     </div>
   )

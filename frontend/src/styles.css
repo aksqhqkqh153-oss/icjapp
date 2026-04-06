@@ -13882,3 +13882,88 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     height: auto;
   }
 }
+
+/* 2026-04-06 work-shift vacation tabs */
+.work-shift-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.work-shift-readonly-notice {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+}
+.work-shift-vacation-card {
+  margin-top: 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+}
+.work-shift-vacation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.work-shift-vacation-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.work-shift-vacation-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.work-shift-vacation-form .span-2 {
+  grid-column: span 2;
+}
+.work-shift-vacation-form textarea.input {
+  min-height: 92px;
+  resize: vertical;
+}
+.work-shift-vacation-submit-row {
+  display: flex;
+  justify-content: flex-end;
+}
+.work-shift-vacation-table-wrap {
+  overflow: auto;
+  border: 1px solid #d9e2ef;
+  border-radius: 12px;
+}
+.work-shift-vacation-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+.work-shift-vacation-table th,
+.work-shift-vacation-table td {
+  border: 1px solid #d9e2ef;
+  padding: 9px 10px;
+  text-align: center;
+  font-size: 12px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.work-shift-vacation-table td:nth-child(7) {
+  white-space: normal;
+  min-width: 220px;
+  text-align: left;
+}
+@media (max-width: 768px) {
+  .work-shift-vacation-form {
+    grid-template-columns: 1fr;
+  }
+  .work-shift-vacation-form .span-2 {
+    grid-column: span 1;
+  }
+}
