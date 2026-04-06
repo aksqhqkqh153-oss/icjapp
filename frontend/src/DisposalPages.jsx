@@ -26,6 +26,18 @@ const FILTER_OPTIONS = [
 const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
 const DEFAULT_CUSTOMER_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
 const DEFAULT_COMPANY_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
+const EXPORT_TEMPLATE_TOKEN_ALIASES = {
+  platform: 'platform',
+  고객명: 'customerName',
+  customerName: 'customerName',
+  disposalDate: 'disposalDate',
+  폐기날짜: 'disposalDate',
+  폐기일자: 'disposalDate',
+  location: 'location',
+  폐기주소: 'location',
+  폐기장소: 'location',
+  suffix: 'suffix',
+}
 
 function getDisposalExportSettingsStorageKey() {
   const user = getStoredUser?.() || {}
@@ -375,18 +387,22 @@ function buildExportInfoLines({ customerName = '', disposalDate = '', location =
   return [buildExportInfoInlineText({ customerName, disposalDate, location })].filter(Boolean)
 }
 
-function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', suffix = '', template = '' }) {
+function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', location = '', suffix = '', template = '' }) {
   const values = {
     platform: String(platform || '').trim(),
     customerName: String(customerName || '').trim(),
     disposalDate: String(disposalDate || '').trim(),
+    location: String(location || '').trim(),
     suffix: String(suffix || '').trim(),
   }
   const defaultLabel = [values.platform, values.customerName, values.disposalDate].filter(Boolean).join(' ')
   const defaultWrapped = defaultLabel ? `[${defaultLabel}] ${values.suffix}` : values.suffix
   const raw = String(template || '').trim()
   const rendered = raw
-    ? raw.replace(/\{(platform|customerName|disposalDate|suffix)\}/g, (_, key) => values[key] || '')
+    ? raw.replace(/\{([^}]+)\}/g, (_, rawKey) => {
+      const normalizedKey = EXPORT_TEMPLATE_TOKEN_ALIASES[String(rawKey || '').trim()]
+      return normalizedKey ? (values[normalizedKey] || '') : ''
+    })
     : defaultWrapped
   return `${sanitizeExportFilename(rendered || defaultWrapped)}.jpg`
 }
@@ -989,7 +1005,7 @@ function DisposalItemsEditor({
   function updateExportTemplate(kind) {
     const currentTemplate = kind === 'customer' ? exportSettings.customerTemplate : exportSettings.companyTemplate
     const nextTemplate = window.prompt(
-      '파일명 형식을 입력해주세요.\n사용 가능 항목: {platform} {customerName} {disposalDate} {suffix}\n\n빈값으로 확인하면 기본 형식으로 복원됩니다.',
+      '파일명 형식을 입력해주세요.\n사용 가능 항목: {플랫폼} {고객명} {폐기날짜} {폐기주소} {suffix}\n영문 항목 {platform} {customerName} {disposalDate} {location} 도 함께 사용할 수 있습니다.\n\n빈값으로 확인하면 기본 형식으로 복원됩니다.',
       currentTemplate,
     )
     if (nextTemplate === null) return
@@ -1011,7 +1027,7 @@ function DisposalItemsEditor({
       || normalizedMessage.includes('not allowed')
       || normalizedMessage.includes('permission')
     ) {
-      return '선택한 폴더는 브라우저 보안정책상 바로 열 수 없습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 선택해주세요.\n\n시스템 보호 폴더는 웹브라우저에서 직접 지정할 수 없습니다. 필요하면 저장 시 파일 선택 창으로 다른 위치를 지정해주세요.'
+      return '선택한 폴더 접근 권한을 브라우저가 허용하지 않았습니다.\n다른 일반 로컬 폴더를 선택한 뒤 다시 저장해주세요.'
     }
 
     return '견적저장위치를 지정하지 못했습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 다시 선택해주세요.'
@@ -1029,8 +1045,6 @@ function DisposalItemsEditor({
       setCustomerSettingsOpen(false)
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        setCustomerSaveDirectoryHandle(null)
-        setCustomerSaveDirectoryLabel('미지정')
         window.alert(getDirectoryPickerErrorMessage(error))
       }
     }
@@ -1048,8 +1062,6 @@ function DisposalItemsEditor({
       setCompanySettingsOpen(false)
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        setCompanySaveDirectoryHandle(null)
-        setCompanySaveDirectoryLabel('미지정')
         window.alert(getDirectoryPickerErrorMessage(error))
       }
     }
@@ -1057,14 +1069,19 @@ function DisposalItemsEditor({
 
   async function saveBlobWithPicker(blob, suggestedName) {
     if (!window.showSaveFilePicker) return false
-    const handle = await window.showSaveFilePicker({
-      suggestedName,
-      types: [{ description: 'JPEG 이미지', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
-    })
-    const writable = await handle.createWritable()
-    await writable.write(blob)
-    await writable.close()
-    return true
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: 'JPEG 이미지', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      return true
+    } catch (error) {
+      if (error?.name === 'AbortError') return false
+      throw error
+    }
   }
 
   async function saveCustomerEstimateAsJpg() {
@@ -1085,6 +1102,7 @@ function DisposalItemsEditor({
         disposalDate: draft.disposalDate,
         suffix: '폐기견적',
         template: exportSettings.customerTemplate,
+        location: draft.location,
       })
 
       if (customerSaveDirectoryHandle) {
@@ -1136,6 +1154,7 @@ function DisposalItemsEditor({
         disposalDate: draft.disposalDate,
         suffix: '폐기밴드',
         template: exportSettings.companyTemplate,
+        location: draft.location,
       })
 
       if (companySaveDirectoryHandle) {
@@ -1802,10 +1821,6 @@ useEffect(() => {
       <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero disposal-form-hero">
         <div className="disposal-hero-title-wrap disposal-form-hero-title-wrap">
-          <div className="disposal-form-mobile-inline-tabs">
-            <button type="button" className="disposal-page-tab" onClick={() => navigate('/disposal/list')}>폐기목록</button>
-            <button type="button" className="disposal-page-tab" onClick={() => navigate('/disposal/settlements')}>폐기결산</button>
-          </div>
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
         </div>
         <div className="disposal-hero-actions disposal-hero-actions-inline" ref={settingsRef}>

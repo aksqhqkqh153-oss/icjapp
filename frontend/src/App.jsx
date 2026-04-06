@@ -353,7 +353,7 @@ const ADMIN_SORT_OPTIONS = [
   { value: 'role', label: '직책별 기준' },
   { value: 'grade', label: '계정권한 기준' },
   { value: 'email', label: '아이디 기준' },
-  { value: 'custom', label: '사용자 지정(필터 2개 이상)' },
+  { value: 'custom', label: '사용자 지정' },
 ]
 
 const ADMIN_CUSTOM_SORT_FIELDS = [
@@ -8442,7 +8442,7 @@ function AdminModePage() {
         }}>
           <div className="inline-actions wrap admin-status-title-row">
             <h2>운영현황</h2>
-            {statusOpen && !isMobile && (
+            {statusOpen && (
               <div className="inline-actions wrap admin-status-category-tabs" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
                 <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
                 <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
@@ -8478,14 +8478,6 @@ function AdminModePage() {
                 }}>삭제</button>}
               </div>
             </div>
-            {isMobile && (
-              <div className="inline-actions wrap admin-status-category-tabs">
-                <button type="button" className={statusTab === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('all')}>전체</button>
-                <button type="button" className={statusTab === 'branch' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('branch')}>가맹대표</button>
-                <button type="button" className={statusTab === 'employee' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('employee')}>현장직원</button>
-                <button type="button" className={statusTab === 'hq' ? 'small selected-toggle' : 'small ghost'} onClick={() => setStatusTab('hq')}>본사직원</button>
-              </div>
-            )}
             {showStatusCategoryActions && statusMovePickerOpen[currentStatusCategoryKey] && (
               <div className="admin-status-add-row">
                 <select value={statusMoveSelection[currentStatusCategoryKey]} onChange={e => setStatusMoveSelection(prev => ({ ...prev, [currentStatusCategoryKey]: e.target.value }))}>
@@ -8569,9 +8561,9 @@ function AdminModePage() {
                         <div className="admin-summary-lines employee-summary-lines">
                           <div className="admin-summary-line admin-summary-line-primary">
                             <span>[{groupNumberDisplay(item)}]</span>
+                            <span>[{defaultPositionForRow(item) || '미지정'}]</span>
                             <span>[{item.name || item.nickname || '이름 미입력'}]</span>
-                            <span>[{item.phone || '연락처 미입력'}]</span>
-                            <span>[{item.vehicle_number || '차량번호 미입력'}]</span>
+                            <span>[{item.google_email || '구글 이메일 미입력'}]</span>
                           </div>
                         </div>
                       </div>
@@ -8595,9 +8587,9 @@ function AdminModePage() {
                         <div className="admin-summary-lines employee-summary-lines">
                           <div className="admin-summary-line admin-summary-line-primary">
                             <span>[{groupNumberDisplay(item)}]</span>
-                            <span>[{item.name || item.nickname || '이름 미입력'}]</span>
-                            <span>[{item.email || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
+                            <span>[{item.name || item.nickname || '이름 미입력'}]</span>
+                            <span>[{item.google_email || '구글 이메일 미입력'}]</span>
                           </div>
                         </div>
                       </div>
