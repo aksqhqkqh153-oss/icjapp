@@ -428,40 +428,72 @@ class PreferenceIn(BaseModel):
     data: dict
 
 
+class PasswordVerifyIn(BaseModel):
+    password: str
 
-def _ensure_policy_storage_ready(conn: Any) -> None:
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS policy_contents (policy_key TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
-    )
+
+def _ensure_policy_storage_ready(conn: Any) -> bool:
     try:
-        _ensure_columns(conn, 'policy_contents', {'updated_at': "TEXT NOT NULL DEFAULT ''"})
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS policy_contents (policy_key TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+        )
+        try:
+            _ensure_columns(conn, 'policy_contents', {'updated_at': "TEXT NOT NULL DEFAULT ''"})
+        except Exception:
+            pass
+        return True
     except Exception:
-        pass
+        logger.exception('failed to ensure policy_contents table')
+        return False
 
 
 def _load_policy_contents(conn: Any) -> dict[str, str]:
-    _ensure_policy_storage_ready(conn)
     contents = dict(POLICY_CONTENT_DEFAULTS)
+    storage_ready = _ensure_policy_storage_ready(conn)
+    if storage_ready:
+        try:
+            rows = conn.execute("SELECT policy_key, content FROM policy_contents").fetchall()
+            for row in rows:
+                normalized = str(row['policy_key'] or '').strip()
+                if normalized:
+                    contents[normalized] = str(row['content'] or '')
+            return contents
+        except Exception:
+            logger.exception('failed to read policy_contents rows')
     try:
-        rows = conn.execute("SELECT policy_key, content FROM policy_contents").fetchall()
+        raw = _get_admin_setting(conn, 'policy_contents_json', '')
+        if raw:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    normalized = str(key or '').strip()
+                    if normalized:
+                        contents[normalized] = str(value or '')
     except Exception:
-        return contents
-    for row in rows:
-        normalized = str(row['policy_key'] or '').strip()
-        if normalized:
-            contents[normalized] = str(row['content'] or '')
+        logger.exception('failed to read fallback policy_contents_json')
     return contents
 
 
 def _save_policy_content(conn: Any, normalized: str, content: str) -> dict[str, str]:
-    _ensure_policy_storage_ready(conn)
     now = utcnow()
-    existing = conn.execute("SELECT policy_key FROM policy_contents WHERE policy_key = ?", (normalized,)).fetchone()
-    if existing:
-        conn.execute("UPDATE policy_contents SET content = ?, updated_at = ? WHERE policy_key = ?", (content, now, normalized))
-    else:
-        conn.execute("INSERT INTO policy_contents(policy_key, content, updated_at) VALUES (?, ?, ?)", (normalized, content, now))
-    return _load_policy_contents(conn)
+    storage_ready = _ensure_policy_storage_ready(conn)
+    if storage_ready:
+        try:
+            existing = conn.execute("SELECT policy_key FROM policy_contents WHERE policy_key = ?", (normalized,)).fetchone()
+            if existing:
+                conn.execute("UPDATE policy_contents SET content = ?, updated_at = ? WHERE policy_key = ?", (content, now, normalized))
+            else:
+                conn.execute("INSERT INTO policy_contents(policy_key, content, updated_at) VALUES (?, ?, ?)", (normalized, content, now))
+            return _load_policy_contents(conn)
+        except Exception:
+            logger.exception('failed to persist policy_contents row, fallback to admin_settings')
+    contents = _load_policy_contents(conn)
+    contents[normalized] = content
+    conn.execute(
+        "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        ('policy_contents_json', json.dumps(contents, ensure_ascii=False), now),
+    )
+    return contents
 
 POLICY_CONTENT_DEFAULTS = {
     'vacation:business': '개요\n\n사업자 연차 사용 규정\n\n구분\n분기마다 4일의 연차\n1분기 4일 / 2분기 4일 / 3분기 4일 / 4기 4일\n\n분기구분\n1월 / 2월 / 3월 / 4월 / 5월 / 6월 / 7월 / 8월 / 9월 / 10월 / 11월 / 12월\n\n연간 가능한 총 사용일수\n총 16일\n\n기본신청기준\n- 가능: 2주(14일) 전 미리 신청시 가능\n- 가능: 주말, 공휴일, 손 없는 날 전부 사용 가능\n- 불가: 14일 이내로 신청시 불가\n- 불가: 이미 풀 스케쥴일 경우 불가\n- 예외: 급작스런 경조사 및 특수한 날은 사유에 따라 연차 승인 가능\n\n특별신청기준\n결혼식 / 신혼여행시 기타로 분류\n\n개요\n\n사업자 월차 사용 규정\n\n구분\n월마다 1일의 월차\n1월~12월 각 월 1일\n\n연간 가능한 총 사용일수\n총 12일\n\n기본신청기준\n- 가능: 1주(7일) 전 미리 신청시 가능\n- 불가: 7일 이내로 신청시 불가\n- 불가: 주말, 공휴일, 손 없는 날, 이미 풀 스케쥴일 경우 불가\n- 불가: 월차와 연차를 같은 달에 동시 사용시 불가',
@@ -1981,6 +2013,20 @@ def login(payload: LoginIn):
         user_payload = user_public_dict(account)
         user_payload['permission_config'] = _get_permission_config(conn)
         return {'access_token': token, 'user': user_payload}
+
+@app.post('/api/auth/verify-password')
+def verify_current_password(payload: PasswordVerifyIn, user=Depends(require_user)):
+    password = str(payload.password or '').strip()
+    if not password:
+        raise HTTPException(status_code=400, detail='비밀번호를 입력해 주세요.')
+    with get_conn() as conn:
+        account = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user['id'],)).fetchone()
+        if not account:
+            raise HTTPException(status_code=404, detail='계정을 찾을 수 없습니다.')
+        if str(account['password_hash'] or '') != hash_password(password):
+            raise HTTPException(status_code=401, detail='비밀번호가 일치하지 않습니다.')
+    return {'ok': True}
+
 @app.post("/api/auth/logout")
 def logout(user=Depends(require_user), authorization: Optional[str] = Header(default=None)):
     token = _bearer_token(authorization)

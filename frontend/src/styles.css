@@ -12608,3 +12608,114 @@ body[data-theme="dark"] a { color: inherit; }
     line-height: 1.2;
   }
 }
+
+/* 2026-04-06 app search + policy edit verification */
+.topbar-search-mode {
+  justify-content: center;
+}
+.topbar-search-shell {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.topbar-search-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+.app-search-page {
+  gap: 14px;
+}
+.app-search-input-card {
+  position: sticky;
+  top: calc(var(--topbar-height, 72px) + 8px);
+  z-index: 5;
+}
+.app-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px 14px;
+  background: var(--card);
+}
+.app-search-inline-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.app-search-main-input {
+  flex: 1 1 auto;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--text-main);
+}
+.app-search-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+.app-search-group-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-search-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted-text);
+}
+.app-search-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-search-result-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 12px 14px;
+}
+.app-search-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.app-search-result-head span {
+  font-size: 12px;
+  color: var(--muted-text);
+}
+.app-search-result-desc {
+  font-size: 13px;
+  color: var(--muted-text);
+  white-space: pre-wrap;
+}
+.policy-password-gate {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.02);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 768px) {
+  .app-search-input-card {
+    top: calc(var(--topbar-height, 68px) + 6px);
+  }
+  .app-search-main-input {
+    font-size: 15px;
+  }
+  .app-search-result-item {
+    padding: 11px 12px;
+  }
+}

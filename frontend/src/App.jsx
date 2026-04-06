@@ -22,6 +22,7 @@ const PAGE_TITLES = {
   '/meetups': '모임',
   '/boards': '게시판',
   '/notifications': '알림',
+  '/search': '검색',
   '/settings': '설정',
   '/policies': '규정',
   '/work-shift-schedule': '근무스케줄',
@@ -757,6 +758,7 @@ function Layout({ children, user, onLogout }) {
   const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
   const isScheduleView = location.pathname === '/schedule'
+  const isSearchView = location.pathname === '/search'
   const bottomLinks = [
     ['/', '홈'],
     ['/map', '지도'],
@@ -841,6 +843,16 @@ function Layout({ children, user, onLogout }) {
 
   return (
     <div className={`app-shell${isScheduleView ? ' schedule-wide' : ''}`}>
+      {isSearchView ? (
+        <header className="topbar topbar-fixed topbar-search-mode">
+          <div className="topbar-search-shell">
+            <button type="button" className="ghost icon-button topbar-icon-button" onClick={() => navigate(-1)} aria-label="뒤로">
+              <ArrowLeftIcon className="topbar-icon-svg" />
+            </button>
+            <div className="topbar-search-title">검색</div>
+          </div>
+        </header>
+      ) : (
       <header className="topbar topbar-fixed">
         <div className="topbar-left">
           <div className="dropdown-wrap" ref={menuRef}>
@@ -920,6 +932,9 @@ function Layout({ children, user, onLogout }) {
         </div>
         <div className="page-heading">{pageTitle(location.pathname)}</div>
         <div className="topbar-right">
+          <button type="button" className={location.pathname === '/search' ? 'ghost icon-button topbar-icon-button active-icon' : 'ghost icon-button topbar-icon-button'} onClick={() => navigate('/search')} aria-label="검색">
+            <SearchIcon className="topbar-icon-svg" />
+          </button>
           <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button topbar-icon-button active-icon notification-icon-button' : 'ghost icon-button topbar-icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
             <BellIcon className="topbar-icon-svg" />
             {Number(badges.notification_count || 0) > 0 && <span className="notification-badge">{badges.notification_count > 99 ? '99+' : badges.notification_count}</span>}
@@ -939,6 +954,7 @@ function Layout({ children, user, onLogout }) {
           </div>
         </div>
       </header>
+      )}
       <main className={`page-container${isScheduleView ? ' schedule-wide' : ''}`}>{children}</main>
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
@@ -7217,6 +7233,148 @@ function MenuPermissionPage() {
   )
 }
 
+
+function buildAppSearchEntries(user, policyMap = {}) {
+  const policyEntries = []
+  Object.entries(POLICY_CONTENT_DEFAULTS).forEach(([categoryId, targets]) => {
+    const categoryLabel = POLICY_CATEGORY_OPTIONS.find(item => item.id === categoryId)?.label || categoryId
+    Object.entries(targets || {}).forEach(([targetId, config]) => {
+      if (!config?.allowed?.(user)) return
+      const key = `${categoryId}:${targetId}`
+      const content = String(policyMap[key] ?? config.defaultContent ?? '')
+      policyEntries.push({
+        id: `policy-${key}`,
+        category: '규정',
+        type: '전환',
+        title: `${categoryLabel} 규정 · ${config.label}`,
+        description: `상단바 -> 메뉴 -> 규정 -> ${categoryLabel} -> ${config.label}`,
+        path: '/policies',
+        keywords: [categoryLabel, '규정', config.label, content].join(' '),
+      })
+    })
+  })
+
+  const staticEntries = [
+    { id: 'home', category: '메뉴', type: '전환', title: '홈', description: '하단바 -> 홈', path: '/', keywords: '홈 메인' },
+    { id: 'schedule', category: '메뉴', type: '전환', title: '일정', description: '하단바 -> 일정', path: '/schedule', keywords: '일정 스케줄 캘린더' },
+    { id: 'work-schedule', category: '메뉴', type: '전환', title: '스케줄', description: '하단바 -> 스케줄', path: '/work-schedule', keywords: '스케줄 근무 일정' },
+    { id: 'notifications', category: '메뉴', type: '전환', title: '알림', description: '상단바 -> 알림', path: '/notifications', keywords: '알림 공지' },
+    { id: 'settings', category: '메뉴', type: '전환', title: '설정', description: '상단바 -> 설정', path: '/settings', keywords: '설정 테마' },
+    { id: 'materials', category: '공용', type: '전환', title: '자재구매/현황', description: '상단바 -> 메뉴 -> 공용 -> 자재구매/현황', path: '/materials', keywords: '자재 구매 신청현황 신청목록 자재입고 구매결산 현재고' },
+    { id: 'warehouse', category: '공용', type: '전환', title: '창고현황', description: '상단바 -> 메뉴 -> 공용 -> 창고현황', path: '/warehouse', keywords: '창고 현황' },
+    { id: 'quotes', category: '공용', type: '전환', title: '견적', description: '상단바 -> 메뉴 -> 공용 -> 견적', path: '/quotes', keywords: '견적 이사견적' },
+    { id: 'policies', category: '공용', type: '전환', title: '규정', description: '상단바 -> 메뉴 -> 공용 -> 규정', path: '/policies', keywords: '규정 휴가 복지 스케줄' },
+    { id: 'work-shift-schedule', category: '공용', type: '전환', title: '근무스케줄', description: '상단바 -> 메뉴 -> 공용 -> 근무스케줄', path: '/work-shift-schedule', keywords: '근무스케줄 사업자 직원' },
+    { id: 'disposal-forms', category: '본사용', type: '전환', title: '폐기양식', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 양식', path: '/disposal/forms', keywords: '폐기양식 폐기 신고' },
+    { id: 'disposal-list', category: '본사용', type: '전환', title: '폐기목록', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 목록', path: '/disposal/list', keywords: '폐기목록 폐기 결산진행 입금' },
+    { id: 'disposal-settlements', category: '본사용', type: '전환', title: '폐기결산', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 결산', path: '/disposal/settlements', keywords: '폐기결산 결산' },
+    { id: 'admin', category: '관리자모드', type: '전환', title: '관리자모드', description: '상단바 -> 설정 -> 관리자모드', path: '/admin-mode', keywords: '관리자모드 계정관리 운영현황' },
+    { id: 'menu-permissions', category: '관리자모드', type: '전환', title: '메뉴권한', description: '상단바 -> 메뉴 -> 관리자모드 -> 메뉴권한', path: '/menu-permissions', keywords: '메뉴권한' },
+  ]
+
+  return [...staticEntries, ...policyEntries]
+}
+
+function AppSearchPage({ user }) {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
+  const [policyMap, setPolicyMap] = useState({})
+
+  useEffect(() => {
+    let ignore = false
+    api('/api/policies-content')
+      .then(result => {
+        if (ignore) return
+        setPolicyMap(result?.contents && typeof result.contents === 'object' ? result.contents : {})
+      })
+      .catch(() => {
+        if (!ignore) setPolicyMap({})
+      })
+    return () => { ignore = true }
+  }, [])
+
+  useEffect(() => {
+    const current = searchParams.get('q') || ''
+    if (current !== query) {
+      const next = new URLSearchParams(searchParams)
+      if (query.trim()) next.set('q', query)
+      else next.delete('q')
+      setSearchParams(next, { replace: true })
+    }
+  }, [query])
+
+  useEffect(() => {
+    const current = searchParams.get('q') || ''
+    if (current !== query) setQuery(current)
+  }, [searchParams])
+
+  const allEntries = useMemo(() => buildAppSearchEntries(user, policyMap), [user, policyMap])
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredEntries = useMemo(() => {
+    if (!normalizedQuery) return allEntries
+    return allEntries.filter(item => [item.title, item.description, item.keywords, item.category, item.type].join(' ').toLowerCase().includes(normalizedQuery))
+  }, [allEntries, normalizedQuery])
+
+  const grouped = useMemo(() => {
+    return filteredEntries.reduce((acc, item) => {
+      const key = item.category || '기타'
+      if (!acc[key]) acc[key] = []
+      acc[key].push(item)
+      return acc
+    }, {})
+  }, [filteredEntries])
+
+  return (
+    <div className="stack-page app-search-page">
+      <section className="card app-search-input-card">
+        <div className="app-search-input-wrap">
+          <SearchIcon className="topbar-icon-svg app-search-inline-icon" />
+          <input
+            autoFocus
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder="메뉴, 규정, 기능명 검색"
+            className="app-search-main-input"
+          />
+        </div>
+      </section>
+
+      <section className="card app-search-results-card">
+        <div className="between align-center">
+          <h2>검색 결과</h2>
+          <div className="muted">{filteredEntries.length}건</div>
+        </div>
+        {!normalizedQuery ? <div className="muted">검색어를 입력하면 앱 내 이동 가능한 기능과 규정 내용을 함께 보여줍니다.</div> : null}
+        {normalizedQuery && !filteredEntries.length ? <div className="muted">검색 결과가 없습니다.</div> : null}
+        <div className="app-search-group-list">
+          {Object.entries(grouped).map(([group, items]) => (
+            <div key={group} className="app-search-group-block">
+              <div className="app-search-group-title">{group}</div>
+              <div className="app-search-result-list">
+                {items.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="app-search-result-item"
+                    onClick={() => navigate(item.path)}
+                  >
+                    <div className="app-search-result-head">
+                      <strong>{item.title}</strong>
+                      <span>{item.type}</span>
+                    </div>
+                    <div className="app-search-result-desc">{item.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function PoliciesPage() {
   const user = getStoredUser()
   const canEdit = Number(user?.grade || 9) <= 2
@@ -7227,6 +7385,10 @@ function PoliciesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [editMode, setEditMode] = useState(false)
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordChecking, setPasswordChecking] = useState(false)
 
   const categoryMap = POLICY_CONTENT_DEFAULTS[category] || {}
   const policyEntries = Object.entries(categoryMap).map(([id, item]) => ({ id, ...item }))
@@ -7264,10 +7426,37 @@ function PoliciesPage() {
   useEffect(() => {
     setDraft(currentContent)
     setMessage('')
+    setEditMode(false)
+    setPasswordPromptOpen(false)
+    setPasswordInput('')
   }, [currentContent, currentKey])
 
-  async function handleSave() {
+  async function handleEditUnlock() {
     if (!currentPolicy || !canEdit) return
+    if (!passwordInput.trim()) {
+      setMessage('비밀번호를 입력해 주세요.')
+      return
+    }
+    setPasswordChecking(true)
+    setMessage('')
+    try {
+      await api('/api/auth/verify-password', {
+        method: 'POST',
+        body: JSON.stringify({ password: passwordInput }),
+      })
+      setEditMode(true)
+      setPasswordPromptOpen(false)
+      setPasswordInput('')
+      setMessage('편집 모드가 활성화되었습니다.')
+    } catch (error) {
+      setMessage(error.message || '비밀번호 확인에 실패했습니다.')
+    } finally {
+      setPasswordChecking(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!currentPolicy || !canEdit || !editMode) return
     setSaving(true)
     setMessage('')
     try {
@@ -7277,6 +7466,7 @@ function PoliciesPage() {
       })
       const nextMap = result?.contents && typeof result.contents === 'object' ? result.contents : {}
       setPolicyMap(nextMap)
+      setEditMode(false)
       setMessage('저장되었습니다.')
     } catch (error) {
       setMessage(error.message || '저장 중 오류가 발생했습니다.')
@@ -7331,17 +7521,42 @@ function PoliciesPage() {
               <strong>{currentPolicy.label} {POLICY_CATEGORY_OPTIONS.find(item => item.id === category)?.label || '규정'}</strong>
               {canEdit ? (
                 <div className="stack compact policy-editor-wrap">
-                  <textarea
-                    className="input policy-editor-textarea"
-                    value={draft}
-                    onChange={event => setDraft(event.target.value)}
-                    rows={18}
-                    placeholder="규정 내용을 입력해 주세요."
-                  />
-                  <div className="row gap policy-editor-actions">
-                    <button type="button" className="primary" onClick={handleSave} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
-                    {message ? <span className="muted">{message}</span> : null}
-                  </div>
+                  {!editMode ? (
+                    <>
+                      <div className="policy-content-prewrap">{currentContent}</div>
+                      <div className="row gap policy-editor-actions">
+                        <button type="button" className="primary" onClick={() => { setPasswordPromptOpen(prev => !prev); setMessage('') }}>편집</button>
+                        {message ? <span className="muted">{message}</span> : null}
+                      </div>
+                      {passwordPromptOpen ? (
+                        <div className="policy-password-gate">
+                          <label className="stack compact-gap">
+                            <span>현재 접속 중인 계정 비밀번호</span>
+                            <input type="password" value={passwordInput} onChange={event => setPasswordInput(event.target.value)} placeholder="비밀번호 입력" autoComplete="current-password" />
+                          </label>
+                          <div className="row gap policy-editor-actions">
+                            <button type="button" className="primary" onClick={handleEditUnlock} disabled={passwordChecking}>{passwordChecking ? '확인중...' : '편집 진행'}</button>
+                            <button type="button" className="ghost" onClick={() => { setPasswordPromptOpen(false); setPasswordInput('') }}>취소</button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <textarea
+                        className="input policy-editor-textarea"
+                        value={draft}
+                        onChange={event => setDraft(event.target.value)}
+                        rows={18}
+                        placeholder="규정 내용을 입력해 주세요."
+                      />
+                      <div className="row gap policy-editor-actions">
+                        <button type="button" className="primary" onClick={handleSave} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+                        <button type="button" className="ghost" onClick={() => { setDraft(currentContent); setEditMode(false); setMessage('') }}>취소</button>
+                        {message ? <span className="muted">{message}</span> : null}
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="policy-content-prewrap">{currentContent}</div>
@@ -11832,6 +12047,7 @@ function App() {
         <Route path="/meetups" element={staffAllowed ? <MeetupsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/boards" element={staffAllowed ? <BoardsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/notifications" element={staffAllowed ? <NotificationsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/search" element={staffAllowed ? <AppSearchPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/points" element={staffAllowed ? <PointsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/warehouse" element={staffAllowed ? <WarehousePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/materials" element={staffAllowed ? <MaterialsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
