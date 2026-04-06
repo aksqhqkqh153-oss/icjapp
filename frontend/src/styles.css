@@ -8953,7 +8953,7 @@ a:focus-visible {
 }
 
 .disposal-meta-row-top {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr);
 }
 
 .disposal-meta-row-bottom {
@@ -10939,7 +10939,7 @@ button.disposal-items-number-cell.has-note {
 
 .disposal-linked-preview-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   margin-bottom: 8px;
 }

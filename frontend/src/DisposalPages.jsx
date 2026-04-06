@@ -20,6 +20,7 @@ const FILTER_OPTIONS = [
 
 const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
 const FINAL_STATUS_SELECT_OPTIONS = [{ value: '', label: '최종현황 선택' }, ...FINAL_STATUS_OPTIONS.map(option => ({ value: option, label: option }))]
+const PLATFORM_OPTIONS = ['', '숨고', '오늘', '공홈']
 
 
 function getDefaultVisibleItemRows() {
@@ -48,6 +49,7 @@ function createInitialDraft() {
     location: '',
     district: '',
     finalStatus: '',
+    platform: '',
     customerName: '',
     items: Array.from({ length: getDefaultVisibleItemRows() }, () => createEmptyItem()),
   }
@@ -95,6 +97,7 @@ function normalizeRecordShape(record) {
     location: String(record.location || ''),
     district: String(record.district || ''),
     finalStatus: String(record.finalStatus || ''),
+    platform: String(record.platform || ''),
     customerName: String(record.customerName || ''),
     items,
     totals: {
@@ -252,6 +255,7 @@ function makeRecordFromDraft(draft, totals, existingId = '') {
     location: draft.location,
     district: draft.district,
     finalStatus: draft.finalStatus,
+    platform: draft.platform,
     customerName: draft.customerName,
     items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
     totals: normalizedTotals,
@@ -304,12 +308,25 @@ function formatExportCustomerLabel(value) {
   return `${raw} 고객님`
 }
 
-function buildExportInfoText({ customerName = '', disposalDate = '', location = '' }) {
+function formatExportDateLabel(value) {
+  const raw = formatExportDisplayDate(value)
+  if (!raw) return ''
+  return `${raw} 폐기예정`
+}
+
+function formatExportLocationLabel(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  return `주소 : ${raw}`
+}
+
+function buildExportInfoLines({ platform = '', customerName = '', disposalDate = '', location = '', includePlatform = true }) {
   return [
-    formatExportCustomerLabel(customerName),
-    formatExportDisplayDate(disposalDate),
-    String(location || '').trim(),
-  ].filter(Boolean).map(value => `[${value}]`).join(' ')
+    includePlatform ? `플랫폼 : ${String(platform || '').trim()}` : '',
+    `고객명 : ${formatExportCustomerLabel(customerName)}`,
+    `폐기일자 : ${formatExportDateLabel(disposalDate)}`,
+    `폐기장소 : ${formatExportLocationLabel(location)}`,
+  ].filter(line => line && !line.endsWith(': '))
 }
 
 function sanitizeExportFilename(value) {
@@ -338,13 +355,14 @@ async function loadCanvasImage(src) {
   })
 }
 
-async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerName = '', disposalDate = '', location = '', mode = 'customer' }) {
+async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = '', customerName = '', disposalDate = '', location = '', mode = 'customer' }) {
   const isCompany = mode === 'company'
   const outerMargin = 36
   const padding = 28
   const titleHeight = isCompany ? 112 : 52
   const subtitleHeight = isCompany ? 0 : 34
-  const infoHeight = isCompany ? 52 : 42
+  const includePlatform = isCompany
+  const infoHeight = includePlatform ? 118 : 84
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
@@ -426,8 +444,15 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, customerNam
 
   ctx.fillStyle = '#374151'
   ctx.font = '700 18px sans-serif'
-  const infoText = buildExportInfoText({ customerName, disposalDate, location })
-  if (infoText) ctx.fillText(infoText, startX, currentY + infoHeight / 2)
+  ctx.textAlign = 'left'
+  const infoLines = buildExportInfoLines({ platform, customerName, disposalDate, location, includePlatform })
+  if (infoLines.length) {
+    const lineGap = 26
+    const startLineY = currentY + 18
+    infoLines.forEach((line, index) => {
+      ctx.fillText(line, startX, startLineY + index * lineGap)
+    })
+  }
   currentY += infoHeight
 
   ctx.strokeStyle = '#111827'
@@ -505,6 +530,7 @@ async function buildCompanyQuoteCanvas(options = {}) {
 function persistPreviewDraft(draft) {
   try {
     sessionStorage.setItem(DISPOSAL_PREVIEW_SESSION_KEY, JSON.stringify({
+      platform: String(draft?.platform || ''),
       customerName: String(draft?.customerName || ''),
       disposalDate: String(draft?.disposalDate || ''),
       location: String(draft?.location || ''),
@@ -552,13 +578,14 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
   const normalizedQuery = normalizeSearchText(searchQuery)
   sorted.forEach((record) => {
     const customerGroupKey = makeCustomerLocationKey(record?.customerName, record?.location) || String(record?.id || '')
-    const searchable = normalizeSearchText([record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
+    const searchable = normalizeSearchText([record?.platform, record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
     if (normalizedQuery && !searchable.includes(normalizedQuery)) return
     if (!grouped.has(customerGroupKey)) {
       grouped.set(customerGroupKey, {
         key: customerGroupKey,
         label: `${record?.customerName || '고객명 미지정'}${record?.location ? ` · ${record.location}` : ''}`,
         recordId: record.id,
+        platform: record.platform || '-',
         customerName: record.customerName || '-',
         location: record.location || '-',
         disposalDate: record.disposalDate || '-',
@@ -677,6 +704,7 @@ function DisposalFinalStatusRichLabel({ value }) {
 }
 
 function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
+  const platformRef = useRef(null)
   const customerNameRef = useRef(null)
   const disposalDateRef = useRef(null)
   const finalStatusRef = useRef(null)
@@ -748,7 +776,11 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
     <section className="card disposal-entry-card">
       <div className="disposal-meta-layout">
         <div className="disposal-meta-row disposal-meta-row-top">
-          <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef)} placeholder="고객명" />
+          <select ref={platformRef} value={draft.platform || ''} onChange={e => updateDraftField('platform', e.target.value)} onKeyDown={e => moveFocus(e, customerNameRef)} className={!draft.platform ? 'is-placeholder' : ''}>
+            <option value="">플랫폼</option>
+            {PLATFORM_OPTIONS.filter(Boolean).map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef, platformRef)} placeholder="고객명" />
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
           <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
             <select
@@ -1072,9 +1104,10 @@ function DisposalItemsEditor({
           </div>
         </div>
         <div className="disposal-linked-preview-meta customer-large-text">
-          <div>{draft.customerName || ''}</div>
-          <div>{draft.disposalDate || ''}</div>
-          <div>{draft.location || ''}</div>
+          <div>{`플랫폼 : ${draft.platform || '-'}`}</div>
+          <div>{`고객명 : ${formatExportCustomerLabel(draft.customerName)}`}</div>
+          <div>{`폐기일자 : ${formatExportDateLabel(draft.disposalDate)}`}</div>
+          <div>{`폐기장소 : ${formatExportLocationLabel(draft.location)}`}</div>
         </div>
         <div className="disposal-linked-preview-table customer customer-large-text">
           <div className="disposal-linked-preview-row head">
@@ -1113,9 +1146,10 @@ function DisposalItemsEditor({
           </div>
         </div>
         <div className="disposal-linked-preview-meta customer-large-text">
-          <div>{draft.customerName || ''}</div>
-          <div>{draft.disposalDate || ''}</div>
-          <div>{draft.location || ''}</div>
+          <div>{`플랫폼 : ${draft.platform || '-'}`}</div>
+          <div>{`고객명 : ${formatExportCustomerLabel(draft.customerName)}`}</div>
+          <div>{`폐기일자 : ${formatExportDateLabel(draft.disposalDate)}`}</div>
+          <div>{`폐기장소 : ${formatExportLocationLabel(draft.location)}`}</div>
         </div>
         <div className="disposal-linked-preview-table customer company customer-large-text">
           <div className="disposal-linked-preview-row head">
@@ -1434,6 +1468,7 @@ export function DisposalFormsPage() {
     const found = loadRecords().find(record => record.id === recordId)
     if (found) {
       setDraft({
+        platform: found.platform || '',
         customerName: found.customerName || '',
         disposalDate: found.disposalDate || '',
         location: found.location || '',
@@ -1735,7 +1770,7 @@ export function DisposalListPage() {
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group">
             <div className="disposal-filter-chip-label">검색</div>
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="이름, 주소, 날짜 검색" />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="플랫폼, 이름, 주소, 날짜 검색" />
             <button type="button" className="ghost" onClick={applySearch}>검색</button>
           </div>
         </div>
@@ -1750,8 +1785,9 @@ export function DisposalListPage() {
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
               <div className="disposal-list-date-label disposal-customer-group-label">
                 <div>
-                  <strong>{group.customerName}</strong>
                   <span>{group.disposalDate}</span>
+                  <span>{group.platform || '-'}</span>
+                  <strong>{group.customerName}</strong>
                   <span>{group.location}</span>
                 </div>
                 <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>

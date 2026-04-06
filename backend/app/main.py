@@ -4660,6 +4660,26 @@ def _normalize_disposal_place_prefix(value: str) -> str:
             if district_match:
                 return f"{region} {district_match.group(1)}".strip()
 
+    region_aliases = sorted(set(_DISPOSAL_REGION_ALIAS_MAP.keys()) | set(_DISPOSAL_REGION_ALIAS_MAP.values()), key=len, reverse=True)
+    found_region = ''
+    for region_alias in region_aliases:
+        if region_alias and region_alias in compact:
+            found_region = _DISPOSAL_REGION_ALIAS_MAP.get(region_alias, region_alias)
+            break
+    district_candidates: list[str] = []
+    for token in re.findall(r'[가-힣0-9]{1,12}(?:구|군|시)?', compact):
+        stripped = _strip_disposal_region_suffix(token)
+        if not stripped:
+            continue
+        if token in _DISPOSAL_REGION_ALIAS_MAP or stripped in _DISPOSAL_REGION_ALIAS_MAP:
+            continue
+        district_candidates.append(token)
+        district_candidates.append(stripped)
+    if found_region and district_candidates:
+        for candidate in district_candidates:
+            if candidate and candidate != found_region:
+                return f"{found_region} {candidate}".strip()
+
     tokens = raw.split(' ')
     if len(tokens) >= 2:
         return ' '.join(tokens[:2]).strip()
@@ -4767,34 +4787,113 @@ def _disposal_place_keys_match(left: str, right: str) -> bool:
     return (left_district == right_district) or left_district.startswith(right_district) or right_district.startswith(left_district)
 
 
+def _disposal_location_compact_tokens(value: str) -> set[str]:
+    compact = re.sub(r'\s+', '', _disposal_compact_text(value))
+    tokens: set[str] = set()
+    if not compact:
+        return tokens
+
+    for region_alias in set(_DISPOSAL_REGION_ALIAS_MAP.values()):
+        if region_alias and region_alias in compact:
+            tokens.add(region_alias)
+
+    for match in re.finditer(r'([가-힣0-9]{1,12})(구|군|시)', compact):
+        whole = ''.join(match.groups())
+        stripped = _strip_disposal_region_suffix(whole)
+        if whole:
+            tokens.add(whole)
+        if stripped:
+            tokens.add(stripped)
+
+    for chunk in re.findall(r'[가-힣0-9]{2,12}', compact):
+        stripped = _strip_disposal_region_suffix(chunk)
+        if stripped:
+            tokens.add(stripped)
+        tokens.add(chunk)
+    return {token for token in tokens if token}
+
+
+def _disposal_row_region_district_tokens(place_prefix: str, district_name: str = '') -> tuple[str, set[str]]:
+    row_region, row_district = _disposal_place_search_parts(place_prefix)
+    aliases: set[str] = set()
+    if row_district:
+        aliases.add(row_district)
+    district_raw = str(district_name or '').strip()
+    if district_raw:
+        aliases.add(district_raw)
+        stripped = _strip_disposal_region_suffix(district_raw)
+        if stripped:
+            aliases.add(stripped)
+    compact_place = re.sub(r'\s+', '', _disposal_compact_text(place_prefix))
+    for alias in list(aliases):
+        compact_alias = re.sub(r'\s+', '', _disposal_compact_text(alias))
+        if compact_alias:
+            aliases.add(compact_alias)
+    if compact_place:
+        aliases.add(compact_place)
+    return row_region, {alias for alias in aliases if alias}
+
+
 def _disposal_similarity_score(location: str, place_prefix: str, district_name: str = '') -> int:
     input_region, input_district = _disposal_place_search_parts(location)
-    row_region, row_district = _disposal_place_search_parts(place_prefix)
+    row_region, row_aliases = _disposal_row_region_district_tokens(place_prefix, district_name)
     district_alias = _strip_disposal_region_suffix(district_name)
-    if district_alias and not row_district:
-        row_district = district_alias
-    if not input_region or not row_region or input_region != row_region:
+    row_district = ''
+    for candidate in row_aliases:
+        stripped = _strip_disposal_region_suffix(candidate)
+        if stripped and (not row_district or len(stripped) < len(row_district)):
+            row_district = stripped
+
+    compact_location = re.sub(r'\s+', '', _disposal_compact_text(location))
+    location_tokens = _disposal_location_compact_tokens(location)
+
+    if not row_region:
         return -1
+    if input_region:
+        if input_region != row_region:
+            return -1
+    elif row_region not in location_tokens and row_region not in compact_location:
+        return -1
+
     score = 100
     if input_district and row_district:
         if input_district == row_district:
             score += 100
         elif row_district.startswith(input_district) or input_district.startswith(row_district):
-            score += 80
+            score += 85
         elif input_district in row_district or row_district in input_district:
-            score += 55
+            score += 60
         else:
-            compact_location = re.sub(r'\s+', '', _disposal_compact_text(location))
-            compact_district = re.sub(r'\s+', '', _disposal_compact_text(row_district))
-            compact_alias = re.sub(r'\s+', '', _disposal_compact_text(district_alias))
-            if compact_district and compact_district in compact_location:
-                score += 45
-            elif compact_alias and compact_alias in compact_location:
-                score += 45
-            else:
+            district_matched = False
+            for alias in row_aliases:
+                stripped_alias = _strip_disposal_region_suffix(alias)
+                compact_alias = re.sub(r'\s+', '', _disposal_compact_text(alias))
+                if stripped_alias and stripped_alias in location_tokens:
+                    district_matched = True
+                    score += 55
+                    break
+                if compact_alias and compact_alias in compact_location:
+                    district_matched = True
+                    score += 50
+                    break
+            if not district_matched:
                 return -1
     elif input_district or row_district:
-        score += 10
+        district_matched = False
+        search_targets = {input_district, row_district, district_alias}
+        for alias in row_aliases.union(search_targets):
+            stripped_alias = _strip_disposal_region_suffix(alias)
+            compact_alias = re.sub(r'\s+', '', _disposal_compact_text(alias))
+            if stripped_alias and stripped_alias in location_tokens:
+                district_matched = True
+                score += 35
+                break
+            if compact_alias and compact_alias in compact_location:
+                district_matched = True
+                score += 30
+                break
+        if not district_matched and input_district:
+            return -1
 
     normalized_input = _normalize_disposal_place_prefix(location)
     normalized_row = _normalize_disposal_place_prefix(place_prefix)
@@ -4804,19 +4903,19 @@ def _disposal_similarity_score(location: str, place_prefix: str, district_name: 
         elif normalized_input in normalized_row or normalized_row in normalized_input:
             score += 20
 
-    compact_input = re.sub(r'\s+', '', _disposal_compact_text(location))
     compact_row = re.sub(r'\s+', '', _disposal_compact_text(place_prefix))
     compact_district_name = re.sub(r'\s+', '', _disposal_compact_text(district_name))
-    if compact_input and compact_row:
-        if compact_input == compact_row:
-            score += 30
-        elif compact_input in compact_row or compact_row in compact_input:
-            score += 15
-    if compact_input and compact_district_name:
-        if compact_district_name in compact_input:
-            score += 35
-        elif any(token and token in compact_input for token in {district_alias, row_district}):
-            score += 25
+    if compact_input := compact_location:
+        if compact_row:
+            if compact_input == compact_row:
+                score += 30
+            elif compact_input in compact_row or compact_row in compact_input:
+                score += 15
+        if compact_district_name:
+            if compact_district_name in compact_input:
+                score += 35
+            elif any(token and token in compact_input for token in {district_alias, row_district}):
+                score += 25
     return score
 
 
