@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
 import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalPreviewPage, DisposalSettlementsPage } from './DisposalPages'
+import { WORK_SHIFT_TEMPLATE } from './workScheduleTemplate'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -23,6 +24,7 @@ const PAGE_TITLES = {
   '/notifications': '알림',
   '/settings': '설정',
   '/policies': '규정',
+  '/work-shift-schedule': '근무스케줄',
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
   '/workday-history': '일시작종료',
@@ -430,6 +432,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'workday-history', label: '일시작종료', path: '/workday-history' },
       { id: 'points', label: '포인트', path: '/points' },
       { id: 'policies', label: '규정', path: '/policies' },
+      { id: 'work-shift-schedule', label: '근무스케줄', path: '/work-shift-schedule' },
     ],
   },
   {
@@ -7352,6 +7355,161 @@ function PoliciesPage() {
   )
 }
 
+
+function daysInMonthFromParts(year, month) {
+  return new Date(year, month, 0).getDate()
+}
+
+function workShiftStorageKey(sectionId, year, month) {
+  return `icj_work_shift_schedule_${sectionId}_${year}-${String(month).padStart(2, '0')}`
+}
+
+function cloneWorkShiftRows(rows = []) {
+  return rows.map(row => ({ ...row, days: Array.isArray(row.days) ? [...row.days] : [], summary: Array.isArray(row.summary) ? [...row.summary] : [] }))
+}
+
+function computeWorkShiftSummary(days = []) {
+  const normalized = days.map(value => String(value || '').trim())
+  const count = target => normalized.filter(value => value === target).length
+  const oneCount = count('1')
+  const twoCount = count('2')
+  const jangCount = count('장')
+  const vacationCount = count('휴')
+  const monthlyCount = count('월')
+  const annualCount = count('연')
+  const sickCount = count('병')
+  const reserveCount = count('예')
+  const etcCount = count('기')
+  const inputTotal = oneCount + twoCount + jangCount
+  const weighted = oneCount + (twoCount * 2) + jangCount
+  const total = weighted + monthlyCount + annualCount + sickCount + reserveCount + etcCount
+  return [String(inputTotal), String(oneCount), String(twoCount), String(jangCount), String(weighted), String(vacationCount), String(monthlyCount), String(annualCount), String(sickCount), String(reserveCount), String(etcCount), String(total)]
+}
+
+function WorkShiftSchedulePage() {
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth() + 1
+  const sectionOptions = [
+    { id: 'business', label: '사업자' },
+    { id: 'staff', label: '직원' },
+  ]
+  const [sectionId, setSectionId] = useState('business')
+  const [year, setYear] = useState(currentYear)
+  const [month, setMonth] = useState(currentMonth)
+  const template = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
+  const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
+  const dayCount = daysInMonthFromParts(year, month)
+
+  useEffect(() => {
+    const templateSection = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
+    const key = workShiftStorageKey(sectionId, year, month)
+    let nextRows = cloneWorkShiftRows(templateSection.rows || [])
+    try {
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed?.rows)) {
+          nextRows = cloneWorkShiftRows(parsed.rows)
+        }
+      }
+    } catch (_) {}
+    nextRows = nextRows.map(row => ({ ...row, summary: computeWorkShiftSummary(row.days) }))
+    setRows(nextRows)
+  }, [sectionId, year, month])
+
+  useEffect(() => {
+    const key = workShiftStorageKey(sectionId, year, month)
+    try {
+      localStorage.setItem(key, JSON.stringify({ rows }))
+    } catch (_) {}
+  }, [rows, sectionId, year, month])
+
+  const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+  const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
+  const dayLabels = Array.from({ length: 31 }, (_, index) => {
+    const day = index + 1
+    return day <= dayCount ? `${day}일` : ''
+  })
+
+  function updateCell(rowIndex, dayIndex, value) {
+    const nextValue = String(value || '').trim().slice(0, 2)
+    setRows(prev => prev.map((row, index) => {
+      if (index !== rowIndex) return row
+      const nextDays = [...row.days]
+      nextDays[dayIndex] = nextValue
+      return { ...row, days: nextDays, summary: computeWorkShiftSummary(nextDays) }
+    }))
+  }
+
+  return (
+    <div className="stack-page">
+      <section className="card work-shift-page-card">
+        <div className="work-shift-toolbar">
+          <div className="work-shift-title-wrap">
+            <h2>근무스케줄</h2>
+            <div className="inline-actions wrap">
+              {sectionOptions.map(option => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={sectionId === option.id ? 'small selected-toggle' : 'small ghost'}
+                  onClick={() => setSectionId(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="inline-actions wrap">
+            <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
+              {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
+            </select>
+            <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
+              {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="muted work-shift-description">{sectionId === 'business' ? '사업자 근무스케줄' : '직원 근무스케줄'} · 엑셀 템플릿 기준</div>
+        <div className="work-shift-table-wrap">
+          <table className="work-shift-table">
+            <thead>
+              <tr>
+                <th className="sticky left head-name">{sectionId === 'business' ? '호점' : '구분'}</th>
+                <th className="sticky left second head-name">성명</th>
+                {dayLabels.map((label, index) => <th key={index} className="head-day">{label}</th>)}
+                {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`${sectionId}-${row.row || rowIndex}`}>
+                  <td className="sticky left name-cell">{row.c1}</td>
+                  <td className="sticky left second name-cell">{row.c2}</td>
+                  {Array.from({ length: 31 }, (_, dayIndex) => {
+                    const disabled = dayIndex + 1 > dayCount
+                    return (
+                      <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
+                        <input
+                          className="work-shift-input"
+                          value={row.days?.[dayIndex] || ''}
+                          onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
+                          disabled={disabled}
+                        />
+                      </td>
+                    )
+                  })}
+                  {(row.summary || []).map((value, index) => <td key={`value-${index}`} className="summary-cell">{value}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function SettingsPage({ onLogout }) {
   const navigate = useNavigate()
   const [prefs, setPrefs] = useState({})
@@ -11674,6 +11832,7 @@ function App() {
         <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/policies" element={staffAllowed ? <PoliciesPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/work-shift-schedule" element={staffAllowed ? <WorkShiftSchedulePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/workday-history" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 일시작종료 기능을 사용할 수 없습니다." /> : <WorkdayHistoryPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/admin-mode" element={staffAllowed ? (canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/menu-permissions" element={staffAllowed ? (isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

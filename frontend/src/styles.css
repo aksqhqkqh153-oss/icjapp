@@ -12484,3 +12484,29 @@ body[data-theme="dark"] a { color: inherit; }
     letter-spacing: -0.01em;
   }
 }
+
+.work-shift-page-card { overflow: hidden; }
+.work-shift-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.work-shift-title-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.work-shift-description { margin-top: 6px; }
+.work-shift-table-wrap { overflow:auto; margin-top:12px; border:1px solid var(--line); border-radius:14px; background:var(--card); }
+.work-shift-table { border-collapse: separate; border-spacing: 0; min-width: 1800px; width:max-content; }
+.work-shift-table th, .work-shift-table td { border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:0; text-align:center; font-size:12px; }
+.work-shift-table thead th { position: sticky; top: 0; background: var(--card); z-index: 4; padding: 8px 6px; font-weight: 700; white-space: nowrap; }
+.work-shift-table .sticky.left { position: sticky; left: 0; z-index: 5; background: var(--card); }
+.work-shift-table .sticky.left.second { left: 86px; z-index: 5; }
+.work-shift-table .head-name, .work-shift-table .name-cell { width: 86px; min-width: 86px; max-width: 86px; padding: 8px 6px; white-space: nowrap; }
+.work-shift-table .head-day, .work-shift-table .day-cell { width: 42px; min-width: 42px; max-width: 42px; }
+.work-shift-table .head-summary, .work-shift-table .summary-cell { width: 56px; min-width: 56px; max-width: 56px; padding: 8px 4px; white-space: nowrap; }
+.work-shift-table .name-cell { background: var(--card); font-weight: 600; }
+.work-shift-table .summary-cell { background: rgba(255, 244, 177, 0.32); font-weight: 700; }
+.work-shift-table .day-cell.disabled { background: rgba(0,0,0,0.04); }
+.work-shift-input { width:100%; min-height:34px; border:0; background:transparent; text-align:center; font-size:12px; padding:6px 2px; outline:none; }
+.work-shift-input:disabled { color: transparent; cursor: default; }
+@media (max-width: 767px) {
+  .work-shift-toolbar, .work-shift-title-wrap { align-items:flex-start; }
+  .work-shift-table th, .work-shift-table td { font-size: 11px; }
+  .work-shift-input { min-height: 32px; font-size: 11px; }
+  .work-shift-table .head-name, .work-shift-table .name-cell { width: 72px; min-width:72px; max-width:72px; }
+  .work-shift-table .sticky.left.second { left: 72px; }
+}

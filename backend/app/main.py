@@ -429,34 +429,36 @@ class PreferenceIn(BaseModel):
 
 def _ensure_policy_storage_ready(conn: Any) -> None:
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+        "CREATE TABLE IF NOT EXISTS policy_contents (policy_key TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
     )
     try:
-        _ensure_columns(conn, 'admin_settings', {'updated_at': "TEXT NOT NULL DEFAULT ''"})
+        _ensure_columns(conn, 'policy_contents', {'updated_at': "TEXT NOT NULL DEFAULT ''"})
     except Exception:
-        # Some production databases may block duplicate ALTER attempts during concurrent startup.
-        # The table creation above is sufficient for fresh installs, so only the missing-column case matters.
         pass
 
 
 def _load_policy_contents(conn: Any) -> dict[str, str]:
     _ensure_policy_storage_ready(conn)
     contents = dict(POLICY_CONTENT_DEFAULTS)
-    rows = conn.execute("SELECT key, value FROM admin_settings WHERE key LIKE 'policy_content:%'").fetchall()
+    try:
+        rows = conn.execute("SELECT policy_key, content FROM policy_contents").fetchall()
+    except Exception:
+        return contents
     for row in rows:
-        raw_key = str(row['key'] or '')
-        normalized = raw_key.replace('policy_content:', '', 1)
-        contents[normalized] = str(row['value'] or '')
+        normalized = str(row['policy_key'] or '').strip()
+        if normalized:
+            contents[normalized] = str(row['content'] or '')
     return contents
 
 
 def _save_policy_content(conn: Any, normalized: str, content: str) -> dict[str, str]:
     _ensure_policy_storage_ready(conn)
-    existing = conn.execute("SELECT key FROM admin_settings WHERE key = ?", (f'policy_content:{normalized}',)).fetchone()
+    now = utcnow()
+    existing = conn.execute("SELECT policy_key FROM policy_contents WHERE policy_key = ?", (normalized,)).fetchone()
     if existing:
-        conn.execute("UPDATE admin_settings SET value = ?, updated_at = ? WHERE key = ?", (content, utcnow(), f'policy_content:{normalized}'))
+        conn.execute("UPDATE policy_contents SET content = ?, updated_at = ? WHERE policy_key = ?", (content, now, normalized))
     else:
-        conn.execute("INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (f'policy_content:{normalized}', content, utcnow()))
+        conn.execute("INSERT INTO policy_contents(policy_key, content, updated_at) VALUES (?, ?, ?)", (normalized, content, now))
     return _load_policy_contents(conn)
 
 POLICY_CONTENT_DEFAULTS = {
@@ -5242,8 +5244,12 @@ def _get_materials_table_layout_key(device: str | None) -> str:
 
 @app.get('/api/policies-content')
 def get_policies_content(user=Depends(require_user)):
-    with get_conn() as conn:
-        contents = _load_policy_contents(conn)
+    try:
+        with get_conn() as conn:
+            contents = _load_policy_contents(conn)
+    except Exception as exc:
+        logger.exception('failed to load policy contents: %s', exc)
+        contents = dict(POLICY_CONTENT_DEFAULTS)
     return {'contents': contents}
 
 @app.post('/api/policies-content')
@@ -5255,8 +5261,12 @@ def save_policies_content(payload: PreferenceIn, user=Depends(require_admin_or_s
     normalized = f"{category}:{target}".strip(':')
     if normalized not in POLICY_CONTENT_DEFAULTS:
         raise HTTPException(status_code=400, detail='허용되지 않는 규정 항목입니다.')
-    with get_conn() as conn:
-        contents = _save_policy_content(conn, normalized, content)
+    try:
+        with get_conn() as conn:
+            contents = _save_policy_content(conn, normalized, content)
+    except Exception as exc:
+        logger.exception('failed to save policy content: %s', exc)
+        raise HTTPException(status_code=500, detail='규정 저장 중 오류가 발생했습니다.') from exc
     return {'ok': True, 'contents': contents}
 
 @app.get('/api/materials/table-scale')
