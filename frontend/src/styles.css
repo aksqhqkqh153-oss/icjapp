@@ -13990,3 +13990,52 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     grid-column: span 1;
   }
 }
+
+
+/* 2026-04-06 work-shift toolbar / vacation role mapping update */
+.work-shift-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.work-shift-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.work-shift-screen-shell.desktop .work-shift-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.work-shift-screen-shell.desktop .work-shift-title-row {
+  flex-wrap: nowrap;
+}
+
+.work-shift-screen-shell.desktop .work-shift-control-row {
+  flex-wrap: nowrap;
+}
+
+.work-shift-screen-shell.desktop .work-shift-section-tabs {
+  flex: 1 1 auto;
+}
+
+.work-shift-screen-shell.desktop .work-shift-toolbar-side {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .work-shift-control-row,
+  .work-shift-screen-shell.desktop .work-shift-title-row,
+  .work-shift-screen-shell.desktop .work-shift-control-row {
+    flex-wrap: wrap;
+  }
+}

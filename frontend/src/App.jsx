@@ -7715,6 +7715,22 @@ function canSubmitWorkShiftVacation(user) {
   return grade >= 1 && grade <= 5
 }
 
+function resolveWorkShiftVacationSection(positionTitle) {
+  const title = String(positionTitle || '').trim()
+  if (['대표', '부대표', '호점대표'].includes(title)) return 'business'
+  if (['팀장', '부팀장', '직원'].includes(title)) return 'field'
+  if (['본부장', '상담실장', '상담팀장', '상담사원'].includes(title)) return 'hq'
+  return 'field'
+}
+
+function getWorkShiftVacationSectionOptions() {
+  return [
+    { id: 'business', label: '사업자' },
+    { id: 'field', label: '현장직원' },
+    { id: 'hq', label: '본사직원' },
+  ]
+}
+
 function toSpreadsheetColumnLabel(index) {
   let current = Number(index) + 1
   if (!Number.isFinite(current) || current <= 0) return ''
@@ -7736,6 +7752,7 @@ function WorkShiftSchedulePage() {
     { id: 'business', label: '사업자' },
     { id: 'staff', label: '직원' },
   ]
+  const vacationSectionOptions = getWorkShiftVacationSectionOptions()
   const [sectionId, setSectionId] = useState('business')
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth)
@@ -7756,8 +7773,9 @@ function WorkShiftSchedulePage() {
   const canEditSchedule = canEditWorkShiftSchedule(currentUser)
   const canRequestVacation = canSubmitWorkShiftVacation(currentUser)
   const [vacationRequests, setVacationRequests] = useState(() => loadWorkShiftVacationRequests())
+  const defaultVacationSectionId = resolveWorkShiftVacationSection(currentUser?.position_title)
   const [vacationForm, setVacationForm] = useState(() => ({
-    sectionId: 'business',
+    sectionId: defaultVacationSectionId,
     requestType: '연차',
     startDate: '',
     endDate: '',
@@ -7812,13 +7830,14 @@ function WorkShiftSchedulePage() {
   }, [vacationRequests])
 
   useEffect(() => {
+    const resolvedSectionId = resolveWorkShiftVacationSection(currentUser?.position_title)
     setVacationForm(prev => ({
       ...prev,
-      sectionId,
+      sectionId: resolvedSectionId,
       branchLabel: prev.branchLabel || String(currentUser?.branch_no || '').trim(),
       applicantName: prev.applicantName || String(currentUser?.name || currentUser?.nickname || '').trim(),
     }))
-  }, [sectionId, currentUser?.branch_no, currentUser?.name, currentUser?.nickname])
+  }, [currentUser?.branch_no, currentUser?.name, currentUser?.nickname, currentUser?.position_title])
 
   const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
@@ -8024,8 +8043,8 @@ function WorkShiftSchedulePage() {
       gradeLabel: gradeLabel(currentUser?.grade),
       positionTitle: String(currentUser?.position_title || '').trim(),
       email: String(currentUser?.email || '').trim(),
-      sectionId: vacationForm.sectionId || sectionId,
-      sectionLabel: (sectionOptions.find(option => option.id === (vacationForm.sectionId || sectionId))?.label) || '사업자',
+      sectionId: vacationForm.sectionId || defaultVacationSectionId,
+      sectionLabel: (vacationSectionOptions.find(option => option.id === (vacationForm.sectionId || defaultVacationSectionId))?.label) || '사업자',
       requestType: String(vacationForm.requestType || '연차').trim(),
       startDate,
       endDate,
@@ -8043,7 +8062,7 @@ function WorkShiftSchedulePage() {
       reason: '',
       applicantName,
       branchLabel: String(prev.branchLabel || currentUser?.branch_no || '').trim(),
-      sectionId,
+      sectionId: defaultVacationSectionId,
     }))
     window.alert('휴가신청이 접수되었습니다.')
   }
@@ -8084,46 +8103,47 @@ function WorkShiftSchedulePage() {
     <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
       <section className="card work-shift-page-card">
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
-          <div className="work-shift-title-wrap">
+          <div className="work-shift-title-row">
             <h2>근무스케줄</h2>
             <div className="inline-actions wrap work-shift-mode-tabs">
               <button type="button" className={workMode === 'vacation' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
               <button type="button" className={workMode === 'view' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('view')}>편집/보기</button>
             </div>
-            <div className="inline-actions wrap work-shift-section-tabs">
-              {sectionOptions.map(option => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={sectionId === option.id ? 'small selected-toggle' : 'small ghost'}
-                  onClick={() => setSectionId(option.id)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
           </div>
-          <div className="work-shift-toolbar-side">
-            <div className="work-shift-toolbar-inline-row">
-              <div className="inline-actions work-shift-date-selectors work-shift-date-selectors-inline">
-                <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
-                  {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
-                </select>
-                <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
-                  {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
-                </select>
+          {workMode === 'view' ? (
+            <div className="work-shift-control-row">
+              <div className="inline-actions wrap work-shift-section-tabs">
+                {sectionOptions.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={sectionId === option.id ? 'small selected-toggle' : 'small ghost'}
+                    onClick={() => setSectionId(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
-              {workMode === 'view' ? (
-                <div className="work-shift-toolbar-actions">
-                  <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => canEditSchedule && setEditNamesMode(prev => !prev)} disabled={!canEditSchedule}>{editNamesMode ? '편집중' : '편집'}</button>
-                  <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
-                  <button type="button" className="small ghost" onClick={addScheduleRow} disabled={!canEditSchedule}>추가</button>
+              <div className="work-shift-toolbar-side">
+                <div className="work-shift-toolbar-inline-row">
+                  <div className="inline-actions work-shift-date-selectors work-shift-date-selectors-inline">
+                    <select className="input small-select" value={year} onChange={event => setYear(Number(event.target.value) || currentYear)}>
+                      {yearOptions.map(option => <option key={option} value={option}>{option}년</option>)}
+                    </select>
+                    <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
+                      {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
+                    </select>
+                  </div>
+                  <div className="work-shift-toolbar-actions">
+                    <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => canEditSchedule && setEditNamesMode(prev => !prev)} disabled={!canEditSchedule}>{editNamesMode ? '편집중' : '편집'}</button>
+                    <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
+                    <button type="button" className="small ghost" onClick={addScheduleRow} disabled={!canEditSchedule}>추가</button>
+                  </div>
                 </div>
-              ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
-
         {workMode === 'vacation' ? (
           <>
             <section className="work-shift-vacation-card">
@@ -8135,9 +8155,11 @@ function WorkShiftSchedulePage() {
                 <form className="work-shift-vacation-form" onSubmit={submitVacationRequest}>
                   <label>
                     <span>구분</span>
-                    <select className="input" value={vacationForm.sectionId} onChange={event => setVacationForm(prev => ({ ...prev, sectionId: event.target.value }))}>
-                      {sectionOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                    </select>
+                    <input
+                      className="input"
+                      value={(vacationSectionOptions.find(option => option.id === vacationForm.sectionId)?.label) || '-'}
+                      readOnly
+                    />
                   </label>
                   <label>
                     <span>휴가종류</span>
