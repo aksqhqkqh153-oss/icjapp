@@ -1710,7 +1710,6 @@ useEffect(() => {
             <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
           </div>
           <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>목록</button>
           <button type="button" className="ghost active" onClick={saveSettlementRecord}>견적저장</button>
         </div>
       </section>
@@ -1878,11 +1877,9 @@ export function DisposalListPage() {
       <section className="card disposal-hero">
         <div>
           <h2>폐기목록</h2>
-          <p className="notice-text">고객명 + 폐기장소 기준으로 묶어 표시하며, 같은 고객 기록은 최신 저장 내용으로 갱신됩니다.</p>
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={removeSelectedRecords}>삭제</button>
-          <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
         </div>
       </section>
 
@@ -1912,18 +1909,18 @@ export function DisposalListPage() {
           return (
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
               <div className="disposal-list-date-label disposal-customer-group-label">
-                <div>
+                <button type="button" className="disposal-group-meta-button" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식 상세로 이동`}>
                   <span>{group.disposalDate}</span>
                   <span>{group.platform || '-'}</span>
                   <strong>{group.customerName}</strong>
                   <span>{group.location}</span>
-                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완료' : '미입금'}</span>
-                </div>
+                </button>
                 <div className="disposal-customer-group-actions">
                   {isPaid && !isTransferred && (
                     <button type="button" className="ghost small active" onClick={() => moveToSettlement(group.recordId)}>결산진행</button>
                   )}
                   {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
+                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완료' : '미입금'}</span>
                   <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
                 </div>
               </div>
@@ -1954,9 +1951,7 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.reportAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
-                    <div className="disposal-list-grid-payment-cell">
-                      <span>{isPaid ? '입금완료' : '미입금'}</span>
-                    </div>
+                    <div className="disposal-list-grid-payment-cell" />
                   </div>
                 ))}
                 <div className="disposal-list-grid-row disposal-list-grid-summary-row">
@@ -1967,9 +1962,8 @@ export function DisposalListPage() {
                   <div>{formatCurrency(group.totals.reportAmount)}</div>
                   <div>{formatCurrency(group.totals.finalAmount)}</div>
                   <div className="disposal-list-grid-payment-cell">
-                    <label className="disposal-payment-toggle">
+                    <label className="disposal-payment-toggle" aria-label="입금 여부 체크">
                       <input type="checkbox" checked={isPaid} onChange={e => updatePaymentStatus(group.recordId, e.target.checked)} />
-                      <span>{isPaid ? '입금완료' : '체크'}</span>
                     </label>
                   </div>
                 </div>
@@ -2032,7 +2026,8 @@ function getSavedDateKey(value) {
 }
 
 function getMonthKey(value) {
-  const date = new Date(value)
+  const normalizedValue = /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim()) ? `${String(value).trim()}T00:00:00` : value
+  const date = new Date(normalizedValue)
   if (Number.isNaN(date.getTime())) {
     const today = new Date()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -2059,8 +2054,12 @@ function formatMonthLabel(monthKey) {
   return `${year}년 ${month}월`
 }
 
+function getSettlementMonthSource(record) {
+  return record?.settlementTransferredAt || record?.disposalDate || record?.savedAt || new Date().toISOString()
+}
+
 function filterRecordsByMonth(records, monthKey) {
-  return (records || []).filter(record => getMonthKey(record.savedAt) === monthKey)
+  return (records || []).filter(record => getMonthKey(getSettlementMonthSource(record)) === monthKey)
 }
 
 function buildDailySettlementSummary(groups = []) {
@@ -2186,7 +2185,7 @@ export function DisposalSettlementsPage() {
     const loaded = loadRecords().filter(record => !!record?.settlementTransferredAt)
     setRecords(loaded)
     if (loaded.length) {
-      setMonthKey(getMonthKey(loaded[0]?.savedAt || new Date().toISOString()))
+      setMonthKey(getMonthKey(getSettlementMonthSource(loaded[0]) || new Date().toISOString()))
     }
   }, [])
 

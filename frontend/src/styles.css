@@ -9211,7 +9211,7 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 0;
   font-weight: 700;
 }
 
@@ -9276,6 +9276,8 @@ a:focus-visible {
   text-align: left;
   min-width: 0;
   color: #111827;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .disposal-list-grid-button span,
@@ -9288,7 +9290,12 @@ a:focus-visible {
 }
 
 .disposal-list-grid-data-row:hover {
-  background: #f3f4f6;
+  background: #f8fafc;
+}
+
+.disposal-list-grid-button:hover {
+  background: transparent;
+  box-shadow: none;
 }
 
 .disposal-row-delete {
@@ -9339,6 +9346,7 @@ a:focus-visible {
   align-items: center;
   padding: 12px 14px;
   border-bottom: 1px solid #ecf0f6;
+  color: #111827;
 }
 
 .disposal-settlement-grid-row:last-child {
@@ -11876,6 +11884,33 @@ button.disposal-items-number-cell.has-note {
   align-items: center;
 }
 
+.disposal-group-meta-button {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  padding: 0;
+  text-align: left;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.disposal-group-meta-button:hover {
+  background: transparent;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.disposal-group-meta-button span,
+.disposal-group-meta-button strong {
+  color: inherit;
+}
+
 .disposal-list-grid-customer .disposal-list-grid-row {
   grid-template-columns: 28px minmax(140px, 1.35fr) minmax(72px, 0.6fr) minmax(108px, 0.95fr) minmax(108px, 0.95fr) minmax(118px, 1fr) minmax(118px, 0.95fr);
 }
@@ -11972,6 +12007,11 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-customer-group-label > div {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .disposal-group-meta-button {
     gap: 6px;
     font-size: 11px;
   }
