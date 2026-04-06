@@ -1299,9 +1299,7 @@ function DisposalItemsEditor({
             <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCustomerSettingsOpen(prev => !prev)} aria-label="고객용 설정">⚙</button>
             {customerSettingsOpen ? (
               <div className="disposal-settings-popover disposal-customer-settings-popover">
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCustomerSaveDirectory}>견적저장위치</button>
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => updateExportTemplate('customer')}>견적이름변경</button>
-                <div className="disposal-settings-popover-caption">현재: {customerSaveDirectoryLabel}</div>
+                <div className="disposal-settings-popover-caption">고객용 저장은 기본 설정으로 바로 저장됩니다.</div>
               </div>
             ) : null}
           </div>
@@ -1828,7 +1826,6 @@ useEffect(() => {
             <button type="button" className="ghost disposal-icon-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">⚙</button>
             <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
           </div>
-          <button type="button" className="ghost" onClick={resetDraft}>초기화</button>
           <button type="button" className="ghost active" onClick={saveSettlementRecord}>견적저장</button>
         </div>
       </section>

@@ -5169,6 +5169,15 @@ def _get_materials_table_scale_key() -> str:
     return 'materials_table_scale_json'
 
 
+def _normalize_materials_table_device(device: str | None) -> str:
+    normalized = str(device or 'desktop').strip().lower()
+    return 'mobile' if normalized == 'mobile' else 'desktop'
+
+
+def _get_materials_table_layout_key(device: str | None) -> str:
+    return f"materials_table_layout_json:{_normalize_materials_table_device(device)}"
+
+
 @app.get('/api/policies-content')
 def get_policies_content(user=Depends(require_user)):
     contents = dict(POLICY_CONTENT_DEFAULTS)

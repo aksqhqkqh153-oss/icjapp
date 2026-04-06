@@ -12299,3 +12299,71 @@ body[data-theme="dark"] a { color: inherit; }
   line-height: 1.7;
   color: var(--text-main);
 }
+
+
+/* 2026-04-06 mobile admin/disposal follow-up */
+@media (max-width: 768px) {
+  .disposal-form-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+  }
+  .disposal-form-hero-title-wrap {
+    min-width: 0;
+  }
+  .disposal-hero-actions.disposal-hero-actions-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .disposal-hero-actions.disposal-hero-actions-inline > button,
+  .disposal-hero-actions.disposal-hero-actions-inline .disposal-icon-button,
+  .disposal-hero-actions.disposal-hero-actions-inline .disposal-settings-inline {
+    flex: 0 0 auto;
+  }
+  .disposal-hero-actions.disposal-hero-actions-inline > button,
+  .disposal-hero-actions.disposal-hero-actions-inline .disposal-icon-button {
+    font-size: 11px;
+    padding: 5px 7px;
+    min-height: 30px;
+  }
+  .admin-status-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .admin-status-category-tabs {
+    flex: 1 1 auto;
+    width: auto;
+    margin: 0;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 3px;
+  }
+  .admin-status-category-tabs > button {
+    font-size: 10px;
+    padding: 4px 5px;
+    min-height: 28px;
+    letter-spacing: -0.02em;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary {
+    grid-template-columns: minmax(24px, 0.34fr) minmax(34px, 0.5fr) minmax(46px, 0.7fr) minmax(112px, 1.46fr);
+    gap: 2px;
+    font-size: 10px;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .employee-summary-lines .admin-summary-line.admin-summary-line-primary span:last-child {
+    font-size: 9px;
+    letter-spacing: -0.03em;
+  }
+}
