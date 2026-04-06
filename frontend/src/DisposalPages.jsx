@@ -5,6 +5,11 @@ import { DISPOSAL_TEMPLATE } from './disposalTemplateData'
 
 const STORAGE_KEY = 'icj_disposal_records_v2'
 const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
+const DISPOSAL_NAV_TABS = [
+  { key: 'forms', label: '폐기양식', path: '/disposal/forms' },
+  { key: 'list', label: '폐기목록', path: '/disposal/list' },
+  { key: 'settlements', label: '폐기결산', path: '/disposal/settlements' },
+]
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 const ITEM_ROW_COUNT = 17
 const DEFAULT_VISIBLE_ITEM_ROWS = 8
@@ -100,6 +105,7 @@ function normalizeRecordShape(record) {
     platform: String(record.platform || ''),
     customerName: String(record.customerName || ''),
     items,
+    settlementTransferredAt: record.settlementTransferredAt ? String(record.settlementTransferredAt) : '',
     totals: {
       totalQty: safeNumber(record?.totals?.totalQty),
       totalUnitCost: safeNumber(record?.totals?.totalUnitCost),
@@ -258,6 +264,7 @@ function makeRecordFromDraft(draft, totals, existingId = '') {
     platform: draft.platform,
     customerName: draft.customerName,
     items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
+    settlementTransferredAt: '',
     totals: normalizedTotals,
   })
 }
@@ -329,8 +336,11 @@ function buildExportInfoInlineText({ customerName = '', disposalDate = '', locat
 }
 
 function buildExportInfoLines({ customerName = '', disposalDate = '', location = '' }) {
-  const inlineText = buildExportInfoInlineText({ customerName, disposalDate, location })
-  return inlineText ? [inlineText] : []
+  return [
+    formatExportCustomerLabel(customerName),
+    formatExportDateLabel(disposalDate),
+    formatExportLocationLabel(location),
+  ].filter(Boolean)
 }
 
 function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', suffix = '' }) {
@@ -373,10 +383,12 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   const isCompany = mode === 'company'
   const outerMargin = 36
   const padding = 28
-  const titleHeight = isCompany ? 112 : 52
+  const titleHeight = isCompany ? 96 : 52
   const subtitleHeight = isCompany ? 0 : 34
   const includePlatform = isCompany
-  const infoHeight = includePlatform ? 118 : 84
+  const infoLines = buildExportInfoLines({ customerName, disposalDate, location })
+  const infoLineGap = 24
+  const infoHeight = Math.max(includePlatform ? 94 : 74, infoLines.length ? infoLines.length * infoLineGap + 8 : 0)
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
@@ -398,7 +410,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   const tableWidth = cols.reduce((sum, col) => sum + col.width, 0)
   const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
   const rawContentWidth = padding * 2 + tableWidth
-  const rawContentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
+  const rawContentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + 6 + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
   const width = 1600
   const height = 1200
   const availableWidth = width - outerMargin * 2
@@ -438,8 +450,8 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
-    const logoRightPadding = 8
-    const logoTopPadding = isCompany ? 12 : 6
+    const logoRightPadding = 2
+    const logoTopPadding = isCompany ? 6 : 2
     const logoX = startX + tableWidth - drawWidth - logoRightPadding
     const logoY = isCompany
       ? currentY + (titleHeight - drawHeight) / 2
@@ -459,15 +471,14 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   ctx.fillStyle = '#374151'
   ctx.font = '700 18px sans-serif'
   ctx.textAlign = 'left'
-  const infoLines = buildExportInfoLines({ customerName, disposalDate, location })
   if (infoLines.length) {
-    const lineGap = 26
-    const startLineY = currentY + 18
+    const startLineY = currentY + 12
     infoLines.forEach((line, index) => {
-      ctx.fillText(line, startX, startLineY + index * lineGap)
+      ctx.fillText(line, startX, startLineY + index * infoLineGap)
     })
   }
   currentY += infoHeight
+  currentY += 6
 
   ctx.strokeStyle = '#111827'
   ctx.lineWidth = 3
@@ -605,6 +616,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         disposalDate: record.disposalDate || '-',
         paymentStatus: getPaymentStatus(record),
         finalStatus: record.finalStatus || '',
+        settlementTransferredAt: record.settlementTransferredAt || '',
         savedAt: record.savedAt || '',
         rows: [],
         totals: { quantity: 0, unitCost: 0, reportAmount: 0, finalAmount: 0 },
@@ -641,6 +653,55 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
       rows: sortGroupedRows(group.rows, sortKey),
     }))
     .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+}
+
+
+function buildPendingSettlementChangeMessage(record) {
+  if (!record) return ''
+  return `[${record.disposalDate || '-'}] [${record.platform || '-'}] [${record.customerName || '-'}] [${record.location || '-'}]의 [입금여부] 결산이 변경되었습니다.`
+}
+
+function getDisposalNavTabKey(pathname = '') {
+  if (pathname.startsWith('/disposal/list')) return 'list'
+  if (pathname.startsWith('/disposal/settlements')) return 'settlements'
+  return 'forms'
+}
+
+function DisposalCategoryTabs({ current = 'forms', onNavigate }) {
+  return (
+    <section className="card disposal-page-tabs-card">
+      <div className="disposal-page-tabs">
+        {DISPOSAL_NAV_TABS.map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            className={`disposal-page-tab ${current === tab.key ? 'active' : ''}`.trim()}
+            onClick={() => onNavigate?.(tab.path)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function DisposalConfirmModal({ open, message, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div className="disposal-confirm-overlay" role="dialog" aria-modal="true">
+      <div className="disposal-confirm-card">
+        <div className="disposal-confirm-title">확인</div>
+        <div className="disposal-confirm-message">
+          {String(message || '').split('\n').map((line, index) => <p key={`confirm-line-${index}`}>{line}</p>)}
+        </div>
+        <div className="disposal-confirm-actions">
+          <button type="button" className="ghost" onClick={onCancel}>취소</button>
+          <button type="button" className="ghost active" onClick={onConfirm}>네</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function DisposalTemplateTable({ title, rendered }) {
@@ -1393,6 +1454,7 @@ export function DisposalJurisdictionRegistryPage() {
 
   return (
     <div className="stack-page disposal-page">
+      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero">
         <div>
           <h2>관할구역등록</h2>
@@ -1475,6 +1537,7 @@ export function DisposalHubPage() {
 
 export function DisposalFormsPage() {
   const navigate = useNavigate()
+  const handleCategoryNavigate = (path) => navigate(path)
   const { recordId } = useParams()
   const [draft, setDraft] = useState(createInitialDraft())
   const [savedAt, setSavedAt] = useState('')
@@ -1636,6 +1699,7 @@ useEffect(() => {
 
   return (
     <div className="stack-page disposal-page">
+      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero">
         <div className="disposal-hero-title-wrap">
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
@@ -1694,6 +1758,7 @@ export function DisposalPreviewPage() {
 
   return (
     <div className="stack-page disposal-page">
+      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero">
         <div>
           <h2>폐기견적서 전체 미리보기</h2>
@@ -1715,9 +1780,10 @@ export function DisposalListPage() {
   const [records, setRecords] = useState([])
   const [sortKey, setSortKey] = useState('latest')
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
-  const [paymentEditMode, setPaymentEditMode] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [pendingSettlementMessages, setPendingSettlementMessages] = useState([])
+  const [pendingNavigationPath, setPendingNavigationPath] = useState('')
 
   useEffect(() => {
     setRecords(loadRecords())
@@ -1728,6 +1794,7 @@ export function DisposalListPage() {
   const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys])
   const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
   const allVisibleChecked = visibleRowKeys.length > 0 && selectedVisibleCount === visibleRowKeys.length
+  const dailySettlementSummary = useMemo(() => buildDailySettlementSummary(groupedRows), [groupedRows])
 
   useEffect(() => {
     setSelectedRowKeys(prev => prev.filter(key => visibleRowKeySet.has(key)))
@@ -1737,16 +1804,23 @@ export function DisposalListPage() {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  function toggleAllVisibleRows(checked) {
-    setSelectedRowKeys(checked ? visibleRowKeys : [])
-  }
-
-  function updatePaymentStatus(recordId, nextStatus) {
+  function updatePaymentStatus(recordId, isChecked) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
-    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, finalStatus: getFinalStatusFromPaymentStatus(nextStatus, record.finalStatus), savedAt: record.savedAt }) : record)
+    const nextStatus = isChecked ? '완료' : '미입금'
+    const nextFinalStatus = getFinalStatusFromPaymentStatus(nextStatus, target.finalStatus)
+    const nextRecords = records.map(record => {
+      if (record.id !== recordId) return record
+      const nextRecord = normalizeRecordShape({
+        ...record,
+        finalStatus: nextFinalStatus,
+        settlementTransferredAt: isChecked ? (record.settlementTransferredAt || '') : '',
+      })
+      return nextRecord
+    })
     saveRecords(nextRecords)
     setRecords(nextRecords)
+    setPendingSettlementMessages(prev => Array.from(new Set([...prev.filter(message => message !== buildPendingSettlementChangeMessage(target)), buildPendingSettlementChangeMessage({ ...target, finalStatus: nextFinalStatus })])))
   }
 
   function applySearch() {
@@ -1770,8 +1844,37 @@ export function DisposalListPage() {
     setSelectedRowKeys([])
   }
 
+  function moveToSettlement(recordId) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, settlementTransferredAt: new Date().toISOString() }) : record)
+    saveRecords(nextRecords)
+    setRecords(nextRecords)
+    navigate('/disposal/settlements')
+  }
+
+  function handleCategoryNavigate(path) {
+    if (!pendingSettlementMessages.length) {
+      navigate(path)
+      return
+    }
+    setPendingNavigationPath(path)
+  }
+
+  function confirmPendingNavigation() {
+    const path = pendingNavigationPath
+    setPendingSettlementMessages([])
+    setPendingNavigationPath('')
+    navigate(path)
+  }
+
+  function cancelPendingNavigation() {
+    setPendingNavigationPath('')
+  }
+
   return (
     <div className="stack-page disposal-page">
+      <DisposalCategoryTabs current="list" onNavigate={handleCategoryNavigate} />
       <section className="card disposal-hero">
         <div>
           <h2>폐기목록</h2>
@@ -1779,7 +1882,6 @@ export function DisposalListPage() {
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={removeSelectedRecords}>삭제</button>
-          <button type="button" className={`ghost ${paymentEditMode ? 'active' : ''}`.trim()} onClick={() => setPaymentEditMode(prev => !prev)}>편집</button>
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>새 폐기양식</button>
         </div>
       </section>
@@ -1805,6 +1907,8 @@ export function DisposalListPage() {
           <div className="empty-state">저장된 폐기목록이 없습니다.</div>
         ) : groupedRows.map(group => {
           const allGroupChecked = group.rows.length > 0 && group.rows.every(row => selectedRowKeys.includes(row.key))
+          const isPaid = group.paymentStatus === '완료'
+          const isTransferred = !!group.settlementTransferredAt
           return (
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
               <div className="disposal-list-date-label disposal-customer-group-label">
@@ -1813,8 +1917,15 @@ export function DisposalListPage() {
                   <span>{group.platform || '-'}</span>
                   <strong>{group.customerName}</strong>
                   <span>{group.location}</span>
+                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완료' : '미입금'}</span>
                 </div>
-                <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
+                <div className="disposal-customer-group-actions">
+                  {isPaid && !isTransferred && (
+                    <button type="button" className="ghost small active" onClick={() => moveToSettlement(group.recordId)}>결산진행</button>
+                  )}
+                  {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
+                  <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
+                </div>
               </div>
               <div className="disposal-list-grid disposal-list-grid-customer">
                 <div className="disposal-list-grid-row disposal-list-grid-head">
@@ -1831,7 +1942,7 @@ export function DisposalListPage() {
                   <div>최종비용</div>
                   <div>입금여부</div>
                 </div>
-                {group.rows.map((row, index) => (
+                {group.rows.map((row) => (
                   <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
                     <div className="disposal-list-grid-check-cell">
                       <input type="checkbox" checked={selectedRowKeys.includes(row.key)} onChange={e => toggleRowSelection(row.key, e.target.checked)} aria-label={`${group.customerName} ${row.itemName} 선택`} />
@@ -1844,14 +1955,7 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
                     <div className="disposal-list-grid-payment-cell">
-                      {paymentEditMode ? (
-                        <select value={group.paymentStatus} onChange={e => updatePaymentStatus(group.recordId, e.target.value)}>
-                          <option value="완료">완료</option>
-                          <option value="미입금">미입금</option>
-                        </select>
-                      ) : (
-                        <span>{group.paymentStatus}</span>
-                      )}
+                      <span>{isPaid ? '입금완료' : '미입금'}</span>
                     </div>
                   </div>
                 ))}
@@ -1862,13 +1966,53 @@ export function DisposalListPage() {
                   <div>{formatCurrency(group.totals.unitCost)}</div>
                   <div>{formatCurrency(group.totals.reportAmount)}</div>
                   <div>{formatCurrency(group.totals.finalAmount)}</div>
-                  <div>{group.paymentStatus}</div>
+                  <div className="disposal-list-grid-payment-cell">
+                    <label className="disposal-payment-toggle">
+                      <input type="checkbox" checked={isPaid} onChange={e => updatePaymentStatus(group.recordId, e.target.checked)} />
+                      <span>{isPaid ? '입금완료' : '체크'}</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
           )
         })}
       </section>
+
+      <section className="card disposal-records-card disposal-daily-summary-card">
+        <div className="disposal-sheet-title">일자별 결산 내역</div>
+        {dailySettlementSummary.length === 0 ? (
+          <div className="empty-state">표시할 일자별 결산 내역이 없습니다.</div>
+        ) : (
+          <div className="disposal-settlement-grid disposal-daily-summary-grid">
+            <div className="disposal-settlement-grid-row disposal-settlement-grid-head">
+              <div>폐기날짜</div>
+              <div>고객수</div>
+              <div>품목수 합계</div>
+              <div>신고합계 합계</div>
+              <div>최종비용 합계</div>
+              <div>입금완료 합계</div>
+            </div>
+            {dailySettlementSummary.map(item => (
+              <div key={item.key} className="disposal-settlement-grid-row">
+                <div>{item.label}</div>
+                <div>{formatNumber(item.customerCount)}</div>
+                <div>{formatNumber(item.totalQty)}</div>
+                <div>{formatCurrency(item.totalReportAmount)}</div>
+                <div>{formatCurrency(item.totalFinalAmount)}</div>
+                <div>{formatCurrency(item.totalPaidFinalAmount)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <DisposalConfirmModal
+        open={!!pendingNavigationPath && pendingSettlementMessages.length > 0}
+        message={pendingSettlementMessages.join('\n')}
+        onConfirm={confirmPendingNavigation}
+        onCancel={cancelPendingNavigation}
+      />
     </div>
   )
 }
@@ -1919,14 +2063,39 @@ function filterRecordsByMonth(records, monthKey) {
   return (records || []).filter(record => getMonthKey(record.savedAt) === monthKey)
 }
 
+function buildDailySettlementSummary(groups = []) {
+  const mapped = new Map()
+  ;(groups || []).forEach(group => {
+    const key = String(group?.disposalDate || '날짜 미지정')
+    if (!mapped.has(key)) {
+      mapped.set(key, {
+        key,
+        label: key,
+        customerCount: 0,
+        totalQty: 0,
+        totalReportAmount: 0,
+        totalFinalAmount: 0,
+        totalPaidFinalAmount: 0,
+      })
+    }
+    const target = mapped.get(key)
+    target.customerCount += 1
+    target.totalQty += safeNumber(group?.totals?.quantity)
+    target.totalReportAmount += safeNumber(group?.totals?.reportAmount)
+    target.totalFinalAmount += safeNumber(group?.totals?.finalAmount)
+    if (group?.paymentStatus === '완료') target.totalPaidFinalAmount += safeNumber(group?.totals?.finalAmount)
+  })
+  return Array.from(mapped.values()).sort((a, b) => String(a.key).localeCompare(String(b.key), 'ko'))
+}
+
 function buildSettlementGroups(records) {
   const grouped = new Map()
   sortRecords(records, 'latest').forEach((record) => {
-    const key = getSavedDateKey(record.savedAt)
+    const key = String(record.disposalDate || getSavedDateKey(record.savedAt) || '날짜 미지정')
     if (!grouped.has(key)) {
       grouped.set(key, {
         key,
-        label: formatGroupDate(record.savedAt),
+        label: String(record.disposalDate || formatGroupDate(record.savedAt)),
         records: [],
       })
     }
@@ -1972,7 +2141,7 @@ function buildSettlementSalesSheet(monthLabel, monthlyRecords) {
 function groupMonthlyRecordCount(monthlyRecords) {
   const days = new Map()
   monthlyRecords.forEach(record => {
-    const key = getSavedDateKey(record.savedAt)
+    const key = String(record.disposalDate || getSavedDateKey(record.savedAt) || '날짜 미지정')
     const metrics = getRecordSettlementMetrics(record)
     if (!days.has(key)) days.set(key, { count: 0, qty: 0, minimum: 0 })
     const target = days.get(key)
@@ -2014,7 +2183,7 @@ export function DisposalSettlementsPage() {
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
 
   useEffect(() => {
-    const loaded = loadRecords()
+    const loaded = loadRecords().filter(record => !!record?.settlementTransferredAt)
     setRecords(loaded)
     if (loaded.length) {
       setMonthKey(getMonthKey(loaded[0]?.savedAt || new Date().toISOString()))
@@ -2028,12 +2197,13 @@ export function DisposalSettlementsPage() {
 
   return (
     <div className="stack-page disposal-page">
+      <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero">
         <div>
           <h2>폐기결산</h2>
         </div>
         <div className="disposal-hero-actions">
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>목록</button>
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
           <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
         </div>
       </section>

@@ -9109,6 +9109,117 @@ a:focus-visible {
   gap: 16px;
 }
 
+
+.disposal-page-tabs-card {
+  padding: 10px 12px;
+}
+
+.disposal-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.disposal-page-tab {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid #111827;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.disposal-page-tab.active {
+  background: #111827;
+  color: #ffffff;
+}
+
+.disposal-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 16px;
+}
+
+.disposal-confirm-card {
+  width: min(520px, 100%);
+  border: 1px solid #111827;
+  background: #ffffff;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.disposal-confirm-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.disposal-confirm-message {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.disposal-confirm-message p {
+  margin: 0;
+}
+
+.disposal-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.disposal-customer-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.disposal-payment-badge,
+.disposal-transfer-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #111827;
+  font-size: 12px;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+.disposal-payment-badge.is-paid,
+.disposal-transfer-badge {
+  background: #111827;
+  color: #ffffff;
+}
+
+.disposal-payment-badge.is-unpaid {
+  background: #ffffff;
+  color: #111827;
+}
+
+.disposal-payment-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.disposal-daily-summary-card {
+  display: grid;
+  gap: 12px;
+}
+
 .disposal-list-date-group {
   display: grid;
   gap: 6px;
@@ -9177,7 +9288,7 @@ a:focus-visible {
 }
 
 .disposal-list-grid-data-row:hover {
-  background: #f9fafb;
+  background: #f3f4f6;
 }
 
 .disposal-row-delete {
@@ -11766,12 +11877,12 @@ button.disposal-items-number-cell.has-note {
 }
 
 .disposal-list-grid-customer .disposal-list-grid-row {
-  grid-template-columns: 28px minmax(120px, 1.25fr) minmax(64px, 0.55fr) minmax(100px, 0.9fr) minmax(100px, 0.95fr) minmax(118px, 1fr) minmax(92px, 0.78fr);
+  grid-template-columns: 28px minmax(140px, 1.35fr) minmax(72px, 0.6fr) minmax(108px, 0.95fr) minmax(108px, 0.95fr) minmax(118px, 1fr) minmax(118px, 0.95fr);
 }
 
 .disposal-list-grid-button-customer {
   grid-column: 2 / span 5;
-  grid-template-columns: minmax(120px, 1.25fr) minmax(64px, 0.55fr) minmax(100px, 0.9fr) minmax(100px, 0.95fr) minmax(118px, 1fr);
+  grid-template-columns: minmax(140px, 1.35fr) minmax(72px, 0.6fr) minmax(108px, 0.95fr) minmax(108px, 0.95fr) minmax(118px, 1fr);
 }
 
 .disposal-list-grid-payment-cell {
@@ -11787,7 +11898,7 @@ button.disposal-items-number-cell.has-note {
 }
 
 .disposal-list-grid-summary-row {
-  background: #f8fafc;
+  background: #ffffff;
   font-weight: 700;
 }
 
@@ -11844,14 +11955,14 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-list-grid-customer .disposal-list-grid-row {
-    grid-template-columns: 24px minmax(64px, 1.2fr) minmax(34px, 0.42fr) minmax(52px, 0.66fr) minmax(52px, 0.7fr) minmax(56px, 0.74fr) minmax(48px, 0.54fr);
+    grid-template-columns: 24px minmax(72px, 1.2fr) minmax(38px, 0.42fr) minmax(58px, 0.66fr) minmax(58px, 0.7fr) minmax(62px, 0.74fr) minmax(62px, 0.64fr);
     gap: 3px;
     padding: 7px 6px;
     font-size: 9px;
   }
 
   .disposal-list-grid-button-customer {
-    grid-template-columns: minmax(64px, 1.2fr) minmax(34px, 0.42fr) minmax(52px, 0.66fr) minmax(52px, 0.7fr) minmax(56px, 0.74fr);
+    grid-template-columns: minmax(72px, 1.2fr) minmax(38px, 0.42fr) minmax(58px, 0.66fr) minmax(58px, 0.7fr) minmax(62px, 0.74fr);
     gap: 3px;
     font-size: 9px;
   }
