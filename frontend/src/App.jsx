@@ -8350,13 +8350,13 @@ function WorkShiftSchedulePage() {
             <table className="work-shift-table spreadsheet-like">
               <thead>
                 <tr className="work-shift-index-row">
-                  <th className="sticky top-left row-index-head">#</th>
+                  <th className="sticky top-left row-index-head">열</th>
                   {tableColumnLabels.map((label, index) => {
                     const extraClass = index === 0 ? 'sticky left col-index-branch' : index === 1 ? 'sticky left second col-index-person' : ''
                     return <th key={`col-label-${index}`} className={`work-shift-col-index ${extraClass}`.trim()}>{label}</th>
                   })}
                 </tr>
-                <tr>
+                <tr className="work-shift-header-row">
                   <th className="sticky left row-index-head">행</th>
                   <th className="sticky left col-main-head head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
                   <th className="sticky left second col-main-head head-name name-cell-person work-shift-head-cell">성명</th>
