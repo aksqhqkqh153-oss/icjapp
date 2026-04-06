@@ -42,6 +42,32 @@ const PAGE_TITLES = {
   '/disposal/jurisdictions': '관할구역등록',
 }
 
+const APP_THEME_STORAGE_KEY = 'icj_app_theme'
+
+function normalizeAppTheme(theme) {
+  return theme === 'dark' ? 'dark' : 'light'
+}
+
+function getStoredThemePreference() {
+  try {
+    return normalizeAppTheme(localStorage.getItem(APP_THEME_STORAGE_KEY))
+  } catch (_) {
+    return 'light'
+  }
+}
+
+function applyAppTheme(theme) {
+  const nextTheme = normalizeAppTheme(theme)
+  if (typeof document === 'undefined') return nextTheme
+  document.documentElement.setAttribute('data-theme', nextTheme)
+  if (document.body) document.body.setAttribute('data-theme', nextTheme)
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]')
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute('content', nextTheme === 'dark' ? '#111827' : '#ffffff')
+  }
+  return nextTheme
+}
+
 function pageTitle(pathname) {
   if (pathname.startsWith('/schedule/new')) return '일정등록'
   if (/^\/schedule\/\d+\/edit$/.test(pathname)) return '일정수정'
