@@ -7618,6 +7618,7 @@ function WorkShiftSchedulePage() {
   const template = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
   const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
   const dayCount = daysInMonthFromParts(year, month)
+  const cellRefs = useRef({})
 
   useEffect(() => {
     const templateSection = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
@@ -7635,6 +7636,7 @@ function WorkShiftSchedulePage() {
     nextRows = nextRows.map(row => ({ ...row, summary: computeWorkShiftSummary(row.days) }))
     setRows(nextRows)
     setSelectedRowKey(prev => prev || String(nextRows[0]?.row || nextRows[0]?.c2 || ''))
+    cellRefs.current = {}
   }, [sectionId, year, month])
 
   useEffect(() => {
@@ -7665,28 +7667,82 @@ function WorkShiftSchedulePage() {
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c2: value } : row)))
   }
 
+  function registerCellRef(rowIndex, columnIndex, node) {
+    if (!node) {
+      delete cellRefs.current[`${rowIndex}-${columnIndex}`]
+      return
+    }
+    cellRefs.current[`${rowIndex}-${columnIndex}`] = node
+  }
+
+  function focusCell(rowIndex, columnIndex) {
+    const node = cellRefs.current[`${rowIndex}-${columnIndex}`]
+    if (!node || node.disabled) return false
+    node.focus()
+    if (typeof node.select === 'function') {
+      try { node.select() } catch (_) {}
+    }
+    return true
+  }
+
+  function moveFocus(rowIndex, columnIndex, key) {
+    const maxRow = rows.length - 1
+    const maxColumn = 31
+    let nextRow = rowIndex
+    let nextColumn = columnIndex
+    if (key === 'ArrowLeft') nextColumn = Math.max(0, columnIndex - 1)
+    if (key === 'ArrowRight') nextColumn = Math.min(maxColumn, columnIndex + 1)
+    if (key === 'ArrowUp') nextRow = Math.max(0, rowIndex - 1)
+    if (key === 'ArrowDown') nextRow = Math.min(maxRow, rowIndex + 1)
+    if (nextRow === rowIndex && nextColumn === columnIndex) return
+
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const row = rows[nextRow]
+      if (nextColumn > 0 && nextColumn - 1 >= dayCount) {
+        nextColumn = 0
+      }
+      if (nextColumn > 0 && !row) return
+    }
+
+    if (nextColumn > 0) {
+      let guard = 0
+      while (nextColumn > dayCount && guard < 31) {
+        nextColumn += key === 'ArrowLeft' ? -1 : 1
+        guard += 1
+      }
+      if (nextColumn > dayCount || nextColumn < 0) return
+    }
+    focusCell(nextRow, nextColumn)
+  }
+
   const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
   const selectedSummary = useMemo(() => {
     if (!selectedRow) return null
     const normalized = (selectedRow.days || []).map(value => String(value || '').trim())
     const count = target => normalized.filter(value => value === target).length
+    const vacationItems = [
+      ['휴무', count('휴')],
+      ['월차', count('월')],
+      ['연차', count('연')],
+      ['병가', count('병')],
+      ['예비군', count('예')],
+      ['기타', count('기')],
+    ].filter(([, value]) => value > 0)
+    const totalJobs = count('1') + count('2') + count('장')
     return {
       personName: String(selectedRow.c2 || '').trim() || '-',
       groupLabel: String(selectedRow.c1 || '').trim() || '-',
       oneCount: count('1'),
       twoCount: count('2'),
+      totalJobs,
       longDistanceCount: count('장'),
       hasLongDistance: count('장') > 0,
-      vacationItems: [
-        ['휴무', count('휴')],
-        ['월차', count('월')],
-        ['연차', count('연')],
-        ['병가', count('병')],
-        ['예비', count('예')],
-        ['기타', count('기')],
-      ].filter(([, value]) => value > 0),
-      annualCount: count('연'),
+      vacationItems,
+      monthlyAnnualCount: count('연'),
+      monthlyMonthlyLeaveCount: count('월'),
       quarterlyAnnualCount: count('연'),
+      quarterlyMonthlyLeaveCount: count('월'),
+      detailText: vacationItems.length ? vacationItems.map(([label, value]) => `${label}${value}`).join(', ') : '없음',
     }
   }, [selectedRow])
 
@@ -7717,22 +7773,29 @@ function WorkShiftSchedulePage() {
               <select className="input small-select" value={month} onChange={event => setMonth(Number(event.target.value) || currentMonth)}>
                 {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
               </select>
-            </div>
-            <div className="inline-actions wrap work-shift-edit-actions">
               <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>편집</button>
             </div>
           </div>
         </div>
         {selectedSummary ? (
-          <section className="work-shift-summary-card">
-            <div className="work-shift-summary-grid">
-              <div><strong>선택 성명</strong><span>{selectedSummary.personName}</span></div>
-              <div><strong>구분</strong><span>{selectedSummary.groupLabel}</span></div>
-              <div><strong>이사규모(1~2)</strong><span>1톤 {selectedSummary.oneCount}회 / 2톤 {selectedSummary.twoCount}회</span></div>
-              <div><strong>장거리 일정 유무</strong><span>{selectedSummary.hasLongDistance ? `있음 (${selectedSummary.longDistanceCount}회)` : '없음'}</span></div>
-              <div><strong>일자별 연차항목 및 사유</strong><span>{selectedSummary.vacationItems.length ? selectedSummary.vacationItems.map(([label, value]) => `${label} ${value}회`).join(' / ') : '없음'}</span></div>
-              <div><strong>분기연차 사용일수</strong><span>{selectedSummary.quarterlyAnnualCount}일</span></div>
+          <section className="work-shift-summary-card compact">
+            <div className="work-shift-summary-compact-row primary">
+              <span className="work-shift-summary-chip">{selectedSummary.groupLabel}</span>
+              <strong>{selectedSummary.personName}</strong>
+              <span>총건수 {selectedSummary.totalJobs}건</span>
+              <span>1건 {selectedSummary.oneCount}</span>
+              <span>2건 {selectedSummary.twoCount}</span>
+              <span>장거리 {selectedSummary.longDistanceCount}</span>
             </div>
+            <div className="work-shift-summary-compact-row">
+              <span>월간 : 연차 {selectedSummary.monthlyAnnualCount}</span>
+              <span>월차 {selectedSummary.monthlyMonthlyLeaveCount}</span>
+            </div>
+            <div className="work-shift-summary-compact-row">
+              <span>분기 : 연차 {selectedSummary.quarterlyAnnualCount}</span>
+              <span>월차 {selectedSummary.quarterlyMonthlyLeaveCount}</span>
+            </div>
+            <div className="work-shift-summary-detail">* {selectedSummary.detailText}</div>
           </section>
         ) : null}
         <div className="work-shift-table-wrap">
@@ -7753,7 +7816,21 @@ function WorkShiftSchedulePage() {
                   <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
                     <td className="sticky left name-cell">{row.c1}</td>
                     <td className="sticky left second name-cell">
-                      {editNamesMode ? <input className="work-shift-name-input" value={row.c2 || ''} onChange={event => updateRowName(rowIndex, event.target.value)} /> : (row.c2 || '')}
+                      {editNamesMode ? (
+                        <input
+                          className="work-shift-name-input"
+                          value={row.c2 || ''}
+                          ref={node => registerCellRef(rowIndex, 0, node)}
+                          onFocus={() => setSelectedRowKey(rowKey)}
+                          onChange={event => updateRowName(rowIndex, event.target.value)}
+                          onKeyDown={event => {
+                            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                              event.preventDefault()
+                              moveFocus(rowIndex, 0, event.key)
+                            }
+                          }}
+                        />
+                      ) : (row.c2 || '')}
                     </td>
                     {Array.from({ length: 31 }, (_, dayIndex) => {
                       const disabled = dayIndex + 1 > dayCount
@@ -7762,7 +7839,15 @@ function WorkShiftSchedulePage() {
                           <input
                             className="work-shift-input"
                             value={row.days?.[dayIndex] || ''}
+                            onFocus={() => setSelectedRowKey(rowKey)}
+                            ref={node => registerCellRef(rowIndex, dayIndex + 1, node)}
                             onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
+                            onKeyDown={event => {
+                              if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                                event.preventDefault()
+                                moveFocus(rowIndex, dayIndex + 1, event.key)
+                              }
+                            }}
                             disabled={disabled}
                           />
                         </td>
