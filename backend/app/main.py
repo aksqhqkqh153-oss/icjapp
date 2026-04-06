@@ -31,6 +31,7 @@ from .db import (
     row_to_dict,
     user_public_dict,
     utcnow,
+    _ensure_columns,
 )
 from .settings import settings, get_settings
 from .storage import StorageError, save_upload
@@ -424,6 +425,39 @@ class BlockIn(BaseModel):
 class PreferenceIn(BaseModel):
     data: dict
 
+
+
+def _ensure_policy_storage_ready(conn: Any) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS admin_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')"
+    )
+    try:
+        _ensure_columns(conn, 'admin_settings', {'updated_at': "TEXT NOT NULL DEFAULT ''"})
+    except Exception:
+        # Some production databases may block duplicate ALTER attempts during concurrent startup.
+        # The table creation above is sufficient for fresh installs, so only the missing-column case matters.
+        pass
+
+
+def _load_policy_contents(conn: Any) -> dict[str, str]:
+    _ensure_policy_storage_ready(conn)
+    contents = dict(POLICY_CONTENT_DEFAULTS)
+    rows = conn.execute("SELECT key, value FROM admin_settings WHERE key LIKE 'policy_content:%'").fetchall()
+    for row in rows:
+        raw_key = str(row['key'] or '')
+        normalized = raw_key.replace('policy_content:', '', 1)
+        contents[normalized] = str(row['value'] or '')
+    return contents
+
+
+def _save_policy_content(conn: Any, normalized: str, content: str) -> dict[str, str]:
+    _ensure_policy_storage_ready(conn)
+    existing = conn.execute("SELECT key FROM admin_settings WHERE key = ?", (f'policy_content:{normalized}',)).fetchone()
+    if existing:
+        conn.execute("UPDATE admin_settings SET value = ?, updated_at = ? WHERE key = ?", (content, utcnow(), f'policy_content:{normalized}'))
+    else:
+        conn.execute("INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (f'policy_content:{normalized}', content, utcnow()))
+    return _load_policy_contents(conn)
 
 POLICY_CONTENT_DEFAULTS = {
     'vacation:business': '개요\n\n사업자 연차 사용 규정\n\n구분\n분기마다 4일의 연차\n1분기 4일 / 2분기 4일 / 3분기 4일 / 4기 4일\n\n분기구분\n1월 / 2월 / 3월 / 4월 / 5월 / 6월 / 7월 / 8월 / 9월 / 10월 / 11월 / 12월\n\n연간 가능한 총 사용일수\n총 16일\n\n기본신청기준\n- 가능: 2주(14일) 전 미리 신청시 가능\n- 가능: 주말, 공휴일, 손 없는 날 전부 사용 가능\n- 불가: 14일 이내로 신청시 불가\n- 불가: 이미 풀 스케쥴일 경우 불가\n- 예외: 급작스런 경조사 및 특수한 날은 사유에 따라 연차 승인 가능\n\n특별신청기준\n결혼식 / 신혼여행시 기타로 분류\n\n개요\n\n사업자 월차 사용 규정\n\n구분\n월마다 1일의 월차\n1월~12월 각 월 1일\n\n연간 가능한 총 사용일수\n총 12일\n\n기본신청기준\n- 가능: 1주(7일) 전 미리 신청시 가능\n- 불가: 7일 이내로 신청시 불가\n- 불가: 주말, 공휴일, 손 없는 날, 이미 풀 스케쥴일 경우 불가\n- 불가: 월차와 연차를 같은 달에 동시 사용시 불가',
@@ -5180,13 +5214,8 @@ def _get_materials_table_layout_key(device: str | None) -> str:
 
 @app.get('/api/policies-content')
 def get_policies_content(user=Depends(require_user)):
-    contents = dict(POLICY_CONTENT_DEFAULTS)
     with get_conn() as conn:
-        rows = conn.execute("SELECT key, value FROM admin_settings WHERE key LIKE 'policy_content:%'").fetchall()
-    for row in rows:
-        raw_key = str(row['key'] or '')
-        normalized = raw_key.replace('policy_content:', '', 1)
-        contents[normalized] = str(row['value'] or '')
+        contents = _load_policy_contents(conn)
     return {'contents': contents}
 
 @app.post('/api/policies-content')
@@ -5199,15 +5228,7 @@ def save_policies_content(payload: PreferenceIn, user=Depends(require_admin_or_s
     if normalized not in POLICY_CONTENT_DEFAULTS:
         raise HTTPException(status_code=400, detail='허용되지 않는 규정 항목입니다.')
     with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-            (f'policy_content:{normalized}', content, utcnow()),
-        )
-        rows = conn.execute("SELECT key, value FROM admin_settings WHERE key LIKE 'policy_content:%'").fetchall()
-    contents = dict(POLICY_CONTENT_DEFAULTS)
-    for row in rows:
-        raw_key = str(row['key'] or '')
-        contents[raw_key.replace('policy_content:', '', 1)] = str(row['value'] or '')
+        contents = _save_policy_content(conn, normalized, content)
     return {'ok': True, 'contents': contents}
 
 @app.get('/api/materials/table-scale')
