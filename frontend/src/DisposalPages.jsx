@@ -243,11 +243,17 @@ function buildRenderedTemplate(draft) {
     reportNo: String(item?.reportNo || ''),
     note: String(item?.note || ''),
   }))
-  const reportRows = items.map(item => ({
-    ...item,
-    reportAmount: item.quantity * item.unitCost,
-    finalAmount: Math.round(item.quantity * item.unitCost * FEE_RATE),
-  }))
+  const reportRows = items.map(item => {
+    const reportAmount = item.quantity * item.unitCost
+    const feeAmount = Math.round(reportAmount * 0.3)
+    const finalAmount = reportAmount + feeAmount
+    return {
+      ...item,
+      reportAmount,
+      feeAmount,
+      finalAmount,
+    }
+  })
   const totalQty = reportRows.reduce((sum, item) => sum + item.quantity, 0)
   const totalUnitCost = reportRows.reduce((sum, item) => sum + item.unitCost, 0)
   const totalReport = reportRows.reduce((sum, item) => sum + item.reportAmount, 0)
@@ -590,7 +596,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
     ctx.fillStyle = '#2563eb'
     ctx.font = '800 28px sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('대리신고 매출액', totalX + 18, totalY + totalHeight / 2)
+    ctx.fillText('매출액', totalX + 18, totalY + totalHeight / 2)
     ctx.textAlign = 'right'
     ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
   }
@@ -684,7 +690,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         settlementTransferredAt: record.settlementTransferredAt || '',
         savedAt: record.savedAt || '',
         rows: [],
-        totals: { quantity: 0, unitCost: 0, reportAmount: 0, finalAmount: 0 },
+        totals: { quantity: 0, unitCost: 0, reportAmount: 0, feeAmount: 0, finalAmount: 0 },
       })
     }
     const group = grouped.get(customerGroupKey)
@@ -696,7 +702,8 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
       const quantity = safeNumber(item?.quantity)
       const unitCost = safeNumber(item?.unitCost)
       const reportAmount = quantity * unitCost
-      const finalAmount = Math.round(reportAmount * FEE_RATE)
+      const feeAmount = Math.round(reportAmount * 0.3)
+      const finalAmount = reportAmount + feeAmount
       group.rows.push({
         key: `${record.id}-${index}`,
         recordId: record.id,
@@ -708,11 +715,13 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         quantity,
         unitCost,
         reportAmount,
+        feeAmount,
         finalAmount,
       })
       group.totals.quantity += quantity
       group.totals.unitCost += unitCost
       group.totals.reportAmount += reportAmount
+      group.totals.feeAmount += feeAmount
       group.totals.finalAmount += finalAmount
     })
   })
@@ -1266,7 +1275,7 @@ function DisposalItemsEditor({
               <div className="disposal-table-multiline-head"><span>개</span><span>수</span></div>
               <div className="disposal-table-multiline-head"><span>개당</span><span>신고비용</span></div>
               <div className="disposal-table-multiline-head"><span>신고</span><span>합계비용</span></div>
-              <div className="disposal-table-multiline-head"><span>매</span><span>출액</span></div>
+              <div className="disposal-table-singleline-head">매출액</div>
               <div>신고번호</div>
               <div className="disposal-items-note-column">메모칸</div>
             </div>
@@ -1354,7 +1363,7 @@ function DisposalItemsEditor({
           ))}
         </div>
         <div className="disposal-linked-preview-total wide emphasize-blue">
-          <span>대리신고 매출액</span>
+          <span>매출액</span>
           <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
         </div>
       </div>
@@ -1400,7 +1409,7 @@ function DisposalItemsEditor({
         <div className="disposal-inline-popup-backdrop" onClick={() => setShowItemsHelp(false)}>
           <div className="disposal-inline-popup" onClick={e => e.stopPropagation()}>
             <div className="disposal-inline-popup-title">폐기품목입력 설명</div>
-            <div className="disposal-inline-popup-body">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 매출액으로 자동 계산됩니다.</div>
+            <div className="disposal-inline-popup-body">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 0.3 = 수수료, 신고합계비용 + 수수료 = 매출액으로 자동 계산됩니다.</div>
             <div className="disposal-inline-popup-actions">
               <button type="button" className="ghost" onClick={() => setShowItemsHelp(false)}>닫기</button>
             </div>
@@ -2085,6 +2094,7 @@ export function DisposalListPage() {
                   <div>수량</div>
                   <div>개당비용</div>
                   <div>신고합계</div>
+                  <div>수수료</div>
                   <div>매출액</div>
                   <div>입금여부</div>
                   <div>신고여부</div>
@@ -2099,6 +2109,7 @@ export function DisposalListPage() {
                       <span>{formatNumber(row.quantity)}</span>
                       <span>{formatCurrency(row.unitCost)}</span>
                       <span>{formatCurrency(row.reportAmount)}</span>
+                      <span>{formatCurrency(row.feeAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
                     <div className="disposal-list-grid-payment-cell" />
@@ -2111,6 +2122,7 @@ export function DisposalListPage() {
                   <div>{formatNumber(group.totals.quantity)}</div>
                   <div>{formatCurrency(group.totals.unitCost)}</div>
                   <div>{formatCurrency(group.totals.reportAmount)}</div>
+                  <div>{formatCurrency(group.totals.feeAmount)}</div>
                   <div>{formatCurrency(group.totals.finalAmount)}</div>
                   <div className="disposal-list-grid-payment-cell">
                     <label className="disposal-payment-toggle" aria-label="입금 여부 체크">
@@ -2406,7 +2418,7 @@ function getRecordSettlementMetrics(record) {
   const totalQty = safeNumber(record?.totals?.totalQty)
   const reportAmount = safeNumber(record?.totals?.totalReport)
   const finalAmount = safeNumber(record?.totals?.totalFinal)
-  const feeAmount = Math.max(0, finalAmount - reportAmount)
+  const feeAmount = Math.round(reportAmount * 0.3)
   return {
     totalQty,
     reportAmount,

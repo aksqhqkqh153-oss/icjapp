@@ -1094,6 +1094,11 @@ function SignupPage({ onLogin }) {
         method: 'POST',
         body: JSON.stringify(payload),
       })
+      if (data?.pending_approval) {
+        window.alert(data?.message || '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.')
+        navigate('/login', { replace: true, state: { notice: data?.message || '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.' } })
+        return
+      }
       setSession(data.access_token, data.user, true)
       onLogin(data.user)
       navigate('/')
@@ -7601,6 +7606,21 @@ function computeWorkShiftSummary(days = []) {
   return [String(inputTotal), String(oneCount), String(twoCount), String(jangCount), String(weighted), String(vacationCount), String(monthlyCount), String(annualCount), String(sickCount), String(reserveCount), String(etcCount), String(total)]
 }
 
+function workShiftLogStorageKey(sectionId, year, month) {
+  return `icj_work_shift_schedule_log_${sectionId}_${year}-${String(month).padStart(2, '0')}`
+}
+
+function createWorkShiftLogEntry({ userName, sectionLabel, cellLabel, beforeValue, afterValue }) {
+  const stamp = new Date().toLocaleString('ko-KR')
+  return {
+    changedAt: stamp,
+    accountName: userName || '알수없음',
+    sectionLabel: sectionLabel || '-',
+    cellLabel: cellLabel || '-',
+    changeText: `${beforeValue || ''} -> ${afterValue || ''}`,
+  }
+}
+
 function WorkShiftSchedulePage() {
   const isMobile = useIsMobile()
   const today = new Date()
@@ -7619,6 +7639,10 @@ function WorkShiftSchedulePage() {
   const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
   const dayCount = daysInMonthFromParts(year, month)
   const cellRefs = useRef({})
+  const currentUser = getStoredUser()
+  const currentUserName = String(currentUser?.name || currentUser?.nickname || currentUser?.email || '알수없음').trim()
+  const [logOpen, setLogOpen] = useState(false)
+  const [changeLogs, setChangeLogs] = useState([])
 
   useEffect(() => {
     const templateSection = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
@@ -7637,6 +7661,13 @@ function WorkShiftSchedulePage() {
     setRows(nextRows)
     setSelectedRowKey(prev => prev || String(nextRows[0]?.row || nextRows[0]?.c2 || ''))
     cellRefs.current = {}
+    try {
+      const rawLogs = localStorage.getItem(workShiftLogStorageKey(sectionId, year, month))
+      const parsedLogs = rawLogs ? JSON.parse(rawLogs) : []
+      setChangeLogs(Array.isArray(parsedLogs) ? parsedLogs : [])
+    } catch (_) {
+      setChangeLogs([])
+    }
   }, [sectionId, year, month])
 
   useEffect(() => {
@@ -7646,6 +7677,13 @@ function WorkShiftSchedulePage() {
     } catch (_) {}
   }, [rows, sectionId, year, month])
 
+  useEffect(() => {
+    const key = workShiftLogStorageKey(sectionId, year, month)
+    try {
+      localStorage.setItem(key, JSON.stringify(changeLogs))
+    } catch (_) {}
+  }, [changeLogs, sectionId, year, month])
+
   const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
   const dayLabels = Array.from({ length: 31 }, (_, index) => {
@@ -7653,8 +7691,26 @@ function WorkShiftSchedulePage() {
     return day <= dayCount ? `${day}일` : ''
   })
 
+  function appendChangeLog(cellLabel, beforeValue, afterValue) {
+    if (String(beforeValue || '') === String(afterValue || '')) return
+    const sectionLabel = (sectionOptions.find(option => option.id === sectionId)?.label) || '-'
+    const entry = createWorkShiftLogEntry({
+      userName: currentUserName,
+      sectionLabel,
+      cellLabel,
+      beforeValue: String(beforeValue || ''),
+      afterValue: String(afterValue || ''),
+    })
+    setChangeLogs(prev => [entry, ...prev].slice(0, 500))
+  }
+
   function updateCell(rowIndex, dayIndex, value) {
+    if (!editNamesMode) return
     const nextValue = String(value || '').trim().slice(0, 2)
+    const row = rows[rowIndex] || {}
+    const beforeValue = String(row.days?.[dayIndex] || '')
+    if (beforeValue === nextValue) return
+    appendChangeLog(`${rowIndex}열${dayIndex + 2}행`, beforeValue, nextValue)
     setRows(prev => prev.map((row, index) => {
       if (index !== rowIndex) return row
       const nextDays = [...row.days]
@@ -7664,10 +7720,18 @@ function WorkShiftSchedulePage() {
   }
 
   function updateRowName(rowIndex, value) {
+    if (!editNamesMode) return
+    const beforeValue = String(rows[rowIndex]?.c2 || '')
+    if (beforeValue === value) return
+    appendChangeLog(`${rowIndex}열1행`, beforeValue, value)
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c2: value } : row)))
   }
 
   function updateRowBranch(rowIndex, value) {
+    if (!editNamesMode) return
+    const beforeValue = String(rows[rowIndex]?.c1 || '')
+    if (beforeValue === value) return
+    appendChangeLog(`${rowIndex}열0행`, beforeValue, value)
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c1: value } : row)))
   }
 
@@ -7676,13 +7740,19 @@ function WorkShiftSchedulePage() {
       const nextRowNumber = prev.reduce((max, row) => Math.max(max, Number(row?.row || 0) || 0), 0) + 1
       const nextRow = {
         row: nextRowNumber,
-        c1: sectionId === 'business' ? '' : '',
+        c1: '',
         c2: '',
         days: Array.from({ length: 31 }, () => ''),
         summary: computeWorkShiftSummary(Array.from({ length: 31 }, () => '')),
       }
+      appendChangeLog(`${prev.length}열0행`, '', '신규 행 추가')
       return [...prev, nextRow]
     })
+  }
+
+  function clearChangeLogs() {
+    if (!window.confirm('편집기록을 모두 삭제할까요?')) return
+    setChangeLogs([])
   }
 
   function registerCellRef(rowIndex, columnIndex, node) {
@@ -7792,12 +7862,43 @@ function WorkShiftSchedulePage() {
                 {monthOptions.map(option => <option key={option} value={option}>{option}월</option>)}
               </select>
               <div className="work-shift-toolbar-actions">
-                <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>편집</button>
+                <button type="button" className={editNamesMode ? 'small selected-toggle' : 'small ghost'} onClick={() => setEditNamesMode(prev => !prev)}>{editNamesMode ? '편집중' : '편집'}</button>
+                <button type="button" className={logOpen ? 'small selected-toggle' : 'small ghost'} onClick={() => setLogOpen(prev => !prev)}>설정</button>
                 <button type="button" className="small ghost" onClick={addScheduleRow}>추가</button>
               </div>
             </div>
           </div>
         </div>
+        {logOpen ? (
+          <section className="work-shift-log-card">
+            <div className="work-shift-log-head">
+              <strong>편집기록</strong>
+              <button type="button" className="small ghost" onClick={clearChangeLogs}>기록삭제</button>
+            </div>
+            {changeLogs.length === 0 ? (
+              <div className="muted">저장된 편집기록이 없습니다.</div>
+            ) : (
+              <div className="work-shift-log-table">
+                <div className="work-shift-log-row head">
+                  <div>변경일</div>
+                  <div>계정이름</div>
+                  <div>시트종류</div>
+                  <div>셀위치</div>
+                  <div>변경데이터값</div>
+                </div>
+                {changeLogs.map((log, index) => (
+                  <div key={`work-shift-log-${index}`} className="work-shift-log-row">
+                    <div>{log.changedAt}</div>
+                    <div>{log.accountName}</div>
+                    <div>{log.sectionLabel}</div>
+                    <div>{log.cellLabel}</div>
+                    <div>{log.changeText}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
         {selectedSummary ? (
           <section className="work-shift-summary-card compact">
             <div className="work-shift-summary-compact-row primary">
@@ -7878,7 +7979,7 @@ function WorkShiftSchedulePage() {
                                 moveFocus(rowIndex, dayIndex + 1, event.key)
                               }
                             }}
-                            disabled={disabled}
+                            disabled={disabled || !editNamesMode}
                           />
                         </td>
                       )
