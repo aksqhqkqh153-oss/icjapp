@@ -7715,6 +7715,18 @@ function canSubmitWorkShiftVacation(user) {
   return grade >= 1 && grade <= 5
 }
 
+function toSpreadsheetColumnLabel(index) {
+  let current = Number(index) + 1
+  if (!Number.isFinite(current) || current <= 0) return ''
+  let result = ''
+  while (current > 0) {
+    const remainder = (current - 1) % 26
+    result = String.fromCharCode(65 + remainder) + result
+    current = Math.floor((current - 1) / 26)
+  }
+  return result
+}
+
 function WorkShiftSchedulePage() {
   const isMobile = useIsMobile()
   const today = new Date()
@@ -7729,6 +7741,7 @@ function WorkShiftSchedulePage() {
   const [month, setMonth] = useState(currentMonth)
   const [editNamesMode, setEditNamesMode] = useState(false)
   const [selectedRowKey, setSelectedRowKey] = useState('')
+  const [activeCellKey, setActiveCellKey] = useState('')
   const template = WORK_SHIFT_TEMPLATE[sectionId] || WORK_SHIFT_TEMPLATE.business
   const [rows, setRows] = useState(() => cloneWorkShiftRows(template.rows || []))
   const dayCount = daysInMonthFromParts(year, month)
@@ -7769,6 +7782,7 @@ function WorkShiftSchedulePage() {
     nextRows = nextRows.map(row => ({ ...row, summary: computeWorkShiftSummary(row.days) }))
     setRows(nextRows)
     setSelectedRowKey(prev => prev || String(nextRows[0]?.row || nextRows[0]?.c2 || ''))
+    setActiveCellKey('')
     cellRefs.current = {}
     try {
       const rawLogs = localStorage.getItem(workShiftLogStorageKey(sectionId, year, month))
@@ -7812,6 +7826,18 @@ function WorkShiftSchedulePage() {
     const day = index + 1
     return day <= dayCount ? `${day}일` : ''
   })
+  const tableColumnLabels = useMemo(() => {
+    const totalColumns = 2 + 31 + ((template.summary || []).length)
+    return Array.from({ length: totalColumns }, (_, index) => toSpreadsheetColumnLabel(index))
+  }, [template.summary])
+
+  function getCellKey(rowIndex, columnIndex) {
+    return `${rowIndex}-${columnIndex}`
+  }
+
+  function isActiveCell(rowIndex, columnIndex) {
+    return activeCellKey === getCellKey(rowIndex, columnIndex)
+  }
 
   function appendChangeLog(cellLabel, beforeValue, afterValue) {
     if (String(beforeValue || '') === String(afterValue || '')) return
@@ -7898,7 +7924,7 @@ function WorkShiftSchedulePage() {
 
   function moveFocus(rowIndex, columnIndex, key) {
     const maxRow = rows.length - 1
-    const maxColumn = 31
+    const maxColumn = 32
     let nextRow = rowIndex
     let nextColumn = columnIndex
     if (key === 'ArrowLeft') nextColumn = Math.max(0, columnIndex - 1)
@@ -7909,19 +7935,19 @@ function WorkShiftSchedulePage() {
 
     if (key === 'ArrowUp' || key === 'ArrowDown') {
       const row = rows[nextRow]
-      if (nextColumn > 0 && nextColumn - 1 >= dayCount) {
+      if (nextColumn > 1 && nextColumn - 1 >= dayCount + 1) {
         nextColumn = 0
       }
-      if (nextColumn > 0 && !row) return
+      if (nextColumn > 1 && !row) return
     }
 
-    if (nextColumn > 0) {
+    if (nextColumn > 1) {
       let guard = 0
-      while (nextColumn > dayCount && guard < 31) {
+      while (nextColumn > dayCount + 1 && guard < 31) {
         nextColumn += key === 'ArrowLeft' ? -1 : 1
         guard += 1
       }
-      if (nextColumn > dayCount || nextColumn < 0) return
+      if (nextColumn > dayCount + 1 || nextColumn < 0) return
     }
     focusCell(nextRow, nextColumn)
   }
@@ -7930,10 +7956,6 @@ function WorkShiftSchedulePage() {
     if (isMobile || event.button !== 0) return
     const wrapNode = tableWrapRef.current
     if (!wrapNode) return
-    const target = event.target
-    if (!(target instanceof HTMLElement)) return
-    const interactive = target.closest('input, textarea, select, button, a, label')
-    if (interactive && !target.classList.contains('work-shift-table-wrap')) return
     dragStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -8265,11 +8287,19 @@ function WorkShiftSchedulePage() {
             onMouseLeave={handleTablePointerUp}
             onMouseUp={handleTablePointerUp}
           >
-            <table className="work-shift-table">
+            <table className="work-shift-table spreadsheet-like">
               <thead>
+                <tr className="work-shift-index-row">
+                  <th className="sticky top-left row-index-head">#</th>
+                  {tableColumnLabels.map((label, index) => {
+                    const extraClass = index === 0 ? 'sticky left col-index-branch' : index === 1 ? 'sticky left second col-index-person' : ''
+                    return <th key={`col-label-${index}`} className={`work-shift-col-index ${extraClass}`.trim()}>{label}</th>
+                  })}
+                </tr>
                 <tr>
-                  <th className="sticky left head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
-                  <th className="sticky left second head-name name-cell-person work-shift-head-cell">성명</th>
+                  <th className="sticky left row-index-head">행</th>
+                  <th className="sticky left col-main-head head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
+                  <th className="sticky left second col-main-head head-name name-cell-person work-shift-head-cell">성명</th>
                   {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
                   {(template.summary || []).map((label, index) => <th key={`summary-${index}`} className="head-summary">{label || ' '}</th>)}
                 </tr>
@@ -8278,26 +8308,23 @@ function WorkShiftSchedulePage() {
                 {rows.map((row, rowIndex) => {
                   const rowKey = String(row.row || row.c2 || rowIndex)
                   const selected = rowKey === String(selectedRowKey || '')
+                  const branchActive = isActiveCell(rowIndex, 0)
+                  const nameActive = isActiveCell(rowIndex, 1)
                   return (
                     <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
-                      <td className="sticky left name-cell">
+                      <td className="sticky left row-index-cell">{rowIndex + 1}</td>
+                      <td className={`sticky left name-cell ${branchActive ? 'is-active-cell' : ''}`.trim()}>
                         {editNamesMode && canEditSchedule ? (
                           <input
-                            className="work-shift-branch-input"
+                            className={`work-shift-branch-input ${branchActive ? 'is-active-input' : ''}`.trim()}
                             value={row.c1 || ''}
-                            onFocus={() => setSelectedRowKey(rowKey)}
-                            onChange={event => updateRowBranch(rowIndex, event.target.value)}
-                          />
-                        ) : (row.c1 || '')}
-                      </td>
-                      <td className="sticky left second name-cell">
-                        {editNamesMode && canEditSchedule ? (
-                          <input
-                            className="work-shift-name-input"
-                            value={row.c2 || ''}
                             ref={node => registerCellRef(rowIndex, 0, node)}
-                            onFocus={() => setSelectedRowKey(rowKey)}
-                            onChange={event => updateRowName(rowIndex, event.target.value)}
+                            onFocus={() => {
+                              setSelectedRowKey(rowKey)
+                              setActiveCellKey(getCellKey(rowIndex, 0))
+                            }}
+                            onBlur={() => setActiveCellKey(prev => (prev === getCellKey(rowIndex, 0) ? '' : prev))}
+                            onChange={event => updateRowBranch(rowIndex, event.target.value)}
                             onKeyDown={event => {
                               if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                                 event.preventDefault()
@@ -8305,22 +8332,48 @@ function WorkShiftSchedulePage() {
                               }
                             }}
                           />
+                        ) : (row.c1 || '')}
+                      </td>
+                      <td className={`sticky left second name-cell ${nameActive ? 'is-active-cell' : ''}`.trim()}>
+                        {editNamesMode && canEditSchedule ? (
+                          <input
+                            className={`work-shift-name-input ${nameActive ? 'is-active-input' : ''}`.trim()}
+                            value={row.c2 || ''}
+                            ref={node => registerCellRef(rowIndex, 1, node)}
+                            onFocus={() => {
+                              setSelectedRowKey(rowKey)
+                              setActiveCellKey(getCellKey(rowIndex, 1))
+                            }}
+                            onBlur={() => setActiveCellKey(prev => (prev === getCellKey(rowIndex, 1) ? '' : prev))}
+                            onChange={event => updateRowName(rowIndex, event.target.value)}
+                            onKeyDown={event => {
+                              if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                                event.preventDefault()
+                                moveFocus(rowIndex, 1, event.key)
+                              }
+                            }}
+                          />
                         ) : (row.c2 || '')}
                       </td>
                       {Array.from({ length: 31 }, (_, dayIndex) => {
                         const disabled = dayIndex + 1 > dayCount
+                        const dayCellActive = isActiveCell(rowIndex, dayIndex + 2)
                         return (
-                          <td key={dayIndex} className={disabled ? 'day-cell disabled' : 'day-cell'}>
+                          <td key={dayIndex} className={`${disabled ? 'day-cell disabled' : 'day-cell'} ${dayCellActive ? 'is-active-cell' : ''}`.trim()}>
                             <input
-                              className="work-shift-input"
+                              className={`work-shift-input ${dayCellActive ? 'is-active-input' : ''}`.trim()}
                               value={row.days?.[dayIndex] || ''}
-                              onFocus={() => setSelectedRowKey(rowKey)}
-                              ref={node => registerCellRef(rowIndex, dayIndex + 1, node)}
+                              onFocus={() => {
+                                setSelectedRowKey(rowKey)
+                                setActiveCellKey(getCellKey(rowIndex, dayIndex + 2))
+                              }}
+                              onBlur={() => setActiveCellKey(prev => (prev === getCellKey(rowIndex, dayIndex + 2) ? '' : prev))}
+                              ref={node => registerCellRef(rowIndex, dayIndex + 2, node)}
                               onChange={event => updateCell(rowIndex, dayIndex, event.target.value)}
                               onKeyDown={event => {
                                 if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                                   event.preventDefault()
-                                  moveFocus(rowIndex, dayIndex + 1, event.key)
+                                  moveFocus(rowIndex, dayIndex + 2, event.key)
                                 }
                               }}
                               disabled={disabled || !editNamesMode || !canEditSchedule}

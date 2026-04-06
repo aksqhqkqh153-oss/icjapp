@@ -2346,6 +2346,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
       acc.reportedCount += record?.finalStatus?.includes('신고완') ? 1 : 0
       return acc
     }, { customerCount:0, totalQty:0, totalReport:0, totalFee:0, totalCancel:0, totalSales:0, paidCount:0, reportedCount:0 })
+    const customerNames = records.map(record => String(record?.customerName || '').trim()).filter(Boolean)
     rows.push({
       key: `summary-${dateKey}`,
       kind: 'summary',
@@ -2355,7 +2356,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
         dateKey,
         '합계',
         `${formatNumber(summary.customerCount)}건`,
-        `${formatNumber(summary.customerCount)}명`,
+        customerNames.join(' / ') || '-',
         `${formatNumber(summary.totalQty)}개`,
         `${formatNumber(summary.totalReport)}원`,
         `${formatNumber(summary.totalFee)}원`,
@@ -2495,7 +2496,7 @@ export function DisposalSettlementsPage() {
         ) : (
           <div className="disposal-month-settlement-table simple-sheet">
             <div className="disposal-month-settlement-row disposal-month-settlement-head">
-              <div>일자</div>
+              <div>폐기일자</div>
               <div>구분</div>
               <div>건수</div>
               <div>고객명</div>
