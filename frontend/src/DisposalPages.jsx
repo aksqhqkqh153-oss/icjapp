@@ -590,7 +590,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
     ctx.fillStyle = '#2563eb'
     ctx.font = '800 28px sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('대리신고 최종 합계비용', totalX + 18, totalY + totalHeight / 2)
+    ctx.fillText('대리신고 매출액', totalX + 18, totalY + totalHeight / 2)
     ctx.textAlign = 'right'
     ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
   }
@@ -1258,7 +1258,7 @@ function DisposalItemsEditor({
               <div className="disposal-table-multiline-head"><span>개</span><span>수</span></div>
               <div className="disposal-table-multiline-head"><span>개당</span><span>신고비용</span></div>
               <div className="disposal-table-multiline-head"><span>신고</span><span>합계비용</span></div>
-              <div className="disposal-table-multiline-head"><span>최종</span><span>매출비용</span></div>
+              <div className="disposal-table-multiline-head"><span>매</span><span>출액</span></div>
               <div>신고번호</div>
               <div className="disposal-items-note-column">메모칸</div>
             </div>
@@ -1346,7 +1346,7 @@ function DisposalItemsEditor({
           ))}
         </div>
         <div className="disposal-linked-preview-total wide emphasize-blue">
-          <span>대리신고 최종 합계비용</span>
+          <span>대리신고 매출액</span>
           <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
         </div>
       </div>
@@ -1392,7 +1392,7 @@ function DisposalItemsEditor({
         <div className="disposal-inline-popup-backdrop" onClick={() => setShowItemsHelp(false)}>
           <div className="disposal-inline-popup" onClick={e => e.stopPropagation()}>
             <div className="disposal-inline-popup-title">폐기품목입력 설명</div>
-            <div className="disposal-inline-popup-body">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 최종매출비용으로 자동 계산됩니다.</div>
+            <div className="disposal-inline-popup-body">개수 × 개당신고비용 = 신고합계비용, 신고합계비용 × 1.3 = 매출액으로 자동 계산됩니다.</div>
             <div className="disposal-inline-popup-actions">
               <button type="button" className="ghost" onClick={() => setShowItemsHelp(false)}>닫기</button>
             </div>
@@ -2077,7 +2077,7 @@ export function DisposalListPage() {
                   <div>수량</div>
                   <div>개당비용</div>
                   <div>신고합계</div>
-                  <div>최종비용</div>
+                  <div>매출액</div>
                   <div>입금여부</div>
                   <div>신고여부</div>
                 </div>
@@ -2259,6 +2259,116 @@ function buildSettlementSalesSheet(monthLabel, monthlyRecords) {
   ]
 }
 
+function formatMonthShortLabel(monthKey) {
+  const [yearText, monthText] = String(monthKey || '').split('-')
+  const year = Number(yearText)
+  const month = Number(monthText)
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return '월 미지정'
+  return `${String(year).slice(-2)}년 ${month}월`
+}
+
+function buildSettlementMonthlySalesTable(monthLabel, monthlyRecords) {
+  const totals = monthlyRecords.reduce((acc, record) => {
+    const metrics = getRecordSettlementMetrics(record)
+    acc.count += 1
+    acc.customers.add(String(record?.customerName || '').trim())
+    acc.totalQty += metrics.totalQty
+    acc.totalReport += metrics.reportAmount
+    acc.totalFee += metrics.feeAmount
+    acc.totalCancel += metrics.cancelAmount
+    acc.totalSales += metrics.minimumFee
+    return acc
+  }, {
+    count: 0,
+    customers: new Set(),
+    totalQty: 0,
+    totalReport: 0,
+    totalFee: 0,
+    totalCancel: 0,
+    totalSales: 0,
+  })
+  const averages = groupMonthlyRecordCount(monthlyRecords)
+  return [
+    ['월 매출표', monthLabel],
+    ['총 등록건수', `${formatNumber(totals.count)}건`],
+    ['고객 수', `${formatNumber(totals.customers.size)}명`],
+    ['총 품목수', `${formatNumber(totals.totalQty)}개`],
+    ['폐기신고액', `${formatNumber(totals.totalReport)}원`],
+    ['폐기수수료', `${formatNumber(totals.totalFee)}원`],
+    ['취소신고액', `${formatNumber(totals.totalCancel)}원`],
+    ['매출액', `${formatNumber(totals.totalSales)}원`],
+    ['일평균 매출액', `${formatNumber(averages.minimumAverage)}원`],
+  ]
+}
+
+function buildSettlementMonthlyRows(monthlyRecords) {
+  const byDate = new Map()
+  sortRecords(monthlyRecords, 'date').forEach(record => {
+    const dateKey = String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
+    if (!byDate.has(dateKey)) byDate.set(dateKey, [])
+    byDate.get(dateKey).push(record)
+  })
+  const rows = []
+  Array.from(byDate.entries()).sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'ko')).forEach(([dateKey, records]) => {
+    const summary = records.reduce((acc, record) => {
+      const metrics = getRecordSettlementMetrics(record)
+      acc.customerCount += 1
+      acc.totalQty += metrics.totalQty
+      acc.totalReport += metrics.reportAmount
+      acc.totalFee += metrics.feeAmount
+      acc.totalCancel += metrics.cancelAmount
+      acc.totalSales += metrics.minimumFee
+      acc.paidCount += record?.finalStatus?.includes('입금완') ? 1 : 0
+      acc.reportedCount += record?.finalStatus?.includes('신고완') ? 1 : 0
+      return acc
+    }, { customerCount:0, totalQty:0, totalReport:0, totalFee:0, totalCancel:0, totalSales:0, paidCount:0, reportedCount:0 })
+    rows.push({
+      key: `summary-${dateKey}`,
+      kind: 'summary',
+      dateKey,
+      toggleKey: dateKey,
+      cells: [
+        dateKey,
+        '합계',
+        `${formatNumber(summary.customerCount)}건`,
+        `${formatNumber(summary.customerCount)}명`,
+        `${formatNumber(summary.totalQty)}개`,
+        `${formatNumber(summary.totalReport)}원`,
+        `${formatNumber(summary.totalFee)}원`,
+        `${formatNumber(summary.totalCancel)}원`,
+        `${formatNumber(summary.totalSales)}원`,
+        `${summary.paidCount}/${summary.customerCount}`,
+        `${summary.reportedCount}/${summary.customerCount}`,
+        '상세보기',
+      ],
+    })
+    records.forEach((record, index) => {
+      const metrics = getRecordSettlementMetrics(record)
+      rows.push({
+        key: `detail-${record.id}-${index}`,
+        kind: 'detail',
+        parentKey: dateKey,
+        recordId: record.id,
+        cells: [
+          '',
+          String(index + 1),
+          record?.platform || '-',
+          record?.customerName || '-',
+          `${formatNumber(metrics.totalQty)}개`,
+          `${formatNumber(metrics.reportAmount)}원`,
+          `${formatNumber(metrics.feeAmount)}원`,
+          `${formatNumber(metrics.cancelAmount)}원`,
+          `${formatNumber(metrics.minimumFee)}원`,
+          record?.finalStatus?.includes('입금완') ? '입금완' : '입금전',
+          record?.finalStatus?.includes('신고완') ? '신고완' : '신고전',
+          record?.location || '-',
+        ],
+      })
+    })
+  })
+  return rows
+}
+
 function groupMonthlyRecordCount(monthlyRecords) {
   const days = new Map()
   monthlyRecords.forEach(record => {
@@ -2302,6 +2412,7 @@ export function DisposalSettlementsPage() {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
+  const [expandedKeys, setExpandedKeys] = useState({})
 
   useEffect(() => {
     const loaded = loadRecords().filter(record => !!record?.settlementTransferredAt)
@@ -2312,9 +2423,14 @@ export function DisposalSettlementsPage() {
   }, [])
 
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
-  const groupedSettlements = useMemo(() => buildSettlementGroups(monthlyRecords), [monthlyRecords])
-  const monthLabel = useMemo(() => formatMonthLabel(monthKey), [monthKey])
-  const salesSheetRows = useMemo(() => buildSettlementSalesSheet(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
+  const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
+  const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
+  const settlementRows = useMemo(() => buildSettlementMonthlyRows(monthlyRecords), [monthlyRecords])
+  const visibleRows = useMemo(() => settlementRows.filter(row => row.kind === 'summary' || expandedKeys[row.parentKey]), [settlementRows, expandedKeys])
+
+  function toggleRow(key) {
+    setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
   return (
     <div className="stack-page disposal-page">
@@ -2325,21 +2441,21 @@ export function DisposalSettlementsPage() {
         </div>
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
-          <button type="button" className="ghost active" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
+          <button type="button" className="ghost" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
         </div>
       </section>
 
-      <section className="card disposal-month-switch-card">
-        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}>이전 ◀</button>
+      <section className="card disposal-month-switch-card disposal-month-switch-card-compact">
+        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}>◀이전</button>
         <div className="disposal-month-switch-title">{monthLabel}</div>
-        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}>다음 ▶</button>
+        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}>다음▶</button>
       </section>
 
       <section className="card disposal-monthly-sheet-card">
-        <div className="disposal-sheet-title">월간 데이터 요약</div>
-        <div className="disposal-sales-sheet">
-          {salesSheetRows.map((row, rowIndex) => (
-            <div key={`sales-row-${rowIndex}`} className={`disposal-sales-sheet-row ${rowIndex === 0 ? 'is-title' : rowIndex === 1 ? 'is-head' : ''}`}>
+        <div className="disposal-sheet-title">월 매출표</div>
+        <div className="disposal-sales-sheet disposal-sales-sheet-two-col">
+          {salesTableRows.map((row, rowIndex) => (
+            <div key={`sales-row-${rowIndex}`} className={`disposal-sales-sheet-row disposal-sales-sheet-row-two-col ${rowIndex === 0 ? 'is-title' : ''}`}>
               {row.map((cell, cellIndex) => (
                 <div key={`sales-cell-${rowIndex}-${cellIndex}`} className="disposal-sales-sheet-cell">{cell || ''}</div>
               ))}
@@ -2348,44 +2464,39 @@ export function DisposalSettlementsPage() {
         </div>
       </section>
 
-      <section className="card disposal-records-card disposal-settlement-board-card">
-        {groupedSettlements.length === 0 ? (
+      <section className="card disposal-monthly-sheet-card">
+        <div className="disposal-sheet-title">월 결산표</div>
+        {settlementRows.length === 0 ? (
           <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
-        ) : groupedSettlements.map(group => (
-          <div key={group.key} className="disposal-settlement-date-group">
-            <div className="disposal-settlement-date-label">{group.label}</div>
-            <div className="disposal-settlement-grid">
-              <div className="disposal-settlement-grid-row disposal-settlement-grid-head">
-                <div>고객명</div>
-                <div>폐기예정일</div>
-                <div>품목수</div>
-                <div>폐기신고액</div>
-                <div>폐기수수료</div>
-                <div>취소신고액</div>
-                <div>최소수수료</div>
-              </div>
-              {group.records.map(record => {
-                const metrics = getRecordSettlementMetrics(record)
-                return (
-                  <button
-                    key={record.id}
-                    type="button"
-                    className="disposal-settlement-grid-row disposal-settlement-grid-button"
-                    onClick={() => navigate(`/disposal/forms/${record.id}`)}
-                  >
-                    <span>{record.customerName || '-'}</span>
-                    <span>{record.disposalDate || '-'}</span>
-                    <span>{formatNumber(metrics.totalQty)}</span>
-                    <span>{formatNumber(metrics.reportAmount)}원</span>
-                    <span>{formatNumber(metrics.feeAmount)}원</span>
-                    <span>{formatNumber(metrics.cancelAmount)}원</span>
-                    <span>{formatNumber(metrics.minimumFee)}원</span>
-                  </button>
-                )
-              })}
+        ) : (
+          <div className="disposal-month-settlement-table">
+            <div className="disposal-month-settlement-row disposal-month-settlement-head">
+              <div>일자</div>
+              <div>구분</div>
+              <div>건수</div>
+              <div>고객명</div>
+              <div>품목수</div>
+              <div>폐기신고액</div>
+              <div>폐기수수료</div>
+              <div>취소신고액</div>
+              <div>매출액</div>
+              <div>입금</div>
+              <div>신고</div>
+              <div>비고</div>
             </div>
+            {visibleRows.map(row => row.kind === 'summary' ? (
+              <button key={row.key} type="button" className="disposal-month-settlement-row disposal-month-settlement-summary" onClick={() => toggleRow(row.toggleKey)}>
+                {row.cells.map((cell, index) => (
+                  <div key={`${row.key}-${index}`} className={index === 11 ? 'toggle-cell' : ''}>{index === 11 ? (expandedKeys[row.toggleKey] ? '접기' : '펼치기') : cell}</div>
+                ))}
+              </button>
+            ) : (
+              <button key={row.key} type="button" className="disposal-month-settlement-row disposal-month-settlement-detail" onClick={() => navigate(`/disposal/forms/${row.recordId}`)}>
+                {row.cells.map((cell, index) => <div key={`${row.key}-${index}`}>{cell}</div>)}
+              </button>
+            ))}
           </div>
-        ))}
+        )}
       </section>
     </div>
   )

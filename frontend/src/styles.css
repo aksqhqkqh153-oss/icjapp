@@ -13239,3 +13239,98 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 
 .disposal-list-top-controls { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
 .disposal-payment-badge.is-mixed { background: rgba(245, 158, 11, 0.14); color: #b45309; border-color: rgba(245, 158, 11, 0.28); }
+
+.disposal-month-switch-card-compact {
+  grid-template-columns: 100px minmax(0, 1fr) 100px;
+}
+
+.disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col {
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 1fr);
+}
+
+.disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+  font-size: 16px;
+}
+
+.disposal-sales-sheet-two-col .disposal-sales-sheet-cell {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col .disposal-sales-sheet-cell:nth-child(2n) {
+  justify-content: center;
+  text-align: center;
+}
+
+.disposal-month-settlement-table {
+  display: grid;
+  gap: 0;
+  border: 1px solid #d9e2ef;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.disposal-month-settlement-row {
+  display: grid;
+  grid-template-columns: 120px 76px 90px minmax(120px, 1.1fr) 90px 120px 120px 120px 120px 80px 80px minmax(140px, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5eaf3;
+  font-size: 13px;
+  color: #334155;
+}
+
+.disposal-month-settlement-row:last-child {
+  border-bottom: 0;
+}
+
+.disposal-month-settlement-head {
+  background: #f8fafc;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.disposal-month-settlement-summary,
+.disposal-month-settlement-detail {
+  border: 0;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+}
+
+.disposal-month-settlement-summary {
+  background: #eff6ff;
+  font-weight: 700;
+}
+
+.disposal-month-settlement-summary:hover,
+.disposal-month-settlement-detail:hover {
+  background: #f8fbff;
+}
+
+.disposal-month-settlement-detail {
+  padding-left: 24px;
+}
+
+.disposal-month-settlement-row > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.disposal-month-settlement-row .toggle-cell {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .disposal-month-settlement-table {
+    overflow-x: auto;
+  }
+
+  .disposal-month-settlement-row {
+    min-width: 1460px;
+  }
+}
