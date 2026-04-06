@@ -5035,16 +5035,13 @@ function WorkSchedulePage() {
     setNoteDeleteMode(false)
     setNoteDeleteChecks([])
     const details = Array.isArray(day.excluded_business_details) ? day.excluded_business_details : []
+    const rawSlots = details.length ? details.map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business)
+    const rawReasons = details.length ? details.map(item => String(item?.reason || '').trim()) : []
+    const trimmed = trimExcludedBusinessRows(rawSlots.length ? rawSlots : [''], rawReasons.length ? rawReasons : [''])
     setNoteForm({
       schedule_date: day.date,
-      excluded_business_slots: (() => {
-        const slots = details.length ? details.map(item => String(item?.branch_no || '').trim()) : parseExcludedBusinessSlots(day.excluded_business)
-        return slots.length ? slots : ['']
-      })(),
-      excluded_business_reasons: (() => {
-        const reasons = details.length ? details.map(item => String(item?.reason || '').trim()) : []
-        return reasons.length ? reasons : ['']
-      })(),
+      excluded_business_slots: trimmed.slots.length ? trimmed.slots : [''],
+      excluded_business_reasons: trimmed.reasons.length ? trimmed.reasons : [''],
       excluded_staff: day.excluded_staff || '',
     })
     setMessage('')

@@ -1340,9 +1340,7 @@ function DisposalItemsEditor({
             <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCompanySettingsOpen(prev => !prev)} aria-label="회사용 설정">⚙</button>
             {companySettingsOpen ? (
               <div className="disposal-settings-popover disposal-customer-settings-popover">
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCompanySaveDirectory}>견적저장위치</button>
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => updateExportTemplate('company')}>견적이름변경</button>
-                <div className="disposal-settings-popover-caption">현재: {companySaveDirectoryLabel}</div>
+                <div className="disposal-settings-popover-caption">회사용 저장은 기본 설정으로 바로 저장됩니다.</div>
               </div>
             ) : null}
           </div>

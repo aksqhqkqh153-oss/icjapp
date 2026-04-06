@@ -1207,7 +1207,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
     request_rows = [
         _material_request_detail(conn, row_to_dict(row))
         for row in conn.execute(
-            "SELECT * FROM material_purchase_requests ORDER BY created_at DESC, id DESC LIMIT 300"
+            "SELECT * FROM material_purchase_requests ORDER BY created_at DESC, id DESC LIMIT 1000"
         ).fetchall()
     ]
     pending_requests = [row for row in request_rows if row.get('status') == 'pending']
@@ -1215,7 +1215,35 @@ def _material_overview_payload(conn, user: dict) -> dict:
     rejected_requests = [row for row in request_rows if row.get('status') == 'rejected']
     history_rows = settled_requests[:] + rejected_requests[:]
     history_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
-    my_request_rows = [row for row in request_rows if _material_request_belongs_to_user(row, user)]
+
+    user_id = int(user.get('id') or 0)
+    my_request_seen_ids: set[int] = set()
+    my_request_rows: list[dict] = []
+
+    if user_id > 0:
+        own_rows = [
+            _material_request_detail(conn, row_to_dict(row))
+            for row in conn.execute(
+                "SELECT * FROM material_purchase_requests WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000",
+                (user_id,),
+            ).fetchall()
+        ]
+        for row in own_rows:
+            row_id = int(row.get('id') or 0)
+            if row_id <= 0 or row_id in my_request_seen_ids:
+                continue
+            my_request_seen_ids.add(row_id)
+            my_request_rows.append(row)
+
+    for row in request_rows:
+        row_id = int(row.get('id') or 0)
+        if row_id in my_request_seen_ids:
+            continue
+        if _material_request_belongs_to_user(row, user):
+            my_request_seen_ids.add(row_id)
+            my_request_rows.append(row)
+
+    my_request_rows.sort(key=lambda row: (str(row.get('created_at') or ''), int(row.get('id') or 0)), reverse=True)
     products = _material_products(conn)
     inventory_rows = _material_today_inventory_rows(conn, today_key)
     inventory_map = {int(row['product_id']): row for row in inventory_rows}
