@@ -320,13 +320,27 @@ function formatExportLocationLabel(value) {
   return `주소 : ${raw}`
 }
 
-function buildExportInfoLines({ platform = '', customerName = '', disposalDate = '', location = '', includePlatform = true }) {
+function buildExportInfoInlineText({ customerName = '', disposalDate = '', location = '' }) {
   return [
-    includePlatform ? `플랫폼 : ${String(platform || '').trim()}` : '',
-    `고객명 : ${formatExportCustomerLabel(customerName)}`,
-    `폐기일자 : ${formatExportDateLabel(disposalDate)}`,
-    `폐기장소 : ${formatExportLocationLabel(location)}`,
-  ].filter(line => line && !line.endsWith(': '))
+    formatExportCustomerLabel(customerName),
+    formatExportDateLabel(disposalDate),
+    formatExportLocationLabel(location),
+  ].filter(Boolean).join(' | ')
+}
+
+function buildExportInfoLines({ customerName = '', disposalDate = '', location = '' }) {
+  const inlineText = buildExportInfoInlineText({ customerName, disposalDate, location })
+  return inlineText ? [inlineText] : []
+}
+
+function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', suffix = '' }) {
+  const label = [
+    String(platform || '').trim(),
+    String(customerName || '').trim(),
+    String(disposalDate || '').trim(),
+  ].filter(Boolean).join(' ')
+  const wrapped = label ? `[${label}] ${suffix}` : suffix
+  return `${sanitizeExportFilename(wrapped)}.jpg`
 }
 
 function sanitizeExportFilename(value) {
@@ -445,7 +459,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   ctx.fillStyle = '#374151'
   ctx.font = '700 18px sans-serif'
   ctx.textAlign = 'left'
-  const infoLines = buildExportInfoLines({ platform, customerName, disposalDate, location, includePlatform })
+  const infoLines = buildExportInfoLines({ customerName, disposalDate, location })
   if (infoLines.length) {
     const lineGap = 26
     const startLineY = currentY + 18
@@ -938,7 +952,12 @@ function DisposalItemsEditor({
         location: draft.location,
       })
       const blob = await canvasToJpegBlob(canvas)
-      const filename = `${sanitizeExportFilename(draft.customerName || '고객용견적서')}_${sanitizeExportFilename(draft.disposalDate || new Date().toISOString().slice(0, 10))}.jpg`
+      const filename = buildEstimateExportFilename({
+        platform: draft.platform,
+        customerName: draft.customerName,
+        disposalDate: draft.disposalDate,
+        suffix: '폐기견적',
+      })
 
       if (customerSaveDirectoryHandle) {
         const permission = await customerSaveDirectoryHandle.queryPermission?.({ mode: 'readwrite' })
@@ -978,7 +997,12 @@ function DisposalItemsEditor({
         location: draft.location,
       })
       const blob = await canvasToJpegBlob(canvas)
-      const filename = `${sanitizeExportFilename(draft.customerName || '회사용견적서')}_${sanitizeExportFilename(draft.disposalDate || new Date().toISOString().slice(0, 10))}_회사용.jpg`
+      const filename = buildEstimateExportFilename({
+        platform: draft.platform,
+        customerName: draft.customerName,
+        disposalDate: draft.disposalDate,
+        suffix: '폐기밴드',
+      })
 
       if (companySaveDirectoryHandle) {
         const permission = await companySaveDirectoryHandle.queryPermission?.({ mode: 'readwrite' })
@@ -1104,10 +1128,10 @@ function DisposalItemsEditor({
           </div>
         </div>
         <div className="disposal-linked-preview-meta customer-large-text">
-          <div>{`플랫폼 : ${draft.platform || '-'}`}</div>
-          <div>{`고객명 : ${formatExportCustomerLabel(draft.customerName)}`}</div>
-          <div>{`폐기일자 : ${formatExportDateLabel(draft.disposalDate)}`}</div>
-          <div>{`폐기장소 : ${formatExportLocationLabel(draft.location)}`}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
         </div>
         <div className="disposal-linked-preview-table customer customer-large-text">
           <div className="disposal-linked-preview-row head">
@@ -1146,10 +1170,10 @@ function DisposalItemsEditor({
           </div>
         </div>
         <div className="disposal-linked-preview-meta customer-large-text">
-          <div>{`플랫폼 : ${draft.platform || '-'}`}</div>
-          <div>{`고객명 : ${formatExportCustomerLabel(draft.customerName)}`}</div>
-          <div>{`폐기일자 : ${formatExportDateLabel(draft.disposalDate)}`}</div>
-          <div>{`폐기장소 : ${formatExportLocationLabel(draft.location)}`}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
+          <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
         </div>
         <div className="disposal-linked-preview-table customer company customer-large-text">
           <div className="disposal-linked-preview-row head">

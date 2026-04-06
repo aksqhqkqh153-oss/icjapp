@@ -10939,7 +10939,7 @@ button.disposal-items-number-cell.has-note {
 
 .disposal-linked-preview-meta {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: max-content max-content max-content minmax(0, 1fr);
   gap: 4px;
   margin-bottom: 8px;
 }
@@ -10951,9 +10951,17 @@ button.disposal-items-number-cell.has-note {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
+  padding: 4px 8px;
   font-size: 16px;
   text-align: center;
+  white-space: nowrap;
+}
+
+.disposal-linked-preview-meta-chip-location {
+  justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .disposal-linked-preview-total {
@@ -11351,7 +11359,7 @@ button.disposal-items-number-cell.has-note {
   }
 
   .disposal-linked-preview-meta {
-    grid-template-columns: minmax(0, 25%) minmax(0, 25%) minmax(0, 50%);
+    grid-template-columns: max-content max-content max-content minmax(0, 1fr);
     gap: 3px;
     margin-bottom: 6px;
   }
