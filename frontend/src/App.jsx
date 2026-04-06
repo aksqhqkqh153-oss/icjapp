@@ -22,6 +22,7 @@ const PAGE_TITLES = {
   '/boards': '게시판',
   '/notifications': '알림',
   '/settings': '설정',
+  '/policies': '규정',
   '/admin-mode': '관리자모드',
   '/reports': '신고관리',
   '/workday-history': '일시작종료',
@@ -220,6 +221,53 @@ const GENDER_OPTIONS = ['남성', '여성']
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
+const POLICY_CARD_PLACEHOLDERS = Array.from({ length: 15 }, (_, index) => ({
+  id: `placeholder-${index + 1}`,
+  label: '준비중',
+}))
+
+const POLICY_CONTENT = {
+  business: {
+    label: '사업자',
+    allowed: user => Number(user?.grade || 6) <= 4,
+    lines: [
+      '사업자 휴가 규정',
+      '휴가 일정은 사전 공유 후 확정합니다.',
+      '업무 인수인계가 필요한 경우 메모를 함께 남깁니다.',
+      '긴급 변경은 관리자와 별도 협의합니다.',
+    ],
+  },
+  field: {
+    label: '현장직원',
+    allowed: user => Number(user?.grade || 6) <= 5,
+    lines: [
+      '현장직원 휴가 규정',
+      '배정 일정과 겹치지 않게 사전 신청합니다.',
+      '확정 전에는 대체 인력 여부를 먼저 확인합니다.',
+      '당일 변경은 승인 후 반영합니다.',
+    ],
+  },
+  office: {
+    label: '사무직원',
+    allowed: user => Number(user?.grade || 6) <= 4,
+    lines: [
+      '사무직원 휴가 규정',
+      '업무 마감 일정 기준으로 사전 신청합니다.',
+      '인수인계 문서를 남긴 뒤 승인받습니다.',
+      '긴급 휴가는 관리자 확인 후 등록합니다.',
+    ],
+  },
+}
+
+function normalizeGenderValue(value) {
+  const gender = String(value || '').trim()
+  if (!gender) return ''
+  const lowered = gender.toLowerCase()
+  if (['남', '남자', 'male', 'm'].includes(lowered)) return '남성'
+  if (['여', '여자', 'female', 'f'].includes(lowered)) return '여성'
+  return GENDER_OPTIONS.includes(gender) ? gender : ''
+}
+
 function normalizeBranchNo(value) {
   if (value === '' || value === null || value === undefined) return null
   const parsed = Number(value)
@@ -338,6 +386,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'settlements', label: '결산자료', path: '/settlements' },
       { id: 'storage-status', label: '짐보관현황', path: '/storage-status' },
       { id: 'disposal', label: '폐기', path: '/disposal' },
+      { id: 'policies', label: '규정', path: '/policies' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
       { id: 'reports', label: '신고관리', path: '/reports' },
     ],
@@ -7116,6 +7165,75 @@ function MenuPermissionPage() {
   )
 }
 
+function PoliciesPage() {
+  const user = getStoredUser()
+  const [category, setCategory] = useState('vacation')
+  const [selectedPolicy, setSelectedPolicy] = useState('business')
+  const policyEntries = [
+    { id: 'business', ...POLICY_CONTENT.business },
+    { id: 'field', ...POLICY_CONTENT.field },
+    { id: 'office', ...POLICY_CONTENT.office },
+  ]
+  const currentPolicy = policyEntries.find(item => item.id === selectedPolicy) || policyEntries[0]
+
+  useEffect(() => {
+    if (!currentPolicy?.allowed(user)) {
+      const nextAllowed = policyEntries.find(item => item.allowed(user))
+      if (nextAllowed) setSelectedPolicy(nextAllowed.id)
+    }
+  }, [currentPolicy, policyEntries, user])
+
+  return (
+    <div className="stack settings-page-shell">
+      <section className="card settings-category-card">
+        <h2>규정</h2>
+        <div className="settings-category-row">
+          <button type="button" className={category === 'vacation' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('vacation')}>휴가</button>
+          {POLICY_CARD_PLACEHOLDERS.map(item => (
+            <button key={item.id} type="button" className="ghost settings-category-chip" disabled>{item.label}</button>
+          ))}
+        </div>
+      </section>
+
+      {category === 'vacation' ? (
+        <section className="card settings-theme-card">
+          <h3>휴가 규정</h3>
+          <div className="quick-check-grid quick-check-grid-16 policy-grid">
+            {policyEntries.map(item => {
+              const allowed = item.allowed(user)
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`quick-check-card ${selectedPolicy === item.id ? 'policy-card-active' : ''}`.trim()}
+                  onClick={() => allowed && setSelectedPolicy(item.id)}
+                  disabled={!allowed}
+                  title={allowed ? `${item.label} 규정 보기` : '현재 계정으로는 볼 수 없습니다.'}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{allowed ? '규정 보기' : '권한 없음'}</span>
+                </button>
+              )
+            })}
+          </div>
+          {currentPolicy?.allowed(user) ? (
+            <div className="list">
+              <div className="list-item block">
+                <strong>{currentPolicy.label} 휴가 규정</strong>
+                <div className="stack compact">
+                  {currentPolicy.lines.map((line, index) => <div key={`${currentPolicy.id}-${index}`} className="muted">{line}</div>)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="error">현재 계정은 해당 규정을 볼 수 없습니다.</div>
+          )}
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
 function SettingsPage({ onLogout }) {
   const navigate = useNavigate()
   const [prefs, setPrefs] = useState({})
@@ -7348,7 +7466,7 @@ function AdminModePage() {
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
     const rawGroupNumber = item?.group_number_text ?? item?.group_number ?? '0'
-    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType, new_password: '' })
+    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), gender: normalizeGenderValue(item?.gender), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType, new_password: '' })
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -7527,7 +7645,7 @@ function AdminModePage() {
       name: row.name || '',
       nickname: row.nickname || '',
       account_unique_id: row.account_unique_id || '',
-      gender: row.gender || '',
+      gender: normalizeGenderValue(row.gender),
       birth_year: Number(row.birth_year || 1995),
       region: row.region || '',
       phone: row.phone || '',
@@ -7629,7 +7747,7 @@ function AdminModePage() {
         password: String(createForm.password || ''),
         name: String(createForm.name || '').trim(),
         nickname: String(createForm.nickname || '').trim(),
-        gender: String(createForm.gender || '').trim(),
+        gender: normalizeGenderValue(createForm.gender),
         region: String(createForm.region || '').trim() || '서울',
         phone: String(createForm.phone || '').trim(),
         recovery_email: String(createForm.recovery_email || '').trim(),
@@ -11445,6 +11563,7 @@ function App() {
         <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/policies" element={staffAllowed ? <PoliciesPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/workday-history" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 일시작종료 기능을 사용할 수 없습니다." /> : <WorkdayHistoryPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/admin-mode" element={staffAllowed ? (canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/menu-permissions" element={staffAllowed ? (isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

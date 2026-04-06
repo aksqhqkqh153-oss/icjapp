@@ -74,6 +74,17 @@ def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
     gender = str(value or '').strip()
     if not gender and allow_empty:
         return ''
+    normalized_map = {
+        '남': '남성',
+        '남자': '남성',
+        'male': '남성',
+        'm': '남성',
+        '여': '여성',
+        '여자': '여성',
+        'female': '여성',
+        'f': '여성',
+    }
+    gender = normalized_map.get(gender.lower(), gender)
     if gender not in ALLOWED_GENDERS:
         raise HTTPException(status_code=400, detail='성별은 남성 또는 여성만 선택할 수 있습니다.')
     return gender

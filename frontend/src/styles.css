@@ -12174,3 +12174,13 @@ body[data-theme="dark"] button.ghost:hover,
 body[data-theme="dark"] .ghost:hover { background: var(--panel-2); border-color: var(--line-strong); }
 :root[data-theme="dark"] a,
 body[data-theme="dark"] a { color: inherit; }
+
+.policy-grid {
+  margin-top: 12px;
+}
+
+.policy-card-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
