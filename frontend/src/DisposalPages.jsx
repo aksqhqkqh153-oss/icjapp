@@ -24,6 +24,42 @@ const FILTER_OPTIONS = [
 ]
 
 const FINAL_STATUS_OPTIONS = ['입금전', '입금완 / 신고전', '입금완 / 신고완']
+const DEFAULT_CUSTOMER_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
+const DEFAULT_COMPANY_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
+
+function getDisposalExportSettingsStorageKey() {
+  const user = getStoredUser?.() || {}
+  const identity = String(user?.username || user?.id || 'guest').trim() || 'guest'
+  return `disposal-export-settings:${identity}`
+}
+
+function loadDisposalExportSettings() {
+  try {
+    const raw = localStorage.getItem(getDisposalExportSettingsStorageKey())
+    const parsed = raw ? JSON.parse(raw) : {}
+    return {
+      customerTemplate: String(parsed?.customerTemplate || DEFAULT_CUSTOMER_EXPORT_TEMPLATE),
+      companyTemplate: String(parsed?.companyTemplate || DEFAULT_COMPANY_EXPORT_TEMPLATE),
+    }
+  } catch {
+    return {
+      customerTemplate: DEFAULT_CUSTOMER_EXPORT_TEMPLATE,
+      companyTemplate: DEFAULT_COMPANY_EXPORT_TEMPLATE,
+    }
+  }
+}
+
+function saveDisposalExportSettings(nextSettings = {}) {
+  const normalized = {
+    customerTemplate: String(nextSettings?.customerTemplate || DEFAULT_CUSTOMER_EXPORT_TEMPLATE),
+    companyTemplate: String(nextSettings?.companyTemplate || DEFAULT_COMPANY_EXPORT_TEMPLATE),
+  }
+  try {
+    localStorage.setItem(getDisposalExportSettingsStorageKey(), JSON.stringify(normalized))
+  } catch {}
+  return normalized
+}
+
 const FINAL_STATUS_SELECT_OPTIONS = [{ value: '', label: '최종현황 선택' }, ...FINAL_STATUS_OPTIONS.map(option => ({ value: option, label: option }))]
 const PLATFORM_OPTIONS = ['', '숨고', '오늘', '공홈']
 
@@ -336,21 +372,23 @@ function buildExportInfoInlineText({ customerName = '', disposalDate = '', locat
 }
 
 function buildExportInfoLines({ customerName = '', disposalDate = '', location = '' }) {
-  return [
-    formatExportCustomerLabel(customerName),
-    formatExportDateLabel(disposalDate),
-    formatExportLocationLabel(location),
-  ].filter(Boolean)
+  return [buildExportInfoInlineText({ customerName, disposalDate, location })].filter(Boolean)
 }
 
-function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', suffix = '' }) {
-  const label = [
-    String(platform || '').trim(),
-    String(customerName || '').trim(),
-    String(disposalDate || '').trim(),
-  ].filter(Boolean).join(' ')
-  const wrapped = label ? `[${label}] ${suffix}` : suffix
-  return `${sanitizeExportFilename(wrapped)}.jpg`
+function buildEstimateExportFilename({ platform = '', customerName = '', disposalDate = '', suffix = '', template = '' }) {
+  const values = {
+    platform: String(platform || '').trim(),
+    customerName: String(customerName || '').trim(),
+    disposalDate: String(disposalDate || '').trim(),
+    suffix: String(suffix || '').trim(),
+  }
+  const defaultLabel = [values.platform, values.customerName, values.disposalDate].filter(Boolean).join(' ')
+  const defaultWrapped = defaultLabel ? `[${defaultLabel}] ${values.suffix}` : values.suffix
+  const raw = String(template || '').trim()
+  const rendered = raw
+    ? raw.replace(/\{(platform|customerName|disposalDate|suffix)\}/g, (_, key) => values[key] || '')
+    : defaultWrapped
+  return `${sanitizeExportFilename(rendered || defaultWrapped)}.jpg`
 }
 
 function sanitizeExportFilename(value) {
@@ -388,7 +426,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   const includePlatform = isCompany
   const infoLines = buildExportInfoLines({ customerName, disposalDate, location })
   const infoLineGap = 24
-  const infoHeight = Math.max(includePlatform ? 94 : 74, infoLines.length ? infoLines.length * infoLineGap + 8 : 0)
+  const infoHeight = Math.max(includePlatform ? 54 : 42, infoLines.length ? infoLines.length * infoLineGap : 0)
   const headerHeight = 58
   const rowHeight = 54
   const totalHeight = 76
@@ -445,13 +483,13 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   ctx.fillText('이청잘 폐기 대리신고 견적서', startX, currentY + titleHeight / 2)
 
   if (logoImage) {
-    const maxLogoWidth = isCompany ? 264 : 244
-    const maxLogoHeight = isCompany ? 72 : 96
+    const maxLogoWidth = isCompany ? 270 : 248
+    const maxLogoHeight = isCompany ? 74 : 98
     const ratio = Math.min(maxLogoWidth / logoImage.width, maxLogoHeight / logoImage.height)
     const drawWidth = logoImage.width * ratio
     const drawHeight = logoImage.height * ratio
-    const logoRightPadding = 2
-    const logoTopPadding = isCompany ? 6 : 2
+    const logoRightPadding = 0
+    const logoTopPadding = isCompany ? 2 : 0
     const logoX = startX + tableWidth - drawWidth - logoRightPadding
     const logoY = isCompany
       ? currentY + (titleHeight - drawHeight) / 2
@@ -472,13 +510,13 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   ctx.font = '700 18px sans-serif'
   ctx.textAlign = 'left'
   if (infoLines.length) {
-    const startLineY = currentY + 12
+    const startLineY = currentY + infoLineGap / 2
     infoLines.forEach((line, index) => {
       ctx.fillText(line, startX, startLineY + index * infoLineGap)
     })
   }
   currentY += infoHeight
-  currentY += 6
+  currentY += 2
 
   ctx.strokeStyle = '#111827'
   ctx.lineWidth = 3
@@ -913,6 +951,7 @@ function DisposalItemsEditor({
   const [companySaveDirectoryLabel, setCompanySaveDirectoryLabel] = useState('기본 다운로드 폴더')
   const [showItemsHelp, setShowItemsHelp] = useState(false)
   const [activeNoteInfo, setActiveNoteInfo] = useState(null)
+  const [exportSettings, setExportSettings] = useState(() => loadDisposalExportSettings())
   const customerSettingsRef = useRef(null)
   const companySettingsRef = useRef(null)
 
@@ -947,6 +986,21 @@ function DisposalItemsEditor({
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [customerSettingsOpen, companySettingsOpen])
 
+  function updateExportTemplate(kind) {
+    const currentTemplate = kind === 'customer' ? exportSettings.customerTemplate : exportSettings.companyTemplate
+    const nextTemplate = window.prompt(
+      '파일명 형식을 입력해주세요.\n사용 가능 항목: {platform} {customerName} {disposalDate} {suffix}\n\n빈값으로 확인하면 기본 형식으로 복원됩니다.',
+      currentTemplate,
+    )
+    if (nextTemplate === null) return
+    const normalized = saveDisposalExportSettings({
+      ...exportSettings,
+      [kind === 'customer' ? 'customerTemplate' : 'companyTemplate']: String(nextTemplate || '').trim() || (kind === 'customer' ? DEFAULT_CUSTOMER_EXPORT_TEMPLATE : DEFAULT_COMPANY_EXPORT_TEMPLATE),
+    })
+    setExportSettings(normalized)
+    window.alert('견적 저장 파일명이 변경되었습니다.')
+  }
+
   function getDirectoryPickerErrorMessage(error) {
     const rawMessage = String(error?.message || '')
     const normalizedMessage = rawMessage.toLowerCase()
@@ -957,7 +1011,7 @@ function DisposalItemsEditor({
       || normalizedMessage.includes('not allowed')
       || normalizedMessage.includes('permission')
     ) {
-      return '선택한 폴더는 브라우저 보안정책상 사용할 수 없습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 선택해주세요.\n\n시스템 폴더는 강제로 열 수 없습니다.'
+      return '선택한 폴더는 브라우저 보안정책상 바로 열 수 없습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 선택해주세요.\n\n시스템 보호 폴더는 웹브라우저에서 직접 지정할 수 없습니다. 필요하면 저장 시 파일 선택 창으로 다른 위치를 지정해주세요.'
     }
 
     return '견적저장위치를 지정하지 못했습니다.\n다운로드, 문서, 바탕화면 또는 직접 만든 일반 폴더를 다시 선택해주세요.'
@@ -1001,6 +1055,18 @@ function DisposalItemsEditor({
     }
   }
 
+  async function saveBlobWithPicker(blob, suggestedName) {
+    if (!window.showSaveFilePicker) return false
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      types: [{ description: 'JPEG 이미지', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
+    })
+    const writable = await handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+    return true
+  }
+
   async function saveCustomerEstimateAsJpg() {
     try {
       const autoSavedRecord = makeRecordFromDraft(draft, rendered.totals)
@@ -1018,6 +1084,7 @@ function DisposalItemsEditor({
         customerName: draft.customerName,
         disposalDate: draft.disposalDate,
         suffix: '폐기견적',
+        template: exportSettings.customerTemplate,
       })
 
       if (customerSaveDirectoryHandle) {
@@ -1031,6 +1098,11 @@ function DisposalItemsEditor({
         await writable.write(blob)
         await writable.close()
         window.alert(`고객용 견적서가 저장되었습니다.\n저장위치: ${customerSaveDirectoryLabel}`)
+        return
+      }
+
+      if (await saveBlobWithPicker(blob, filename)) {
+        window.alert('고객용 견적서가 저장되었습니다.')
         return
       }
 
@@ -1063,6 +1135,7 @@ function DisposalItemsEditor({
         customerName: draft.customerName,
         disposalDate: draft.disposalDate,
         suffix: '폐기밴드',
+        template: exportSettings.companyTemplate,
       })
 
       if (companySaveDirectoryHandle) {
@@ -1080,6 +1153,11 @@ function DisposalItemsEditor({
         return
       }
 
+      if (await saveBlobWithPicker(blob, filename)) {
+        window.alert('회사용 견적서가 저장되었습니다.')
+        return
+      }
+
       const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = objectUrl
@@ -1093,6 +1171,23 @@ function DisposalItemsEditor({
       window.alert(error?.message || '회사용 견적서를 저장하지 못했습니다.')
     }
   }
+
+  function handleItemGridKeyDown(event, rowIndex, colIndex) {
+    const key = event.key
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) return
+    event.preventDefault()
+    const maxRowIndex = visibleRows.length
+    let nextRow = rowIndex
+    let nextCol = colIndex
+    if (key === 'ArrowLeft') nextCol -= 1
+    if (key === 'ArrowRight') nextCol += 1
+    if (key === 'ArrowUp') nextRow -= 1
+    if (key === 'ArrowDown') nextRow += 1
+    const selector = `[data-grid-row="${nextRow}"][data-grid-col="${nextCol}"]`
+    const nextEl = document.querySelector(selector)
+    if (nextEl && typeof nextEl.focus === 'function') nextEl.focus()
+  }
+
 
   return (
     <section className="card disposal-items-card disposal-square-ui">
@@ -1140,6 +1235,9 @@ function DisposalItemsEditor({
                   ) : null}
                   <button
                     type="button"
+                    data-grid-row={index}
+                    data-grid-col={0}
+                    onKeyDown={e => handleItemGridKeyDown(e, index, 0)}
                     className={`disposal-items-number-cell ${String(row?.note || '').trim() ? 'has-note' : ''}`.trim()}
                     onClick={() => {
                       if (!String(row?.note || '').trim()) return
@@ -1149,24 +1247,24 @@ function DisposalItemsEditor({
                   >
                     {index + 1}
                   </button>
-                  <input value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="품목" />
-                  <input inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
-                  <input inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
-                  <div className="disposal-items-metric-cell">{formatCurrencyPlain(item.reportAmount || 0)}</div>
-                  <div className="disposal-items-metric-cell strong">{formatCurrencyPlain(item.finalAmount || 0)}</div>
-                  <input value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
-                  <input className="disposal-items-note-column" value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
+                  <input data-grid-row={index} data-grid-col={1} onKeyDown={e => handleItemGridKeyDown(e, index, 1)} value={row?.itemName || ''} onChange={e => updateItem(index, 'itemName', e.target.value)} placeholder="품목" />
+                  <input data-grid-row={index} data-grid-col={2} onKeyDown={e => handleItemGridKeyDown(e, index, 2)} inputMode="numeric" value={row?.quantity || ''} onChange={e => updateItem(index, 'quantity', e.target.value)} placeholder="개수" />
+                  <input data-grid-row={index} data-grid-col={3} onKeyDown={e => handleItemGridKeyDown(e, index, 3)} inputMode="numeric" value={row?.unitCost || ''} onChange={e => updateItem(index, 'unitCost', e.target.value)} placeholder="개당신고비용" />
+                  <div tabIndex={0} data-grid-row={index} data-grid-col={4} onKeyDown={e => handleItemGridKeyDown(e, index, 4)} className="disposal-items-metric-cell">{formatCurrencyPlain(item.reportAmount || 0)}</div>
+                  <div tabIndex={0} data-grid-row={index} data-grid-col={5} onKeyDown={e => handleItemGridKeyDown(e, index, 5)} className="disposal-items-metric-cell strong">{formatCurrencyPlain(item.finalAmount || 0)}</div>
+                  <input data-grid-row={index} data-grid-col={6} onKeyDown={e => handleItemGridKeyDown(e, index, 6)} value={row?.reportNo || ''} onChange={e => updateItem(index, 'reportNo', e.target.value)} placeholder="신고번호" />
+                  <input data-grid-row={index} data-grid-col={7} onKeyDown={e => handleItemGridKeyDown(e, index, 7)} className="disposal-items-note-column" value={row?.note || ''} onChange={e => updateItem(index, 'note', e.target.value)} placeholder="메모칸" />
                 </div>
               )
             })}
             <div className={`disposal-items-table-row disposal-items-summary-row ${deleteMode ? 'delete-mode' : ''}`.trim()}>
               {deleteMode ? <div /> : null}
               <div />
-              <div className="disposal-items-summary-box strong center">합계</div>
-              <div className="disposal-items-summary-box strong center">{formatNumber(rendered.totals.totalQty)}개</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={1} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 1)} className="disposal-items-summary-box strong center">합계</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={2} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 2)} className="disposal-items-summary-box strong center">{formatNumber(rendered.totals.totalQty)}개</div>
               <div />
-              <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalReport)}</div>
-              <div className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalFinal)}</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={5} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 5)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalReport)}</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={6} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 6)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalFinal)}</div>
               <div />
             </div>
           </div>
@@ -1183,6 +1281,7 @@ function DisposalItemsEditor({
             {customerSettingsOpen ? (
               <div className="disposal-settings-popover disposal-customer-settings-popover">
                 <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCustomerSaveDirectory}>견적저장위치</button>
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => updateExportTemplate('customer')}>견적이름변경</button>
                 <div className="disposal-settings-popover-caption">현재: {customerSaveDirectoryLabel}</div>
               </div>
             ) : null}
@@ -1225,6 +1324,7 @@ function DisposalItemsEditor({
             {companySettingsOpen ? (
               <div className="disposal-settings-popover disposal-customer-settings-popover">
                 <button type="button" className="ghost disposal-settings-popover-item" onClick={selectCompanySaveDirectory}>견적저장위치</button>
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => updateExportTemplate('company')}>견적이름변경</button>
                 <div className="disposal-settings-popover-caption">현재: {companySaveDirectoryLabel}</div>
               </div>
             ) : null}
@@ -1453,7 +1553,7 @@ export function DisposalJurisdictionRegistryPage() {
   }
 
   return (
-    <div className="stack-page disposal-page">
+    <div className="stack-page disposal-page disposal-form-page">
       <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-hero">
         <div>
@@ -1700,8 +1800,12 @@ useEffect(() => {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
-      <section className="card disposal-hero">
-        <div className="disposal-hero-title-wrap">
+      <section className="card disposal-hero disposal-form-hero">
+        <div className="disposal-hero-title-wrap disposal-form-hero-title-wrap">
+          <div className="disposal-form-mobile-inline-tabs">
+            <button type="button" className="disposal-page-tab" onClick={() => navigate('/disposal/list')}>폐기목록</button>
+            <button type="button" className="disposal-page-tab" onClick={() => navigate('/disposal/settlements')}>폐기결산</button>
+          </div>
           <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
         </div>
         <div className="disposal-hero-actions disposal-hero-actions-inline" ref={settingsRef}>
@@ -1920,7 +2024,7 @@ export function DisposalListPage() {
                     <button type="button" className="ghost small active" onClick={() => moveToSettlement(group.recordId)}>결산진행</button>
                   )}
                   {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
-                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완료' : '미입금'}</span>
+                  <span className={`disposal-payment-badge ${isPaid ? 'is-paid' : 'is-unpaid'}`.trim()}>{isPaid ? '입금완' : '미입금'}</span>
                   <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
                 </div>
               </div>
@@ -2055,7 +2159,7 @@ function formatMonthLabel(monthKey) {
 }
 
 function getSettlementMonthSource(record) {
-  return record?.settlementTransferredAt || record?.disposalDate || record?.savedAt || new Date().toISOString()
+  return record?.settlementTransferredAt || record?.savedAt || record?.disposalDate || new Date().toISOString()
 }
 
 function filterRecordsByMonth(records, monthKey) {
@@ -2090,11 +2194,12 @@ function buildDailySettlementSummary(groups = []) {
 function buildSettlementGroups(records) {
   const grouped = new Map()
   sortRecords(records, 'latest').forEach((record) => {
-    const key = String(record.disposalDate || getSavedDateKey(record.savedAt) || '날짜 미지정')
+    const settledAt = record?.settlementTransferredAt || record?.savedAt || new Date().toISOString()
+    const key = String(getSavedDateKey(settledAt) || '날짜 미지정')
     if (!grouped.has(key)) {
       grouped.set(key, {
         key,
-        label: String(record.disposalDate || formatGroupDate(record.savedAt)),
+        label: String(formatGroupDate(settledAt)),
         records: [],
       })
     }
@@ -2132,7 +2237,7 @@ function buildSettlementSalesSheet(monthLabel, monthlyRecords) {
     ['최소수수료', `${formatNumber(totals.totalMinimum)}원`, '평균신고액', totals.count ? `${formatNumber(Math.round(totals.totalReport / totals.count))}원` : '0원', '평균수수료', totals.count ? `${formatNumber(Math.round(totals.totalFee / totals.count))}원` : '0원'],
     ['최고신고액', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).reportAmount)))}원`, '최고수수료', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).feeAmount)))}원`, '최고최소수수료', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).minimumFee)))}원`],
     ['일평균 건수', formatNumber(groupMonthlyRecordCount(monthlyRecords).dailyAverage), '일평균 품목수', formatNumber(groupMonthlyRecordCount(monthlyRecords).qtyAverage), '일평균 최소수수료', `${formatNumber(groupMonthlyRecordCount(monthlyRecords).minimumAverage)}원`],
-    ['집계대상', '저장일 기준', '목록정렬', '최신 저장순', '표시방식', '날짜별 그룹'],
+    ['집계대상', '결산일 기준', '목록정렬', '최신 저장순', '표시방식', '날짜별 그룹'],
     ['안내', '아래 목록에서 항목 클릭 시 상세 입력 화면으로 이동', '', '', '', ''],
   ]
 }
