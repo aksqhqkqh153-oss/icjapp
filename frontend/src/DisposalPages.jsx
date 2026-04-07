@@ -2526,10 +2526,7 @@ export function DisposalSettlementsPage() {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
-      <section className="card disposal-hero">
-        <div>
-          <h2>폐기결산</h2>
-        </div>
+      <section className="card disposal-hero disposal-hero-compact-nav">
         <div className="disposal-hero-actions">
           <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
           <button type="button" className="ghost" onClick={() => navigate('/disposal/forms')}>폐기양식</button>

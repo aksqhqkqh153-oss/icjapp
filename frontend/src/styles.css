@@ -15585,3 +15585,49 @@ body:not([data-theme="dark"]) .app-search-result-item * {
   .disposal-meta-location { font-size:12px; line-height:1.4; }
   .disposal-transfer-badge, .disposal-inline-action-button { font-size:11px; padding:3px 8px; }
 }
+
+
+/* 2026-04-07 additional mobile disposal/settlement/workshift refinements */
+@media (max-width: 768px) {
+  .disposal-monthly-sheet-card {
+    overflow: hidden;
+  }
+  .disposal-sales-sheet.disposal-sales-sheet-two-col,
+  .disposal-sales-sheet-two-col {
+    width: 100%;
+    max-width: 100%;
+    border-width: 1px;
+  }
+  .disposal-sales-sheet-row.disposal-sales-sheet-row-two-col {
+    grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+  }
+  .disposal-sales-sheet-row.disposal-sales-sheet-row-two-col .disposal-sales-sheet-cell {
+    min-height: 24px;
+    padding: 3px 2px;
+    font-size: 9px;
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+    word-break: keep-all;
+  }
+  .disposal-sales-sheet-row.disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+    font-size: 9px;
+  }
+  .work-shift-table .row-index-head,
+  .work-shift-table .row-index-cell {
+    min-width: 54px;
+    width: 54px;
+  }
+  .work-shift-table tbody td.sticky.left.second,
+  .work-shift-table thead tr.work-shift-index-row th.sticky.left.second,
+  .work-shift-table thead tr.work-shift-header-row th.sticky.left.second {
+    left: 86px;
+  }
+}
+
+.disposal-hero.disposal-hero-compact-nav {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.disposal-hero.disposal-hero-compact-nav > div:first-child:empty {
+  display: none;
+}

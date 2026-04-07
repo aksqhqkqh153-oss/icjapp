@@ -8501,14 +8501,14 @@ function WorkShiftSchedulePage() {
             <table className="work-shift-table spreadsheet-like">
               <thead>
                 <tr className="work-shift-index-row">
-                  <th className="sticky top-left row-index-head">열</th>
+                  <th className="sticky top-left row-index-head">구분</th>
                   {tableColumnLabels.map((label, index) => {
                     const extraClass = index === 0 ? 'sticky left col-index-branch' : index === 1 ? 'sticky left second col-index-person' : ''
                     return <th key={`col-label-${index}`} className={`work-shift-col-index ${extraClass}`.trim()}>{label}</th>
                   })}
                 </tr>
                 <tr className="work-shift-header-row">
-                  <th className="sticky left row-index-head">행</th>
+                  <th className="sticky left row-index-head">&nbsp;</th>
                   <th className="sticky left col-main-head head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
                   <th className="sticky left second col-main-head head-name name-cell-person work-shift-head-cell">성명</th>
                   {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}
@@ -11469,8 +11469,8 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{formatSettlementDateKeyLabel(selectedDailyBlockDateKey)}</strong>
-            <span className="muted">{dailyIndex + 1} / {sortedDailyBlocks.length} · 토요일 ~ 금요일 일일결산</span>
+            <strong>{`◀ 일일 결산 ▶`}</strong>
+            <span className="muted">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
         </div>
@@ -12589,7 +12589,7 @@ function MaterialsPage({ user }) {
                         setSelectedRequestIds(prev => event.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))
                       }}
                     />
-                    <span>{mode === 'pending' ? '입금확인' : '결산취소'}</span>
+                    <span>{mode === 'pending' ? '' : '결산취소'}</span>
                   </label>
                 ) : null}
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
