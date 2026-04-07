@@ -3704,6 +3704,90 @@ button.settlement-tab.active {
 .settlement-sheet-grid-single {
   grid-template-columns: 1fr;
 }
+
+.settlement-sheet-excel {
+  padding: 10px;
+  background: #fff;
+}
+.settlement-excel-sheet {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #aebdcc;
+  background: #fff;
+}
+.settlement-excel-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.settlement-excel-cell {
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-right: 1px solid #c7d3df;
+  border-bottom: 1px solid #c7d3df;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  display: flex;
+  align-items: center;
+}
+.settlement-excel-row:last-child .settlement-excel-cell {
+  border-bottom: 0;
+}
+.settlement-excel-cell:last-child {
+  border-right: 0;
+}
+.settlement-excel-cell.sheet-title {
+  justify-content: center;
+  font-weight: 800;
+  background: #eaf2fb;
+  text-align: center;
+}
+.settlement-excel-cell.sheet-date,
+.settlement-excel-cell.sheet-reflected {
+  justify-content: center;
+  background: #f7fbff;
+  color: #547089;
+  text-align: center;
+}
+.settlement-excel-cell.sheet-head {
+  justify-content: center;
+  background: #f1f6fb;
+  font-weight: 700;
+  text-align: center;
+}
+.settlement-excel-cell.sheet-number {
+  justify-content: flex-end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.settlement-excel-cell.sheet-text.center {
+  justify-content: center;
+  text-align: center;
+}
+.settlement-excel-cell.sheet-total,
+.settlement-excel-cell.sheet-total-label,
+.settlement-excel-cell.sheet-total-gap {
+  background: #f5f9fd;
+  font-weight: 700;
+}
+.settlement-excel-cell.sheet-total-label {
+  justify-content: center;
+}
+.settlement-excel-cell.sheet-total-gap {
+  justify-content: center;
+}
+@media (max-width: 768px) {
+  .settlement-sheet-excel {
+    padding: 6px;
+  }
+  .settlement-excel-cell {
+    min-height: 34px;
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+}
 .settlement-day-nav {
   display: flex;
   align-items: center;

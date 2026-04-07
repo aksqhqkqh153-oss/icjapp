@@ -10749,61 +10749,83 @@ function buildAggregatedSettlementBlock(baseBlock, records = [], titleText = '')
   return aggregated
 }
 
+function buildSettlementSheetRows(block) {
+  const summaryRows = Array.isArray(block?.summaryRows) ? block.summaryRows : []
+  const branchRows = Array.isArray(block?.branchRows) ? block.branchRows : []
+  const rows = [
+    [{ value: block?.title || '-', span: 6, className: 'sheet-title' }],
+    [{ value: block?.date || '-', span: 6, className: 'sheet-date' }],
+  ]
+
+  if (block?.reflectionMeta?.reflected_at) {
+    rows.push([{ value: `최종 반영 ${String(block.reflectionMeta.reflected_at).replace('T', ' ').slice(0, 16)} · ${block.reflectionMeta.reflected_by_name || '기록됨'}`, span: 6, className: 'sheet-reflected' }])
+  }
+
+  rows.push([
+    { value: block?.summaryHeaders?.[0] || '', span: 2, className: 'sheet-head' },
+    { value: block?.summaryHeaders?.[1] || '', span: 4, className: 'sheet-head' },
+  ])
+
+  summaryRows.forEach(row => {
+    rows.push([
+      { value: row?.source || '-', className: 'sheet-text center' },
+      { value: formatSettlementValue(row?.label, row?.count), className: 'sheet-number' },
+      { value: row?.label || '-', span: 3, className: 'sheet-text' },
+      { value: formatSettlementValue(row?.label, row?.value), className: 'sheet-number' },
+    ])
+  })
+
+  rows.push([
+    { value: block?.reviewHeaders?.[0] || '', span: 2, className: 'sheet-head' },
+    { value: block?.reviewHeaders?.[1] || '', span: 2, className: 'sheet-head' },
+    { value: block?.reviewHeaders?.[2] || '', className: 'sheet-head' },
+    { value: block?.reviewHeaders?.[3] || '', className: 'sheet-head' },
+  ])
+
+  branchRows.forEach(row => {
+    rows.push([
+      { value: row?.platform || '', className: 'sheet-text center' },
+      { value: formatSettlementValue('', row?.platformCount), className: 'sheet-number' },
+      { value: row?.branch || '-', className: 'sheet-text' },
+      { value: formatSettlementValue('', row?.branchCount), className: 'sheet-number' },
+      { value: formatSettlementValue('', row?.issues), className: 'sheet-number' },
+      { value: formatSettlementValue('', row?.score), className: 'sheet-number' },
+    ])
+  })
+
+  if (block?.total) {
+    rows.push([
+      { value: block.total.label || '총 계', className: 'sheet-total-label' },
+      { value: formatSettlementValue('', block.total.platformReview), className: 'sheet-number sheet-total' },
+      { value: '', className: 'sheet-total-gap' },
+      { value: formatSettlementValue('', block.total.branchReview), className: 'sheet-number sheet-total' },
+      { value: formatSettlementValue('', block.total.issues), className: 'sheet-number sheet-total' },
+      { value: formatSettlementValue('', block.total.score), className: 'sheet-number sheet-total' },
+    ])
+  }
+
+  return rows.slice(0, 20)
+}
+
 function SettlementSheetCard({ block }) {
+  const sheetRows = buildSettlementSheetRows(block)
   return (
-    <section className="settlement-sheet card">
-      <div className="settlement-sheet-title">{block.title}</div>
-      <div className="settlement-sheet-date">{block.date}</div>
-      {block.reflectionMeta?.reflected_at && (
-        <div className="settlement-sheet-reflected">
-          최종 반영 {String(block.reflectionMeta.reflected_at).replace('T', ' ').slice(0, 16)} · {block.reflectionMeta.reflected_by_name || '기록됨'}
-        </div>
-      )}
-
-      <div className="settlement-grid-head settlement-grid-head-summary">
-        <div>{block.summaryHeaders[0]}</div>
-        <div>{block.summaryHeaders[1]}</div>
-      </div>
-      <div className="settlement-summary-table">
-        {block.summaryRows.map((row, index) => (
-          <div key={`${block.title}-summary-${index}`} className="settlement-grid-row settlement-grid-row-4">
-            <div>{row.source || '-'}</div>
-            <div className="number">{formatSettlementValue(row.label, row.count)}</div>
-            <div>{row.label || '-'}</div>
-            <div className="number">{formatSettlementValue(row.label, row.value)}</div>
+    <section className="settlement-sheet settlement-sheet-excel card">
+      <div className="settlement-excel-sheet" role="table" aria-label={block?.title || '결산표'}>
+        {sheetRows.map((row, rowIndex) => (
+          <div key={`${block?.title || 'sheet'}-row-${rowIndex}`} className="settlement-excel-row" role="row">
+            {row.map((cell, cellIndex) => (
+              <div
+                key={`${block?.title || 'sheet'}-row-${rowIndex}-cell-${cellIndex}`}
+                className={`settlement-excel-cell ${cell.className || ''}`.trim()}
+                style={{ gridColumn: `span ${cell.span || 1}` }}
+                role="cell"
+              >
+                {cell.value || ''}
+              </div>
+            ))}
           </div>
         ))}
-      </div>
-
-      <div className="settlement-grid-head settlement-grid-row-6">
-        <div>{block.reviewHeaders[0]}</div>
-        <div></div>
-        <div>{block.reviewHeaders[1]}</div>
-        <div></div>
-        <div>{block.reviewHeaders[2]}</div>
-        <div>{block.reviewHeaders[3]}</div>
-      </div>
-      <div className="settlement-detail-table">
-        {block.branchRows.map((row, index) => (
-          <div key={`${block.title}-branch-${index}`} className="settlement-grid-row settlement-grid-row-6">
-            <div>{row.platform || ''}</div>
-            <div className="number">{formatSettlementValue('', row.platformCount)}</div>
-            <div>{row.branch || '-'}</div>
-            <div className="number">{formatSettlementValue('', row.branchCount)}</div>
-            <div className="number">{formatSettlementValue('', row.issues)}</div>
-            <div className="number">{formatSettlementValue('', row.score)}</div>
-          </div>
-        ))}
-        {block.total && (
-          <div className="settlement-grid-row settlement-grid-row-6 settlement-total-row">
-            <div>{block.total.label || '총 계'}</div>
-            <div className="number">{formatSettlementValue('', block.total.platformReview)}</div>
-            <div></div>
-            <div className="number">{formatSettlementValue('', block.total.branchReview)}</div>
-            <div className="number">{formatSettlementValue('', block.total.issues)}</div>
-            <div className="number">{formatSettlementValue('', block.total.score)}</div>
-          </div>
-        )}
       </div>
     </section>
   )
