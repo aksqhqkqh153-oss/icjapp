@@ -8120,6 +8120,10 @@ function WorkShiftSchedulePage() {
     const wrapNode = tableWrapRef.current
     const drag = dragStateRef.current
     if (!wrapNode || !drag.active) return
+    if (typeof event.buttons === 'number' && event.buttons === 0) {
+      handleTablePointerUp()
+      return
+    }
     const deltaX = event.clientX - drag.startX
     const deltaY = event.clientY - drag.startY
     if (!drag.moved && (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3)) {
@@ -8158,11 +8162,23 @@ function WorkShiftSchedulePage() {
       handleTablePointerUp()
     }
 
+    function handleWindowBlur() {
+      handleTablePointerUp()
+    }
+
+    function handleDocumentMouseLeave(event) {
+      if (!event.relatedTarget) handleTablePointerUp()
+    }
+
     window.addEventListener('mousemove', handleWindowMouseMove)
     window.addEventListener('mouseup', handleWindowMouseUp)
+    window.addEventListener('blur', handleWindowBlur)
+    document.addEventListener('mouseleave', handleDocumentMouseLeave)
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove)
       window.removeEventListener('mouseup', handleWindowMouseUp)
+      window.removeEventListener('blur', handleWindowBlur)
+      document.removeEventListener('mouseleave', handleDocumentMouseLeave)
     }
   }, [isMobile])
 
@@ -8465,6 +8481,8 @@ function WorkShiftSchedulePage() {
             ref={tableWrapRef}
             className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
             onMouseDown={handleTablePointerDown}
+            onMouseUp={handleTablePointerUp}
+            onMouseLeave={() => { if (dragStateRef.current?.active) handleTablePointerUp() }}
             onClickCapture={event => {
               if (dragStateRef.current?.suppressClick) {
                 event.preventDefault()
@@ -8497,7 +8515,7 @@ function WorkShiftSchedulePage() {
                   const nameActive = isActiveCell(rowIndex, 1)
                   return (
                     <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
-                      <td className="sticky left row-index-cell">{rowIndex + 1}</td>
+                      <td className="sticky left row-index-cell">{Number.isFinite(Number(row.row)) ? Math.max(1, Number(row.row) - 9) : rowIndex + 1}</td>
                       <td className={`sticky left name-cell ${branchActive ? 'is-active-cell' : ''}`.trim()}>
                         {editNamesMode && canEditSchedule ? (
                           <input
