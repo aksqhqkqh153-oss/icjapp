@@ -833,17 +833,20 @@ function Layout({ children, user, onLogout }) {
   const employeeRestricted = isEmployeeRestrictedUser(user)
   const topMenuSections = useMemo(() => {
     const grade = Number(user?.grade || 6)
+    const isPrivilegedMenuUser = grade <= 2
     return MENU_PERMISSION_SECTIONS
       .map(section => ({
         ...section,
         visible: (() => {
+          if (isPrivilegedMenuUser) return true
           if (section.id === 'common') return grade !== 6 && grade !== 7
           if (section.id === 'head-office') return grade <= 2
           if (section.id === 'business') return grade <= 4
           if (section.id === 'admin') return grade <= 2
           return true
-        })() && canViewMenuEntry(user, menuPermissions, `section:${section.id}`),
+        })() && (isPrivilegedMenuUser || canViewMenuEntry(user, menuPermissions, `section:${section.id}`)),
         items: section.items.filter(item => {
+          if (isPrivilegedMenuUser) return true
           if (employeeRestricted && ['materials', 'workday-history', 'settlements'].includes(item.id)) return false
           if (item.adminOnly && !canAccessAdminMode(user)) return false
           if (isMenuLockedForUser(user, menuLocks, item.id)) return false

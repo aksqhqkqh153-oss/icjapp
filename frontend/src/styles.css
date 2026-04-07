@@ -14088,3 +14088,53 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .menu-lock-admin-row {
   gap: 12px;
 }
+
+
+.disposal-search-button {
+  min-width: 42px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: horizontal-tb;
+}
+
+.disposal-search-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.disposal-list-grid-button-customer > span:last-child {
+  border-right: 1px solid #111827;
+}
+
+.disposal-list-grid-payment-cell {
+  border-left: 1px solid #111827;
+  border-right: 1px solid #111827;
+  padding: 0 !important;
+}
+
+.disposal-list-grid-row > .disposal-list-grid-payment-cell:last-child {
+  border-right: 0;
+}
+
+.disposal-list-grid-status-button {
+  width: 100%;
+  min-height: 42px;
+  background: #fff;
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-right: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+}
+
+.disposal-list-grid-status-button:hover {
+  background: #f8fafc;
+}

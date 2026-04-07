@@ -75,6 +75,19 @@ function saveDisposalExportSettings(nextSettings = {}) {
 const FINAL_STATUS_SELECT_OPTIONS = [{ value: '', label: '최종현황 선택' }, ...FINAL_STATUS_OPTIONS.map(option => ({ value: option, label: option }))]
 const PLATFORM_OPTIONS = ['', '숨고', '오늘', '공홈']
 
+function SearchButtonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="disposal-search-icon">
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M16 16l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function statusMark(value) {
+  return value ? 'O' : 'X'
+}
+
 
 function getDefaultVisibleItemRows() {
   try {
@@ -1987,6 +2000,30 @@ export function DisposalListPage() {
     updateRecordStatuses(recordId, getPaymentStatus(target) === '완료', isChecked)
   }
 
+  function togglePaymentStatus(recordId) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    updatePaymentStatus(recordId, getPaymentStatus(target) !== '완료')
+  }
+
+  function toggleReportStatus(recordId) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    updateReportStatus(recordId, getReportStatus(target) !== '완료')
+  }
+
+  function confirmBulkStatusChange(recordId, field, checked) {
+    const label = field === 'payment' ? '입금여부' : '신고여부'
+    const nextValue = checked ? 'O' : 'X'
+    const confirmed = window.confirm(`체크박스를 체크하면 모든 품목의 ${label}가 ${nextValue}로 전환됩니다.`)
+    if (!confirmed) return
+    if (field === 'payment') {
+      updatePaymentStatus(recordId, checked)
+      return
+    }
+    updateReportStatus(recordId, checked)
+  }
+
   function applySearch() {
     setSearchQuery(searchInput.trim())
   }
@@ -2058,7 +2095,7 @@ export function DisposalListPage() {
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group">
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="플랫폼, 이름, 주소, 날짜 검색" />
-            <button type="button" className="ghost" onClick={applySearch}>검색</button>
+            <button type="button" className="ghost disposal-search-button" onClick={applySearch} aria-label="검색"><SearchButtonIcon /></button>
           </div>
         </div>
         {groupedRows.length === 0 ? (
@@ -2116,8 +2153,8 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.feeAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
-                    <div className="disposal-list-grid-payment-cell" />
-                    <div className="disposal-list-grid-payment-cell" />
+                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId)} aria-label={`${group.customerName} 입금여부 전환`}>{statusMark(isPaid)}</button>
+                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => toggleReportStatus(group.recordId)} aria-label={`${group.customerName} 신고여부 전환`}>{statusMark(isReported)}</button>
                   </div>
                 ))}
                 <div className="disposal-list-grid-row disposal-list-grid-summary-row">
@@ -2129,13 +2166,13 @@ export function DisposalListPage() {
                   <div>{formatCurrency(group.totals.feeAmount)}</div>
                   <div>{formatCurrency(group.totals.finalAmount)}</div>
                   <div className="disposal-list-grid-payment-cell">
-                    <label className="disposal-payment-toggle" aria-label="입금 여부 체크">
-                      <input type="checkbox" checked={isPaid} onChange={e => updatePaymentStatus(group.recordId, e.target.checked)} />
+                    <label className="disposal-payment-toggle" aria-label="입금 여부 전체 전환">
+                      <input type="checkbox" checked={isPaid} onChange={e => confirmBulkStatusChange(group.recordId, 'payment', e.target.checked)} />
                     </label>
                   </div>
                   <div className="disposal-list-grid-payment-cell">
-                    <label className="disposal-payment-toggle" aria-label="신고 여부 체크">
-                      <input type="checkbox" checked={isReported} onChange={e => updateReportStatus(group.recordId, e.target.checked)} />
+                    <label className="disposal-payment-toggle" aria-label="신고 여부 전체 전환">
+                      <input type="checkbox" checked={isReported} onChange={e => confirmBulkStatusChange(group.recordId, 'report', e.target.checked)} />
                     </label>
                   </div>
                 </div>
