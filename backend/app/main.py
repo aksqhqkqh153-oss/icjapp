@@ -2080,7 +2080,7 @@ def demo_accounts():
     with get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT email, nickname, name, role, grade, group_number, group_number_text
+            SELECT login_id, email, nickname, name, role, grade, group_number, group_number_text
             FROM users
             ORDER BY
                 CASE
@@ -2094,6 +2094,7 @@ def demo_accounts():
         ).fetchall()
         return [
             {
+                "login_id": (r["login_id"] if "login_id" in r.keys() and r["login_id"] not in (None, '') else r["email"]),
                 "email": r["email"],
                 "nickname": r["nickname"],
                 "name": r["name"],

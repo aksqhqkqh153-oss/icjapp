@@ -1116,13 +1116,14 @@ function AuthPage({ onLogin }) {
           <div className="demo-list demo-list-accounts">
             {accounts.map(acc => (
               <button
-                key={acc.email}
+                key={acc.login_id || acc.email}
+                type="button"
                 className="demo-item demo-item-account"
-                onClick={() => setForm({ email: acc.email, password: Number(acc.grade || 6) === 1 ? 'admin1234' : 'demo1234' })}
+                onClick={() => setForm(prev => ({ ...prev, login_id: acc.login_id || acc.email || '', password: '' }))}
               >
                 <span className="demo-account-group">{acc.group_number || '0'}</span>
                 <span className="demo-account-name">{acc.name || acc.nickname || '-'}</span>
-                <span className="demo-account-id">{acc.email}</span>
+                <span className="demo-account-id">{acc.login_id || acc.email}</span>
               </button>
             ))}
           </div>
