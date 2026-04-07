@@ -6,7 +6,10 @@ import TurnstileWidget from '../components/TurnstileWidget'
 import { TextField } from '../components/ui'
 
 function normalizeAuthLoginId(value) {
-  return String(value || '').toLowerCase().replace(/[-_\W]/g, '').slice(0, 20)
+  return Array.from(String(value || '').toLowerCase())
+    .filter(char => /[^\W_]/u.test(char))
+    .join('')
+    .slice(0, 30)
 }
 
 export default function AuthPage({ onLogin }) {

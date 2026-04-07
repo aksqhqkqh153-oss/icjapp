@@ -374,6 +374,13 @@ function formatRequesterBranchLabel(value) {
   return raw
 }
 
+function normalizeFlexibleLoginId(value) {
+  return Array.from(String(value || '').toLowerCase())
+    .filter(char => /[^\W_]/u.test(char))
+    .join('')
+    .slice(0, 30)
+}
+
 function parseRequesterMeta(request) {
   const requesterBranchLabel = String(request?.requester_branch_label || request?.requester_branch_code || '').trim()
   const requesterDisplayName = String(request?.requester_display_name || request?.requester_user_name || request?.requester_nickname || '').trim()
@@ -9741,7 +9748,7 @@ function AdminModePage() {
                 <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
                   <div className="admin-inline-grid compact-inline-grid">
                     <label>이름 <input autoComplete="name" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
-                    <label>로그인 아이디 <input autoComplete="username" value={createForm.login_id} onChange={e => setCreateForm({ ...createForm, login_id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) })} /></label>
+                    <label>로그인 아이디 <input autoComplete="username" value={createForm.login_id} onChange={e => setCreateForm({ ...createForm, login_id: normalizeFlexibleLoginId(e.target.value) })} /></label>
                     <label>실제 이메일 <input type="email" autoComplete="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
                     <label>구글용 이메일 <input type="email" value={createForm.google_email} onChange={e => setCreateForm({ ...createForm, google_email: e.target.value })} /></label>
                     <label>비밀번호 <input type="password" autoComplete="new-password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
@@ -9829,8 +9836,9 @@ function AdminModePage() {
                               <label>구분숫자 <input type="text" inputMode="numeric" pattern="[0-9]*" value={groupNumberDisplay(item)} onChange={e => { const nextValue = e.target.value.replace(/[^0-9]/g, ''); updateAccountRow(item.id, { group_number: nextValue === '' ? '0' : nextValue, group_number_text: nextValue === '' ? '0' : nextValue }) }} /></label>
                               <label>이름 <input value={item.name || ''} onChange={e => updateAccountRow(item.id, { name: e.target.value })} /></label>
                               <label>닉네임 <input value={item.nickname || ''} onChange={e => updateAccountRow(item.id, { nickname: e.target.value })} /></label>
-                              <label>아이디 <input value={item.email || ''} onChange={e => updateAccountRow(item.id, { email: e.target.value })} /></label>
-                              <label>비밀번호 <input type="password" autoComplete="new-password" value={item.new_password || ''} onChange={e => updateAccountRow(item.id, { new_password: e.target.value })} placeholder="변경 시에만 입력" /></label>
+                              <form id={`account-edit-form-${item.id}`} onSubmit={e => e.preventDefault()} style={{ display: 'none' }} />
+                              <label>아이디 <input autoComplete="username" value={item.login_id || ''} onChange={e => updateAccountRow(item.id, { login_id: normalizeFlexibleLoginId(e.target.value) })} /></label>
+                              <label>비밀번호 <input form={`account-edit-form-${item.id}`} type="password" autoComplete="new-password" value={item.new_password || ''} onChange={e => updateAccountRow(item.id, { new_password: e.target.value })} placeholder="변경 시에만 입력" /></label>
                               <label>고유ID값 <input value={item.account_unique_id || ''} onChange={e => updateAccountRow(item.id, { account_unique_id: e.target.value })} /></label>
                               <label>직급
                                 <select value={defaultPositionForRow(item)} onChange={e => updateAccountRow(item.id, { position_title: e.target.value })}>
@@ -11484,8 +11492,8 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>주간 결산</strong>
-            <span className="muted">{selectedWeeklyBlock.title} · {weeklyIndex + 1} / {weeklyBlocks.length}</span>
+            <strong>{`◀ 주간 결산 ▶`}</strong>
+            <span className="muted">{selectedWeeklyBlock.title}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
         </div>
@@ -11500,8 +11508,8 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>월간 결산</strong>
-            <span className="muted">{selectedMonthlyBlock.title} · {monthlyIndex + 1} / {monthlyBlocks.length}</span>
+            <strong>{`◀ 월간 결산 ▶`}</strong>
+            <span className="muted">{selectedMonthlyBlock.title}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
         </div>
@@ -11614,11 +11622,6 @@ function SettlementPage() {
           </div>
         )}
 
-        <div className="settlement-tabs" role="tablist" aria-label="결산자료 카테고리">
-          {categories.map(category => (
-            <button key={category.id} type="button" className={activeCategory === category.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setActiveCategory(category.id)}>{category.label}</button>
-          ))}
-        </div>
       </section>
 
       {content}

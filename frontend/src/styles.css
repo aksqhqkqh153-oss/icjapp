@@ -15557,3 +15557,31 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     left: 78px;
   }
 }
+
+
+/* 2026-04-07 targeted fixes */
+.disposal-customer-group-label-mobile-card { display:block; }
+.disposal-group-meta-button-mobile-card { width:100%; display:flex; flex-direction:column; gap:6px; text-align:left; }
+.disposal-meta-row { display:flex; align-items:center; gap:6px; width:100%; }
+.disposal-meta-row-top { flex-wrap:nowrap; }
+.disposal-meta-row-top > * { min-width:0; }
+.disposal-meta-row-middle { justify-content:flex-start; }
+.disposal-meta-row-bottom { justify-content:flex-end; }
+.disposal-inline-action-button { margin-left:auto; }
+.disposal-list-board-card { overflow:hidden; }
+.disposal-list-date-group { border:1px solid #cbd5e1; border-radius:14px; overflow:hidden; }
+.disposal-customer-group-label { border-bottom:1px solid #e2e8f0; }
+@media (max-width: 768px) {
+  .disposal-list-top-controls-single-row { display:grid; grid-template-columns:60px minmax(0,1fr) 56px 56px; gap:6px; align-items:center; }
+  .disposal-filter-inline-group-compact,
+  .disposal-filter-search-group-compact { display:contents; }
+  .disposal-list-top-controls-single-row select,
+  .disposal-list-top-controls-single-row input,
+  .disposal-list-top-controls-single-row button { min-width:0; width:100%; height:34px; padding:0 8px; font-size:12px; }
+  .disposal-meta-date { font-size:12px; white-space:nowrap; }
+  .disposal-meta-platform { font-size:12px; white-space:nowrap; }
+  .disposal-meta-customer { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .disposal-payment-badge { margin-left:auto; flex:0 0 auto; padding:3px 6px; font-size:11px; }
+  .disposal-meta-location { font-size:12px; line-height:1.4; }
+  .disposal-transfer-badge, .disposal-inline-action-button { font-size:11px; padding:3px 8px; }
+}
