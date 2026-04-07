@@ -5,6 +5,10 @@ import { useTurnstileConfig } from '../hooks/useTurnstileConfig'
 import TurnstileWidget from '../components/TurnstileWidget'
 import { TextField } from '../components/ui'
 
+function normalizeAuthLoginId(value) {
+  return String(value || '').toLowerCase().replace(/[-_\W]/g, '').slice(0, 20)
+}
+
 export default function AuthPage({ onLogin }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -158,7 +162,7 @@ export default function AuthPage({ onLogin }) {
             <div className="muted">{isSignup ? '회원정보를 입력한 뒤 계정을 생성해주세요.' : '아이디와 비밀번호를 입력해주세요.'}</div>
           </div>
 
-          <TextField label="아이디" value={form.login_id} onChange={v => setForm({ ...form, login_id: v })} />
+          <TextField label="아이디" value={form.login_id} onChange={v => setForm({ ...form, login_id: normalizeAuthLoginId(v) })} />
           <TextField label={isSignup ? '패스워드' : '비밀번호'} type="password" value={form.password} onChange={v => setForm({ ...form, password: v })} />
 
           {isSignup ? <TextField label="닉네임" value={form.nickname} onChange={v => setForm({ ...form, nickname: v })} /> : null}

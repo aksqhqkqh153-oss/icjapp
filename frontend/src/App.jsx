@@ -10953,12 +10953,13 @@ function buildSettlementSheetRows(block) {
   return rows.slice(0, 20)
 }
 
-function SettlementSheetCard({ block }) {
+function SettlementSheetCard({ block, hideTitleDate = false }) {
   const sheetRows = buildSettlementSheetRows(block)
+  const visibleRows = hideTitleDate ? sheetRows.filter((_, index) => index > 1) : sheetRows
   return (
     <section className="settlement-sheet settlement-sheet-excel card">
       <div className="settlement-excel-sheet" role="table" aria-label={block?.title || '결산표'}>
-        {sheetRows.map((row, rowIndex) => (
+        {visibleRows.map((row, rowIndex) => (
           <div key={`${block?.title || 'sheet'}-row-${rowIndex}`} className="settlement-excel-row" role="row">
             {row.map((cell, cellIndex) => (
               <div
@@ -11137,9 +11138,9 @@ function SettlementRecordBoard({ recordsByType, onSaveDailyRecord, canEdit = fal
 
 function SettlementPage() {
   const categories = [
-    { id: 'daily', label: '일일결산' },
-    { id: 'weekly', label: '주간결산' },
-    { id: 'monthly', label: '월간결산' },
+    { id: 'daily', label: '일일' },
+    { id: 'weekly', label: '주간' },
+    { id: 'monthly', label: '월간' },
     { id: 'records', label: '결산기록' },
   ]
   const [activeCategory, setActiveCategory] = useState('daily')
@@ -11483,13 +11484,13 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{selectedWeeklyBlock.title}</strong>
-            <span className="muted">{weeklyIndex + 1} / {weeklyBlocks.length}</span>
+            <strong>주간 결산</strong>
+            <span className="muted">{selectedWeeklyBlock.title} · {weeklyIndex + 1} / {weeklyBlocks.length}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
         </div>
         <div className="settlement-sheet-grid settlement-sheet-grid-single">
-          <SettlementSheetCard block={selectedWeeklyBlock} />
+          <SettlementSheetCard block={selectedWeeklyBlock} hideTitleDate />
         </div>
       </>
     ) : <div className="card muted">표시할 주간결산 데이터가 없습니다.</div>
@@ -11499,13 +11500,13 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{selectedMonthlyBlock.title}</strong>
-            <span className="muted">{monthlyIndex + 1} / {monthlyBlocks.length}</span>
+            <strong>월간 결산</strong>
+            <span className="muted">{selectedMonthlyBlock.title} · {monthlyIndex + 1} / {monthlyBlocks.length}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
         </div>
         <div className="settlement-sheet-grid settlement-sheet-grid-single">
-          <SettlementSheetCard block={selectedMonthlyBlock} />
+          <SettlementSheetCard block={selectedMonthlyBlock} hideTitleDate />
         </div>
         <div className="settlement-float-actions">
           <button type="button" onClick={handleRefreshMonthlySummary} disabled={monthlySummaryLoading}>
@@ -11519,27 +11520,31 @@ function SettlementPage() {
   return (
     <div className="stack-page settlement-page">
       <section className="card settlement-hero">
-        <div className="between settlement-hero-head settlement-hero-head-wrap">
-          <div className="settlement-hero-main">
-            <h2>결산자료</h2>
-            {statusDetailOpen && (
-              <div className="settlement-status-detail card">
-                <div className="muted">일일결산은 하루씩만 표시되며, 결산반영 버튼으로 결산기록에 저장됩니다.</div>
-                <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(soomgoMetric, '숨고')}</div>
-                <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(ohouMetric, '오늘')}</div>
-                <div className="muted settlement-sync-summary">저장된 결산기록 {recordsLoading ? '불러오는 중...' : `${(recordsData.daily_records || []).length}건`}</div>
-              </div>
-            )}
+        <div className="settlement-hero-topbar">
+          <div className="settlement-tabs settlement-tabs-inline" role="tablist" aria-label="결산 카테고리">
+            {categories.map(tab => (
+              <button key={tab.id} type="button" className={activeCategory === tab.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setActiveCategory(tab.id)}>
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <div className="settlement-sync-actions settlement-sync-actions-stack">
+          <div className="settlement-sync-actions settlement-sync-actions-inline-top">
             <button type="button" className="small" onClick={handleRefreshSync} disabled={syncLoading || syncStatus.is_running}>
-              {syncLoading || syncStatus.is_running ? '연동중...' : '데이터 연동'}
+              {syncLoading || syncStatus.is_running ? '연동중...' : '연동'}
             </button>
-            <button type="button" className="ghost small" onClick={() => setSettingsOpen(prev => !prev)}>
-              {settingsOpen ? '설정 닫기' : '설정'}
+            <button type="button" className="ghost small settlement-gear-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">
+              ⚙
             </button>
           </div>
         </div>
+        {statusDetailOpen && (
+          <div className="settlement-status-detail card">
+            <div className="muted">일일결산은 하루씩만 표시되며, 결산반영 버튼으로 결산기록에 저장됩니다.</div>
+            <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(soomgoMetric, '숨고')}</div>
+            <div className="muted settlement-sync-summary">{formatSettlementSyncDetail(ohouMetric, '오늘')}</div>
+            <div className="muted settlement-sync-summary">저장된 결산기록 {recordsLoading ? '불러오는 중...' : `${(recordsData.daily_records || []).length}건`}</div>
+          </div>
+        )}
 
         {settingsOpen && (
           <div className="settlement-settings-panel">
@@ -11644,8 +11649,8 @@ const MATERIALS_TABLE_WIDTH_DEFAULTS = {
   incoming: [150, 104, 90, 96, 96, 120, 180],
   inventory: [150, 88, 96, 96, 104, 180],
   myRequests: [180, 108, 108, 124, 120],
-  requesters: [112, 108, 150, 148, 148, 124],
-  settlements: [112, 108, 150, 148, 148, 124],
+  requesters: [72, 70, 92, 124, 124, 98],
+  settlements: [72, 70, 92, 124, 124, 98],
   history: [112, 108, 150, 148, 148, 124],
 }
 

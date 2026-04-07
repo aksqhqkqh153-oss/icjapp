@@ -2135,11 +2135,11 @@ export function DisposalListPage() {
           return (
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
               <div className="disposal-list-date-label disposal-customer-group-label">
-                <button type="button" className="disposal-group-meta-button" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식 상세로 이동`}>
-                  <span>{group.disposalDate}</span>
-                  <span>{group.platform || '-'}</span>
-                  <strong>{group.customerName}</strong>
-                  <span>{group.location}</span>
+                <button type="button" className="disposal-group-meta-button" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
+                  <span className="disposal-meta-date">{group.disposalDate}</span>
+                  <span className="disposal-meta-platform">{group.platform || '-'}</span>
+                  <strong className="disposal-meta-customer">{group.customerName}</strong>
+                  <span className="disposal-meta-location">{group.location}</span>
                 </button>
                 <div className="disposal-customer-group-actions">
                   {isPaid && !isTransferred && (
@@ -2430,7 +2430,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
         `${formatNumber(summary.totalFee)}원`,
         `${formatNumber(summary.totalCancel)}원`,
         `${formatNumber(summary.totalSales)}원`,
-        '상세보기',
+        expandedKeys[dateKey] ? '접기' : '펼치기',
       ],
     })
     records.forEach((record, index) => {
