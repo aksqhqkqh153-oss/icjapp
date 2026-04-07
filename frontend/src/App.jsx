@@ -469,6 +469,61 @@ const MENU_PERMISSION_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => [
   ...section.items.map(item => ({ ...item, key: `item:${item.id}`, type: 'item', sectionId: section.id })),
 ])
 
+const MENU_LOCK_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (
+  section.items
+    .filter(item => !!item.path)
+    .map(item => ({
+      id: item.id,
+      label: item.label,
+      path: item.path,
+      sectionId: section.id,
+      sectionLabel: section.label,
+      adminOnly: !!item.adminOnly,
+    }))
+))
+
+function buildDefaultMenuLocks() {
+  return MENU_LOCK_ITEMS.reduce((acc, item) => {
+    acc[item.id] = true
+    return acc
+  }, {})
+}
+
+function parseMenuLocks(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw || {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function normalizeMenuLocks(raw) {
+  const defaults = buildDefaultMenuLocks()
+  const parsed = parseMenuLocks(raw)
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (typeof defaults[key] === 'boolean' && typeof value === 'boolean') {
+      defaults[key] = value
+    }
+  })
+  return defaults
+}
+
+function isMenuLockedForUser(user, menuLocks, itemId) {
+  if (Number(user?.grade || 6) <= 2) return false
+  const normalized = normalizeMenuLocks(menuLocks)
+  if (typeof normalized[itemId] === 'boolean') return !normalized[itemId]
+  return false
+}
+
+function findLockedMenuItemByPath(pathname) {
+  if (!pathname) return null
+  const normalizedPath = String(pathname).trim()
+  return MENU_LOCK_ITEMS.find(item => normalizedPath === item.path || normalizedPath.startsWith(`${item.path}/`)) || null
+}
+
 function effectivePositionTitle(user) {
   const title = String(user?.position_title || '').trim()
   if (title) return title
@@ -774,6 +829,7 @@ function Layout({ children, user, onLogout }) {
     return location.pathname === to || location.pathname.startsWith(`${to}/`)
   }
   const menuPermissions = useMemo(() => normalizeMenuPermissions(user?.permission_config?.menu_permissions_json), [user?.permission_config?.menu_permissions_json])
+  const menuLocks = useMemo(() => normalizeMenuLocks(user?.permission_config?.menu_locks_json), [user?.permission_config?.menu_locks_json])
   const employeeRestricted = isEmployeeRestrictedUser(user)
   const topMenuSections = useMemo(() => {
     const grade = Number(user?.grade || 6)
@@ -790,11 +846,12 @@ function Layout({ children, user, onLogout }) {
         items: section.items.filter(item => {
           if (employeeRestricted && ['materials', 'workday-history', 'settlements'].includes(item.id)) return false
           if (item.adminOnly && !canAccessAdminMode(user)) return false
+          if (isMenuLockedForUser(user, menuLocks, item.id)) return false
           return canViewMenuEntry(user, menuPermissions, `item:${item.id}`)
         }),
       }))
       .filter(section => section.visible && section.items.length > 0)
-  }, [employeeRestricted, menuPermissions, user])
+  }, [employeeRestricted, menuLocks, menuPermissions, user])
 
   useEffect(() => {
     setMenuOpen(false)
@@ -5808,6 +5865,40 @@ function ScheduleFormPage({ mode }) {
 
   const titlePreview = titleLocked ? buildScheduleTitle(form) : (form.title || buildScheduleTitle(form))
 
+
+  function toggleMenuLock(itemId) {
+    setMenuLockMap(prev => ({
+      ...prev,
+      [itemId]: !(prev?.[itemId] ?? true),
+    }))
+  }
+
+  async function saveMenuLocks() {
+    setMenuLockSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const nextConfig = { ...configForm, menu_locks_json: JSON.stringify(menuLockMap) }
+      await api('/api/admin-mode/config', {
+        method: 'POST',
+        body: JSON.stringify(nextConfig),
+      })
+      setConfigForm(nextConfig)
+      const storedUser = getStoredUser()
+      if (storedUser) {
+        const nextUser = { ...storedUser, permission_config: { ...(storedUser.permission_config || {}), ...nextConfig } }
+        sessionStorage.setItem('icj_user', JSON.stringify(nextUser))
+        if (getRememberedLogin()) localStorage.setItem('icj_user', JSON.stringify(nextUser))
+      }
+      setMessage('메뉴잠금 설정이 저장되었습니다.')
+      await load()
+    } catch (err) {
+      setError(err.message || '메뉴잠금 저장 중 오류가 발생했습니다.')
+    } finally {
+      setMenuLockSaving(false)
+    }
+  }
+
   if (loading) return <div className="card">불러오는 중...</div>
 
   return (
@@ -7123,6 +7214,15 @@ function PlaceholderFeaturePage({ title, description }) {
   )
 }
 
+function MenuLockGuard({ user, children }) {
+  const location = useLocation()
+  const lockedItem = findLockedMenuItemByPath(location.pathname)
+  if (lockedItem && isMenuLockedForUser(user, user?.permission_config?.menu_locks_json, lockedItem.id)) {
+    return <AccessDeniedRedirect message={`현재 '${lockedItem.label}' 메뉴는 잠금 상태입니다.`} />
+  }
+  return children
+}
+
 function MenuPermissionPage() {
   const currentUser = getStoredUser()
   const isAdminUser = isAdministrator(currentUser)
@@ -7141,6 +7241,7 @@ function MenuPermissionPage() {
     signup_approve_actor_max_grade: 3,
     signup_approve_target_min_grade: 7,
     menu_permissions_json: '',
+    menu_locks_json: '',
   })
   const [permissionMap, setPermissionMap] = useState(() => buildDefaultMenuPermissions())
 
@@ -8613,6 +8714,9 @@ function AdminModePage() {
   const [materialsRequestDeleteLoading, setMaterialsRequestDeleteLoading] = useState(false)
   const [materialsRequestDeleteSubmitting, setMaterialsRequestDeleteSubmitting] = useState(false)
   const [materialsTableSizeOpen, setMaterialsTableSizeOpen] = useState(false)
+  const [menuLockOpen, setMenuLockOpen] = useState(false)
+  const [menuLockMap, setMenuLockMap] = useState(() => buildDefaultMenuLocks())
+  const [menuLockSaving, setMenuLockSaving] = useState(false)
   const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
   const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
   const [materialsTableScaleSettings, setMaterialsTableScaleSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, 100])))
@@ -8712,11 +8816,13 @@ function AdminModePage() {
       setData(response)
       setMaterialsTableScaleSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, clampMaterialsScale(materialsScaleResponse?.scales?.[key] ?? prev[key] ?? 100)])))
       setMaterialsTableLayouts(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, desktopLayoutResponse?.layouts?.[key] ?? prev[key] ?? MATERIALS_TABLE_WIDTH_DEFAULTS[key], false)])))
-      setConfigForm({
+      const nextConfigForm = {
         total_vehicle_count: String(response.config?.total_vehicle_count || ''),
         branch_count_override: String(response.config?.branch_count_override || response.branch_count || ''),
         ...response.permission_config,
-      })
+      }
+      setConfigForm(nextConfigForm)
+      setMenuLockMap(normalizeMenuLocks(nextConfigForm.menu_locks_json))
       const normalizedAccounts = (response.accounts || []).map(normalizeAdminRow)
       setAccountRows(normalizedAccounts)
       setAccountRowsSortBase(normalizedAccounts)
@@ -8755,15 +8861,18 @@ function AdminModePage() {
   }, [searchParams])
 
   async function saveConfig() {
+    const nextConfig = { ...configForm, menu_locks_json: JSON.stringify(menuLockMap) }
     await api('/api/admin-mode/config', {
       method: 'POST',
-      body: JSON.stringify(configForm),
+      body: JSON.stringify(nextConfig),
     })
     const storedUser = getStoredUser()
     if (storedUser) {
-      const nextUser = { ...storedUser, permission_config: { ...(storedUser.permission_config || {}), ...configForm } }
-      localStorage.setItem('icj_user', JSON.stringify(nextUser))
+      const nextUser = { ...storedUser, permission_config: { ...(storedUser.permission_config || {}), ...nextConfig } }
+      sessionStorage.setItem('icj_user', JSON.stringify(nextUser))
+      if (getRememberedLogin()) localStorage.setItem('icj_user', JSON.stringify(nextUser))
     }
+    setConfigForm(nextConfig)
     setMessage('관리자모드 설정이 저장되었습니다.')
     await load()
   }
@@ -10140,6 +10249,53 @@ function AdminModePage() {
               <button type="button" className="small ghost" disabled={materialsTableSaving} onClick={() => saveMaterialsTableEditor()}>저장</button>
             </div>
             <div className="muted tiny-text">저장 시 모든 계정에 동일하게 적용됩니다.</div>
+          </div>
+        )}
+      </section>
+
+      <section className="card admin-mode-card">
+        <div className="between admin-mode-section-head admin-mode-section-toggle" role="button" tabIndex={0} onClick={() => setMenuLockOpen(v => !v)} onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setMenuLockOpen(v => !v)
+          }
+        }}>
+          <h2>메뉴잠금</h2>
+          <span className="admin-section-chevron">{menuLockOpen ? '−' : '+'}</span>
+        </div>
+        {menuLockOpen && (
+          <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
+            <div className="menu-lock-admin-list">
+              {MENU_PERMISSION_SECTIONS.map(section => {
+                const items = MENU_LOCK_ITEMS.filter(item => item.sectionId === section.id)
+                if (!items.length) return null
+                return (
+                  <div key={`menu-lock-section-${section.id}`} className="card menu-lock-admin-section">
+                    <div className="between">
+                      <strong>{section.label}</strong>
+                      <span className="muted small-text">관리자 / 부관리자는 항상 사용 가능</span>
+                    </div>
+                    <div className="stack compact-gap menu-lock-admin-items">
+                      {items.map(item => {
+                        const enabled = !!menuLockMap?.[item.id]
+                        return (
+                          <div key={`menu-lock-item-${item.id}`} className="quick-edit-row menu-lock-admin-row">
+                            <span>{item.label}</span>
+                            <button type="button" className={enabled ? 'small selected-toggle' : 'small ghost danger'} onClick={() => toggleMenuLock(item.id)}>
+                              {enabled ? 'ON' : 'OFF'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="inline-actions wrap end">
+              <button type="button" className="small ghost" disabled={menuLockSaving} onClick={saveMenuLocks}>{menuLockSaving ? '저장중...' : '저장'}</button>
+            </div>
+            <div className="muted tiny-text">OFF로 저장하면 해당 메뉴는 관리자/부관리자를 제외한 계정에서 숨김 처리되고, 직접 경로 접근도 차단됩니다.</div>
           </div>
         )}
       </section>
@@ -12845,6 +13001,7 @@ function App() {
       <LocationSharingAgent user={user} />
       <AppAssignmentNotificationWatcher user={user} />
       <Layout user={user} onLogout={logout}>
+      <MenuLockGuard user={user}>
       <Routes>
         <Route path="/" element={staffAllowed ? <HomePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/map" element={staffAllowed ? <MapPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
@@ -12889,6 +13046,7 @@ function App() {
         <Route path="/reports" element={staffAllowed ? (canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="*" element={staffAllowed ? <Navigate to="/" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
       </Routes>
+      </MenuLockGuard>
           </Layout>
     </>
   )

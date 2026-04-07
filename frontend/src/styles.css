@@ -14045,3 +14045,21 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     flex-wrap: wrap;
   }
 }
+
+
+.menu-lock-admin-list {
+  display: grid;
+  gap: 12px;
+}
+
+.menu-lock-admin-section {
+  padding: 14px;
+}
+
+.menu-lock-admin-items {
+  margin-top: 10px;
+}
+
+.menu-lock-admin-row {
+  gap: 12px;
+}

@@ -296,6 +296,7 @@ class AdminModeConfigIn(BaseModel):
     signup_approve_actor_max_grade: int = 3
     signup_approve_target_min_grade: int = 7
     menu_permissions_json: str = ""
+    menu_locks_json: str = ""
 class AdminAccountUpdateIn(BaseModel):
     grade: int = 6
     approved: Optional[bool] = None
@@ -539,6 +540,7 @@ def _get_permission_config(conn) -> dict:
         'signup_approve_actor_max_grade': int(_get_admin_setting(conn, 'signup_approve_actor_max_grade', '3') or 3),
         'signup_approve_target_min_grade': int(_get_admin_setting(conn, 'signup_approve_target_min_grade', '7') or 7),
         'menu_permissions_json': _get_admin_setting(conn, 'menu_permissions_json', ''),
+        'menu_locks_json': _get_admin_setting(conn, 'menu_locks_json', ''),
     }
 def _get_admin_total_vehicle_count(conn) -> int:
     row = conn.execute("SELECT COUNT(*) FROM users WHERE COALESCE(vehicle_available, 1) = 1 AND approved = 1").fetchone()
@@ -4527,6 +4529,7 @@ def save_admin_mode_config(payload: AdminModeConfigIn, admin=Depends(require_adm
         'signup_approve_actor_max_grade': str(payload.signup_approve_actor_max_grade),
         'signup_approve_target_min_grade': str(payload.signup_approve_target_min_grade),
         'menu_permissions_json': str(payload.menu_permissions_json or '').strip(),
+        'menu_locks_json': str(payload.menu_locks_json or '').strip(),
     }
     with get_conn() as conn:
         now = utcnow()

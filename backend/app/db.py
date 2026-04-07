@@ -2051,6 +2051,7 @@ def init_db() -> None:
             'signup_approve_actor_max_grade': '3',
             'signup_approve_target_min_grade': '7',
             'menu_permissions_json': '',
+            'menu_locks_json': '',
         }
         for setting_key, setting_value in default_admin_settings.items():
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
