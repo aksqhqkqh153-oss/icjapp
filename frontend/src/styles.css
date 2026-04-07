@@ -14363,3 +14363,51 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .work-shift-table td.sticky.left.second.name-cell {
   left: 90px;
 }
+
+
+@media (max-width: 768px) {
+  .settlement-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  button.settlement-tab {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 6px 4px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .settlement-excel-cell {
+    min-height: 28px;
+    padding: 5px 3px;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .settlement-sheet-excel {
+    padding: 4px;
+  }
+  .settlement-day-nav {
+    gap: 6px;
+  }
+  .settlement-day-nav-title strong {
+    font-size: 14px;
+  }
+  .settlement-day-nav-title .muted {
+    font-size: 11px;
+  }
+  .materials-sheet-table-wrap {
+    overflow-x: hidden;
+  }
+  .materials-sheet-table {
+    width: 100%;
+    table-layout: auto;
+    font-size: 10px;
+  }
+  .materials-sheet-table th,
+  .materials-sheet-table td {
+    padding: 4px 3px;
+    white-space: nowrap;
+  }
+}

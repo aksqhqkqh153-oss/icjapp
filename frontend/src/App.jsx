@@ -367,22 +367,35 @@ function formatFullDateLabel(value) {
 function formatRequesterBranchLabel(value) {
   const raw = String(value || '').trim()
   if (!raw) return '-'
-  return raw.endsWith('호점') ? raw.replace(/호점$/, '') : raw
+  if (raw === 'TEMP_BRANCH' || raw === '임시') return '임시'
+  const normalized = raw.replace(/^BRANCH_/, '').replace(/^0+(?=\d)/, '')
+  if (/^\d+$/.test(normalized)) return `${normalized}호점`
+  if (raw.endsWith('호점')) return raw
+  return raw
 }
 
 function parseRequesterMeta(request) {
+  const requesterBranchLabel = String(request?.requester_branch_label || request?.requester_branch_code || '').trim()
+  const requesterDisplayName = String(request?.requester_display_name || request?.requester_user_name || request?.requester_nickname || '').trim()
   const requesterName = String(request?.requester_name || '').trim()
-  const fallbackBranch = isAssignedBranchNo(request?.branch_no)
-    ? branchOptionLabel(request.branch_no)
-    : '-'
-  const fallbackName = String(request?.name || request?.nickname || '').trim()
+  const fallbackBranch = requesterBranchLabel || (isAssignedBranchNo(request?.branch_no) ? branchOptionLabel(request.branch_no) : '-')
+  const fallbackName = requesterDisplayName || String(request?.name || request?.nickname || '').trim()
   const uniqueId = String(
     request?.requester_unique_id
+    || request?.requester_account_unique_id
     || request?.account_unique_id
     || request?.unique_id
     || request?.user_unique_id
     || ''
   ).trim()
+
+  if (requesterBranchLabel || requesterDisplayName) {
+    return {
+      branch: fallbackBranch,
+      name: requesterDisplayName || fallbackName || '-',
+      uniqueId: uniqueId || '-',
+    }
+  }
 
   const match = requesterName.match(/^\s*([^\s]+호점)\s*(.*)$/)
   if (match) {
@@ -10678,6 +10691,68 @@ function getSettlementWeekStartKey(dateKey) {
   return `${copy.getFullYear()}-${String(copy.getMonth() + 1).padStart(2, '0')}-${String(copy.getDate()).padStart(2, '0')}`
 }
 
+function buildSettlementMonthlyPages(blocks = []) {
+  const map = new Map()
+  ;(blocks || []).forEach((block, index) => {
+    const dateKey = getSettlementBlockDateKey(block)
+    const monthKey = String(dateKey || '').slice(0, 7) || `fallback-${index}`
+    if (!map.has(monthKey)) map.set(monthKey, { monthKey, blocks: [] })
+    map.get(monthKey).blocks.push(block)
+  })
+  return Array.from(map.values()).map(page => {
+    const ordered = [...page.blocks].sort((a, b) => String(getSettlementBlockDateKey(a)).localeCompare(String(getSettlementBlockDateKey(b))))
+    return { ...page, start: getSettlementBlockDateKey(ordered[0]), end: getSettlementBlockDateKey(ordered[ordered.length - 1]), blocks: ordered }
+  }).sort((a, b) => String(a.start).localeCompare(String(b.start)))
+}
+
+function buildAggregatedSettlementBlockFromBlocks(baseBlock, blocks = [], titleText = '', dateText = '') {
+  if (!baseBlock) return null
+  if (!blocks.length) return cloneSettlementBlock(baseBlock)
+  const aggregated = cloneSettlementBlock(baseBlock)
+  const metrics = blocks.reduce((acc, block) => {
+    const current = summarizeSettlementRows(block?.summaryRows || [], block?.total || {})
+    Object.keys(acc).forEach(key => { acc[key] += current[key] || 0 })
+    return acc
+  }, { 숨고: 0, 오늘: 0, 공홈: 0, 총견적: 0, 총계약: 0, 플랫폼리뷰: 0, 호점리뷰: 0, 이슈: 0 })
+  aggregated.title = titleText || aggregated.title
+  if (dateText) aggregated.date = dateText
+  aggregated.summaryRows = (aggregated.summaryRows || []).map(row => {
+    const source = String(row?.source || '').trim()
+    if (source === '숨고' || source === '오늘' || source === '공홈') return { ...row, count: String(metrics[source] || 0) }
+    const label = String(row?.label || '')
+    if (label.includes('총 견적 발송 수')) return { ...row, value: String(metrics.총견적 || 0) }
+    if (label.includes('총 계약 수')) return { ...row, value: String(metrics.총계약 || 0) }
+    if (label.includes('계약률')) {
+      const rate = metrics.총견적 ? (metrics.총계약 / metrics.총견적) : 0
+      return { ...row, value: String(rate) }
+    }
+    return row
+  })
+  aggregated.total = { ...(aggregated.total || {}), platformReview: String(metrics.플랫폼리뷰 || 0), branchReview: String(metrics.호점리뷰 || 0), issues: String(metrics.이슈 || 0) }
+  return aggregated
+}
+
+function formatSettlementDateShort(dateKey) {
+  const date = parseSettlementDateKey(dateKey)
+  if (!date) return dateKey || '-'
+  return `${date.getMonth() + 1}.${String(date.getDate()).padStart(2, '0')}`
+}
+
+function buildAllSettlementSourceBlocks(currentBlocks = [], records = []) {
+  const map = new Map()
+  ;(records || []).forEach(record => {
+    const key = String(record?.settlement_date || '')
+    if (!key || !record?.block) return
+    map.set(key, cloneSettlementBlock(record.block))
+  })
+  ;(currentBlocks || []).forEach(block => {
+    const key = getSettlementBlockDateKey(block)
+    if (!key) return
+    if (!map.has(key)) map.set(key, cloneSettlementBlock(block))
+  })
+  return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([, block]) => block)
+}
+
 function buildSettlementWeeklyPages(blocks = []) {
   const map = new Map()
   ;(blocks || []).forEach((block, index) => {
@@ -11153,22 +11228,39 @@ function SettlementPage() {
     [syncStatus.platforms, reflectionMap],
   )
   const sortedDailyBlocks = useMemo(() => [...dailyBlocks].sort((left, right) => String(getSettlementBlockDateKey(left)).localeCompare(String(getSettlementBlockDateKey(right)))), [dailyBlocks])
-  const weeklyBlocks = useMemo(
-    () => (SETTLEMENT_DATA.weekly || []).map((block, index) => ({
-      ...applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0],
-      title: formatWeeklySettlementTitle(block, index),
-    })),
-    [syncStatus.platforms],
+  const allSettlementSourceBlocks = useMemo(
+    () => buildAllSettlementSourceBlocks(sortedDailyBlocks, recordsData.daily_records || []),
+    [sortedDailyBlocks, recordsData.daily_records],
   )
-  const monthlyBlocks = useMemo(
-    () => (SETTLEMENT_DATA.monthly || []).map((block, index) => {
-      const base = applySettlementPlatformMetrics([block], syncStatus.platforms, { reflectionMap: {} })[0]
+  const weeklyBlocks = useMemo(() => {
+    const pages = buildSettlementWeeklyPages(allSettlementSourceBlocks)
+    const baseTemplate = cloneSettlementBlock((SETTLEMENT_DATA.weekly || [])[0] || (SETTLEMENT_DATA.daily || [])[0] || null)
+    return pages.map((page, index) => {
+      const firstBlock = page.blocks[0] || null
+      return buildAggregatedSettlementBlockFromBlocks(
+        firstBlock || baseTemplate,
+        page.blocks,
+        formatWeeklySettlementTitle(firstBlock || { date: page.start }, index),
+        `${formatSettlementDateShort(page.start)} ~ ${formatSettlementDateShort(page.end)} 금요일 18:00 기준`,
+      )
+    })
+  }, [allSettlementSourceBlocks])
+  const monthlyBlocks = useMemo(() => {
+    const pages = buildSettlementMonthlyPages(allSettlementSourceBlocks)
+    const baseTemplate = cloneSettlementBlock((SETTLEMENT_DATA.monthly || [])[0] || (SETTLEMENT_DATA.daily || [])[0] || null)
+    return pages.map((page, index) => {
+      const firstBlock = page.blocks[0] || null
+      const base = buildAggregatedSettlementBlockFromBlocks(
+        firstBlock || baseTemplate,
+        page.blocks,
+        formatMonthlySettlementTitle(firstBlock || { date: page.start }, index),
+        `${String(page.start || '').slice(0, 7)} 월간결산`,
+      )
       const dateKey = getSettlementBlockDateKey(base)
       const override = dateKey ? monthlyOverrideMap[dateKey] : null
-      return override ? override : { ...base, title: formatMonthlySettlementTitle(base, index) }
-    }),
-    [syncStatus.platforms, monthlyOverrideMap],
-  )
+      return override || base
+    })
+  }, [allSettlementSourceBlocks, monthlyOverrideMap])
 
   useEffect(() => {
     setDailyIndex(prev => {
@@ -11375,9 +11467,6 @@ function SettlementPage() {
         <div className="between settlement-hero-head settlement-hero-head-wrap">
           <div className="settlement-hero-main">
             <h2>결산자료</h2>
-            <button type="button" className="ghost settlement-status-toggle" onClick={() => setStatusDetailOpen(prev => !prev)}>
-              {nextRunLabel}
-            </button>
             <div className="muted settlement-status-caption">현재 상태 {statusText}</div>
             {statusDetailOpen && (
               <div className="settlement-status-detail card">
@@ -12062,7 +12151,7 @@ function MaterialsPage({ user }) {
       <div className={`materials-request-sheet-row materials-request-sheet-head materials-request-sheet-head-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
         {selectable ? <div className="materials-request-sheet-check">선택</div> : null}
         <div>호점</div>
-        <div>이름/계정</div>
+        <div>호점/이름</div>
         <div>구매신청일자</div>
         <div>결산처리완료일자</div>
         <div>물품총합계</div>
@@ -12169,7 +12258,7 @@ function MaterialsPage({ user }) {
                 return (
                   <tr key={`settlement-row-${request.id}`}>
                     <td>{formatDateLabel(request.created_at)}</td>
-                    <td className="materials-sheet-name">{request.requester_name}</td>
+                    <td className="materials-sheet-name">{parseRequesterMeta(request).name}</td>
                     {activeProducts.map(product => (
                       <td key={`settlement-${request.id}-${product.id}`} className="materials-sheet-number">{qtyMap[Number(product.id)] || ''}</td>
                     ))}
@@ -12303,7 +12392,7 @@ function MaterialsPage({ user }) {
               <div className="materials-request-history-row materials-confirm-history-row materials-purchase-history-row" style={getTableGridStyle('history')}>
                 <div className="materials-history-static-cell">완료</div>
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
-                <div className="materials-request-name-cell"><strong>{meta.name}</strong>{meta.uniqueId && meta.uniqueId !== '-' ? <div className="muted tiny-text">고유ID {meta.uniqueId}</div> : null}</div>
+                <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
@@ -12450,10 +12539,7 @@ function MaterialsPage({ user }) {
                   </label>
                 ) : null}
                 <div>{formatRequesterBranchLabel(meta.branch)}</div>
-                <div className="materials-request-name-cell">
-                  <strong>{meta.name}</strong>
-                  {meta.uniqueId && meta.uniqueId !== '-' ? <div className="muted tiny-text">고유ID {meta.uniqueId}</div> : null}
-                </div>
+                <div className="materials-request-name-cell"><strong>{meta.name}</strong></div>
                 <div>{formatFullDateLabel(request.created_at)}</div>
                 <div>{isRejected ? <button type="button" className="ghost small" onClick={() => window.alert('관리자가 반려시킨 신청건입니다. 재신청 해주세요.')}>반려됨</button> : formatFullDateLabel(request.settled_at)}</div>
                 <div className="materials-request-total-cell">{Number(request.total_amount || 0).toLocaleString('ko-KR')}원</div>
