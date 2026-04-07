@@ -1727,16 +1727,14 @@ def seed_imported_accounts(conn) -> None:
             continue
         if account['email'] in deleted_emails:
             continue
-        exists = conn.execute("SELECT id, account_unique_id, password_hash FROM users WHERE email = ?", (account['email'],)).fetchone()
+        exists = conn.execute("SELECT id, account_unique_id FROM users WHERE email = ?", (account['email'],)).fetchone()
         existing_user_id = int(exists['id']) if exists else None
         existing_unique_id = str(exists['account_unique_id'] or '').strip() if exists else ''
-        existing_password_hash = str(exists['password_hash'] or '').strip() if exists else ''
         unique_id = existing_unique_id or generate_account_unique_id(conn, account['email'], existing_user_id)
         interests_json = json.dumps(account.get('interests', []), ensure_ascii=False)
         tendencies_json = json.dumps(account.get('tendencies', []), ensure_ascii=False)
-        password_hash_to_save = existing_password_hash or hash_password(account['password'])
         payload = (
-            password_hash_to_save,
+            hash_password(account['password']),
             account.get('name', account['nickname']),
             account['nickname'],
             account['role'],

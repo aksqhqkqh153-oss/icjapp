@@ -1062,7 +1062,7 @@ function AuthPage({ onLogin }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [accounts, setAccounts] = useState([])
-  const [form, setForm] = useState({ email: 'admin@example.com', password: 'admin1234' })
+  const [form, setForm] = useState({ login_id: 'admin', password: 'admin1234' })
   const [autoLogin, setAutoLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -1095,7 +1095,7 @@ function AuthPage({ onLogin }) {
         <p className="muted">로그인 후 앱 메인 화면으로 이동합니다.</p>
         {notice ? <div className="card notice-text" style={{ marginBottom: 12 }}>{notice}</div> : null}
         <form onSubmit={submit} className="stack">
-          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="아이디" autoComplete="username" />
+          <input value={form.login_id} onChange={e => setForm({ ...form, login_id: e.target.value })} placeholder="아이디" autoComplete="username" />
           <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" autoComplete="current-password" />
           <div className="muted auto-login-check">로그인 상태는 로그아웃 전까지 유지됩니다.</div>
           <button disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>

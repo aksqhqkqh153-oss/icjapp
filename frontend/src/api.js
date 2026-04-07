@@ -248,6 +248,29 @@ export function invalidateApiCache(prefixes = []) {
   invalidateByPrefixes(prefixes)
 }
 
+function formatApiErrorDetail(detail, status) {
+  if (Array.isArray(detail)) {
+    const first = detail[0]
+    if (typeof first === 'string') return first
+    if (first && typeof first === 'object') {
+      const field = Array.isArray(first.loc) ? first.loc.slice(1).join('.') : ''
+      const message = String(first.msg || '').trim()
+      if (field && message) return `${field}: ${message}`
+      if (message) return message
+    }
+  }
+  if (detail && typeof detail === 'object') {
+    if (typeof detail.message === 'string' && detail.message.trim()) return detail.message.trim()
+    try {
+      return JSON.stringify(detail)
+    } catch {
+      return `요청 처리 중 오류가 발생했습니다. (${status})`
+    }
+  }
+  if (typeof detail === 'string' && detail.trim()) return detail.trim()
+  return `요청 처리 중 오류가 발생했습니다. (${status})`
+}
+
 async function requestJson(path, options, headers) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -260,7 +283,7 @@ async function requestJson(path, options, headers) {
     notifyAuthExpired({ path, status: res.status, detail: data.detail || '' })
   }
   if (!res.ok) {
-    throw new Error(data.detail || `요청 처리 중 오류가 발생했습니다. (${res.status})`)
+    throw new Error(formatApiErrorDetail(data.detail, res.status))
   }
   return data
 }

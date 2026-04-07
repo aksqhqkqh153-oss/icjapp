@@ -103,7 +103,8 @@ class SignupIn(BaseModel):
     vehicle_number: str = ""
     branch_no: Optional[int] = None
 class LoginIn(BaseModel):
-    login_id: str
+    login_id: str = ""
+    email: str = ""
     password: str
 class AccountFindIn(BaseModel):
     nickname: str
@@ -2206,7 +2207,7 @@ def find_account(payload: AccountFindIn):
 
 @app.post("/api/auth/login")
 def login(payload: LoginIn):
-    account_id = _validate_login_id_value(payload.login_id)
+    account_id = _validate_login_id_value(payload.login_id or payload.email)
     with get_conn() as conn:
         account = conn.execute(
             "SELECT * FROM users WHERE LOWER(TRIM(COALESCE(login_id, email, ''))) = ?",
