@@ -1032,6 +1032,7 @@ function DisposalItemsEditor({
   configureDefaultVisibleRows,
   itemSettingsRef,
   onAutoSaveRecord,
+  onOpenPreview,
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
@@ -1293,7 +1294,7 @@ function DisposalItemsEditor({
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
             <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
-            <button type="button" className="ghost active disposal-save-inline-button" onClick={openPreviewPage}>견적저장</button>
+            <button type="button" className="ghost active disposal-save-inline-button" onClick={onOpenPreview}>견적저장</button>
             {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
             {itemSettingsOpen ? (
               <div className="disposal-settings-popover disposal-item-settings-popover">
@@ -1923,6 +1924,7 @@ useEffect(() => {
             defaultVisibleRows={defaultVisibleRows}
             configureDefaultVisibleRows={configureDefaultVisibleRows}
             itemSettingsRef={itemSettingsRef}
+            onOpenPreview={openPreviewPage}
             onAutoSaveRecord={nextRecord => {
               const nextRecords = upsertRecordByCustomerLocation(loadRecords(), nextRecord)
               saveRecords(nextRecords)
