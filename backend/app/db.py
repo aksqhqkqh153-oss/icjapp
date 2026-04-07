@@ -2067,6 +2067,34 @@ def init_db() -> None:
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
         conn.execute("UPDATE users SET name = nickname WHERE COALESCE(name, '') = ''")
         conn.execute("UPDATE users SET login_id = LOWER(TRIM(email)) WHERE COALESCE(TRIM(login_id), '') = '' AND COALESCE(TRIM(email), '') != ''")
+        special_login_id_updates = [
+            ('icj2424a', ('icj2424a@gmail.com',), ('이청잘A',), ('이청잘A',)),
+            ('icj2424b', ('icj2424b@gmail.com',), ('이청잘B',), ('이청잘B',)),
+            ('icj2424c', ('icj2424c@gmail.com',), ('이청잘C', '이철잘C'), ('이청잘C', '이철잘C')),
+        ]
+        for new_login_id, legacy_login_ids, legacy_names, legacy_nicknames in special_login_id_updates:
+            conn.execute(
+                """
+                UPDATE users
+                   SET login_id = ?
+                 WHERE LOWER(TRIM(COALESCE(login_id, ''))) IN ({login_id_placeholders})
+                    OR LOWER(TRIM(COALESCE(email, ''))) IN ({email_placeholders})
+                    OR TRIM(COALESCE(name, '')) IN ({name_placeholders})
+                    OR TRIM(COALESCE(nickname, '')) IN ({nickname_placeholders})
+                """.format(
+                    login_id_placeholders=','.join('?' for _ in legacy_login_ids),
+                    email_placeholders=','.join('?' for _ in legacy_login_ids),
+                    name_placeholders=','.join('?' for _ in legacy_names),
+                    nickname_placeholders=','.join('?' for _ in legacy_nicknames),
+                ),
+                (
+                    new_login_id,
+                    *[str(value).strip().lower() for value in legacy_login_ids],
+                    *[str(value).strip().lower() for value in legacy_login_ids],
+                    *[str(value).strip() for value in legacy_names],
+                    *[str(value).strip() for value in legacy_nicknames],
+                ),
+            )
         conn.execute("UPDATE users SET password_hash = ? WHERE LOWER(TRIM(COALESCE(login_id, email, ''))) = 'test001'", (hash_password('1212'),))
         conn.execute("UPDATE users SET account_status = CASE WHEN COALESCE(account_status, '') != '' THEN account_status WHEN COALESCE(approved, 1) = 0 OR CAST(COALESCE(grade, '6') AS INTEGER) = 7 THEN 'pending' ELSE 'active' END")
         conn.execute("UPDATE users SET branch_no = -1 WHERE CAST(COALESCE(grade, '6') AS INTEGER) = 4 AND branch_no IS NULL")
