@@ -610,7 +610,7 @@ def _normalize_email_value(value: Any) -> str:
     return str(value or '').strip().lower()
 
 def _normalize_login_id_value(value: Any) -> str:
-    return str(value or '').strip().lower()
+    return ''.join(ch for ch in str(value or '').strip().lower() if not ch.isspace())
 
 def _validate_login_id_value(value: Any) -> str:
     login_id = _normalize_login_id_value(value)

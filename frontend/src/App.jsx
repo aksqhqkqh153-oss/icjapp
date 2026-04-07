@@ -375,7 +375,7 @@ function formatRequesterBranchLabel(value) {
 }
 
 function normalizeFlexibleLoginId(value) {
-  return Array.from(String(value || '').toLowerCase())
+  return Array.from(String(value || '').trim().toLowerCase())
     .filter(char => /[^\W_]/u.test(char))
     .join('')
     .slice(0, 30)
@@ -7624,8 +7624,7 @@ function PoliciesPage() {
   return (
     <div className="stack settings-page-shell">
       <section className="card settings-category-card">
-        <h2>규정</h2>
-        <div className="settings-category-row">
+        <div className="settings-category-row settings-category-row-top" role="tablist" aria-label="규정 카테고리">
           {POLICY_CATEGORY_OPTIONS.map(item => (
             <button
               key={item.id}
@@ -7640,7 +7639,6 @@ function PoliciesPage() {
       </section>
 
       <section className="card settings-theme-card">
-        <h3>{POLICY_CATEGORY_OPTIONS.find(item => item.id === category)?.label || '규정'} 규정</h3>
         <div className="quick-check-grid quick-check-grid-16 policy-grid">
           {policyEntries.map(item => {
             const allowed = item.allowed(user)
@@ -8286,9 +8284,8 @@ function WorkShiftSchedulePage() {
     <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
       <section className="card work-shift-page-card">
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
-          <div className="work-shift-title-row">
-            <h2>근무스케줄</h2>
-            <div className="inline-actions wrap work-shift-mode-tabs">
+          <div className="work-shift-title-row work-shift-title-row-compact">
+            <div className="inline-actions wrap work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
               <button type="button" className={workMode === 'vacation' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
               <button type="button" className={workMode === 'view' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('view')}>편집/보기</button>
             </div>

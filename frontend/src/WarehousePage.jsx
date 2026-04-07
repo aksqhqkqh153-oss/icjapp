@@ -443,17 +443,15 @@ export default function WarehousePage() {
 
   return (
     <div className="feature-card warehouse-page-shell">
-      <div className="warehouse-header-row">
-        <div>
-          <h2 style={{ margin: 0 }}>창고현황</h2>
-          <p className="feature-description" style={{ marginBottom: 0 }}>
-            첨부된 창고 시트 구조를 앱 화면으로 옮긴 화면입니다.
-          </p>
+      <div className="warehouse-header-row warehouse-header-row-compact">
+        <div className="warehouse-mode-tabs warehouse-mode-tabs-top" role="tablist" aria-label="창고현황 카테고리">
+          <button type="button" className={mode === 'input' ? 'active' : ''} onClick={() => setMode('input')}>입력</button>
+          <button type="button" className={mode === 'warehouse' ? 'active' : ''} onClick={() => setMode('warehouse')}>창고</button>
         </div>
         {savingKey ? <span className="warehouse-save-indicator">저장중...</span> : null}
       </div>
 
-      <div className="warehouse-mode-tabs">
+      <div className="warehouse-mode-tabs warehouse-mode-tabs-hidden" aria-hidden="true">
         <button type="button" className={mode === 'input' ? 'active' : ''} onClick={() => setMode('input')}>입력</button>
         <button type="button" className={mode === 'warehouse' ? 'active' : ''} onClick={() => setMode('warehouse')}>창고</button>
       </div>
