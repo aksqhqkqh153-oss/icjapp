@@ -15818,3 +15818,68 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .work-shift-table td.sticky.left.third.name-cell {
   left:0;
 }
+
+
+/* 2026-04-07 final mobile disposal/workshift/warehouse/profile sync fixes */
+@media (max-width: 768px) {
+  .disposal-list-date-label.disposal-customer-group-label,
+  .disposal-list-grid.disposal-list-grid-customer {
+    display: block !important;
+  }
+
+  .disposal-list-grid.disposal-list-grid-customer {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #111827;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row {
+    min-width: 620px;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head {
+    display: grid !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-data-row,
+  .disposal-list-grid-customer .disposal-list-grid-summary-row {
+    display: grid !important;
+    grid-template-columns: 28px minmax(260px, 1fr) 66px 66px;
+    gap: 0;
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .disposal-list-grid-button-customer {
+    grid-column: 2;
+    display: grid !important;
+    grid-template-columns: minmax(140px, 1.3fr) 64px 74px 74px 74px 96px;
+    gap: 0;
+  }
+
+  .disposal-list-grid-button-customer > span,
+  .disposal-list-grid-payment-cell {
+    display: flex !important;
+    white-space: nowrap;
+  }
+
+  .work-shift-title-row-compact,
+  .warehouse-mode-tabs-top {
+    width: 100%;
+  }
+
+  .work-shift-mode-tabs,
+  .warehouse-mode-tabs-top {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}

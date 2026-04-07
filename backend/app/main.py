@@ -2392,10 +2392,15 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
     with get_conn() as conn:
         existing = _find_user_by_email_ci(conn, payload.email, user["id"])
         if existing:
-            raise HTTPException(status_code=400, detail="이미 사용 중인 아이디입니다.")
+            raise HTTPException(status_code=400, detail="이미 사용 중인 이메일입니다.")
+        next_login_id = _validate_login_id_value(payload.login_id or user.get('login_id') or user.get('email'))
+        dup_login_id = _find_user_by_login_id_ci(conn, next_login_id, user["id"])
+        if dup_login_id:
+            raise HTTPException(status_code=400, detail=f"{next_login_id} 아이디는 이미 사용 중입니다.")
         if payload.branch_no != user.get('branch_no') and int(user.get('grade') or 6) != 1:
             raise HTTPException(status_code=403, detail='호점은 관리자 권한에서만 본인 프로필로 변경할 수 있습니다.')
         assignments = [
+            ("login_id", next_login_id),
             ("email", _normalize_email_value(payload.email)),
             ("nickname", payload.nickname.strip()),
             ("region", payload.region.strip() or "서울"),

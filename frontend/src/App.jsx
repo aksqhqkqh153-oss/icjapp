@@ -1826,6 +1826,7 @@ function ProfilePage({ onUserUpdate }) {
   async function save(e) {
     e.preventDefault()
     const payload = {
+      login_id: normalizeFlexibleLoginId(form.login_id || ''),
       email: form.email || '',
       nickname: form.nickname || '',
       region: form.region || '서울',
