@@ -85,3 +85,13 @@
 - branch_no = -1 인 경우 TEMP_BRANCH로 간주
 - branch_code는 TEMP_BRANCH 또는 BRANCH_{번호} 형식으로 관리
 - account_type은 business / employee_field / employee_hq / admin / general 값을 사용
+
+
+## 12. 자재구매/현황 계정 연동 기준
+- 자재구매 신청 데이터의 1차 소유 기준은 material_purchase_requests.user_id 로 관리한다.
+- 사용자 본인 신청현황 조회 시 user_id 일치 여부를 최우선으로 판정한다.
+- 보조 판정 키는 requester_unique_id / login_id / email / branch+표시이름 조합으로 사용한다.
+- requester_unique_id 는 account_unique_id 우선, 없으면 login_id, 그 다음 email 순서로 저장한다.
+- requester_name 은 branch 표시명 + 사용자 표시명으로 저장한다.
+- material 요청 상세 조회 시 users 테이블을 다시 참조하여 requester_login_id / requester_email / requester_google_email / requester_account_status / requester_account_type / requester_position_title / requester_branch_code 를 보강한다.
+- 관리자 신청목록/신청현황 불일치가 발생하지 않도록 material 상세 응답은 사용자 테이블 기준으로 requester 메타를 재구성한다.

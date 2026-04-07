@@ -1122,6 +1122,32 @@ def _material_permissions(user: dict) -> dict:
         'can_view_my_requests': _materials_scope_allowed(user, 'my_requests'),
     }
 
+
+def _material_branch_label_from_user(user_row: dict | None) -> str:
+    data = row_to_dict(user_row)
+    branch_no_raw = data.get('branch_no')
+    branch_code = str(data.get('branch_code') or '').strip().upper()
+    if branch_code == 'TEMP_BRANCH' or str(branch_no_raw).strip() == '-1':
+        return '임시'
+    branch_no = str(branch_no_raw or '').strip()
+    if branch_no in {'0', '본점'}:
+        return '본점'
+    if branch_no.isdigit():
+        return f"{int(branch_no)}호점"
+    return ''
+
+
+def _material_requester_display_name_from_user(user_row: dict | None) -> str:
+    data = row_to_dict(user_row)
+    return str(
+        data.get('name')
+        or data.get('nickname')
+        or data.get('login_id')
+        or data.get('email')
+        or '구매신청자'
+    ).strip()
+
+
 def _material_request_detail(conn, request_row: dict) -> dict:
     items = [
         row_to_dict(row)
@@ -1136,10 +1162,39 @@ def _material_request_detail(conn, request_row: dict) -> dict:
             (request_row['id'],),
         ).fetchall()
     ]
-    return {
+    detail = {
         **request_row,
         'items': items,
     }
+    user_id = int(detail.get('user_id') or 0)
+    if user_id > 0:
+        user_row = conn.execute(
+            "SELECT id, login_id, email, google_email, name, nickname, account_unique_id, account_status, account_type, grade, position_title, branch_no, branch_code FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if user_row:
+            user_dict = row_to_dict(user_row)
+            branch_label = _material_branch_label_from_user(user_dict)
+            display_name = _material_requester_display_name_from_user(user_dict)
+            detail['requester_login_id'] = str(user_dict.get('login_id') or '').strip()
+            detail['requester_email'] = str(user_dict.get('email') or '').strip()
+            detail['requester_google_email'] = str(user_dict.get('google_email') or '').strip()
+            detail['requester_account_status'] = str(user_dict.get('account_status') or '').strip()
+            detail['requester_account_type'] = str(user_dict.get('account_type') or '').strip()
+            detail['requester_position_title'] = str(user_dict.get('position_title') or '').strip()
+            detail['requester_account_unique_id'] = str(user_dict.get('account_unique_id') or detail.get('requester_unique_id') or '').strip().lower()
+            detail['requester_unique_id'] = detail['requester_account_unique_id']
+            detail['requester_branch_no'] = user_dict.get('branch_no')
+            detail['requester_branch_code'] = str(user_dict.get('branch_code') or '').strip()
+            detail['requester_branch_label'] = branch_label
+            detail['requester_display_name'] = display_name
+            detail['requester_user_name'] = str(user_dict.get('name') or '').strip()
+            detail['requester_nickname'] = str(user_dict.get('nickname') or '').strip()
+            if branch_label and display_name:
+                detail['requester_name'] = f"{branch_label} {display_name}".strip()
+            elif display_name:
+                detail['requester_name'] = display_name
+    return detail
 
 def _pending_material_quantity_map(conn) -> dict[int, int]:
     rows = conn.execute(
@@ -1243,34 +1298,22 @@ def _material_request_identity_candidates(user: dict) -> dict[str, set[str]]:
     def _clean(value) -> str:
         return str(value or '').strip()
 
-    branch_raw = _clean(user.get('branch_no'))
-    if branch_raw in {'0', '본점'}:
-        branch_label = '본점'
-    elif branch_raw.isdigit():
-        branch_label = f"{int(branch_raw)}호점"
-    else:
-        branch_label = branch_raw
-
+    branch_label = _material_branch_label_from_user(user)
     name = _clean(user.get('name'))
     nickname = _clean(user.get('nickname'))
+    login_id = _clean(user.get('login_id')).lower()
     email = _clean(user.get('email')).lower()
-    account_unique_id = _clean(user.get('account_unique_id'))
+    account_unique_id = _clean(user.get('account_unique_id')).lower()
 
     requester_names = set()
-    if branch_label and name:
-        requester_names.add(f'{branch_label} {name}'.strip())
-    if branch_label and nickname:
-        requester_names.add(f'{branch_label} {nickname}'.strip())
-    if branch_label and email:
-        requester_names.add(f'{branch_label} {email}'.strip())
-    if name:
-        requester_names.add(name)
-    if nickname:
-        requester_names.add(nickname)
-    if email:
-        requester_names.add(email)
+    display_candidates = [name, nickname, login_id, email]
+    for candidate in display_candidates:
+        if candidate:
+            requester_names.add(candidate)
+            if branch_label:
+                requester_names.add(f'{branch_label} {candidate}'.strip())
 
-    unique_keys = {value for value in {account_unique_id, email} if value}
+    unique_keys = {value for value in {account_unique_id, login_id, email} if value}
     return {
         'requester_names': requester_names,
         'unique_keys': unique_keys,
@@ -5604,14 +5647,13 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
             request_items.append((int(product['id']), qty, unit_price, line_total, str(item.memo or '').strip()))
         if not request_items:
             raise HTTPException(status_code=400, detail='유효한 자재 항목이 없습니다.')
-        requester_name = ' '.join(part for part in [
-            f"{user.get('branch_no')}호점" if user.get('branch_no') not in (None, '') else '',
-            str(user.get('name') or user.get('nickname') or user.get('email') or '').strip(),
-        ] if part).strip()
+        branch_label = _material_branch_label_from_user(user)
+        requester_display_name = _material_requester_display_name_from_user(user)
+        requester_name = ' '.join(part for part in [branch_label, requester_display_name] if part).strip()
         if not requester_name:
-            requester_name = str(user.get('nickname') or user.get('email') or '구매신청자').strip()
+            requester_name = requester_display_name or '구매신청자'
         request_note = str(payload.request_note or '').strip()
-        requester_unique_id = str(user.get('account_unique_id') or user.get('email') or '').strip().lower()
+        requester_unique_id = str(user.get('account_unique_id') or user.get('login_id') or user.get('email') or '').strip().lower()
         if DB_ENGINE == 'postgresql':
             inserted_row = conn.execute(
                 '''
@@ -5642,12 +5684,17 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
         if not row:
             raise HTTPException(status_code=500, detail='구매신청 저장 후 조회에 실패했습니다.')
         detail = _material_request_detail(conn, row_to_dict(row))
-        detail['requester_display_name'] = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
+        detail['requester_display_name'] = requester_display_name
         detail['requester_user_name'] = str(user.get('name') or '').strip()
         detail['requester_nickname'] = str(user.get('nickname') or '').strip()
+        detail['requester_login_id'] = str(user.get('login_id') or '').strip()
+        detail['requester_email'] = str(user.get('email') or '').strip()
+        detail['requester_google_email'] = str(user.get('google_email') or '').strip()
         detail['requester_branch_no'] = user.get('branch_no')
-        detail['requester_branch_label'] = ('본점' if str(user.get('branch_no') or '').strip() in {'0', '본점'} else (f"{int(user.get('branch_no'))}호점" if str(user.get('branch_no') or '').strip().isdigit() else ''))
+        detail['requester_branch_code'] = str(user.get('branch_code') or '').strip()
+        detail['requester_branch_label'] = branch_label
         detail['requester_account_unique_id'] = requester_unique_id
+        detail['requester_unique_id'] = requester_unique_id
         try:
             _notify_material_purchase_request(conn, user, detail)
         except Exception:
