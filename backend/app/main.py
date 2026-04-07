@@ -90,7 +90,9 @@ def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
         raise HTTPException(status_code=400, detail='성별은 남성 또는 여성만 선택할 수 있습니다.')
     return gender
 class SignupIn(BaseModel):
-    email: str
+    login_id: str
+    email: str = ""
+    google_email: str = ""
     password: str
     nickname: str
     gender: str = ""
@@ -101,7 +103,7 @@ class SignupIn(BaseModel):
     vehicle_number: str = ""
     branch_no: Optional[int] = None
 class LoginIn(BaseModel):
-    email: str
+    login_id: str
     password: str
 class AccountFindIn(BaseModel):
     nickname: str
@@ -115,7 +117,8 @@ class PasswordResetConfirmIn(BaseModel):
     email: str
     new_password: str
 class ProfileIn(BaseModel):
-    email: str
+    login_id: str = ""
+    email: str = ""
     nickname: str
     position_title: str = ''
     region: str = "서울"
@@ -314,6 +317,8 @@ class AdminAccountTypeSwitchIn(BaseModel):
 
 class AdminUserDetailIn(BaseModel):
     id: int
+    login_id: str = ''
+    account_status: str = 'active'
     group_number: str = "0"
     name: str = ''
     nickname: str = ''
@@ -349,7 +354,10 @@ class AdminUserDetailIn(BaseModel):
 class AdminUserDetailsBulkIn(BaseModel):
     users: list[AdminUserDetailIn] = []
 class AdminCreateAccountIn(BaseModel):
-    email: str
+    login_id: str
+    email: str = ''
+    google_email: str = ''
+    account_status: str = 'active'
     password: str
     name: str = ''
     group_number: str = "0"
@@ -580,19 +588,68 @@ def _can_actor_apply(actor: dict, actor_key: str, target_key: str, target_grade:
 
 def _normalize_account_type(row: Any) -> str:
     data = row_to_dict(row)
-    role_value = str(data.get('role') or '').strip().lower()
+    grade = _grade_of(data)
     position_title = str(data.get('position_title') or '').strip()
-    if role_value in {'business', 'owner', 'franchise', 'branch'}:
-        return 'business'
+    if grade <= 3:
+        return 'admin'
     if position_title in {'대표', '부대표', '호점대표'}:
         return 'business'
-    if data.get('branch_no') not in (None, ''):
+    if position_title in {'팀장', '부팀장', '직원'}:
+        return 'employee_field'
+    if position_title in {'본부장', '상담실장', '상담팀장', '상담사원'}:
+        return 'employee_hq'
+    if grade == 4:
         return 'business'
-    return 'employee'
+    if grade == 5:
+        return 'employee_field'
+    return 'general'
 
 
 def _normalize_email_value(value: Any) -> str:
     return str(value or '').strip().lower()
+
+def _normalize_login_id_value(value: Any) -> str:
+    return str(value or '').strip().lower()
+
+def _validate_login_id_value(value: Any) -> str:
+    login_id = _normalize_login_id_value(value)
+    if not re.fullmatch(r'[a-z0-9]{4,20}', login_id):
+        raise HTTPException(status_code=400, detail='아이디는 영문 소문자와 숫자만 4~20자로 입력해 주세요.')
+    return login_id
+
+def _normalize_account_status_value(value: Any, approved: Any = None, grade: Any = None) -> str:
+    status = str(value or '').strip().lower()
+    aliases = {'승인대기': 'pending', '사용중': 'active', '일시정지': 'suspended', '퇴사/종료': 'retired', '계정삭제': 'deleted'}
+    status = aliases.get(status, status or '')
+    if status in {'pending','active','suspended','retired','deleted'}:
+        return status
+    try:
+        if int(approved if approved is not None else 1) == 0 or int(grade or 6) == 7:
+            return 'pending'
+    except Exception:
+        pass
+    return 'active'
+
+def _find_user_by_login_id_ci(conn, login_id: str, exclude_user_id: int | None = None):
+    normalized = _normalize_login_id_value(login_id)
+    if not normalized:
+        return None
+    sql = "SELECT * FROM users WHERE LOWER(TRIM(COALESCE(login_id, ''))) = ?"
+    params = [normalized]
+    if exclude_user_id is not None:
+        sql += " AND id != ?"
+        params.append(int(exclude_user_id))
+    sql += " ORDER BY id LIMIT 1"
+    row = conn.execute(sql, tuple(params)).fetchone()
+    if row:
+        return row
+    legacy_sql = "SELECT * FROM users WHERE LOWER(TRIM(COALESCE(email, ''))) = ?"
+    legacy_params = [normalized]
+    if exclude_user_id is not None:
+        legacy_sql += " AND id != ?"
+        legacy_params.append(int(exclude_user_id))
+    legacy_sql += " ORDER BY id LIMIT 1"
+    return conn.execute(legacy_sql, tuple(legacy_params)).fetchone()
 
 
 def _find_user_by_email_ci(conn, email: str, exclude_user_id: int | None = None):
@@ -609,13 +666,13 @@ def _canonical_role_for_user(grade_value: Any, branch_no: Any, position_title: A
         grade = int(grade_value or 6)
     except Exception:
         grade = 6
-    role_value = str(current_role or '').strip().lower()
-    position = str(position_title or '').strip()
-    is_business = grade == 4 or role_value in {'business', 'owner', 'franchise', 'branch'} or position in {'대표', '부대표', '호점대표'} or branch_no not in (None, '')
+    account_type = _normalize_account_type({'grade': grade, 'branch_no': branch_no, 'position_title': position_title, 'role': current_role})
     if grade <= 3:
         return 'admin'
-    if is_business:
+    if account_type == 'business':
         return 'business'
+    if account_type in {'employee_field', 'employee_hq'}:
+        return 'employee'
     return 'user'
 
 
@@ -627,24 +684,19 @@ def _normalize_account_admin_flags(data: dict) -> dict:
         grade = 6
     branch_no = normalized.get('branch_no')
     position_title = str(normalized.get('position_title') or '').strip()
-    account_type = str(normalized.get('account_type') or '').strip().lower()
-    is_business = account_type == 'business' or grade == 4 or position_title in {'대표', '부대표', '호점대표'} or branch_no not in (None, '')
-    is_hq = bool(normalized.get('show_in_hq_status'))
-    if is_business:
-        normalized['show_in_branch_status'] = 1
-        normalized['show_in_employee_status'] = 0
-        normalized['show_in_field_employee_status'] = 0
-        normalized['show_in_hq_status'] = 0
-        normalized['role'] = _canonical_role_for_user(grade, branch_no, position_title, 'business')
-    else:
-        normalized['show_in_branch_status'] = 0
-        normalized['show_in_employee_status'] = 1
-        normalized['show_in_hq_status'] = 1 if is_hq else 0
-        normalized['show_in_field_employee_status'] = 0 if normalized['show_in_hq_status'] else 1
-        normalized['role'] = _canonical_role_for_user(grade, branch_no, position_title, normalized.get('role') or 'user')
-    normalized['vehicle_available'] = 0 if _is_staff_grade(grade) else (1 if bool(normalized.get('vehicle_available', True)) else 0)
-    if not normalized.get('position_title') and is_business and branch_no not in (None, ''):
+    account_type = _normalize_account_type({'grade': grade, 'branch_no': branch_no, 'position_title': position_title, 'role': normalized.get('role')})
+    if account_type == 'business' and branch_no in (None, ''):
+        normalized['branch_no'] = -1
+        branch_no = -1
+    normalized['show_in_branch_status'] = 1 if account_type == 'business' else 0
+    normalized['show_in_employee_status'] = 1 if account_type in {'employee_field', 'employee_hq'} else 0
+    normalized['show_in_field_employee_status'] = 1 if account_type == 'employee_field' else 0
+    normalized['show_in_hq_status'] = 1 if account_type == 'employee_hq' else 0
+    normalized['role'] = _canonical_role_for_user(grade, branch_no, position_title, normalized.get('role') or 'user')
+    normalized['vehicle_available'] = 1 if account_type == 'business' else 0
+    if not normalized.get('position_title') and account_type == 'business':
         normalized['position_title'] = '호점대표'
+    normalized['account_status'] = _normalize_account_status_value(normalized.get('account_status'), normalized.get('approved'), grade)
     return normalized
 
 
@@ -1425,7 +1477,11 @@ def require_user(authorization: Optional[str] = Header(default=None)):
         user = get_user_by_token(conn, token)
         if not user:
             raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.")
-        return row_to_dict(user)
+        user_dict = row_to_dict(user)
+        status = _normalize_account_status_value(user_dict.get('account_status'), user_dict.get('approved'), user_dict.get('grade'))
+        if status in {'suspended', 'retired', 'deleted', 'pending'}:
+            raise HTTPException(status_code=403, detail='현재 계정 상태로는 앱을 사용할 수 없습니다.')
+        return user_dict
 def require_admin(user=Depends(require_user)):
     if _grade_of(user) != 1:
         raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
@@ -1981,17 +2037,20 @@ def demo_accounts():
         ]
 @app.post("/api/auth/signup")
 def signup(payload: SignupIn):
-    account_id = _normalize_email_value(payload.email)
+    login_id = _validate_login_id_value(payload.login_id)
+    account_email = _normalize_email_value(payload.email)
     password = payload.password.strip()
     nickname = payload.nickname.strip()
     gender = _validate_gender_value(payload.gender, allow_empty=False)
     region = payload.region.strip()
     phone = payload.phone.strip()
-    recovery_email = payload.recovery_email.strip()
+    recovery_email = _normalize_email_value(payload.recovery_email)
+    actual_email = account_email
+    google_email = _normalize_email_value(payload.google_email)
     vehicle_number = payload.vehicle_number.strip()
 
     required_fields = [
-        ('아이디', account_id),
+        ('아이디', login_id),
         ('비밀번호', password),
         ('닉네임', nickname),
         ('성별', gender),
@@ -2005,20 +2064,20 @@ def signup(payload: SignupIn):
         raise HTTPException(status_code=400, detail=f"다음 필수 항목을 입력해 주세요: {', '.join(missing)}")
     if payload.birth_year < 1900 or payload.birth_year > 2100:
         raise HTTPException(status_code=400, detail='생년 값이 올바르지 않습니다.')
-    if len(account_id) < 3:
-        raise HTTPException(status_code=400, detail='아이디는 3자 이상 입력해 주세요.')
     with get_conn() as conn:
-        exists = _find_user_by_email_ci(conn, account_id)
+        exists = _find_user_by_login_id_ci(conn, login_id)
         if exists:
             raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
-        generated_unique_id = generate_account_unique_id(conn, account_id)
+        generated_unique_id = generate_account_unique_id(conn, login_id)
         conn.execute(
             """
-            INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at)
-            VALUES (?, ?, ?, ?, 'user', 7, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
+            INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'user', 7, 0, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
             """,
             (
-                account_id,
+                login_id,
+                actual_email,
+                google_email,
                 hash_password(password),
                 nickname,
                 nickname,
@@ -2029,6 +2088,7 @@ def signup(payload: SignupIn):
                 recovery_email,
                 vehicle_number,
                 payload.branch_no,
+                payload.branch_no if payload.branch_no is not None else -1,
                 generated_unique_id,
                 utcnow(),
             ),
@@ -2042,7 +2102,7 @@ def signup(payload: SignupIn):
             "SELECT id FROM users WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)"
         ).fetchall()
         notification_title = '회원가입 승인 요청'
-        notification_body = f"신규 회원가입 신청: {nickname} ({account_id})"
+        notification_body = f"신규 회원가입 신청: {nickname} ({login_id})"
         for admin_row in admin_rows:
             insert_notification(conn, int(admin_row['id']), 'signup_request', notification_title, notification_body)
         return {
@@ -2051,7 +2111,8 @@ def signup(payload: SignupIn):
             'message': '회원가입 신청이 완료되었습니다. 관리자 승인 후 일반 권한으로 로그인할 수 있습니다.',
             'user': {
                 'id': user_id,
-                'email': account_id,
+                'login_id': login_id,
+                'email': actual_email,
                 'nickname': nickname,
                 'grade': 7,
                 'grade_label': '기타',
@@ -2077,10 +2138,10 @@ def find_account(payload: AccountFindIn):
 
 @app.post("/api/auth/login")
 def login(payload: LoginIn):
-    account_id = _normalize_email_value(payload.email)
+    account_id = _validate_login_id_value(payload.login_id)
     with get_conn() as conn:
         account = conn.execute(
-            "SELECT * FROM users WHERE email = ?",
+            "SELECT * FROM users WHERE LOWER(TRIM(COALESCE(login_id, email, ''))) = ?",
             (account_id,),
         ).fetchone()
         if not account:
@@ -2089,10 +2150,15 @@ def login(payload: LoginIn):
             raise HTTPException(status_code=401, detail='해당 계정의 비밀번호가 틀렸습니다.')
         grade = int(account['grade'] or 6)
         approved = int(account['approved'] if account['approved'] is not None else 1)
-        if grade == 7:
-            raise HTTPException(status_code=403, detail="현재 계정은 기타 권한입니다. 관리자 승인 후 일반 권한으로 변경되어야 로그인할 수 있습니다.")
-        if not approved:
+        account_status = _normalize_account_status_value(account['account_status'] if 'account_status' in account.keys() else '', approved, grade)
+        if account_status == 'pending' or grade == 7 or not approved:
             raise HTTPException(status_code=403, detail="관리자 승인 후 로그인할 수 있습니다.")
+        if account_status == 'suspended':
+            raise HTTPException(status_code=403, detail='일시정지 상태 계정입니다.')
+        if account_status == 'retired':
+            raise HTTPException(status_code=403, detail='퇴사/종료 상태 계정입니다.')
+        if account_status == 'deleted':
+            raise HTTPException(status_code=403, detail='삭제된 계정입니다.')
         token = make_token()
         conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, account["id"], utcnow()))
         user_payload = user_public_dict(account)
@@ -4670,7 +4736,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'group_number', 'group_number_text', 'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'email', 'google_email', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'show_in_field_employee_status', 'show_in_hq_status', 'archived_in_branch_status',
+        'bank_account', 'bank_name', 'mbti', 'login_id', 'email', 'google_email', 'account_status', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'show_in_field_employee_status', 'show_in_hq_status', 'archived_in_branch_status',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -4703,6 +4769,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             data['name'] = str(data.get('name') or '').strip()
             data['nickname'] = str(data.get('nickname') or '').strip()
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()
+            data['login_id'] = _validate_login_id_value(data.get('login_id') or data.get('email') or existing['login_id'] or existing['email'])
             data['email'] = _normalize_email_value(data.get('email') or '')
             data['recovery_email'] = _normalize_email_value(data.get('recovery_email') or '')
             data['gender'] = _validate_gender_value(data.get('gender') or '', allow_empty=True)
@@ -4711,10 +4778,9 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
                 data['name'] = data['nickname']
             if not data['account_unique_id']:
                 data['account_unique_id'] = generate_account_unique_id(conn, data['email'] or existing['email'], item.id)
-            if data['email']:
-                dup_email = _find_user_by_email_ci(conn, data['email'], item.id)
-                if dup_email:
-                    raise HTTPException(status_code=400, detail=f"{data['email']} 아이디는 이미 사용 중입니다.")
+            dup_login_id = _find_user_by_login_id_ci(conn, data['login_id'], item.id)
+            if dup_login_id:
+                raise HTTPException(status_code=400, detail=f"{data['login_id']} 아이디는 이미 사용 중입니다.")
             if data['account_unique_id']:
                 dup_uid = conn.execute("SELECT id FROM users WHERE account_unique_id = ? AND id != ?", (data['account_unique_id'], item.id)).fetchone()
                 if dup_uid:
@@ -4737,7 +4803,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
         raise HTTPException(status_code=403, detail='부관리자는 관리자/부관리자 계정을 생성할 수 없습니다.')
     if not str(payload.name or '').strip():
         raise HTTPException(status_code=400, detail='이름을 입력해주세요.')
-    if not str(payload.email or '').strip():
+    if not str(payload.login_id or '').strip():
         raise HTTPException(status_code=400, detail='아이디를 입력해주세요.')
     if not str(payload.password or '').strip():
         raise HTTPException(status_code=400, detail='비밀번호를 입력해주세요.')
@@ -4746,7 +4812,8 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
     payload_gender = _validate_gender_value(payload.gender, allow_empty=False)
     try:
         with get_conn() as conn:
-            exists = _find_user_by_email_ci(conn, payload.email)
+            login_id = _validate_login_id_value(payload.login_id or payload.email)
+            exists = _find_user_by_login_id_ci(conn, login_id)
             if exists:
                 raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
             generated_unique_id = generate_account_unique_id(conn, payload.email)
@@ -4756,13 +4823,14 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                 'position_title': str(payload.position_title or '').strip(),
                 'vehicle_available': payload.vehicle_available,
                 'show_in_hq_status': False,
+                'account_status': payload.account_status,
             })
             conn.execute(
                 """
-                INSERT INTO users(email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (_normalize_email_value(payload.email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no, normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
+                (login_id, _normalize_email_value(payload.email), _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
             )
             user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

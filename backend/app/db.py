@@ -216,7 +216,8 @@ def get_conn():
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
+    login_id TEXT UNIQUE DEFAULT '',
+    email TEXT DEFAULT '',
     password_hash TEXT NOT NULL,
     name TEXT DEFAULT '',
     nickname TEXT NOT NULL,
@@ -251,6 +252,7 @@ CREATE TABLE IF NOT EXISTS users (
     bank_name TEXT DEFAULT '',
     mbti TEXT DEFAULT '',
     google_email TEXT DEFAULT '',
+    account_status TEXT NOT NULL DEFAULT 'active',
     resident_id TEXT DEFAULT '',
     position_title TEXT DEFAULT '',
     vehicle_available INTEGER NOT NULL DEFAULT 1,
@@ -2009,6 +2011,7 @@ def init_db() -> None:
             'image_data': "TEXT DEFAULT ''",
         })
         _ensure_columns(conn, 'users', {
+            'login_id': "TEXT DEFAULT ''",
             'vehicle_number': "TEXT DEFAULT ''",
             'branch_no': 'INTEGER',
             'grade': 'INTEGER NOT NULL DEFAULT 6',
@@ -2027,6 +2030,7 @@ def init_db() -> None:
             'bank_name': "TEXT DEFAULT ''",
             'mbti': "TEXT DEFAULT ''",
             'google_email': "TEXT DEFAULT ''",
+            'account_status': "TEXT NOT NULL DEFAULT 'active'",
             'resident_id': "TEXT DEFAULT ''",
             'position_title': "TEXT DEFAULT ''",
             'vehicle_available': 'INTEGER NOT NULL DEFAULT 1',
@@ -2056,8 +2060,11 @@ def init_db() -> None:
         for setting_key, setting_value in default_admin_settings.items():
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
         conn.execute("UPDATE users SET name = nickname WHERE COALESCE(name, '') = ''")
+        conn.execute("UPDATE users SET login_id = LOWER(TRIM(email)) WHERE COALESCE(TRIM(login_id), '') = '' AND COALESCE(TRIM(email), '') != ''")
+        conn.execute("UPDATE users SET account_status = CASE WHEN COALESCE(account_status, '') != '' THEN account_status WHEN COALESCE(approved, 1) = 0 OR CAST(COALESCE(grade, '6') AS INTEGER) = 7 THEN 'pending' ELSE 'active' END")
         ensure_account_unique_ids(conn)
         _ensure_unique_index(conn, 'users', 'uq_users_account_unique_id', ['account_unique_id'])
+        _ensure_unique_index(conn, 'users', 'uq_users_login_id', ['login_id'])
         _ensure_columns(conn, 'work_schedule_day_notes', {
             'excluded_business_details': "TEXT NOT NULL DEFAULT '[]'",
             'excluded_staff_details': "TEXT NOT NULL DEFAULT '[]'",
@@ -2498,6 +2505,7 @@ def user_public_dict(row: sqlite3.Row) -> dict:
     approved = bool(row['approved'] if row['approved'] is not None else 1)
     return {
         'id': row['id'],
+        'login_id': row['login_id'] if 'login_id' in row.keys() and row['login_id'] not in (None, '') else row['email'],
         'email': row['email'],
         'name': row['name'] if 'name' in row.keys() else row['nickname'],
         'nickname': row['nickname'],
@@ -2534,6 +2542,7 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'bank_name': row['bank_name'] if 'bank_name' in row.keys() else '',
         'mbti': row['mbti'] if 'mbti' in row.keys() else '',
         'google_email': row['google_email'] if 'google_email' in row.keys() else '',
+        'account_status': row['account_status'] if 'account_status' in row.keys() and row['account_status'] not in (None, '') else ('pending' if not approved or grade == 7 else 'active'),
         'resident_id': row['resident_id'] if 'resident_id' in row.keys() else '',
         'position_title': row['position_title'] if 'position_title' in row.keys() else ('호점대표' if row['branch_no'] is not None else ''),
         'vehicle_available': bool(row['vehicle_available']) if 'vehicle_available' in row.keys() else True,

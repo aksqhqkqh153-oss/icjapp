@@ -11,6 +11,8 @@ export default function AuthPage({ onLogin }) {
   const isSignup = location.pathname === '/signup'
   const [form, setForm] = useState({
     login_id: '',
+    email: '',
+    google_email: '',
     recovery_email: '',
     password: '',
     nickname: '',
@@ -79,7 +81,7 @@ export default function AuthPage({ onLogin }) {
     setBusy(true)
     setError('')
     try {
-      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: account.email, password: account.password, captcha_token: captchaToken }) })
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ login_id: account.email, password: account.password, captcha_token: captchaToken }) })
       setSession(data.token || data.access_token || '', data.user, true)
       onLogin(data.user)
     } catch (err) {
@@ -98,7 +100,9 @@ export default function AuthPage({ onLogin }) {
       const path = isSignup ? '/api/auth/signup' : '/api/auth/login'
       const payload = isSignup
         ? {
-            email: form.login_id,
+            login_id: form.login_id,
+            email: form.email,
+            google_email: form.google_email,
             recovery_email: form.recovery_email,
             password: form.password,
             nickname: form.nickname,
@@ -107,14 +111,14 @@ export default function AuthPage({ onLogin }) {
             captcha_token: captchaToken,
           }
         : {
-            email: form.login_id,
+            login_id: form.login_id,
             password: form.password,
             captcha_token: captchaToken,
           }
       const data = await api(path, { method: 'POST', body: JSON.stringify(payload) })
       if (isSignup) {
         setMessage(data.message || '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.')
-        setForm({ login_id: '', recovery_email: '', password: '', nickname: '', phone: '', phone_verification_token: '' })
+        setForm({ login_id: '', email: '', google_email: '', recovery_email: '', password: '', nickname: '', phone: '', phone_verification_token: '' })
         setPhoneCode('')
         setPhoneHelp('')
         setCaptchaToken('')
@@ -158,6 +162,8 @@ export default function AuthPage({ onLogin }) {
           <TextField label={isSignup ? '패스워드' : '비밀번호'} type="password" value={form.password} onChange={v => setForm({ ...form, password: v })} />
 
           {isSignup ? <TextField label="닉네임" value={form.nickname} onChange={v => setForm({ ...form, nickname: v })} /> : null}
+          {isSignup ? <TextField label="실제 이메일" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} /> : null}
+          {isSignup ? <TextField label="구글용 이메일" type="email" value={form.google_email} onChange={v => setForm({ ...form, google_email: v })} /> : null}
           {isSignup ? <TextField label="비밀번호 복구용 이메일" type="email" value={form.recovery_email} onChange={v => setForm({ ...form, recovery_email: v })} /> : null}
           {isSignup ? (
             <>
