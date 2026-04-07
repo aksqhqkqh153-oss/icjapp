@@ -14199,3 +14199,83 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     border-right: 0;
   }
 }
+
+/* 2026-04-07 schedule + work-shift follow-up */
+@media (max-width: 768px) {
+  .app-shell.schedule-wide,
+  .page-container.schedule-wide,
+  .page-container.work-schedule-wide {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .page-container.work-schedule-wide > .work-schedule-page.mobile,
+  .work-schedule-page.mobile,
+  .work-schedule-page.mobile .work-schedule-day,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    box-sizing: border-box;
+  }
+
+  .work-schedule-page.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+.work-shift-table-wrap.drag-scroll-enabled {
+  cursor: grab;
+}
+
+.work-shift-table-wrap.drag-scroll-enabled:active,
+.work-shift-table-wrap.drag-scroll-enabled.is-dragging {
+  cursor: grabbing;
+}
+
+.work-shift-table-wrap.drag-scroll-enabled.is-dragging,
+.work-shift-table-wrap.drag-scroll-enabled.is-dragging * {
+  user-select: none !important;
+}
+
+.work-shift-table thead tr.work-shift-index-row th,
+.work-shift-table thead tr.work-shift-header-row th {
+  position: sticky;
+}
+
+.work-shift-table thead tr.work-shift-index-row th {
+  top: 0;
+}
+
+.work-shift-table thead tr.work-shift-header-row th,
+.work-shift-table .work-shift-head-cell {
+  top: 31px;
+}
+
+.work-shift-table .row-index-head,
+.work-shift-table .row-index-cell {
+  left: 0;
+}
+
+.work-shift-table .col-index-branch,
+.work-shift-table .col-main-head.name-cell-branch,
+.work-shift-table td.sticky.left.name-cell {
+  left: 34px;
+}
+
+.work-shift-table .col-index-person,
+.work-shift-table .col-main-head.name-cell-person,
+.work-shift-table td.sticky.left.second.name-cell {
+  left: 90px;
+}

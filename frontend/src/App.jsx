@@ -7708,7 +7708,7 @@ function computeWorkShiftSummary(days = []) {
   const twoCount = count('2')
   const jangCount = count('장')
   const vacationCount = count('휴')
-  const monthlyCount = count('월')
+  const monthlyCount = count('월') > 0 ? 1 : 0
   const annualCount = count('연')
   const sickCount = count('병')
   const reserveCount = count('예')
@@ -7764,7 +7764,7 @@ function buildYearlyWorkShiftSummary(sectionId, year, selectedRow, fallbackRows 
 
     const normalizedDays = (matchedRow.days || []).map(value => String(value || '').trim())
     const annualCount = normalizedDays.filter(value => value === '연').length
-    const monthlyCount = normalizedDays.filter(value => value === '월').length
+    const monthlyCount = normalizedDays.some(value => value === '월') ? 1 : 0
     totalAnnualCount += annualCount
     totalMonthlyLeaveCount += monthlyCount
     quarterlyAnnualCounts[Math.floor((targetMonth - 1) / 3)] += annualCount
@@ -7983,7 +7983,7 @@ function WorkShiftSchedulePage() {
     const row = rows[rowIndex] || {}
     const beforeValue = String(row.days?.[dayIndex] || '')
     if (beforeValue === nextValue) return
-    appendChangeLog(`${rowIndex}열${dayIndex + 2}행`, beforeValue, nextValue)
+    appendChangeLog(`${dayIndex + 3}열${rowIndex + 1}행`, beforeValue, nextValue)
     setRows(prev => prev.map((row, index) => {
       if (index !== rowIndex) return row
       const nextDays = [...row.days]
@@ -7996,7 +7996,7 @@ function WorkShiftSchedulePage() {
     if (!editNamesMode || !canEditSchedule) return
     const beforeValue = String(rows[rowIndex]?.c2 || '')
     if (beforeValue === value) return
-    appendChangeLog(`${rowIndex}열1행`, beforeValue, value)
+    appendChangeLog(`2열${rowIndex + 1}행`, beforeValue, value)
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c2: value } : row)))
   }
 
@@ -8004,7 +8004,7 @@ function WorkShiftSchedulePage() {
     if (!editNamesMode || !canEditSchedule) return
     const beforeValue = String(rows[rowIndex]?.c1 || '')
     if (beforeValue === value) return
-    appendChangeLog(`${rowIndex}열0행`, beforeValue, value)
+    appendChangeLog(`1열${rowIndex + 1}행`, beforeValue, value)
     setRows(prev => prev.map((row, index) => (index === rowIndex ? { ...row, c1: value } : row)))
   }
 
@@ -8019,7 +8019,7 @@ function WorkShiftSchedulePage() {
         days: Array.from({ length: 31 }, () => ''),
         summary: computeWorkShiftSummary(Array.from({ length: 31 }, () => '')),
       }
-      appendChangeLog(`${prev.length}열0행`, '', '신규 행 추가')
+      appendChangeLog(`1열${prev.length + 1}행`, '', '신규 행 추가')
       return [...prev, nextRow]
     })
   }
@@ -8079,6 +8079,8 @@ function WorkShiftSchedulePage() {
 
   function handleTablePointerDown(event) {
     if (isMobile || event.button !== 0) return
+    const target = event.target instanceof HTMLElement ? event.target : null
+    if (target?.closest('input, textarea, select, button, a, label')) return
     const wrapNode = tableWrapRef.current
     if (!wrapNode) return
     dragStateRef.current = {
@@ -8232,7 +8234,7 @@ function WorkShiftSchedulePage() {
       totalMonthlyLeaveCount: yearlySummary.totalMonthlyLeaveCount,
       quarterlyAnnualCounts: yearlySummary.quarterlyAnnualCounts,
       monthlyAnnualCount: count('연'),
-      monthlyMonthlyLeaveCount: count('월'),
+      monthlyMonthlyLeaveCount: count('월') > 0 ? 1 : 0,
       detailText: vacationItems.length ? vacationItems.map(([label, value]) => `${label}${value}`).join(', ') : '없음',
     }
   }, [sectionId, selectedRow, template.rows, year])
@@ -8441,7 +8443,14 @@ function WorkShiftSchedulePage() {
         {workMode === 'view' ? (
           <div
             ref={tableWrapRef}
-            className="work-shift-table-wrap"
+            className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
+            onMouseDown={handleTablePointerDown}
+            onClickCapture={event => {
+              if (dragStateRef.current?.suppressClick) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+            }}
           >
             <table className="work-shift-table spreadsheet-like">
               <thead>
