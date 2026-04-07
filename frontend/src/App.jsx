@@ -8100,7 +8100,7 @@ function WorkShiftSchedulePage() {
   function handleTablePointerDown(event) {
     if (isMobile || event.button !== 0) return
     const target = event.target instanceof HTMLElement ? event.target : null
-    if (target?.closest('input, textarea, select, button, a, label')) return
+    if (editNamesMode && target?.closest('input, textarea, select, button, a, label')) return
     const wrapNode = tableWrapRef.current
     if (!wrapNode) return
     dragStateRef.current = {
@@ -8489,6 +8489,7 @@ function WorkShiftSchedulePage() {
                 event.stopPropagation()
               }
             }}
+            onDragStart={event => event.preventDefault()}
           >
             <table className="work-shift-table spreadsheet-like">
               <thead>
@@ -8515,11 +8516,12 @@ function WorkShiftSchedulePage() {
                   const nameActive = isActiveCell(rowIndex, 1)
                   return (
                     <tr key={`${sectionId}-${row.row || rowIndex}`} className={selected ? 'is-selected' : ''} onClick={() => setSelectedRowKey(rowKey)}>
-                      <td className="sticky left row-index-cell">{Number.isFinite(Number(row.row)) ? Math.max(1, Number(row.row) - 9) : rowIndex + 1}</td>
+                      <td className="sticky left row-index-cell">{rowIndex + 1}</td>
                       <td className={`sticky left name-cell ${branchActive ? 'is-active-cell' : ''}`.trim()}>
                         {editNamesMode && canEditSchedule ? (
                           <input
                             className={`work-shift-branch-input ${branchActive ? 'is-active-input' : ''}`.trim()}
+                            draggable={false}
                             value={row.c1 || ''}
                             ref={node => registerCellRef(rowIndex, 0, node)}
                             onFocus={() => {
@@ -8541,6 +8543,7 @@ function WorkShiftSchedulePage() {
                         {editNamesMode && canEditSchedule ? (
                           <input
                             className={`work-shift-name-input ${nameActive ? 'is-active-input' : ''}`.trim()}
+                            draggable={false}
                             value={row.c2 || ''}
                             ref={node => registerCellRef(rowIndex, 1, node)}
                             onFocus={() => {
@@ -8565,6 +8568,7 @@ function WorkShiftSchedulePage() {
                           <td key={dayIndex} className={`${disabled ? 'day-cell disabled' : 'day-cell'} ${dayCellActive ? 'is-active-cell' : ''}`.trim()}>
                             <input
                               className={`work-shift-input ${dayCellActive ? 'is-active-input' : ''}`.trim()}
+                              draggable={false}
                               value={row.days?.[dayIndex] || ''}
                               onFocus={() => {
                                 setSelectedRowKey(rowKey)
@@ -10689,14 +10693,14 @@ function formatWeeklySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
   if (!date) return `${fallbackIndex + 1}주차 주간결산`
-  return `${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
 }
 
 function formatMonthlySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
   if (!date) return `${fallbackIndex + 1}월 월간결산`
-  return `${date.getMonth() + 1}월 월간결산`
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 월간결산`
 }
 
 function getSettlementWeekStartKey(dateKey) {
@@ -10710,17 +10714,34 @@ function getSettlementWeekStartKey(dateKey) {
 }
 
 function buildSettlementMonthlyPages(blocks = []) {
-  const map = new Map()
-  ;(blocks || []).forEach((block, index) => {
+  const validBlocks = (blocks || []).filter(block => getSettlementBlockDateKey(block))
+  const monthMap = new Map()
+  validBlocks.forEach(block => {
     const dateKey = getSettlementBlockDateKey(block)
-    const monthKey = String(dateKey || '').slice(0, 7) || `fallback-${index}`
-    if (!map.has(monthKey)) map.set(monthKey, { monthKey, blocks: [] })
-    map.get(monthKey).blocks.push(block)
+    const monthKey = String(dateKey || '').slice(0, 7)
+    if (!monthKey) return
+    if (!monthMap.has(monthKey)) monthMap.set(monthKey, { monthKey, blocks: [] })
+    monthMap.get(monthKey).blocks.push(block)
   })
-  return Array.from(map.values()).map(page => {
-    const ordered = [...page.blocks].sort((a, b) => String(getSettlementBlockDateKey(a)).localeCompare(String(getSettlementBlockDateKey(b))))
-    return { ...page, start: getSettlementBlockDateKey(ordered[0]), end: getSettlementBlockDateKey(ordered[ordered.length - 1]), blocks: ordered }
-  }).sort((a, b) => String(a.start).localeCompare(String(b.start)))
+
+  const today = new Date()
+  const todayYear = today.getFullYear()
+  const yearValues = validBlocks.map(block => parseSettlementDateKey(getSettlementBlockDateKey(block))?.getFullYear()).filter(Number.isFinite)
+  const startYear = Math.min(...yearValues, todayYear) - 1
+  const endYear = Math.max(...yearValues, todayYear) + 1
+
+  const pages = []
+  for (let year = startYear; year <= endYear; year += 1) {
+    for (let month = 0; month < 12; month += 1) {
+      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`
+      const entry = monthMap.get(monthKey) || { monthKey, blocks: [] }
+      const start = `${monthKey}-01`
+      const end = `${monthKey}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`
+      const ordered = [...entry.blocks].sort((a, b) => String(getSettlementBlockDateKey(a)).localeCompare(String(getSettlementBlockDateKey(b))))
+      pages.push({ ...entry, start, end, blocks: ordered })
+    }
+  }
+  return pages
 }
 
 function buildAggregatedSettlementBlockFromBlocks(baseBlock, blocks = [], titleText = '', dateText = '') {
@@ -10772,21 +10793,37 @@ function buildAllSettlementSourceBlocks(currentBlocks = [], records = []) {
 }
 
 function buildSettlementWeeklyPages(blocks = []) {
+  const validBlocks = (blocks || []).filter(block => getSettlementBlockDateKey(block))
   const map = new Map()
-  ;(blocks || []).forEach((block, index) => {
+  validBlocks.forEach(block => {
     const dateKey = getSettlementBlockDateKey(block)
-    const weekKey = getSettlementWeekStartKey(dateKey) || `fallback-${index}`
-    if (!map.has(weekKey)) {
-      map.set(weekKey, { weekKey, start: weekKey, blocks: [] })
-    }
+    const weekKey = getSettlementWeekStartKey(dateKey)
+    if (!weekKey) return
+    if (!map.has(weekKey)) map.set(weekKey, { weekKey, start: weekKey, blocks: [] })
     map.get(weekKey).blocks.push(block)
   })
-  return Array.from(map.values()).map(page => {
-    const ordered = [...page.blocks].sort((a, b) => getSettlementBlockDateKey(a).localeCompare(getSettlementBlockDateKey(b)))
-    const startKey = getSettlementBlockDateKey(ordered[0])
-    const endKey = getSettlementBlockDateKey(ordered[ordered.length - 1])
-    return { ...page, start: startKey, end: endKey, blocks: ordered }
-  }).sort((a, b) => String(a.start).localeCompare(String(b.start)))
+
+  const today = new Date()
+  const todayYear = today.getFullYear()
+  const yearValues = validBlocks.map(block => parseSettlementDateKey(getSettlementBlockDateKey(block))?.getFullYear()).filter(Number.isFinite)
+  const startYear = Math.min(...yearValues, todayYear) - 1
+  const endYear = Math.max(...yearValues, todayYear) + 1
+  const rangeStart = new Date(startYear, 0, 1)
+  const rangeEnd = new Date(endYear, 11, 31)
+  const rangeStartKey = getSettlementWeekStartKey(`${rangeStart.getFullYear()}-${String(rangeStart.getMonth() + 1).padStart(2, '0')}-${String(rangeStart.getDate()).padStart(2, '0')}`)
+  const firstWeekStart = parseSettlementDateKey(rangeStartKey) || rangeStart
+
+  const pages = []
+  for (let cursor = new Date(firstWeekStart); cursor <= rangeEnd; cursor.setDate(cursor.getDate() + 7)) {
+    const start = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+    const endDate = new Date(cursor)
+    endDate.setDate(endDate.getDate() + 6)
+    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
+    const entry = map.get(start) || { weekKey: start, blocks: [] }
+    const ordered = [...entry.blocks].sort((a, b) => getSettlementBlockDateKey(a).localeCompare(getSettlementBlockDateKey(b)))
+    pages.push({ ...entry, weekKey: start, start, end, blocks: ordered })
+  }
+  return pages
 }
 
 function findPreferredSettlementWeekIndex(pages = []) {
@@ -11485,7 +11522,6 @@ function SettlementPage() {
         <div className="between settlement-hero-head settlement-hero-head-wrap">
           <div className="settlement-hero-main">
             <h2>결산자료</h2>
-            <div className="muted settlement-status-caption">현재 상태 {statusText}</div>
             {statusDetailOpen && (
               <div className="settlement-status-detail card">
                 <div className="muted">일일결산은 하루씩만 표시되며, 결산반영 버튼으로 결산기록에 저장됩니다.</div>
@@ -11659,19 +11695,11 @@ function normalizeMaterialsColumnWidths(key, values, isMobile) {
 }
 
 function buildMaterialsGridTemplate(key, widths, isMobile) {
-  if (isMobile) {
-    const mobileTemplates = {
-      sales: 'minmax(0, 1.34fr) minmax(0, 1fr) minmax(0, 0.82fr) minmax(0, 0.92fr) minmax(0, 1fr)',
-      confirm: 'minmax(0, 1.44fr) minmax(0, 1fr) minmax(0, 0.92fr) minmax(0, 1fr)',
-      incoming: 'minmax(0, 1.18fr) minmax(0, 0.82fr) minmax(0, 0.7fr) minmax(0, 0.76fr) minmax(0, 0.76fr) minmax(0, 0.88fr) minmax(0, 0.92fr)',
-      myRequests: 'minmax(0, 1.32fr) minmax(0, 0.9fr) minmax(0, 0.82fr) minmax(0, 0.96fr) minmax(0, 0.98fr)',
-      requesters: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
-      settlements: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
-      history: 'minmax(0, 0.78fr) minmax(0, 0.86fr) minmax(0, 0.98fr) minmax(0, 0.98fr) minmax(0, 0.9fr) minmax(0, 0.96fr)',
-    }
-    if (mobileTemplates[key]) return mobileTemplates[key]
-  }
   const normalized = normalizeMaterialsColumnWidths(key, widths, isMobile)
+  if (isMobile) {
+    const total = normalized.reduce((sum, width) => sum + width, 0) || 1
+    return normalized.map(width => `minmax(0, ${(width / total * 100).toFixed(4)}%)`).join(' ')
+  }
   return normalized.map(width => `${width}px`).join(' ')
 }
 
@@ -12169,7 +12197,7 @@ function MaterialsPage({ user }) {
       <div className={`materials-request-sheet-row materials-request-sheet-head materials-request-sheet-head-${mode} ${selectable ? 'with-check' : ''}`.trim()} style={getRequestSheetGridStyle(requestGridKey)}>
         {selectable ? <div className="materials-request-sheet-check">선택</div> : null}
         <div>호점</div>
-        <div>호점/이름</div>
+        <div>이름</div>
         <div>구매신청일자</div>
         <div>결산처리완료일자</div>
         <div>물품총합계</div>

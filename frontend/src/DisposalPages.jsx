@@ -1192,7 +1192,6 @@ function DisposalItemsEditor({
       }
 
       if (await saveBlobWithPicker(blob, filename)) {
-        window.alert('고객용 견적서가 저장되었습니다.')
         return
       }
 
@@ -1204,7 +1203,6 @@ function DisposalItemsEditor({
       link.click()
       document.body.removeChild(link)
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
-      window.alert('고객용 견적서 JPG 파일 다운로드가 시작되었습니다.')
     } catch (error) {
       window.alert(error?.message || '고객용 견적서를 저장하지 못했습니다.')
     }

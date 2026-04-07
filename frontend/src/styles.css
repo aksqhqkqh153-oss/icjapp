@@ -14521,3 +14521,122 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .work-shift-table td.sticky.left.second.name-cell {
   z-index: 19;
 }
+
+
+/* 2026-04-07 schedule mobile layout guides + work shift drag cell support */
+@media (max-width: 768px) {
+  .schedule-page.mobile {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+
+  .schedule-page.mobile .schedule-card {
+    border: 2px solid #ef4444;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .schedule-page.mobile .calendar-toolbar.upgraded.schedule-toolbar-updated {
+    border: 2px solid #f97316;
+  }
+
+  .schedule-page.mobile .calendar-weekdays {
+    border: 2px solid #eab308;
+  }
+
+  .schedule-page.mobile .calendar-grid.schedule-grid.detail-mode.mobile-calendar-grid {
+    border: 2px solid #22c55e;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel {
+    border: 2px solid #3b82f6;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-head.single-row-summary {
+    border: 2px solid #4f46e5;
+  }
+
+  .schedule-page.mobile .schedule-popup-list.embedded {
+    border: 2px solid #a855f7;
+  }
+}
+
+.work-shift-table-wrap.drag-scroll-enabled td,
+.work-shift-table-wrap.drag-scroll-enabled th,
+.work-shift-table-wrap.drag-scroll-enabled input {
+  -webkit-user-drag: none;
+}
+
+.work-shift-table-wrap.drag-scroll-enabled .work-shift-input[disabled],
+.work-shift-table-wrap.drag-scroll-enabled .work-shift-branch-input,
+.work-shift-table-wrap.drag-scroll-enabled .work-shift-name-input {
+  pointer-events: auto;
+}
+
+.work-shift-table thead tr.work-shift-header-row th.sticky.left,
+.work-shift-table thead tr.work-shift-header-row th.sticky.left.second,
+.work-shift-table thead tr.work-shift-index-row th.sticky.left,
+.work-shift-table thead tr.work-shift-index-row th.sticky.left.second {
+  z-index: 24;
+}
+
+.work-shift-table tbody td.sticky.left,
+.work-shift-table tbody td.sticky.left.second {
+  z-index: 14;
+}
+
+
+@media (max-width: 768px) {
+  .settlement-hero-head-wrap {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+  .settlement-hero-main {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .settlement-sync-actions-stack {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .settlement-sync-actions-stack > button {
+    white-space: nowrap;
+  }
+  .materials-request-checkbox-cell {
+    justify-content: center;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+  .materials-request-checkbox-cell span {
+    display: none;
+  }
+  .materials-request-sheet-head > div,
+  .materials-request-sheet-row-pending > div,
+  .materials-request-sheet-row-pending > label,
+  .materials-request-sheet-row-settled > div,
+  .materials-request-sheet-row-settled > label,
+  .materials-request-sheet-row-history > div {
+    justify-content: center;
+    text-align: center;
+    padding: 6px 3px;
+    font-size: 10px;
+    letter-spacing: -0.02em;
+  }
+  .materials-request-sheet-row-pending > div:nth-child(2),
+  .materials-request-sheet-row-settled > div:nth-child(2),
+  .materials-request-sheet-row-history > div:nth-child(1) {
+    justify-content: center;
+    text-align: center;
+  }
+  .materials-request-name-cell,
+  .materials-request-total-cell {
+    font-size: 10px;
+  }
+}
