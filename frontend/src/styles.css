@@ -14640,3 +14640,134 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     font-size: 10px;
   }
 }
+
+/* 2026-04-07 mobile disposal sales sheet + work-shift topbar refinement */
+@media (max-width: 768px) {
+  .disposal-monthly-sheet-card {
+    overflow: hidden;
+  }
+
+  .disposal-sales-sheet,
+  .disposal-sales-sheet-two-col {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  }
+
+  .disposal-sales-sheet-two-col .disposal-sales-sheet-cell {
+    min-height: 30px;
+    padding: 5px 4px;
+    font-size: 10px;
+    line-height: 1.15;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-title-row h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-mode-tabs {
+    justify-content: flex-end;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-mode-tabs > button {
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-control-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-section-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-section-tabs > button {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-toolbar-side {
+    width: 100%;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-toolbar-inline-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-date-selectors-inline {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-date-selectors-inline .small-select {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-toolbar-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-toolbar-actions > button {
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
