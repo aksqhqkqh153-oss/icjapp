@@ -47,6 +47,7 @@ const PAGE_TITLES = {
 }
 
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
+const LAYOUT_GUIDE_BODY_CLASS = 'layout-guide-enabled'
 
 function normalizeAppTheme(theme) {
   return theme === 'dark' ? 'dark' : 'light'
@@ -70,6 +71,14 @@ function applyAppTheme(theme) {
     themeColorMeta.setAttribute('content', nextTheme === 'dark' ? '#111827' : '#ffffff')
   }
   return nextTheme
+}
+
+function applyLayoutGuideMode(enabled) {
+  if (typeof document === 'undefined') return !!enabled
+  const active = !!enabled
+  if (document.body) document.body.classList.toggle(LAYOUT_GUIDE_BODY_CLASS, active)
+  if (document.documentElement) document.documentElement.classList.toggle(LAYOUT_GUIDE_BODY_CLASS, active)
+  return active
 }
 
 function pageTitle(pathname) {
@@ -5907,6 +5916,27 @@ function ScheduleFormPage({ mode }) {
     }))
   }
 
+  async function saveLayoutGuideSetting(nextValue) {
+    setLayoutGuideSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const currentPrefs = await api('/api/preferences').catch(() => ({}))
+      const nextPrefs = { ...(currentPrefs || {}), layoutGuideEnabled: !!nextValue }
+      await api('/api/preferences', {
+        method: 'POST',
+        body: JSON.stringify({ data: nextPrefs }),
+      })
+      setLayoutGuideEnabled(!!nextValue)
+      applyLayoutGuideMode(!!nextValue)
+      setMessage(`관리용기능 · 테두리 표시가 ${nextValue ? 'ON' : 'OFF'}으로 저장되었습니다.`)
+    } catch (err) {
+      setError(err.message || '관리용기능 저장 중 오류가 발생했습니다.')
+    } finally {
+      setLayoutGuideSaving(false)
+    }
+  }
+
   async function saveMenuLocks() {
     setMenuLockSaving(true)
     setMessage('')
@@ -8769,6 +8799,8 @@ function AdminModePage() {
   const [menuLockOpen, setMenuLockOpen] = useState(false)
   const [menuLockMap, setMenuLockMap] = useState(() => buildDefaultMenuLocks())
   const [menuLockSaving, setMenuLockSaving] = useState(false)
+  const [layoutGuideEnabled, setLayoutGuideEnabled] = useState(false)
+  const [layoutGuideSaving, setLayoutGuideSaving] = useState(false)
   const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
   const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
   const [materialsTableScaleSettings, setMaterialsTableScaleSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, 100])))
@@ -8860,10 +8892,11 @@ function AdminModePage() {
     setLoading(true)
     setError('')
     try {
-      const [response, materialsScaleResponse, desktopLayoutResponse] = await Promise.all([
+      const [response, materialsScaleResponse, desktopLayoutResponse, prefsResponse] = await Promise.all([
         api('/api/admin-mode'),
         api('/api/materials/table-scale').catch(() => ({ scales: {} })),
         api('/api/materials/table-layout?device=desktop').catch(() => ({ layouts: {} })),
+        api('/api/preferences').catch(() => ({})),
       ])
       setData(response)
       setMaterialsTableScaleSettings(prev => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, clampMaterialsScale(materialsScaleResponse?.scales?.[key] ?? prev[key] ?? 100)])))
@@ -8875,6 +8908,9 @@ function AdminModePage() {
       }
       setConfigForm(nextConfigForm)
       setMenuLockMap(normalizeMenuLocks(nextConfigForm.menu_locks_json))
+      const nextLayoutGuideEnabled = !!prefsResponse?.layoutGuideEnabled
+      setLayoutGuideEnabled(nextLayoutGuideEnabled)
+      applyLayoutGuideMode(nextLayoutGuideEnabled)
       const normalizedAccounts = (response.accounts || []).map(normalizeAdminRow)
       setAccountRows(normalizedAccounts)
       setAccountRowsSortBase(normalizedAccounts)
@@ -10360,6 +10396,28 @@ function AdminModePage() {
                   </div>
                 )
               })}
+            </div>
+            <div className="menu-lock-admin-list">
+              <div className="card menu-lock-admin-section">
+                <div className="between">
+                  <strong>관리용기능</strong>
+                  <span className="muted small-text">현재 로그인한 계정에만 적용</span>
+                </div>
+                <div className="stack compact-gap menu-lock-admin-items">
+                  <div className="quick-edit-row menu-lock-admin-row">
+                    <span>테두리 표시</span>
+                    <button
+                      type="button"
+                      className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
+                      disabled={layoutGuideSaving}
+                      onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
+                    >
+                      {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
+                    </button>
+                  </div>
+                </div>
+                <div className="muted tiny-text">화면의 큰 레이아웃부터 빨강 → 주황 → 노랑 → 초록 → 파랑 → 남색 → 보라 순으로 테두리를 표시합니다.</div>
+              </div>
             </div>
             <div className="inline-actions wrap end">
               <button type="button" className="small ghost" disabled={menuLockSaving} onClick={saveMenuLocks}>{menuLockSaving ? '저장중...' : '저장'}</button>
@@ -13172,6 +13230,23 @@ function App() {
   useEffect(() => {
     applyAppTheme(getStoredThemePreference())
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) {
+      applyLayoutGuideMode(false)
+      return undefined
+    }
+    let cancelled = false
+    api('/api/preferences').then((prefs) => {
+      if (cancelled) return
+      applyLayoutGuideMode(!!prefs?.layoutGuideEnabled)
+    }).catch(() => {
+      if (!cancelled) applyLayoutGuideMode(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   useEffect(() => {
     if (!user || !getStoredUser()) return

@@ -15883,3 +15883,134 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     gap: 8px;
   }
 }
+
+
+/* 2026-04-07 workshift fixed columns + layout guide */
+.work-shift-table thead tr.work-shift-index-row .row-index-head { left: 0; z-index: 30; }
+.work-shift-table thead tr.work-shift-index-row .col-index-branch { position: sticky; left: 34px; z-index: 29; }
+.work-shift-table thead tr.work-shift-index-row .col-index-person { position: sticky; left: 90px; z-index: 28; }
+.work-shift-table thead tr.work-shift-header-row .row-index-head { left: 0; z-index: 27; }
+.work-shift-table thead tr.work-shift-header-row .name-cell-branch { left: 34px; z-index: 26; }
+.work-shift-table thead tr.work-shift-header-row .name-cell-person { left: 90px; z-index: 25; }
+.work-shift-table tbody .row-index-cell { left: 0; z-index: 24; }
+.work-shift-table tbody td.sticky.left.name-cell { left: 34px; z-index: 23; }
+.work-shift-table tbody td.sticky.left.second.name-cell { left: 90px; z-index: 22; }
+
+@media (max-width: 767px) {
+  .work-shift-table .name-cell-branch,
+  .work-shift-table .col-main-head.name-cell-branch,
+  .work-shift-table td.sticky.left.name-cell {
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+    left: 34px;
+  }
+
+  .work-shift-table .name-cell-person,
+  .work-shift-table .col-main-head.name-cell-person,
+  .work-shift-table td.sticky.left.second.name-cell {
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+    left: 106px;
+  }
+
+  .work-shift-table .sticky.left.second,
+  .work-shift-table .col-index-person {
+    left: 106px;
+  }
+
+  .work-shift-table thead tr.work-shift-index-row .col-index-branch { left: 34px; }
+  .work-shift-table thead tr.work-shift-index-row .col-index-person { left: 106px; }
+  .work-shift-table thead tr.work-shift-header-row .name-cell-branch { left: 34px; }
+  .work-shift-table thead tr.work-shift-header-row .name-cell-person { left: 106px; }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-cell {
+    font-size: 13px;
+  }
+}
+
+body.layout-guide-enabled .page-container,
+body.layout-guide-enabled .stack-page,
+body.layout-guide-enabled .stack,
+body.layout-guide-enabled .schedule-page-shell,
+body.layout-guide-enabled .work-schedule-page,
+body.layout-guide-enabled .work-shift-screen-shell,
+body.layout-guide-enabled .disposal-page,
+body.layout-guide-enabled .warehouse-page-shell,
+body.layout-guide-enabled .materials-page,
+body.layout-guide-enabled main {
+  outline: 3px solid rgba(255, 0, 0, 0.7) !important;
+  outline-offset: -2px;
+}
+
+body.layout-guide-enabled .card,
+body.layout-guide-enabled section,
+body.layout-guide-enabled article,
+body.layout-guide-enabled .work-schedule-main-top,
+body.layout-guide-enabled .work-schedule-section,
+body.layout-guide-enabled .work-schedule-list,
+body.layout-guide-enabled .work-exclusion-section,
+body.layout-guide-enabled .work-schedule-exclusion,
+body.layout-guide-enabled .work-shift-vacation-card,
+body.layout-guide-enabled .work-shift-summary-card,
+body.layout-guide-enabled .work-shift-log-card,
+body.layout-guide-enabled .disposal-list-date-group,
+body.layout-guide-enabled .disposal-monthly-sheet-card,
+body.layout-guide-enabled .warehouse-card {
+  outline: 3px solid rgba(255, 127, 0, 0.8) !important;
+  outline-offset: -2px;
+}
+
+body.layout-guide-enabled .inline-actions,
+body.layout-guide-enabled .disposal-list-grid,
+body.layout-guide-enabled .disposal-sales-sheet,
+body.layout-guide-enabled .disposal-month-settlement-table,
+body.layout-guide-enabled .work-shift-table-wrap,
+body.layout-guide-enabled .warehouse-table-wrap,
+body.layout-guide-enabled .admin-inline-grid,
+body.layout-guide-enabled .settings-category-row {
+  outline: 2px solid rgba(255, 215, 0, 0.85) !important;
+  outline-offset: -1px;
+}
+
+body.layout-guide-enabled .disposal-list-grid-row,
+body.layout-guide-enabled .disposal-sales-sheet-row,
+body.layout-guide-enabled .disposal-month-settlement-row,
+body.layout-guide-enabled .work-shift-table tr,
+body.layout-guide-enabled .warehouse-table tr,
+body.layout-guide-enabled .quick-edit-row,
+body.layout-guide-enabled .menu-lock-admin-row {
+  outline: 2px solid rgba(0, 170, 0, 0.75) !important;
+  outline-offset: -1px;
+}
+
+body.layout-guide-enabled .disposal-list-grid-button > span,
+body.layout-guide-enabled .disposal-sales-sheet-cell,
+body.layout-guide-enabled .disposal-month-settlement-row > div,
+body.layout-guide-enabled .work-shift-table th,
+body.layout-guide-enabled .work-shift-table td,
+body.layout-guide-enabled .warehouse-table th,
+body.layout-guide-enabled .warehouse-table td,
+body.layout-guide-enabled label,
+body.layout-guide-enabled input,
+body.layout-guide-enabled select,
+body.layout-guide-enabled textarea,
+body.layout-guide-enabled button {
+  outline: 1px solid rgba(0, 102, 255, 0.7) !important;
+  outline-offset: -1px;
+}
+
+body.layout-guide-enabled .work-shift-input,
+body.layout-guide-enabled .work-shift-name-input,
+body.layout-guide-enabled .work-shift-branch-input,
+body.layout-guide-enabled .disposal-payment-badge,
+body.layout-guide-enabled .disposal-transfer-badge,
+body.layout-guide-enabled .muted,
+body.layout-guide-enabled .tiny-text,
+body.layout-guide-enabled .small-text,
+body.layout-guide-enabled .success,
+body.layout-guide-enabled .error {
+  outline: 1px solid rgba(75, 0, 130, 0.7) !important;
+  outline-offset: -1px;
+}
