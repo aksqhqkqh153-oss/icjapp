@@ -2147,7 +2147,6 @@ export function DisposalListPage() {
                   )}
                   {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
                   <span className={`disposal-payment-badge ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
-                  <button type="button" className="ghost small" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>상세</button>
                 </div>
               </div>
               <div className="disposal-list-grid disposal-list-grid-customer">

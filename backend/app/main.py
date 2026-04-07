@@ -613,8 +613,8 @@ def _normalize_login_id_value(value: Any) -> str:
 
 def _validate_login_id_value(value: Any) -> str:
     login_id = _normalize_login_id_value(value)
-    if not re.fullmatch(r'[a-z0-9]{4,20}', login_id):
-        raise HTTPException(status_code=400, detail='아이디는 영문 소문자와 숫자만 4~20자로 입력해 주세요.')
+    if not re.fullmatch(r'[0-9a-z가-힣]{4,20}', login_id):
+        raise HTTPException(status_code=400, detail='아이디는 영문, 한글, 숫자만 4~20자로 입력할 수 있으며 특수문자, -, _ 는 사용할 수 없습니다.')
     return login_id
 
 def _normalize_account_status_value(value: Any, approved: Any = None, grade: Any = None) -> str:
