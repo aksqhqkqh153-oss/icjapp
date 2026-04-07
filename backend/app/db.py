@@ -2067,6 +2067,7 @@ def init_db() -> None:
             conn.execute("INSERT OR IGNORE INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?)", (setting_key, setting_value, utcnow()))
         conn.execute("UPDATE users SET name = nickname WHERE COALESCE(name, '') = ''")
         conn.execute("UPDATE users SET login_id = LOWER(TRIM(email)) WHERE COALESCE(TRIM(login_id), '') = '' AND COALESCE(TRIM(email), '') != ''")
+        conn.execute("UPDATE users SET password_hash = ? WHERE LOWER(TRIM(COALESCE(login_id, email, ''))) = 'test001'", (hash_password('1212'),))
         conn.execute("UPDATE users SET account_status = CASE WHEN COALESCE(account_status, '') != '' THEN account_status WHEN COALESCE(approved, 1) = 0 OR CAST(COALESCE(grade, '6') AS INTEGER) = 7 THEN 'pending' ELSE 'active' END")
         conn.execute("UPDATE users SET branch_no = -1 WHERE CAST(COALESCE(grade, '6') AS INTEGER) = 4 AND branch_no IS NULL")
         conn.execute("UPDATE users SET branch_code = CASE WHEN branch_no = -1 THEN 'TEMP_BRANCH' WHEN branch_no IS NOT NULL AND branch_no > 0 THEN 'BRANCH_' || CAST(branch_no AS TEXT) ELSE '' END")

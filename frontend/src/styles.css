@@ -15631,3 +15631,74 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .disposal-hero.disposal-hero-compact-nav > div:first-child:empty {
   display: none;
 }
+
+
+/* 2026-04-07 additional mobile fixes */
+@media (max-width: 768px) {
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col {
+    grid-template-columns: minmax(88px, 0.88fr) minmax(0, 1.12fr);
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-cell {
+    min-height: 28px;
+    padding: 4px 5px;
+    font-size: 10px;
+    line-height: 1.15;
+    white-space: normal;
+    word-break: keep-all;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col {
+    overflow: hidden;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col {
+    min-width: 0;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table {
+    min-width: max-content;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table .row-index-head,
+  .work-shift-screen-shell.mobile .work-shift-table .row-index-cell {
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table .name-cell-branch {
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table .name-cell-person {
+    width: 74px;
+    min-width: 74px;
+    max-width: 74px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table .col-index-branch,
+  .work-shift-screen-shell.mobile .work-shift-table .col-main-head.name-cell-branch,
+  .work-shift-screen-shell.mobile .work-shift-table td.sticky.left.name-cell {
+    left: 32px !important;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table .col-index-person,
+  .work-shift-screen-shell.mobile .work-shift-table .col-main-head.name-cell-person,
+  .work-shift-screen-shell.mobile .work-shift-table td.sticky.left.second.name-cell {
+    left: 90px !important;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-table th,
+  .work-shift-screen-shell.mobile .work-shift-table td {
+    border-right: 1px solid #d8dee9;
+    border-bottom: 1px solid #d8dee9;
+  }
+}

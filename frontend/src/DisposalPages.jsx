@@ -2540,7 +2540,6 @@ export function DisposalSettlementsPage() {
       </section>
 
       <section className="card disposal-monthly-sheet-card">
-        <div className="disposal-sheet-title">월 매출표</div>
         <div className="disposal-sales-sheet disposal-sales-sheet-two-col">
           {salesTableRows.map((row, rowIndex) => (
             <div key={`sales-row-${rowIndex}`} className={`disposal-sales-sheet-row disposal-sales-sheet-row-two-col ${rowIndex === 0 ? 'is-title' : ''}`}>
