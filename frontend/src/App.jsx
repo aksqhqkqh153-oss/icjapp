@@ -815,6 +815,8 @@ function Layout({ children, user, onLogout }) {
   const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
   const isScheduleView = location.pathname === '/schedule'
+  const isWorkScheduleView = location.pathname === '/work-schedule'
+  const isWideScheduleLayout = isScheduleView || isWorkScheduleView
   const isSearchView = location.pathname === '/search'
   const bottomLinks = [
     ['/', '홈'],
@@ -904,7 +906,7 @@ function Layout({ children, user, onLogout }) {
   }
 
   return (
-    <div className={`app-shell${isScheduleView ? ' schedule-wide' : ''}`}>
+    <div className={`app-shell${isWideScheduleLayout ? ' schedule-wide' : ''}`}>
       {isSearchView ? (
         <header className="topbar topbar-fixed topbar-search-mode">
           <div className="topbar-search-shell">
@@ -1017,7 +1019,7 @@ function Layout({ children, user, onLogout }) {
         </div>
       </header>
       )}
-      <main className={`page-container${isScheduleView ? ' schedule-wide' : ''}`}>{children}</main>
+      <main className={`page-container${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
           <Link key={to} className={isBottomActive(to) ? 'bottom-nav-item active' : 'bottom-nav-item'} to={to}>
