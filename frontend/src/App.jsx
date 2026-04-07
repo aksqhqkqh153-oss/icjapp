@@ -7762,8 +7762,9 @@ function buildYearlyWorkShiftSummary(sectionId, year, selectedRow, fallbackRows 
 
     const normalizedDays = (matchedRow.days || []).map(value => String(value || '').trim())
     const annualCount = normalizedDays.filter(value => value === '연').length
+    const monthlyCount = normalizedDays.filter(value => value === '월').length
     totalAnnualCount += annualCount
-    totalMonthlyLeaveCount += annualCount
+    totalMonthlyLeaveCount += monthlyCount
     quarterlyAnnualCounts[Math.floor((targetMonth - 1) / 3)] += annualCount
   }
 
@@ -8438,18 +8439,7 @@ function WorkShiftSchedulePage() {
         {workMode === 'view' ? (
           <div
             ref={tableWrapRef}
-            className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
-            onMouseDown={handleTablePointerDown}
-            onMouseMove={handleTablePointerMove}
-            onMouseLeave={handleTablePointerUp}
-            onMouseUp={handleTablePointerUp}
-            onClickCapture={event => {
-              if (dragStateRef.current?.suppressClick) {
-                event.preventDefault()
-                event.stopPropagation()
-              }
-            }}
-            onDragStart={event => event.preventDefault()}
+            className="work-shift-table-wrap"
           >
             <table className="work-shift-table spreadsheet-like">
               <thead>

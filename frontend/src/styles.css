@@ -4007,6 +4007,16 @@ button.settlement-tab.active {
   border-bottom: 0;
 }
 
+.menu-category-dropdown .menu-category-item,
+.menu-category-dropdown .menu-category-subitem,
+.menu-category-dropdown .menu-category-submenu-list {
+  background: #ffffff;
+}
+
+.menu-category-dropdown .menu-category-title {
+  background: #f3f4f6;
+}
+
 .labeled-account-grid {
   align-items: start;
 }
@@ -12181,7 +12191,7 @@ button.disposal-items-number-cell.has-note {
 .menu-category-item-expand { display: flex; align-items: center; justify-content: space-between; }
 .menu-category-expand-icon { font-size: 18px; line-height: 1; color: #6b7280; }
 .menu-category-submenu-list { display: flex; flex-direction: column; gap: 0; padding-left: 0; }
-.menu-category-subitem { font-size: 14px; padding-left: 30px; background: #fafafa; }
+.menu-category-subitem { font-size: 14px; padding-left: 30px; background: #ffffff; }
 .settings-page-shell { gap: 16px; }
 .settings-category-card, .settings-theme-card { width: 100%; }
 .settings-category-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -12532,6 +12542,17 @@ body[data-theme="dark"] a { color: inherit; }
 .work-shift-table thead tr.work-shift-header-row th { top: 31px; z-index: 14; }
 .work-shift-table thead tr.work-shift-header-row .row-index-head { z-index: 16; }
 .work-shift-table thead tr.work-shift-header-row .col-main-head { z-index: 15; }
+
+.work-shift-table .work-shift-head-cell {
+  position: sticky;
+  top: 31px;
+  z-index: 14;
+  background: #fff4bf;
+}
+
+.work-shift-table .row-index-head.work-shift-head-cell {
+  background: #f8fafc;
+}
 .work-shift-table .sticky.left { position: sticky; left: 0; z-index: 10; background: #fff4bf; background-clip: padding-box; overflow: hidden; }
 .work-shift-table .sticky.left.second { left: 90px; z-index: 10; }
 .work-shift-table .head-name, .work-shift-table .name-cell { padding: 0; white-space: nowrap; overflow: hidden; }
@@ -14112,9 +14133,9 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 }
 
 .disposal-list-grid-payment-cell {
-  border-left: 1px solid #111827;
-  border-right: 1px solid #111827;
   padding: 0 !important;
+  border-right: 1px solid #111827;
+  box-sizing: border-box;
 }
 
 .disposal-list-grid-row > .disposal-list-grid-payment-cell:last-child {
@@ -14122,19 +14143,30 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 }
 
 .disposal-list-grid-status-button {
-  width: 100%;
-  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  margin: 0 auto;
   background: #fff;
-  border-top: 0;
-  border-bottom: 0;
-  border-left: 0;
-  border-right: 0;
-  font-size: 15px;
+  border: 1px solid #111827;
+  border-radius: 0;
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1;
   color: #111827;
   cursor: pointer;
+  box-shadow: none;
 }
 
 .disposal-list-grid-status-button:hover {
   background: #f8fafc;
+}
+
+.disposal-month-settlement-summary {
+  cursor: pointer;
 }

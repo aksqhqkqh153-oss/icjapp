@@ -106,7 +106,7 @@ function setDefaultVisibleItemRowsStorage(value) {
 }
 
 function createEmptyItem() {
-  return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '' }
+  return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '', paymentDone: false, reportDone: false }
 }
 
 function createInitialDraft() {
@@ -152,10 +152,17 @@ function normalizeRecordShape(record) {
   const sourceItems = Array.isArray(record.items) ? record.items : []
   const defaultVisibleRows = getDefaultVisibleItemRows()
   const visibleItemCount = Math.max(defaultVisibleRows, Math.min(ITEM_ROW_COUNT, sourceItems.length || defaultVisibleRows))
-  const items = Array.from({ length: visibleItemCount }, (_, index) => ({
-    ...createEmptyItem(),
-    ...(sourceItems[index] || {}),
-  }))
+  const defaultPaid = /입금완/.test(String(record?.finalStatus || '').trim())
+  const defaultReported = /신고완/.test(String(record?.finalStatus || '').trim())
+  const items = Array.from({ length: visibleItemCount }, (_, index) => {
+    const sourceItem = sourceItems[index] || {}
+    return {
+      ...createEmptyItem(),
+      ...sourceItem,
+      paymentDone: typeof sourceItem?.paymentDone === 'boolean' ? sourceItem.paymentDone : defaultPaid,
+      reportDone: typeof sourceItem?.reportDone === 'boolean' ? sourceItem.reportDone : defaultReported,
+    }
+  })
   return {
     id: String(record.id || `disposal-${Date.now()}`),
     savedAt: String(record.savedAt || new Date().toISOString()),
@@ -670,6 +677,19 @@ function getReportStatus(record) {
   if (/신고완/.test(status)) return '완료'
   return '신고전'
 }
+function getFilledRecordItems(record) {
+  const filledItems = (record?.items || []).filter(item => {
+    return String(item?.itemName || '').trim() || safeNumber(item?.quantity) || safeNumber(item?.unitCost) || String(item?.reportNo || '').trim()
+  })
+  return filledItems.length ? filledItems : [createEmptyItem()]
+}
+
+function getAggregateItemStatus(record, field) {
+  const items = getFilledRecordItems(record)
+  const key = field === 'payment' ? 'paymentDone' : 'reportDone'
+  return items.every(item => !!item?.[key]) ? '완료' : (field === 'payment' ? '미입금' : '신고전')
+}
+
 
 function composeFinalStatus(isPaid, isReported) {
   return `${isPaid ? '입금완' : '입금전'} / ${isReported ? '신고완' : '신고전'}`
@@ -701,8 +721,8 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         customerName: record.customerName || '-',
         location: record.location || '-',
         disposalDate: record.disposalDate || '-',
-        paymentStatus: getPaymentStatus(record),
-        reportStatus: getReportStatus(record),
+        paymentStatus: getAggregateItemStatus(record, 'payment'),
+        reportStatus: getAggregateItemStatus(record, 'report'),
         finalStatus: record.finalStatus || '',
         settlementTransferredAt: record.settlementTransferredAt || '',
         savedAt: record.savedAt || '',
@@ -711,10 +731,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
       })
     }
     const group = grouped.get(customerGroupKey)
-    const filledItems = (record.items || []).filter(item => {
-      return String(item?.itemName || '').trim() || safeNumber(item?.quantity) || safeNumber(item?.unitCost) || String(item?.reportNo || '').trim()
-    })
-    const sourceItems = filledItems.length ? filledItems : [createEmptyItem()]
+    const sourceItems = getFilledRecordItems(record)
     sourceItems.forEach((item, index) => {
       const quantity = safeNumber(item?.quantity)
       const unitCost = safeNumber(item?.unitCost)
@@ -734,6 +751,8 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         reportAmount,
         feeAmount,
         finalAmount,
+        paymentDone: !!item?.paymentDone,
+        reportDone: !!item?.reportDone,
       })
       group.totals.quantity += quantity
       group.totals.unitCost += unitCost
@@ -1970,46 +1989,58 @@ export function DisposalListPage() {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  function updateRecordStatuses(recordId, nextPaid, nextReported) {
+  function updateRecordStatuses(recordId, updater) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
-    const nextFinalStatus = getFinalStatusFromFlags(nextPaid, nextReported)
+    let nextTarget = null
     const nextRecords = records.map(record => {
       if (record.id !== recordId) return record
-      const nextRecord = normalizeRecordShape({
+      const currentItems = getFilledRecordItems(record)
+      const nextItems = currentItems.map((item, index) => ({ ...item, ...(updater(item, index, currentItems) || {}) }))
+      const nextPaid = nextItems.every(item => !!item.paymentDone)
+      const nextReported = nextItems.every(item => !!item.reportDone)
+      nextTarget = normalizeRecordShape({
         ...record,
-        finalStatus: nextFinalStatus,
+        items: nextItems,
+        finalStatus: getFinalStatusFromFlags(nextPaid, nextReported),
         settlementTransferredAt: nextPaid ? (record.settlementTransferredAt || '') : '',
       })
-      return nextRecord
+      return nextTarget
     })
+    if (!nextTarget) return
     saveRecords(nextRecords)
     setRecords(nextRecords)
-    setPendingSettlementMessages(prev => Array.from(new Set([...prev.filter(message => message !== buildPendingSettlementChangeMessage(target)), buildPendingSettlementChangeMessage({ ...target, finalStatus: nextFinalStatus })])))
+    setPendingSettlementMessages(prev => Array.from(new Set([...prev.filter(message => message !== buildPendingSettlementChangeMessage(target)), buildPendingSettlementChangeMessage(nextTarget)])))
   }
 
-  function updatePaymentStatus(recordId, isChecked) {
-    const target = records.find(record => record.id === recordId)
-    if (!target) return
-    updateRecordStatuses(recordId, isChecked, getReportStatus(target) === '완료')
+  function updatePaymentStatus(recordId, rowKey, isChecked) {
+    updateRecordStatuses(recordId, (_item, index) => ({ paymentDone: String(rowKey || '').endsWith(`-${index}`) ? !!isChecked : _item.paymentDone }))
   }
 
-  function updateReportStatus(recordId, isChecked) {
-    const target = records.find(record => record.id === recordId)
-    if (!target) return
-    updateRecordStatuses(recordId, getPaymentStatus(target) === '완료', isChecked)
+  function updateReportStatus(recordId, rowKey, isChecked) {
+    updateRecordStatuses(recordId, (_item, index) => ({ reportDone: String(rowKey || '').endsWith(`-${index}`) ? !!isChecked : _item.reportDone }))
   }
 
-  function togglePaymentStatus(recordId) {
-    const target = records.find(record => record.id === recordId)
-    if (!target) return
-    updatePaymentStatus(recordId, getPaymentStatus(target) !== '완료')
+  function updateAllPaymentStatuses(recordId, isChecked) {
+    updateRecordStatuses(recordId, () => ({ paymentDone: !!isChecked }))
   }
 
-  function toggleReportStatus(recordId) {
-    const target = records.find(record => record.id === recordId)
-    if (!target) return
-    updateReportStatus(recordId, getReportStatus(target) !== '완료')
+  function updateAllReportStatuses(recordId, isChecked) {
+    updateRecordStatuses(recordId, () => ({ reportDone: !!isChecked }))
+  }
+
+  function togglePaymentStatus(recordId, rowKey) {
+    const targetGroup = groupedRows.find(group => group.recordId === recordId)
+    const targetRow = targetGroup?.rows?.find(row => row.key === rowKey)
+    if (!targetRow) return
+    updatePaymentStatus(recordId, rowKey, !targetRow.paymentDone)
+  }
+
+  function toggleReportStatus(recordId, rowKey) {
+    const targetGroup = groupedRows.find(group => group.recordId === recordId)
+    const targetRow = targetGroup?.rows?.find(row => row.key === rowKey)
+    if (!targetRow) return
+    updateReportStatus(recordId, rowKey, !targetRow.reportDone)
   }
 
   function confirmBulkStatusChange(recordId, field, checked) {
@@ -2018,10 +2049,10 @@ export function DisposalListPage() {
     const confirmed = window.confirm(`체크박스를 체크하면 모든 품목의 ${label}가 ${nextValue}로 전환됩니다.`)
     if (!confirmed) return
     if (field === 'payment') {
-      updatePaymentStatus(recordId, checked)
+      updateAllPaymentStatuses(recordId, checked)
       return
     }
-    updateReportStatus(recordId, checked)
+    updateAllReportStatuses(recordId, checked)
   }
 
   function applySearch() {
@@ -2153,8 +2184,8 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.feeAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
-                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId)} aria-label={`${group.customerName} 입금여부 전환`}>{statusMark(isPaid)}</button>
-                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => toggleReportStatus(group.recordId)} aria-label={`${group.customerName} 신고여부 전환`}>{statusMark(isReported)}</button>
+                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 입금여부 전환`}>{statusMark(row.paymentDone)}</button>
+                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => toggleReportStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 신고여부 전환`}>{statusMark(row.reportDone)}</button>
                   </div>
                 ))}
                 <div className="disposal-list-grid-row disposal-list-grid-summary-row">
@@ -2546,11 +2577,11 @@ export function DisposalSettlementsPage() {
               <div>비고</div>
             </div>
             {visibleRows.map(row => row.kind === 'summary' ? (
-              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-summary">
+              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-summary" onClick={() => toggleRow(row.toggleKey)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(row.toggleKey) } }}>
                 {row.cells.map((cell, index) => (
                   <div key={`${row.key}-${index}`} className={index === 9 ? 'toggle-cell' : ''}>
                     {index === 9 ? (
-                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={() => toggleRow(row.toggleKey)}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
+                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
                     ) : cell}
                   </div>
                 ))}
