@@ -3946,40 +3946,65 @@ button.settlement-tab.active {
 }
 
 .menu-category-dropdown {
-  min-width: 260px;
+  min-width: 280px;
   max-height: 70vh;
   overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+  box-shadow: none;
 }
 
 .menu-category-block + .menu-category-block {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 8px;
-  padding-top: 8px;
+  border-top: 1px solid #d1d5db;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .menu-category-title {
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted-text, #9ca3af);
-  padding: 6px 10px 4px;
+  color: #111827;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #d1d5db;
 }
 
 .menu-category-item {
-  padding-left: 18px;
+  padding: 9px 12px 9px 18px;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .menu-category-empty {
   font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
 }
 
 .menu-category-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 10px;
-  padding-top: 8px;
+  border-top: 1px solid #d1d5db;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .menu-permission-button {
   font-weight: 700;
+  border-radius: 0;
+  border: 0;
+}
+
+.menu-category-dropdown .dropdown-item:hover,
+.menu-category-dropdown .dropdown-item:focus-visible {
+  background: #f9fafb;
+  color: #111827;
+}
+
+.menu-category-dropdown .dropdown-item:last-child {
+  border-bottom: 0;
 }
 
 .labeled-account-grid {
@@ -12152,11 +12177,11 @@ button.disposal-items-number-cell.has-note {
 }
 
 
-.menu-category-submenu { display: flex; flex-direction: column; gap: 6px; }
+.menu-category-submenu { display: flex; flex-direction: column; gap: 0; }
 .menu-category-item-expand { display: flex; align-items: center; justify-content: space-between; }
-.menu-category-expand-icon { font-size: 18px; line-height: 1; color: var(--muted); }
-.menu-category-submenu-list { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; }
-.menu-category-subitem { font-size: 14px; }
+.menu-category-expand-icon { font-size: 18px; line-height: 1; color: #6b7280; }
+.menu-category-submenu-list { display: flex; flex-direction: column; gap: 0; padding-left: 0; }
+.menu-category-subitem { font-size: 14px; padding-left: 30px; background: #fafafa; }
 .settings-page-shell { gap: 16px; }
 .settings-category-card, .settings-theme-card { width: 100%; }
 .settings-category-row { display: flex; gap: 10px; flex-wrap: wrap; }
