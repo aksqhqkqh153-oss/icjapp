@@ -14771,3 +14771,108 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     white-space: nowrap;
   }
 }
+
+
+/* 2026-04-07 disposal list mobile single-row controls */
+.disposal-list-hero {
+  padding-bottom: 14px;
+}
+
+.disposal-list-top-controls-single-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.disposal-filter-inline-group-compact {
+  flex: 0 0 92px;
+}
+
+.disposal-filter-inline-group-compact select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 6px 8px;
+}
+
+.disposal-filter-search-group-compact {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px 58px;
+  gap: 6px;
+  align-items: center;
+}
+
+.disposal-filter-search-group-compact input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 6px 8px;
+}
+
+.disposal-action-button {
+  min-width: 0;
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .disposal-page-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .disposal-page-tab {
+    min-width: 0;
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+
+  .disposal-list-top-controls,
+  .disposal-list-top-controls-single-row {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .disposal-filter-inline-group-compact {
+    flex: 0 0 72px;
+  }
+
+  .disposal-filter-inline-group-compact select,
+  .disposal-filter-search-group-compact input,
+  .disposal-action-button {
+    height: 34px;
+    font-size: 12px;
+  }
+
+  .disposal-filter-inline-group-compact select {
+    padding: 4px 6px;
+  }
+
+  .disposal-filter-search-group-compact {
+    grid-template-columns: minmax(0, 1fr) 46px 46px;
+    gap: 4px;
+  }
+
+  .disposal-filter-search-group-compact input {
+    padding: 4px 6px;
+  }
+
+  .disposal-action-button {
+    padding: 0 4px;
+    letter-spacing: -0.4px;
+  }
+
+  .disposal-records-card.disposal-list-board-card {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}

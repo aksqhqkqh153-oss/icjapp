@@ -2105,26 +2105,24 @@ export function DisposalListPage() {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="list" onNavigate={handleCategoryNavigate} />
-      <section className="card disposal-hero">
+      <section className="card disposal-hero disposal-list-hero">
         <div>
           <h2>폐기목록</h2>
-        </div>
-        <div className="disposal-hero-actions">
-          <button type="button" className="ghost" onClick={removeSelectedRecords}>삭제</button>
         </div>
       </section>
 
 
       <section className="card disposal-records-card disposal-list-board-card">
-        <div className="disposal-list-top-controls">
-          <div className="disposal-filter-inline-group">
+        <div className="disposal-list-top-controls disposal-list-top-controls-single-row">
+          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact">
             <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
               {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
-          <div className="disposal-filter-inline-group disposal-filter-search-group">
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="플랫폼, 이름, 주소, 날짜 검색" />
-            <button type="button" className="ghost disposal-search-button" onClick={applySearch} aria-label="검색"><SearchButtonIcon /></button>
+          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="검색" />
+            <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySearch}>검색</button>
+            <button type="button" className="ghost disposal-action-button disposal-delete-button" onClick={removeSelectedRecords}>삭제</button>
           </div>
         </div>
         {groupedRows.length === 0 ? (
