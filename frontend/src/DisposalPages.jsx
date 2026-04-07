@@ -620,7 +620,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
     ctx.fillStyle = '#2563eb'
     ctx.font = '800 28px sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('매출액', totalX + 18, totalY + totalHeight / 2)
+    ctx.fillText('폐기 대리신고 합계비용', totalX + 18, totalY + totalHeight / 2)
     ctx.textAlign = 'right'
     ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
   }
@@ -1399,7 +1399,7 @@ function DisposalItemsEditor({
           ))}
         </div>
         <div className="disposal-linked-preview-total wide emphasize-blue">
-          <span>매출액</span>
+          <span>폐기 대리신고 합계비용</span>
           <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
         </div>
       </div>
