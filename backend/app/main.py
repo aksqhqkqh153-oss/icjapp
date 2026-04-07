@@ -689,6 +689,7 @@ def _normalize_account_admin_flags(data: dict) -> dict:
         normalized['branch_no'] = -1
         branch_no = -1
     normalized['show_in_branch_status'] = 1 if account_type == 'business' else 0
+    normalized['account_type'] = account_type
     normalized['show_in_employee_status'] = 1 if account_type in {'employee_field', 'employee_hq'} else 0
     normalized['show_in_field_employee_status'] = 1 if account_type == 'employee_field' else 0
     normalized['show_in_hq_status'] = 1 if account_type == 'employee_hq' else 0
@@ -696,6 +697,8 @@ def _normalize_account_admin_flags(data: dict) -> dict:
     normalized['vehicle_available'] = 1 if account_type == 'business' else 0
     if not normalized.get('position_title') and account_type == 'business':
         normalized['position_title'] = '호점대표'
+    normalized['branch_code'] = 'TEMP_BRANCH' if normalized.get('branch_no') == -1 else (f"BRANCH_{int(normalized.get('branch_no') or 0)}" if normalized.get('branch_no') not in (None, '', -1) and int(normalized.get('branch_no') or 0) > 0 else '')
+    normalized['permission_codes_json'] = normalized.get('permission_codes_json') or '[]'
     normalized['account_status'] = _normalize_account_status_value(normalized.get('account_status'), normalized.get('approved'), grade)
     return normalized
 
@@ -707,6 +710,8 @@ def _serialize_admin_user_row(row: Any) -> dict[str, Any]:
     item['approved'] = bool(item.get('approved', 1))
     item['vehicle_available'] = False if _is_staff_grade(item.get('grade')) else bool(item.get('vehicle_available', 1))
     item['account_type'] = _normalize_account_type(item)
+    item['branch_code'] = str(item.get('branch_code') or ('TEMP_BRANCH' if item.get('branch_no') == -1 else (f"BRANCH_{int(item.get('branch_no') or 0)}" if item.get('branch_no') not in (None, '') and int(item.get('branch_no') or 0) > 0 else '')))
+    item['permission_codes_json'] = json_loads(item.get('permission_codes_json'), []) if isinstance(item.get('permission_codes_json'), str) else (item.get('permission_codes_json') or [])
     branch_flag = item.get('show_in_branch_status')
     employee_flag = item.get('show_in_employee_status')
     field_employee_flag = item.get('show_in_field_employee_status')
@@ -2071,8 +2076,8 @@ def signup(payload: SignupIn):
         generated_unique_id = generate_account_unique_id(conn, login_id)
         conn.execute(
             """
-            INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'user', 7, 0, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
+            INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'user', 7, 0, 'pending', '[]', 'general', '', ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
             """,
             (
                 login_id,
@@ -4617,7 +4622,7 @@ def get_admin_mode(admin=Depends(require_admin_mode_user)):
             """
             SELECT id, email, name, nickname, role, grade, approved, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at,
                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
-                   bank_account, bank_name, mbti, google_email, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, archived_in_branch_status
+                   bank_account, bank_name, mbti, google_email, account_status, permission_codes_json, account_type, branch_code, resident_id, position_title, vehicle_available, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, archived_in_branch_status
             FROM users
             ORDER BY COALESCE(branch_no, 9999), nickname
             """
@@ -4736,7 +4741,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
         'group_number', 'group_number_text', 'name', 'nickname', 'account_unique_id', 'position_title', 'gender', 'birth_year', 'region', 'phone', 'recovery_email',
         'vehicle_number', 'branch_no', 'marital_status', 'resident_address',
         'business_name', 'business_number', 'business_type', 'business_item', 'business_address',
-        'bank_account', 'bank_name', 'mbti', 'login_id', 'email', 'google_email', 'account_status', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'show_in_field_employee_status', 'show_in_hq_status', 'archived_in_branch_status',
+        'bank_account', 'bank_name', 'mbti', 'login_id', 'email', 'google_email', 'account_status', 'permission_codes_json', 'account_type', 'branch_code', 'resident_id', 'vehicle_available', 'show_in_branch_status', 'show_in_employee_status', 'show_in_field_employee_status', 'show_in_hq_status', 'archived_in_branch_status',
     ]
     with get_conn() as conn:
         for item in payload.users:
@@ -4815,7 +4820,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             login_id = _validate_login_id_value(payload.login_id or payload.email)
             exists = _find_user_by_login_id_ci(conn, login_id)
             if exists:
-                raise HTTPException(status_code=400, detail='이미 존재하는 이메일입니다.')
+                raise HTTPException(status_code=400, detail='이미 존재하는 아이디입니다.')
             generated_unique_id = generate_account_unique_id(conn, payload.email)
             normalized_new_user = _normalize_account_admin_flags({
                 'grade': int(payload.grade),
@@ -4827,10 +4832,10 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             })
             conn.execute(
                 """
-                INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (login_id, _normalize_email_value(payload.email), _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
+                (login_id, _normalize_email_value(payload.email), _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), normalized_new_user['permission_codes_json'], normalized_new_user['account_type'], normalized_new_user['branch_code'], payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
             )
             user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

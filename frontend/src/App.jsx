@@ -213,10 +213,10 @@ const ROLE_OPTIONS = [
   { value: 1, label: '관리자' },
   { value: 2, label: '부관리자' },
   { value: 3, label: '중간관리자' },
-  { value: 4, label: '사업자' },
-  { value: 5, label: '직원' },
-  { value: 6, label: '일반' },
-  { value: 7, label: '기타' },
+  { value: 4, label: '사업자권한' },
+  { value: 5, label: '직원권한' },
+  { value: 6, label: '일반권한' },
+  { value: 7, label: '기타권한' },
 ]
 
 const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원', '본부장', '상담실장', '상담팀장', '상담사원']
@@ -586,7 +586,7 @@ function canViewMenuEntry(user, permissionMap, entryKey) {
 }
 
 function gradeLabel(grade) {
-  return ROLE_OPTIONS.find(item => item.value === Number(grade))?.label || '일반'
+  return ROLE_OPTIONS.find(item => item.value === Number(grade))?.label || '일반권한'
 }
 
 function canAccessAdminMode(user) {
@@ -1761,7 +1761,7 @@ function ProfilePage({ onUserUpdate }) {
     const source = originalForm || {}
     const rows = []
     const fieldLabels = [
-      ['email', '아이디'],
+      ['login_id', '아이디'],
       ['nickname', '닉네임'],
       ['phone', '연락처'],
       ['recovery_email', '복구이메일'],
@@ -8739,7 +8739,7 @@ function AdminModePage() {
   const [selectedSwitchAccountId, setSelectedSwitchAccountId] = useState(null)
   const [switchLoading, setSwitchLoading] = useState(false)
   const [createForm, setCreateForm] = useState({
-    email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
+    login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -9058,8 +9058,10 @@ function AdminModePage() {
       bank_account: row.bank_account || '',
       bank_name: row.bank_name || '',
       mbti: row.mbti || '',
+      login_id: row.login_id || '',
       email: row.email || '',
       google_email: row.google_email || '',
+      account_status: row.account_status || 'active',
       resident_id: row.resident_id || '',
       position_title: row.position_title || '',
       vehicle_available: isStaffGradeValue(row?.grade) ? false : parseVehicleAvailable(row.vehicle_available),
@@ -9127,7 +9129,7 @@ function AdminModePage() {
     e.preventDefault()
     const requiredFields = [
       ['name', '이름'],
-      ['email', '아이디'],
+      ['login_id', '아이디'],
       ['password', '비밀번호'],
       ['nickname', '닉네임'],
     ]
@@ -9141,7 +9143,10 @@ function AdminModePage() {
       method: 'POST',
       body: JSON.stringify({
         ...createForm,
+        login_id: String(createForm.login_id || '').trim(),
         email: String(createForm.email || '').trim(),
+        google_email: String(createForm.google_email || '').trim(),
+        account_status: String(createForm.account_status || 'active').trim() || 'active',
         password: String(createForm.password || ''),
         name: String(createForm.name || '').trim(),
         nickname: String(createForm.nickname || '').trim(),
@@ -9159,7 +9164,7 @@ function AdminModePage() {
       }),
     })
     setMessage('계정이 생성되었습니다.')
-    setCreateForm({ email: '', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
+    setCreateForm({ login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
     await load()
   }
 
@@ -9649,7 +9654,7 @@ function AdminModePage() {
                             <div className="admin-account-summary-line admin-account-summary-line-primary">
                               <span>[{groupNumberDisplay(item)}]</span>
                               <span>[{item.name || '-'}]</span>
-                              <span>[{item.email || '-'}]</span>
+                              <span>[{item.login_id || '-'}]</span>
                               <span>[{defaultPositionForRow(item) || '미지정'}]</span>
                               <span>[{gradeLabel(item.grade)}]</span>
                             </div>
@@ -9701,7 +9706,9 @@ function AdminModePage() {
                 <form id="admin-create-account-form" onSubmit={submitCreateAccount} className="stack">
                   <div className="admin-inline-grid compact-inline-grid">
                     <label>이름 <input autoComplete="name" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} /></label>
-                    <label>아이디 <input autoComplete="username" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+                    <label>로그인 아이디 <input autoComplete="username" value={createForm.login_id} onChange={e => setCreateForm({ ...createForm, login_id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20) })} /></label>
+                    <label>실제 이메일 <input type="email" autoComplete="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+                    <label>구글용 이메일 <input type="email" value={createForm.google_email} onChange={e => setCreateForm({ ...createForm, google_email: e.target.value })} /></label>
                     <label>비밀번호 <input type="password" autoComplete="new-password" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} /></label>
                     <label>닉네임 <input autoComplete="nickname" value={createForm.nickname} onChange={e => setCreateForm({ ...createForm, nickname: e.target.value })} /></label>
                     <label>성별 <select value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })}><option value="">선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
@@ -9709,6 +9716,15 @@ function AdminModePage() {
                     <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
                     <label>연락처 <input autoComplete="tel" value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
                     <label>복구이메일 <input value={createForm.recovery_email} onChange={e => setCreateForm({ ...createForm, recovery_email: e.target.value })} /></label>
+                    <label>계정상태
+                      <select value={createForm.account_status} onChange={e => setCreateForm({ ...createForm, account_status: e.target.value })}>
+                        <option value="active">사용중</option>
+                        <option value="pending">승인대기</option>
+                        <option value="suspended">일시정지</option>
+                        <option value="retired">퇴사/종료</option>
+                        <option value="deleted">계정삭제</option>
+                      </select>
+                    </label>
                     <label>차량번호 <input value={createForm.vehicle_number} onChange={e => setCreateForm({ ...createForm, vehicle_number: e.target.value })} /></label>
                     <label>호점
                       <select value={createForm.branch_no} onChange={e => setCreateForm({ ...createForm, branch_no: e.target.value })}>
@@ -9742,7 +9758,7 @@ function AdminModePage() {
                         <button type="button" key={`account-switch-${item.id}`} className={`admin-account-switch-row ${isSelected ? 'selected' : ''}`.trim()} onClick={() => setSelectedSwitchAccountId(item.id)}>
                           <div className="admin-account-switch-main">
                             <strong>[{item.name || item.nickname || '-'}]</strong>
-                            <span>[{item.email || '-'}]</span>
+                            <span>[{item.login_id || '-'}]</span>
                             <span>[{item.account_unique_id || '-'}]</span>
                           </div>
                           <div className="admin-account-switch-sub muted">
@@ -9769,7 +9785,7 @@ function AdminModePage() {
                           <button type="button" className="admin-account-summary-button admin-account-summary-button-edit" onClick={() => toggleAccountEditRow(item.id)} aria-expanded={isOpen}>
                             <span>[{groupNumberDisplay(item)}]</span>
                             <span>[{item.name || '-'}]</span>
-                            <span>[{item.email || '-'}]</span>
+                            <span>[{item.login_id || '-'}]</span>
                             <span>[{defaultPositionForRow(item) || '미지정'}]</span>
                             <span>[{gradeLabel(item.grade)}]</span>
                           </button>

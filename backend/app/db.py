@@ -253,6 +253,9 @@ CREATE TABLE IF NOT EXISTS users (
     mbti TEXT DEFAULT '',
     google_email TEXT DEFAULT '',
     account_status TEXT NOT NULL DEFAULT 'active',
+    permission_codes_json TEXT NOT NULL DEFAULT '[]',
+    account_type TEXT DEFAULT '',
+    branch_code TEXT DEFAULT '',
     resident_id TEXT DEFAULT '',
     position_title TEXT DEFAULT '',
     vehicle_available INTEGER NOT NULL DEFAULT 1,
@@ -2031,6 +2034,9 @@ def init_db() -> None:
             'mbti': "TEXT DEFAULT ''",
             'google_email': "TEXT DEFAULT ''",
             'account_status': "TEXT NOT NULL DEFAULT 'active'",
+            'permission_codes_json': "TEXT NOT NULL DEFAULT '[]'",
+            'account_type': "TEXT DEFAULT ''",
+            'branch_code': "TEXT DEFAULT ''",
             'resident_id': "TEXT DEFAULT ''",
             'position_title': "TEXT DEFAULT ''",
             'vehicle_available': 'INTEGER NOT NULL DEFAULT 1',
@@ -2062,6 +2068,10 @@ def init_db() -> None:
         conn.execute("UPDATE users SET name = nickname WHERE COALESCE(name, '') = ''")
         conn.execute("UPDATE users SET login_id = LOWER(TRIM(email)) WHERE COALESCE(TRIM(login_id), '') = '' AND COALESCE(TRIM(email), '') != ''")
         conn.execute("UPDATE users SET account_status = CASE WHEN COALESCE(account_status, '') != '' THEN account_status WHEN COALESCE(approved, 1) = 0 OR CAST(COALESCE(grade, '6') AS INTEGER) = 7 THEN 'pending' ELSE 'active' END")
+        conn.execute("UPDATE users SET branch_no = -1 WHERE CAST(COALESCE(grade, '6') AS INTEGER) = 4 AND branch_no IS NULL")
+        conn.execute("UPDATE users SET branch_code = CASE WHEN branch_no = -1 THEN 'TEMP_BRANCH' WHEN branch_no IS NOT NULL AND branch_no > 0 THEN 'BRANCH_' || CAST(branch_no AS TEXT) ELSE '' END")
+        conn.execute("UPDATE users SET account_type = CASE WHEN TRIM(COALESCE(position_title, '')) IN ('대표','부대표','호점대표') OR CAST(COALESCE(grade, '6') AS INTEGER) = 4 THEN 'business' WHEN TRIM(COALESCE(position_title, '')) IN ('팀장','부팀장','직원') THEN 'employee_field' WHEN TRIM(COALESCE(position_title, '')) IN ('본부장','상담실장','상담팀장','상담사원') THEN 'employee_hq' WHEN CAST(COALESCE(grade, '6') AS INTEGER) <= 3 THEN 'admin' ELSE 'general' END")
+        conn.execute("UPDATE users SET permission_codes_json = '[]' WHERE COALESCE(TRIM(permission_codes_json), '') = ''")
         ensure_account_unique_ids(conn)
         _ensure_unique_index(conn, 'users', 'uq_users_account_unique_id', ['account_unique_id'])
         _ensure_unique_index(conn, 'users', 'uq_users_login_id', ['login_id'])
@@ -2428,10 +2438,10 @@ ROLE_LABELS = {
     1: '관리자',
     2: '부관리자',
     3: '중간관리자',
-    4: '사업자',
-    5: '직원',
-    6: '일반',
-    7: '기타',
+    4: '사업자권한',
+    5: '직원권한',
+    6: '일반권한',
+    7: '기타권한',
 }
 
 def grade_label(grade: int | None) -> str:
@@ -2439,7 +2449,7 @@ def grade_label(grade: int | None) -> str:
         grade_num = int(grade or 6)
     except Exception:
         grade_num = 6
-    return ROLE_LABELS.get(grade_num, '일반')
+    return ROLE_LABELS.get(grade_num, '일반권한')
 
 
 
@@ -2500,6 +2510,41 @@ def ensure_account_unique_ids(conn) -> None:
         used.add(candidate)
         conn.execute('UPDATE users SET account_unique_id = ? WHERE id = ?', (candidate, row['id']))
 
+
+
+def _account_type_from_row(row: sqlite3.Row) -> str:
+    position_title = str(row['position_title'] if 'position_title' in row.keys() and row['position_title'] is not None else '').strip()
+    try:
+        grade = int(row['grade'] if 'grade' in row.keys() and row['grade'] is not None else 6)
+    except Exception:
+        grade = 6
+    if grade <= 3:
+        return 'admin'
+    if position_title in {'대표', '부대표', '호점대표'} or grade == 4:
+        return 'business'
+    if position_title in {'팀장', '부팀장', '직원'}:
+        return 'employee_field'
+    if position_title in {'본부장', '상담실장', '상담팀장', '상담사원'}:
+        return 'employee_hq'
+    if grade == 5:
+        return 'employee_field'
+    return 'general'
+
+def _branch_code_from_row(row: sqlite3.Row) -> str:
+    try:
+        branch_no = row['branch_no'] if 'branch_no' in row.keys() else None
+    except Exception:
+        branch_no = None
+    if branch_no == -1:
+        return 'TEMP_BRANCH'
+    try:
+        branch_no_int = int(branch_no) if branch_no is not None else None
+    except Exception:
+        branch_no_int = None
+    if branch_no_int and branch_no_int > 0:
+        return f'BRANCH_{branch_no_int}'
+    return ''
+
 def user_public_dict(row: sqlite3.Row) -> dict:
     grade = int(row['grade'] if row['grade'] is not None else 6)
     approved = bool(row['approved'] if row['approved'] is not None else 1)
@@ -2542,6 +2587,9 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'bank_name': row['bank_name'] if 'bank_name' in row.keys() else '',
         'mbti': row['mbti'] if 'mbti' in row.keys() else '',
         'google_email': row['google_email'] if 'google_email' in row.keys() else '',
+        'permission_codes_json': json_loads(row['permission_codes_json'], []) if 'permission_codes_json' in row.keys() else [],
+        'account_type': row['account_type'] if 'account_type' in row.keys() and row['account_type'] not in (None, '') else _account_type_from_row(row),
+        'branch_code': row['branch_code'] if 'branch_code' in row.keys() and row['branch_code'] not in (None, '') else _branch_code_from_row(row),
         'account_status': row['account_status'] if 'account_status' in row.keys() and row['account_status'] not in (None, '') else ('pending' if not approved or grade == 7 else 'active'),
         'resident_id': row['resident_id'] if 'resident_id' in row.keys() else '',
         'position_title': row['position_title'] if 'position_title' in row.keys() else ('호점대표' if row['branch_no'] is not None else ''),
