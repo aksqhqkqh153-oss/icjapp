@@ -15316,3 +15316,244 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     background-clip:padding-box;
   }
 }
+
+/* 2026-04-07 disposal form/list + schedule mobile borders + work-shift drag/sticky refinements */
+.disposal-top-status-actions {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.disposal-meta-inline-actions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.disposal-inline-save-button,
+.disposal-meta-inline-actions .disposal-icon-button {
+  min-width: 88px;
+  min-height: 42px;
+}
+.disposal-meta-inline-actions .disposal-settings-inline {
+  position: relative;
+  display: inline-flex;
+}
+.disposal-form-inline-tools {
+  display: block;
+}
+.disposal-list-mobile-summary-card {
+  display: none;
+}
+.work-shift-table-wrap.drag-scroll-enabled {
+  touch-action: none;
+}
+.work-shift-table-wrap.drag-scroll-enabled td,
+.work-shift-table-wrap.drag-scroll-enabled th,
+.work-shift-table-wrap.drag-scroll-enabled input {
+  touch-action: none;
+}
+.work-shift-table .sticky.top-left,
+.work-shift-table .sticky.left,
+.work-shift-table .sticky.left.second,
+.work-shift-table thead th {
+  position: sticky;
+}
+.work-shift-table thead tr.work-shift-index-row th {
+  top: 0;
+  z-index: 24;
+  background: #eef2f7 !important;
+}
+.work-shift-table thead tr.work-shift-header-row th {
+  top: 36px;
+  z-index: 23;
+  background: #f8fafc !important;
+}
+.work-shift-table thead tr.work-shift-index-row th.sticky.left,
+.work-shift-table thead tr.work-shift-index-row th.sticky.left.second,
+.work-shift-table thead tr.work-shift-header-row th.sticky.left,
+.work-shift-table thead tr.work-shift-header-row th.sticky.left.second,
+.work-shift-table tbody td.sticky.left,
+.work-shift-table tbody td.sticky.left.second {
+  background: #ffffff !important;
+}
+.work-shift-table .row-index-head,
+.work-shift-table .row-index-cell,
+.work-shift-table .work-shift-col-index,
+.work-shift-table .work-shift-head-cell {
+  background: #f1f5f9 !important;
+  color: #1e293b;
+}
+.work-shift-table tbody td.sticky.left {
+  left: 0;
+  z-index: 11;
+}
+.work-shift-table tbody td.sticky.left.second {
+  left: 92px;
+  z-index: 12;
+}
+.work-shift-table thead tr.work-shift-index-row th.sticky.left,
+.work-shift-table thead tr.work-shift-header-row th.sticky.left {
+  left: 0;
+  z-index: 30;
+}
+.work-shift-table thead tr.work-shift-index-row th.sticky.left.second,
+.work-shift-table thead tr.work-shift-header-row th.sticky.left.second {
+  left: 92px;
+  z-index: 31;
+}
+.work-shift-table td,
+.work-shift-table th {
+  box-sizing: border-box;
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+}
+.work-shift-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+@media (max-width: 768px) {
+  .disposal-meta-row.disposal-meta-row-top {
+    grid-template-columns: minmax(68px, .8fr) minmax(90px, 1fr) minmax(90px, 1fr) minmax(180px, 1.5fr);
+    align-items: stretch;
+  }
+  .disposal-top-status-actions {
+    grid-template-columns: minmax(110px, 1fr) auto;
+    gap: 6px;
+  }
+  .disposal-meta-inline-actions {
+    gap: 6px;
+  }
+  .disposal-inline-save-button,
+  .disposal-meta-inline-actions .disposal-icon-button {
+    min-width: 56px;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+
+  .disposal-customer-group-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .disposal-list-mobile-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #dbe3ee;
+    background: #fff;
+  }
+  .disposal-list-mobile-summary-row {
+    display: grid;
+    align-items: center;
+    gap: 8px;
+  }
+  .disposal-list-mobile-summary-row.first {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+  }
+  .disposal-list-mobile-summary-row.second {
+    grid-template-columns: 1fr;
+  }
+  .disposal-list-mobile-summary-row.third {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+  .disposal-list-mobile-date,
+  .disposal-list-mobile-platform,
+  .disposal-list-mobile-customer,
+  .disposal-list-mobile-address {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .disposal-list-mobile-date,
+  .disposal-list-mobile-platform {
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .disposal-list-mobile-customer {
+    font-size: 13px;
+  }
+  .disposal-list-mobile-address {
+    font-size: 12px;
+    color: #475569;
+  }
+  .disposal-list-mobile-status {
+    min-width: 84px;
+    justify-content: center;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .disposal-list-mobile-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .disposal-list-mobile-settlement-button {
+    min-width: 80px;
+    padding-inline: 10px;
+  }
+  .disposal-list-date-label.disposal-customer-group-label,
+  .disposal-list-grid.disposal-list-grid-customer {
+    display: none;
+  }
+
+  .schedule-page.mobile {
+    border: 2px solid #ef4444;
+    border-radius: 18px;
+    padding: 6px;
+  }
+  .schedule-page.mobile .schedule-card {
+    border: 2px solid #f97316;
+    border-radius: 16px;
+  }
+  .schedule-page.mobile .calendar-weekdays {
+    border: 2px solid #eab308;
+    border-radius: 12px;
+  }
+  .schedule-page.mobile .calendar-grid.schedule-grid.detail-mode.mobile-calendar-grid {
+    border: 2px solid #22c55e;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .schedule-page.mobile .mobile-schedule-detail-panel {
+    border: 2px solid #3b82f6;
+    border-radius: 14px;
+  }
+  .schedule-page.mobile .schedule-popup-list.embedded {
+    border: 2px solid #4f46e5;
+    border-radius: 12px;
+  }
+  .schedule-page.mobile .detail-schedule-item,
+  .schedule-page.mobile .detail-schedule-row,
+  .schedule-page.mobile .mobile-schedule-detail-head.single-row-summary {
+    border: 2px solid #7c3aed;
+    border-radius: 10px;
+  }
+
+  .work-shift-table-wrap {
+    border-radius: 12px;
+  }
+  .work-shift-table thead tr.work-shift-index-row th {
+    top: 0;
+  }
+  .work-shift-table thead tr.work-shift-header-row th {
+    top: 34px;
+  }
+  .work-shift-table tbody td.sticky.left,
+  .work-shift-table thead tr.work-shift-index-row th.sticky.left,
+  .work-shift-table thead tr.work-shift-header-row th.sticky.left {
+    left: 0;
+  }
+  .work-shift-table tbody td.sticky.left.second,
+  .work-shift-table thead tr.work-shift-index-row th.sticky.left.second,
+  .work-shift-table thead tr.work-shift-header-row th.sticky.left.second {
+    left: 78px;
+  }
+}

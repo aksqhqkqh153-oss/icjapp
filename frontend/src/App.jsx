@@ -8098,7 +8098,7 @@ function WorkShiftSchedulePage() {
   }
 
   function handleTablePointerDown(event) {
-    if (isMobile || event.button !== 0) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
     const target = event.target instanceof HTMLElement ? event.target : null
     if (editNamesMode && target?.closest('input, textarea, select, button, a, label')) return
     const wrapNode = tableWrapRef.current
@@ -8116,7 +8116,6 @@ function WorkShiftSchedulePage() {
   }
 
   function handleTablePointerMove(event) {
-    if (isMobile) return
     const wrapNode = tableWrapRef.current
     const drag = dragStateRef.current
     if (!wrapNode || !drag.active) return
@@ -8152,13 +8151,11 @@ function WorkShiftSchedulePage() {
   }
 
   useEffect(() => {
-    if (isMobile) return undefined
-
-    function handleWindowMouseMove(event) {
+    function handleWindowPointerMove(event) {
       handleTablePointerMove(event)
     }
 
-    function handleWindowMouseUp() {
+    function handleWindowPointerUp() {
       handleTablePointerUp()
     }
 
@@ -8166,21 +8163,23 @@ function WorkShiftSchedulePage() {
       handleTablePointerUp()
     }
 
-    function handleDocumentMouseLeave(event) {
+    function handleDocumentPointerLeave(event) {
       if (!event.relatedTarget) handleTablePointerUp()
     }
 
-    window.addEventListener('mousemove', handleWindowMouseMove)
-    window.addEventListener('mouseup', handleWindowMouseUp)
+    window.addEventListener('pointermove', handleWindowPointerMove)
+    window.addEventListener('pointerup', handleWindowPointerUp)
+    window.addEventListener('pointercancel', handleWindowPointerUp)
     window.addEventListener('blur', handleWindowBlur)
-    document.addEventListener('mouseleave', handleDocumentMouseLeave)
+    document.addEventListener('mouseleave', handleDocumentPointerLeave)
     return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove)
-      window.removeEventListener('mouseup', handleWindowMouseUp)
+      window.removeEventListener('pointermove', handleWindowPointerMove)
+      window.removeEventListener('pointerup', handleWindowPointerUp)
+      window.removeEventListener('pointercancel', handleWindowPointerUp)
       window.removeEventListener('blur', handleWindowBlur)
-      document.removeEventListener('mouseleave', handleDocumentMouseLeave)
+      document.removeEventListener('mouseleave', handleDocumentPointerLeave)
     }
-  }, [isMobile])
+  }, [])
 
   const selectedRow = useMemo(() => rows.find(row => String(row.row || row.c2 || '') === String(selectedRowKey || '')) || rows[0] || null, [rows, selectedRowKey])
   const visibleVacationRequests = useMemo(() => {
@@ -8479,10 +8478,11 @@ function WorkShiftSchedulePage() {
         {workMode === 'view' ? (
           <div
             ref={tableWrapRef}
-            className={`work-shift-table-wrap${!isMobile ? ' drag-scroll-enabled' : ''}`}
-            onMouseDown={handleTablePointerDown}
-            onMouseUp={handleTablePointerUp}
-            onMouseLeave={() => { if (dragStateRef.current?.active) handleTablePointerUp() }}
+            className="work-shift-table-wrap drag-scroll-enabled"
+            onPointerDown={handleTablePointerDown}
+            onPointerUp={handleTablePointerUp}
+            onPointerCancel={handleTablePointerUp}
+            onPointerLeave={() => { if (dragStateRef.current?.active) handleTablePointerUp() }}
             onClickCapture={event => {
               if (dragStateRef.current?.suppressClick) {
                 event.preventDefault()

@@ -904,7 +904,7 @@ function DisposalFinalStatusRichLabel({ value }) {
   return <span>{status}</span>
 }
 
-function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
+function DisposalMetaInputs({ draft, updateDraftField, districtResolved, actions = null }) {
   const platformRef = useRef(null)
   const customerNameRef = useRef(null)
   const disposalDateRef = useRef(null)
@@ -983,16 +983,19 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved }) {
           </select>
           <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef, platformRef)} placeholder="고객명" />
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
-          <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
-            <select
-              ref={finalStatusRef}
-              className={`disposal-final-status-select ${statusClass} ${draft.finalStatus ? 'has-value' : 'is-placeholder'}`.trim()}
-              value={draft.finalStatus}
-              onChange={e => updateDraftField('finalStatus', e.target.value)}
-              onKeyDown={handleFinalStatusKeyDown}
-            >
-              {FINAL_STATUS_SELECT_OPTIONS.map(option => <option key={option.value || 'placeholder'} value={option.value}>{option.label}</option>)}
-            </select>
+          <div className="disposal-top-status-actions">
+            <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
+              <select
+                ref={finalStatusRef}
+                className={`disposal-final-status-select ${statusClass} ${draft.finalStatus ? 'has-value' : 'is-placeholder'}`.trim()}
+                value={draft.finalStatus}
+                onChange={e => updateDraftField('finalStatus', e.target.value)}
+                onKeyDown={handleFinalStatusKeyDown}
+              >
+                {FINAL_STATUS_SELECT_OPTIONS.map(option => <option key={option.value || 'placeholder'} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            {actions ? <div className="disposal-meta-inline-actions">{actions}</div> : null}
           </div>
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
@@ -1885,20 +1888,22 @@ useEffect(() => {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
-      <section className="card disposal-hero disposal-form-hero">
-        <div className="disposal-hero-title-wrap disposal-form-hero-title-wrap">
-          <h2>{recordId ? '폐기양식 상세 수정' : '폐기양식'}</h2>
-        </div>
-        <div className="disposal-hero-actions disposal-hero-actions-inline" ref={settingsRef}>
-          <div className="disposal-settings-inline">
-            <button type="button" className="ghost disposal-icon-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">⚙</button>
-            <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
-          </div>
-          <button type="button" className="ghost active" onClick={saveSettlementRecord}>견적저장</button>
-        </div>
-      </section>
-
-      <DisposalMetaInputs draft={draft} updateDraftField={updateDraftField} districtResolved={districtResolved} />
+      <div className="disposal-form-inline-tools" ref={settingsRef}>
+        <DisposalMetaInputs
+          draft={draft}
+          updateDraftField={updateDraftField}
+          districtResolved={districtResolved}
+          actions={(
+            <>
+              <div className="disposal-settings-inline">
+                <button type="button" className="ghost disposal-icon-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">⚙</button>
+                <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
+              </div>
+              <button type="button" className="ghost active disposal-inline-save-button" onClick={saveSettlementRecord}>견적저장</button>
+            </>
+          )}
+        />
+      </div>
 
       <section className="disposal-form-shell disposal-form-shell-single">
         <div className="disposal-form-left">
@@ -2105,13 +2110,6 @@ export function DisposalListPage() {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="list" onNavigate={handleCategoryNavigate} />
-      <section className="card disposal-hero disposal-list-hero">
-        <div>
-          <h2>폐기목록</h2>
-        </div>
-      </section>
-
-
       <section className="card disposal-records-card disposal-list-board-card">
         <div className="disposal-list-top-controls disposal-list-top-controls-single-row">
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact">
