@@ -95,3 +95,11 @@
 - requester_name 은 branch 표시명 + 사용자 표시명으로 저장한다.
 - material 요청 상세 조회 시 users 테이블을 다시 참조하여 requester_login_id / requester_email / requester_google_email / requester_account_status / requester_account_type / requester_position_title / requester_branch_code 를 보강한다.
 - 관리자 신청목록/신청현황 불일치가 발생하지 않도록 material 상세 응답은 사용자 테이블 기준으로 requester 메타를 재구성한다.
+
+
+## 자재구매/현황 연동 기준
+- 자재구매 신청 저장은 `material_purchase_requests.user_id` 를 1순위 기준으로 사용한다.
+- 신청현황(`my_requests`)은 `user_id` 우선, `requester_unique_id` 및 `requester_name` 보조 기준으로 조회한다.
+- 신청목록(`pending_requests`)은 전체 자재구매 요청을 기준으로 구성한다.
+- 자재구매 관리자 알림 조회는 `users.is_active` 대신 `account_status` 기준으로 활성 관리자만 조회한다.
+- 자재구매 신청 저장 직후와 materials overview 응답 생성 시 서버 로그에 request/overview 카운트를 남겨 운영 DB 연동 여부를 점검한다.

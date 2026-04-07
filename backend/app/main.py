@@ -1397,7 +1397,13 @@ def _material_notification_lines(request_detail: dict) -> tuple[str, str]:
 
 def _notify_material_purchase_request(conn, requester_user: dict, request_detail: dict) -> None:
     admin_rows = conn.execute(
-        "SELECT id FROM users WHERE COALESCE(is_active, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) <= 2 ORDER BY CAST(COALESCE(grade, '6') AS INTEGER), id"
+        """
+        SELECT id
+        FROM users
+        WHERE CAST(COALESCE(grade, '6') AS INTEGER) <= 2
+          AND COALESCE(account_status, 'active') NOT IN ('pending', 'suspended', 'retired', 'deleted', '승인대기', '일시정지', '퇴사/종료', '계정삭제')
+        ORDER BY CAST(COALESCE(grade, '6') AS INTEGER), id
+        """
     ).fetchall()
     if not admin_rows:
         return
@@ -1408,6 +1414,7 @@ def _notify_material_purchase_request(conn, requester_user: dict, request_detail
         if admin_id <= 0 or admin_id == requester_id:
             continue
         insert_notification(conn, admin_id, 'material_purchase_request', title, body)
+
 
 
 def _material_overview_payload(conn, user: dict) -> dict:
@@ -1491,7 +1498,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
         product_copy['pending_qty'] = int(pending_qty_map.get(product_id, 0) or 0)
         product_copy['current_stock'] = max(0, available_stock)
         effective_products.append(product_copy)
-    return {
+    payload = {
         'today': today_key,
         'permissions': permissions,
         'products': effective_products,
@@ -1502,6 +1509,15 @@ def _material_overview_payload(conn, user: dict) -> dict:
         'inventory_rows': inventory_rows if permissions['can_view_inventory'] else [],
         'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
+    logger.info(
+        'Materials overview built user_id=%s pending_count=%s settled_count=%s my_requests_count=%s can_view_requesters=%s',
+        user_id,
+        len(payload['pending_requests']),
+        len(payload['settled_requests']),
+        len(payload['my_requests']),
+        bool(permissions.get('can_view_requesters')),
+    )
+    return payload
 
 def _require_write_access(user: dict, area: str):
     grade = _grade_of(user)
@@ -5695,6 +5711,14 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
         detail['requester_branch_label'] = branch_label
         detail['requester_account_unique_id'] = requester_unique_id
         detail['requester_unique_id'] = requester_unique_id
+        logger.info(
+            'Material purchase request saved request_id=%s user_id=%s requester_unique_id=%s status=%s total_amount=%s',
+            request_id,
+            user.get('id'),
+            requester_unique_id,
+            detail.get('status'),
+            detail.get('total_amount'),
+        )
         try:
             _notify_material_purchase_request(conn, user, detail)
         except Exception:
