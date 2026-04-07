@@ -423,6 +423,10 @@ const ADMIN_CUSTOM_SORT_FIELDS = [
   { value: 'email', label: '아이디 기준' },
 ]
 
+function sortMenuItemsByLabel(items = []) {
+  return [...items].sort((left, right) => String(left?.label || '').localeCompare(String(right?.label || ''), 'ko-KR'))
+}
+
 const MENU_PERMISSION_SECTIONS = [
   {
     id: 'common',
@@ -462,7 +466,10 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'menu-permissions', label: '메뉴권한', path: '/menu-permissions', adminOnly: true },
     ],
   },
-]
+].map(section => ({
+  ...section,
+  items: sortMenuItemsByLabel(section.items || []),
+}))
 
 const MENU_PERMISSION_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => [
   { key: `section:${section.id}`, type: 'section', sectionId: section.id, label: section.label },
@@ -847,13 +854,13 @@ function Layout({ children, user, onLogout }) {
           if (section.id === 'admin') return grade <= 2
           return true
         })() && (isPrivilegedMenuUser || canViewMenuEntry(user, menuPermissions, `section:${section.id}`)),
-        items: section.items.filter(item => {
+        items: sortMenuItemsByLabel(section.items.filter(item => {
           if (isPrivilegedMenuUser) return true
           if (employeeRestricted && ['materials', 'workday-history', 'settlements'].includes(item.id)) return false
           if (item.adminOnly && !canAccessAdminMode(user)) return false
           if (isMenuLockedForUser(user, menuLocks, item.id)) return false
           return canViewMenuEntry(user, menuPermissions, `item:${item.id}`)
-        }),
+        })),
       }))
       .filter(section => section.visible && section.items.length > 0)
   }, [employeeRestricted, menuLocks, menuPermissions, user])
@@ -934,11 +941,11 @@ function Layout({ children, user, onLogout }) {
                     ) : section.items.map(item => {
                       if (item.id === 'disposal') {
                         const expanded = !!expandedMenuItems.disposal
-                        const disposalLinks = [
+                        const disposalLinks = sortMenuItemsByLabel([
                           { key: 'forms', label: '양식', path: '/disposal/forms' },
                           { key: 'list', label: '목록', path: '/disposal/list' },
                           { key: 'settlements', label: '결산', path: '/disposal/settlements' },
-                        ]
+                        ])
                         return (
                           <div key={item.id} className="menu-category-submenu">
                             <button
@@ -10540,6 +10547,42 @@ function getTodaySettlementDateKey() {
   return `${year}-${month}-${day}`
 }
 
+function formatSettlementDynamicDateText(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토']
+  const year = String(date.getFullYear()).slice(-2)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}.${month}.${day}.(${weekdayLabels[date.getDay()]}) 18:00 기준`
+}
+
+function getDynamicSettlementWeekStart(now = new Date()) {
+  const current = new Date(now)
+  const start = new Date(current)
+  const weekday = current.getDay()
+  const diffToSaturday = (weekday + 1) % 7
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - diffToSaturday)
+  const refreshPoint = new Date(start)
+  refreshPoint.setHours(9, 0, 0, 0)
+  if (current.getTime() < refreshPoint.getTime()) {
+    start.setDate(start.getDate() - 7)
+  }
+  return start
+}
+
+function buildDynamicSettlementDailyBlocks(blocks = [], now = new Date()) {
+  const weekStart = getDynamicSettlementWeekStart(now)
+  return (blocks || []).map((block, index) => {
+    const mappedDate = new Date(weekStart)
+    mappedDate.setDate(weekStart.getDate() + index)
+    return {
+      ...cloneSettlementBlock(block),
+      date: formatSettlementDynamicDateText(mappedDate),
+    }
+  })
+}
+
 function applySettlementPlatformMetrics(blocks, platformMetrics, options = {}) {
   const reflectionMap = options.reflectionMap || {}
   const todayKey = options.todayKey || getTodaySettlementDateKey()
@@ -11068,7 +11111,7 @@ function SettlementPage() {
 
   const reflectionMap = useMemo(() => buildSettlementReflectionMap(recordsData.daily_records || []), [recordsData.daily_records])
   const dailyBlocks = useMemo(
-    () => applySettlementPlatformMetrics(SETTLEMENT_DATA.daily || [], syncStatus.platforms, { reflectionMap }),
+    () => applySettlementPlatformMetrics(buildDynamicSettlementDailyBlocks(SETTLEMENT_DATA.daily || []), syncStatus.platforms, { reflectionMap }),
     [syncStatus.platforms, reflectionMap],
   )
   const sortedDailyBlocks = useMemo(() => [...dailyBlocks].sort((left, right) => String(getSettlementBlockDateKey(left)).localeCompare(String(getSettlementBlockDateKey(right)))), [dailyBlocks])
