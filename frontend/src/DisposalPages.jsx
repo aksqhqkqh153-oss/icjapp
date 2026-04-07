@@ -2201,6 +2201,14 @@ function formatGroupDate(value) {
   return date.toLocaleDateString('ko-KR')
 }
 
+function formatMonthDayLabel(value) {
+  if (!value) return '날짜 미지정'
+  const normalizedValue = /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim()) ? `${String(value).trim()}T00:00:00` : value
+  const date = new Date(normalizedValue)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`
+}
+
 function getSavedDateKey(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value || 'unknown')
@@ -2379,11 +2387,8 @@ function buildSettlementMonthlyRows(monthlyRecords) {
       acc.totalFee += metrics.feeAmount
       acc.totalCancel += metrics.cancelAmount
       acc.totalSales += metrics.minimumFee
-      acc.paidCount += record?.finalStatus?.includes('입금완') ? 1 : 0
-      acc.reportedCount += record?.finalStatus?.includes('신고완') ? 1 : 0
       return acc
-    }, { customerCount:0, totalQty:0, totalReport:0, totalFee:0, totalCancel:0, totalSales:0, paidCount:0, reportedCount:0 })
-    const customerNames = records.map(record => String(record?.customerName || '').trim()).filter(Boolean)
+    }, { customerCount:0, totalQty:0, totalReport:0, totalFee:0, totalCancel:0, totalSales:0 })
     rows.push({
       key: `summary-${dateKey}`,
       kind: 'summary',
@@ -2391,16 +2396,14 @@ function buildSettlementMonthlyRows(monthlyRecords) {
       toggleKey: dateKey,
       cells: [
         dateKey,
-        '합계',
         `${formatNumber(summary.customerCount)}건`,
-        customerNames.join(' / ') || '-',
+        '합계',
+        `[${formatMonthDayLabel(dateKey)} 합계]`,
         `${formatNumber(summary.totalQty)}개`,
         `${formatNumber(summary.totalReport)}원`,
         `${formatNumber(summary.totalFee)}원`,
         `${formatNumber(summary.totalCancel)}원`,
         `${formatNumber(summary.totalSales)}원`,
-        `${summary.paidCount}/${summary.customerCount}`,
-        `${summary.reportedCount}/${summary.customerCount}`,
         '상세보기',
       ],
     })
@@ -2412,7 +2415,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
         parentKey: dateKey,
         recordId: record.id,
         cells: [
-          '',
+          dateKey,
           String(index + 1),
           record?.platform || '-',
           record?.customerName || '-',
@@ -2421,8 +2424,6 @@ function buildSettlementMonthlyRows(monthlyRecords) {
           `${formatNumber(metrics.feeAmount)}원`,
           `${formatNumber(metrics.cancelAmount)}원`,
           `${formatNumber(metrics.minimumFee)}원`,
-          record?.finalStatus?.includes('입금완') ? '입금완' : '입금전',
-          record?.finalStatus?.includes('신고완') ? '신고완' : '신고전',
           record?.location || '-',
         ],
       })
@@ -2534,23 +2535,21 @@ export function DisposalSettlementsPage() {
           <div className="disposal-month-settlement-table simple-sheet">
             <div className="disposal-month-settlement-row disposal-month-settlement-head">
               <div>폐기일자</div>
-              <div>구분</div>
               <div>건수</div>
+              <div>구분</div>
               <div>고객명</div>
               <div>품목수</div>
               <div>폐기신고액</div>
               <div>폐기수수료</div>
               <div>취소신고액</div>
               <div>매출액</div>
-              <div>입금</div>
-              <div>신고</div>
               <div>비고</div>
             </div>
             {visibleRows.map(row => row.kind === 'summary' ? (
               <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-summary">
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`} className={index === 11 ? 'toggle-cell' : ''}>
-                    {index === 11 ? (
+                  <div key={`${row.key}-${index}`} className={index === 9 ? 'toggle-cell' : ''}>
+                    {index === 9 ? (
                       <button type="button" className="disposal-month-settlement-toggle-button" onClick={() => toggleRow(row.toggleKey)}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
                     ) : cell}
                   </div>
