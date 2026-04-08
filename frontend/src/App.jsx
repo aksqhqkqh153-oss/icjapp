@@ -4058,6 +4058,21 @@ async function geocodeAddress(address) {
   return null
 }
 
+function extractScheduleAssignedNames(item, kind = 'business') {
+  const keys = kind === 'business'
+    ? ['representative1', 'representative2', 'representative3']
+    : ['staff1', 'staff2', 'staff3']
+  const direct = keys.map(key => String(item?.[key] || '').trim()).filter(Boolean)
+  if (direct.length) return [...new Set(direct)]
+  const merged = String(
+    kind === 'business'
+      ? (item?.representative_names || item?.representative_text || '')
+      : (item?.staff_names || item?.staff_text || '')
+  ).trim()
+  if (!merged) return []
+  return [...new Set(merged.split(/[\n,\/]+/).map(token => token.trim()).filter(Boolean))]
+}
+
 async function resolveMapDepartureData(scheduleItems = [], users = []) {
   const filteredItems = (scheduleItems || []).filter(item => String(item?.start_address || item?.location || item?.end_address || '').trim())
   const uniqueAddresses = [...new Set(filteredItems.flatMap(item => ([
@@ -4125,6 +4140,37 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
     ].filter(entry => entry.address && entry.point)
   })
 
+  const accountEndMarkers = filteredItems.flatMap(item => {
+    const endAddress = sanitizeGeocodeAddress(item.end_address || '')
+    const endPoint = addressPoints[endAddress] || null
+    if (!endAddress || !endPoint) return []
+    const customerLabel = item.customer_name || item.title || '고객'
+    const businessNames = extractScheduleAssignedNames(item, 'business')
+    const staffNames = extractScheduleAssignedNames(item, 'staff')
+    return [
+      ...businessNames.map((name, index) => ({
+        id: `business-end-${item.id}-${index}-${name}`,
+        scheduleId: item.id,
+        title: customerLabel,
+        displayName: name,
+        address: endAddress,
+        point: endPoint,
+        raw: item,
+        markerKind: 'business-end',
+      })),
+      ...staffNames.map((name, index) => ({
+        id: `staff-end-${item.id}-${index}-${name}`,
+        scheduleId: item.id,
+        title: customerLabel,
+        displayName: name,
+        address: endAddress,
+        point: endPoint,
+        raw: item,
+        markerKind: 'staff-end',
+      })),
+    ]
+  })
+
   const customerList = filteredItems.map(item => {
     const address = sanitizeGeocodeAddress(item.start_address || item.location || '')
     const customerPoint = addressPoints[address] || null
@@ -4170,7 +4216,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
     }
   })
 
-  return { customerMarkers, accountMarkers, customerList }
+  return { customerMarkers, accountMarkers, accountEndMarkers, customerList }
 }
 
 function MapPage() {
@@ -4195,9 +4241,11 @@ function MapPage() {
     customerEnd: false,
     businessStart: true,
     staffStart: true,
+    businessEnd: true,
+    staffEnd: true,
   })
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
-  const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], customerList: [] })
+  const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], accountEndMarkers: [], customerList: [] })
   const [shareStatus, setShareStatus] = useState({ eligible: false, consent_granted: false, sharing_enabled: false, active_now: false, active_assignment: null })
 
   function showShareNotice(message) {
@@ -4280,7 +4328,7 @@ function MapPage() {
       if (!ignore) setDepartureData(resolved)
     }
     updateDeparture().catch(() => {
-      if (!ignore) setDepartureData({ customerMarkers: [], accountMarkers: [], customerList: [] })
+      if (!ignore) setDepartureData({ customerMarkers: [], accountMarkers: [], accountEndMarkers: [], customerList: [] })
     })
     return () => { ignore = true }
   }, [mapFilter, scheduleItems, accountUsers])
@@ -4395,7 +4443,21 @@ function MapPage() {
           label: '',
           popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
         }))
-      return [...customer, ...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+      const accountEnds = (departureData.accountEndMarkers || [])
+        .filter(item => {
+          if (item.markerKind === 'business-end') return mapDisplayOptions.businessEnd
+          if (item.markerKind === 'staff-end') return mapDisplayOptions.staffEnd
+          return true
+        })
+        .map(item => ({
+          type: item.markerKind === 'business-end' ? 'business-end' : 'staff-end',
+          id: item.id,
+          lat: item.point?.lat,
+          lng: item.point?.lng,
+          label: '',
+          popup: `<strong>${item.displayName || '담당자'}</strong><br/>${item.markerKind === 'business-end' ? '사업자 도착지' : '직원 도착지'}<br/>${item.title}<br/>${item.address}`,
+        }))
+      return [...customer, ...accounts, ...accountEnds].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
     return (users || []).map(item => ({
       type: item.map_status?.is_moving ? 'moving' : 'stopped',
@@ -4421,9 +4483,13 @@ function MapPage() {
             ? 'branch-marker business-start'
             : item.type === 'staff-start'
               ? 'branch-marker staff-start'
-              : item.type === 'moving'
-                ? 'branch-marker moving'
-                : 'branch-marker stopped'
+              : item.type === 'business-end'
+                ? 'branch-marker business-end'
+                : item.type === 'staff-end'
+                  ? 'branch-marker staff-end'
+                  : item.type === 'moving'
+                    ? 'branch-marker moving'
+                    : 'branch-marker stopped'
       const markerSize = item.type === 'moving' || item.type === 'stopped' ? 28 : 9
       const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [markerSize, markerSize], iconAnchor: [markerSize / 2, markerSize / 2] })
       L.marker([item.lat, item.lng], { icon }).bindPopup(item.popup).addTo(markerLayerRef.current)
@@ -4506,6 +4572,8 @@ function MapPage() {
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerEnd: e.target.checked }))} /> <span className="marker-legend-icon customer-end" /> 고도</label>
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessStart: e.target.checked }))} /> <span className="marker-legend-icon business-start" /> 사출</label>
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffStart: e.target.checked }))} /> <span className="marker-legend-icon staff-start" /> 직출</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessEnd: e.target.checked }))} /> <span className="marker-legend-icon business-end" /> 사도</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffEnd: e.target.checked }))} /> <span className="marker-legend-icon staff-end" /> 직도</label>
                   <button type="button" className="small ghost map-display-help-button" onClick={() => setDisplayLegendHelpOpen(true)}>설명</button>
                 </div>
               )}
