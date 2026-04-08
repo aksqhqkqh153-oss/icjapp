@@ -8539,7 +8539,7 @@ function WorkShiftSchedulePage() {
                   })}
                 </tr>
                 <tr className="work-shift-header-row">
-                  <th className="sticky left row-index-head">1</th>
+                  <th className="sticky left row-index-head row-index-head-secondary">1</th>
                   <th className="sticky left col-main-head head-name name-cell-branch work-shift-head-cell">{sectionId === 'business' ? '호점' : '구분'}</th>
                   <th className="sticky left second col-main-head head-name name-cell-person work-shift-head-cell">성명</th>
                   {dayLabels.map((label, index) => <th key={index} className="head-day work-shift-head-cell">{label}</th>)}

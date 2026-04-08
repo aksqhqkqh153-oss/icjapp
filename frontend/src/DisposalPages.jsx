@@ -2526,17 +2526,26 @@ export function DisposalSettlementsPage() {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
-      <section className="card disposal-hero disposal-hero-compact-nav">
-        <div className="disposal-hero-actions">
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/list')}>폐기목록</button>
-          <button type="button" className="ghost" onClick={() => navigate('/disposal/forms')}>폐기양식</button>
-        </div>
-      </section>
-
       <section className="card disposal-month-switch-card disposal-month-switch-card-compact">
-        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}>◀이전</button>
+        <button
+          type="button"
+          className="ghost disposal-month-nav-button"
+          aria-label="이전 달"
+          title="이전 달"
+          onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}
+        >
+          ◀
+        </button>
         <div className="disposal-month-switch-title">{monthLabel}</div>
-        <button type="button" className="ghost" onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}>다음▶</button>
+        <button
+          type="button"
+          className="ghost disposal-month-nav-button"
+          aria-label="다음 달"
+          title="다음 달"
+          onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}
+        >
+          ▶
+        </button>
       </section>
 
       <section className="card disposal-monthly-sheet-card">

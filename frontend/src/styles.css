@@ -16198,3 +16198,127 @@ body.layout-guide-enabled .error {
     margin: 0 !important;
   }
 }
+
+
+/* 2026-04-08 disposal/work-schedule/work-shift/mobile polish */
+.disposal-month-nav-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.work-shift-table .row-index-head-secondary {
+  left: 0;
+  z-index: 31;
+  background: #f8fafc !important;
+  box-shadow: 1px 0 0 #cbd5e1;
+}
+
+@media (max-width: 768px) {
+  .disposal-month-switch-card {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 6px;
+  }
+
+  .disposal-month-nav-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .disposal-month-switch-title {
+    font-size: 14px;
+  }
+
+  .disposal-sales-sheet-row.is-title .disposal-sales-sheet-cell {
+    font-size: 17px;
+  }
+
+  .disposal-sales-sheet-row.is-title .disposal-sales-sheet-cell:last-child {
+    font-size: 15px;
+  }
+
+  .page-container.work-schedule-wide {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .page-container.work-schedule-wide > .work-schedule-page.mobile,
+  .work-schedule-page.mobile,
+  .work-schedule-page.mobile .work-schedule-day {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form,
+  .work-schedule-page.mobile .work-day-status-button,
+  .work-schedule-page.mobile .work-schedule-line-item,
+  .work-schedule-page.mobile .work-schedule-entry-form,
+  .work-schedule-page.mobile .work-day-status-editor,
+  .work-schedule-page.mobile .work-day-status-editor-grid,
+  .work-schedule-page.mobile .work-schedule-table,
+  .work-schedule-page.mobile .work-schedule-assignee-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top {
+    padding-top: 0;
+    gap: 6px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section {
+    padding: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-list.unified-list {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-head {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .work-schedule-page.mobile .work-day-status-button {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
