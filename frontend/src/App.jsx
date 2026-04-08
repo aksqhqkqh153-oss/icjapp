@@ -10780,13 +10780,6 @@ function AdminModePage() {
             {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
           </button>
         </div>
-        <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
-          <div className="menu-lock-admin-list">
-            <div className="card menu-lock-admin-section">
-              <div className="muted tiny-text">화면의 큰 레이아웃부터 빨강 → 주황 → 노랑 → 초록 → 파랑 → 남색 → 보라 순으로 테두리를 표시합니다.</div>
-            </div>
-          </div>
-        </div>
       </section>
 
 
