@@ -191,9 +191,6 @@ function pageTitle(pathname) {
 
 
 function MenuIcon({ className = '' }) {
-  const editableSummaryRows = (editorDraft?.summaryRows || []).filter(row => ['숨고', '오늘', '공홈'].includes(String(row?.source || '')))
-  const contractSummaryRowIndex = (editorDraft?.summaryRows || []).findIndex(row => String(row?.label || '').includes('2. 총 계약 수(건)'))
-
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M4 7h16" />
