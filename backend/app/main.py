@@ -4,6 +4,9 @@ import json
 import logging
 import random
 import re
+import time
+import urllib.parse
+import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -42,6 +45,9 @@ from .warehouse_service import get_state as get_warehouse_state, save_state as s
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger = logging.getLogger('icj24app')
+
+GEOCODE_CACHE: dict[str, dict[str, Any]] = {}
+GEOCODE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 
 app = FastAPI(title="이청잘 앱 API", version="1.1.0")
 app.add_middleware(
@@ -748,22 +754,44 @@ def _split_names_for_match(*values: str) -> list[str]:
     for value in values:
         for token in re.split(r'[\n,/|]+', str(value or '')):
             cleaned = token.strip()
-            if cleaned:
-                tokens.append(cleaned)
-    return tokens
+            if not cleaned:
+                continue
+            tokens.append(cleaned)
+            bracket_parts = re.findall(r'\[([^\]]+)\]', cleaned)
+            for part in bracket_parts:
+                normalized = str(part or '').strip()
+                if normalized:
+                    tokens.append(normalized)
+            compact = re.sub(r'\s+', '', cleaned)
+            if compact and compact != cleaned:
+                tokens.append(compact)
+    unique: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        normalized = str(token or '').strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique.append(normalized)
+    return unique
 
 
 def _user_assignment_tokens(user: dict) -> set[str]:
     tokens = set()
-    for raw in [user.get('nickname'), user.get('email'), user.get('vehicle_number')]:
+    display_name = str(user.get('name') or user.get('nickname') or user.get('email') or '').strip()
+    for raw in [user.get('name'), user.get('nickname'), user.get('email'), user.get('vehicle_number')]:
         value = str(raw or '').strip()
         if value:
             tokens.add(value)
     branch_no = user.get('branch_no')
+    branch_label = ''
     if branch_no not in (None, ''):
-        tokens.add(f"{branch_no}호점")
+        branch_label = f"{branch_no}호점"
+        tokens.add(branch_label)
         tokens.add(str(branch_no))
-    return tokens
+    if branch_label and display_name:
+        tokens.add(f'[{branch_label}][{display_name}]')
+        tokens.add(f'{branch_label}{display_name}')
+    return {token for token in tokens if str(token or '').strip()}
 
 
 def _row_assigned_to_user(user: dict, row: dict) -> bool:
@@ -3055,6 +3083,42 @@ def toggle_workday(payload: WorkdayToggleIn, user=Depends(require_user)):
             conn.execute("UPDATE workday_logs SET end_time = ?, ended_at = ?, updated_at = ? WHERE id = ?", (current_time, now, now, open_row['id']))
             updated = conn.execute("SELECT * FROM workday_logs WHERE id = ?", (open_row['id'],)).fetchone()
         return {'ok': True, 'item': row_to_dict(updated)}
+
+@app.get("/api/geocode")
+def geocode_address(address: str = Query(..., min_length=2), user=Depends(require_user)):
+    normalized = str(address or '').strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
+    now_ts = time.time()
+    cached = GEOCODE_CACHE.get(normalized)
+    if cached and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
+        return {'lat': cached['lat'], 'lng': cached['lng'], 'label': normalized, 'cached': True}
+    url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
+        'format': 'jsonv2',
+        'limit': 1,
+        'countrycodes': 'kr',
+        'q': normalized,
+    })
+    request = urllib.request.Request(url, headers={
+        'User-Agent': 'icj2424app-backend/1.0 (contact: admin@icj2424app.com)',
+        'Accept': 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except Exception as exc:
+        logger.warning('geocode lookup failed for %s: %s', normalized, exc)
+        raise HTTPException(status_code=502, detail='주소 좌표 조회에 실패했습니다.')
+    first = payload[0] if isinstance(payload, list) and payload else None
+    if not first:
+        raise HTTPException(status_code=404, detail='주소 좌표를 찾을 수 없습니다.')
+    point = {
+        'lat': float(first.get('lat')),
+        'lng': float(first.get('lon')),
+        'stored_at': now_ts,
+    }
+    GEOCODE_CACHE[normalized] = point
+    return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False}
 
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):
