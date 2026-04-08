@@ -1303,7 +1303,6 @@ function DisposalItemsEditor({
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onSaveEstimate(); setItemSettingsOpen(false) }}>견적저장</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
-                  <div className="disposal-settings-popover-caption">현재: {defaultVisibleRows}칸</div>
                 </div>
               ) : null}
             </div>
