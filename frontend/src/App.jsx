@@ -1836,7 +1836,7 @@ function ProfilePage({ onUserUpdate }) {
     e.preventDefault()
     const payload = {
       login_id: normalizeFlexibleLoginId(form.login_id || ''),
-      email: form.email || '',
+      email: normalizeFlexibleLoginId(form.login_id || ''),
       nickname: form.nickname || '',
       region: form.region || '서울',
       bio: form.bio || '',
@@ -1926,7 +1926,7 @@ function ProfilePage({ onUserUpdate }) {
           <div className="profile-grid two">
             <label className="field-block">
               <span>아이디</span>
-              <input value={form.email || ''} onChange={e => updateField('email', e.target.value)} placeholder="아이디" />
+              <input value={form.login_id || ''} onChange={e => updateField('login_id', normalizeFlexibleLoginId(e.target.value))} placeholder="아이디" />
             </label>
             <label className="field-block">
               <span>새 비밀번호</span>
@@ -8316,9 +8316,11 @@ function WorkShiftSchedulePage() {
       <section className="card work-shift-page-card">
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
           <div className="work-shift-title-row work-shift-title-row-compact">
-            <div className="inline-actions wrap work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
-              <button type="button" className={workMode === 'vacation' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
-              <button type="button" className={workMode === 'view' ? 'small selected-toggle' : 'small ghost'} onClick={() => setWorkMode('view')}>편집/보기</button>
+            <div className="work-shift-top-tabs-card">
+              <div className="settlement-tabs settlement-tabs-inline work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
+                <button type="button" className={workMode === 'vacation' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
+                <button type="button" className={workMode === 'view' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('view')}>편집/보기</button>
+              </div>
             </div>
           </div>
           {workMode === 'view' ? (
@@ -9743,7 +9745,7 @@ function AdminModePage() {
                           {isOpen && (
                             <div className="admin-account-list-body">
                               <div><strong>구분숫자</strong> {groupNumberDisplay(item)}</div>
-                              <div><strong>아이디</strong> {item.email || '-'}</div>
+                              <div><strong>아이디</strong> {item.login_id || item.email || '-'}</div>
                               <div><strong>고유ID값</strong> {item.account_unique_id || '-'}</div>
                               <div><strong>이름</strong> {item.name || '-'}</div>
                               <div><strong>닉네임</strong> {item.nickname || '-'}</div>
@@ -11526,7 +11528,7 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{`◀ 일일 결산 ▶`}</strong>
+            <strong>일일 결산</strong>
             <span className="muted">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
@@ -11549,7 +11551,7 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{`◀ 주간 결산 ▶`}</strong>
+            <strong>주간 결산</strong>
             <span className="muted">{selectedWeeklyBlock.title}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
@@ -11565,7 +11567,7 @@ function SettlementPage() {
         <div className="settlement-day-nav card">
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
           <div className="settlement-day-nav-title">
-            <strong>{`◀ 월간 결산 ▶`}</strong>
+            <strong>월간 결산</strong>
             <span className="muted">{selectedMonthlyBlock.title}</span>
           </div>
           <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>

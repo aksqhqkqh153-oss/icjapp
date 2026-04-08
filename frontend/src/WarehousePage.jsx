@@ -444,16 +444,13 @@ export default function WarehousePage() {
   return (
     <div className="feature-card warehouse-page-shell">
       <div className="warehouse-header-row warehouse-header-row-compact">
-        <div className="warehouse-mode-tabs warehouse-mode-tabs-top" role="tablist" aria-label="창고현황 카테고리">
-          <button type="button" className={mode === 'input' ? 'active' : ''} onClick={() => setMode('input')}>입력</button>
-          <button type="button" className={mode === 'warehouse' ? 'active' : ''} onClick={() => setMode('warehouse')}>창고</button>
+        <div className="warehouse-top-tabs-card">
+          <div className="settlement-tabs settlement-tabs-inline warehouse-mode-tabs warehouse-mode-tabs-top" role="tablist" aria-label="창고현황 카테고리">
+            <button type="button" className={mode === 'input' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setMode('input')}>입력</button>
+            <button type="button" className={mode === 'warehouse' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setMode('warehouse')}>창고</button>
+          </div>
         </div>
         {savingKey ? <span className="warehouse-save-indicator">저장중...</span> : null}
-      </div>
-
-      <div className="warehouse-mode-tabs warehouse-mode-tabs-hidden" aria-hidden="true">
-        <button type="button" className={mode === 'input' ? 'active' : ''} onClick={() => setMode('input')}>입력</button>
-        <button type="button" className={mode === 'warehouse' ? 'active' : ''} onClick={() => setMode('warehouse')}>창고</button>
       </div>
 
       {mode === 'input' ? (

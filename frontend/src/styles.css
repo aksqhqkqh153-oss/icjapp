@@ -16014,3 +16014,154 @@ body.layout-guide-enabled .error {
   outline: 1px solid rgba(75, 0, 130, 0.7) !important;
   outline-offset: -1px;
 }
+
+/* 2026-04-08 settlement/workshift/warehouse/disposal/account sync update */
+.settlement-day-nav {
+  justify-content: center;
+  gap: 8px;
+}
+
+.settlement-day-nav > .ghost.small {
+  flex: 0 0 auto;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+}
+
+.settlement-day-nav-title {
+  flex: 0 1 auto;
+}
+
+.settlement-day-nav-title strong {
+  font-size: 18px;
+}
+
+.settlement-day-nav-title .muted {
+  text-align: center;
+}
+
+.work-shift-top-tabs-card,
+.warehouse-top-tabs-card {
+  width: 100%;
+  border: 1px solid #d9e2ef;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 10px;
+}
+
+.work-shift-mode-tabs,
+.warehouse-mode-tabs-top {
+  width: 100%;
+}
+
+.work-shift-mode-tabs .settlement-tab,
+.warehouse-mode-tabs-top .settlement-tab {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.work-shift-toolbar,
+.warehouse-header-row {
+  align-items: start;
+}
+
+.disposal-list-grid.disposal-list-grid-customer {
+  width: 100%;
+  border: 1px solid #d8e0ec;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(88px, 1.1fr) minmax(44px, 0.42fr) minmax(56px, 0.56fr) minmax(58px, 0.6fr) minmax(58px, 0.56fr) minmax(64px, 0.66fr) 44px 44px;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head,
+.disposal-list-grid-customer .disposal-list-grid-summary-row {
+  background: #f8fafc;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-row > div,
+.disposal-list-grid-customer .disposal-list-grid-row > label,
+.disposal-list-grid-button-customer > span,
+.disposal-list-grid-customer .disposal-list-grid-status-button {
+  min-height: 32px;
+  padding: 4px 4px;
+  border-right: 1px solid #d8e0ec;
+  border-bottom: 1px solid #d8e0ec;
+  color: #111827;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-row > div:last-child,
+.disposal-list-grid-customer .disposal-list-grid-row > label:last-child,
+.disposal-list-grid-button-customer > span:last-child,
+.disposal-list-grid-customer .disposal-list-grid-status-button:last-child {
+  border-right: 0;
+}
+
+.disposal-list-grid-button-customer {
+  grid-column: 2 / span 6;
+  display: grid !important;
+  grid-template-columns: minmax(88px, 1.1fr) minmax(44px, 0.42fr) minmax(56px, 0.56fr) minmax(58px, 0.6fr) minmax(58px, 0.56fr) minmax(64px, 0.66fr);
+  gap: 0 !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-check-cell,
+.disposal-list-grid-customer .disposal-list-grid-payment-cell,
+.disposal-list-grid-customer .disposal-list-grid-status-button {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-summary-row > div {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .disposal-list-grid.disposal-list-grid-customer {
+    overflow-x: hidden;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row {
+    min-width: 0 !important;
+    grid-template-columns: 26px minmax(54px, 1fr) minmax(32px, 0.34fr) minmax(42px, 0.4fr) minmax(46px, 0.44fr) minmax(44px, 0.42fr) minmax(52px, 0.5fr) 32px 32px;
+  }
+
+  .disposal-list-grid-button-customer {
+    grid-template-columns: minmax(54px, 1fr) minmax(32px, 0.34fr) minmax(42px, 0.4fr) minmax(46px, 0.44fr) minmax(44px, 0.42fr) minmax(52px, 0.5fr);
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row > div,
+  .disposal-list-grid-customer .disposal-list-grid-row > label,
+  .disposal-list-grid-button-customer > span,
+  .disposal-list-grid-customer .disposal-list-grid-status-button {
+    min-height: 28px;
+    padding: 2px 2px;
+    font-size: 9px;
+  }
+
+  .work-shift-top-tabs-card,
+  .warehouse-top-tabs-card {
+    padding: 8px;
+  }
+
+  .settlement-day-nav-title strong {
+    font-size: 16px;
+  }
+
+  .settlement-day-nav-title .muted {
+    font-size: 12px;
+  }
+}

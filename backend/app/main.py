@@ -2390,10 +2390,11 @@ def get_profile(user=Depends(require_user)):
 @app.put("/api/profile")
 def update_profile(payload: ProfileIn, user=Depends(require_user)):
     with get_conn() as conn:
-        existing = _find_user_by_email_ci(conn, payload.email, user["id"])
+        next_login_id = _validate_login_id_value(payload.login_id or user.get('login_id') or user.get('email'))
+        next_email = _normalize_email_value(payload.email or next_login_id)
+        existing = _find_user_by_email_ci(conn, next_email, user["id"])
         if existing:
             raise HTTPException(status_code=400, detail="이미 사용 중인 이메일입니다.")
-        next_login_id = _validate_login_id_value(payload.login_id or user.get('login_id') or user.get('email'))
         dup_login_id = _find_user_by_login_id_ci(conn, next_login_id, user["id"])
         if dup_login_id:
             raise HTTPException(status_code=400, detail=f"{next_login_id} 아이디는 이미 사용 중입니다.")
@@ -2401,7 +2402,7 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
             raise HTTPException(status_code=403, detail='호점은 관리자 권한에서만 본인 프로필로 변경할 수 있습니다.')
         assignments = [
             ("login_id", next_login_id),
-            ("email", _normalize_email_value(payload.email)),
+            ("email", next_email),
             ("nickname", payload.nickname.strip()),
             ("region", payload.region.strip() or "서울"),
             ("bio", payload.bio.strip()),
@@ -4845,7 +4846,7 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             data['nickname'] = str(data.get('nickname') or '').strip()
             data['account_unique_id'] = str(data.get('account_unique_id') or '').strip()
             data['login_id'] = _validate_login_id_value(data.get('login_id') or data.get('email') or existing['login_id'] or existing['email'])
-            data['email'] = _normalize_email_value(data.get('email') or '')
+            data['email'] = _normalize_email_value(data.get('email') or data['login_id'] or existing['email'] or existing['login_id'])
             data['recovery_email'] = _normalize_email_value(data.get('recovery_email') or '')
             data['gender'] = _validate_gender_value(data.get('gender') or '', allow_empty=True)
             data = _normalize_account_admin_flags({**row_to_dict(existing), **data, 'grade': current_or_next_grade})
@@ -4856,6 +4857,9 @@ def update_admin_user_details_bulk(payload: AdminUserDetailsBulkIn, admin=Depend
             dup_login_id = _find_user_by_login_id_ci(conn, data['login_id'], item.id)
             if dup_login_id:
                 raise HTTPException(status_code=400, detail=f"{data['login_id']} 아이디는 이미 사용 중입니다.")
+            dup_email = _find_user_by_email_ci(conn, data['email'], item.id)
+            if dup_email:
+                raise HTTPException(status_code=400, detail=f"{data['email']} 이메일은 이미 사용 중입니다.")
             if data['account_unique_id']:
                 dup_uid = conn.execute("SELECT id FROM users WHERE account_unique_id = ? AND id != ?", (data['account_unique_id'], item.id)).fetchone()
                 if dup_uid:
@@ -4888,10 +4892,14 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
     try:
         with get_conn() as conn:
             login_id = _validate_login_id_value(payload.login_id or payload.email)
+            normalized_email = _normalize_email_value(payload.email or login_id)
             exists = _find_user_by_login_id_ci(conn, login_id)
             if exists:
                 raise HTTPException(status_code=400, detail='이미 존재하는 아이디입니다.')
-            generated_unique_id = generate_account_unique_id(conn, payload.email)
+            exists_email = _find_user_by_email_ci(conn, normalized_email)
+            if exists_email:
+                raise HTTPException(status_code=400, detail='이미 존재하는 아이디입니다.')
+            generated_unique_id = generate_account_unique_id(conn, normalized_email)
             normalized_new_user = _normalize_account_admin_flags({
                 'grade': int(payload.grade),
                 'branch_no': payload.branch_no,
@@ -4905,7 +4913,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                 INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (login_id, _normalize_email_value(payload.email), _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), normalized_new_user['permission_codes_json'], normalized_new_user['account_type'], normalized_new_user['branch_code'], payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
+                (login_id, normalized_email, _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), normalized_new_user['permission_codes_json'], normalized_new_user['account_type'], normalized_new_user['branch_code'], payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
             )
             user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))

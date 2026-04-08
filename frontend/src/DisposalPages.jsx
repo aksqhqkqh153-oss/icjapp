@@ -1033,6 +1033,8 @@ function DisposalItemsEditor({
   itemSettingsRef,
   onAutoSaveRecord,
   onOpenPreview,
+  onOpenRegistry,
+  onSaveEstimate,
 }) {
   const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
@@ -1294,10 +1296,12 @@ function DisposalItemsEditor({
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
             <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
-            <button type="button" className="ghost active disposal-save-inline-button" onClick={onOpenPreview}>견적저장</button>
             {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
             {itemSettingsOpen ? (
               <div className="disposal-settings-popover disposal-item-settings-popover">
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); setItemSettingsOpen(false) }}>폐기견적서 전체 미리보기</button>
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
+                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onSaveEstimate(); setItemSettingsOpen(false) }}>견적저장</button>
                 <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
                 <div className="disposal-settings-popover-caption">현재: {defaultVisibleRows}칸</div>
               </div>
@@ -1895,15 +1899,6 @@ useEffect(() => {
           draft={draft}
           updateDraftField={updateDraftField}
           districtResolved={districtResolved}
-          actions={(
-            <>
-              <div className="disposal-settings-inline">
-                <button type="button" className="ghost disposal-icon-button" onClick={() => setSettingsOpen(prev => !prev)} aria-label="설정">⚙</button>
-                <DisposalSettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} onMoveRegistry={() => navigate('/disposal/jurisdictions')} onOpenPreview={openPreviewPage} canManageJurisdictions={Number((getStoredUser() || {})?.grade || 9) <= 2} />
-              </div>
-              <button type="button" className="ghost active disposal-inline-save-button" onClick={saveSettlementRecord}>견적저장</button>
-            </>
-          )}
         />
       </div>
 
@@ -1925,6 +1920,8 @@ useEffect(() => {
             configureDefaultVisibleRows={configureDefaultVisibleRows}
             itemSettingsRef={itemSettingsRef}
             onOpenPreview={openPreviewPage}
+            onOpenRegistry={() => navigate('/disposal/jurisdictions')}
+            onSaveEstimate={saveSettlementRecord}
             onAutoSaveRecord={nextRecord => {
               const nextRecords = upsertRecordByCustomerLocation(loadRecords(), nextRecord)
               saveRecords(nextRecords)
