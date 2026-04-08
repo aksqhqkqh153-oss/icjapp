@@ -3463,6 +3463,200 @@ function ChatRoomPage({ roomType }) {
 }
 
 
+
+function splitScheduleAssigneeNames(value) {
+  return String(value || '')
+    .replace(/[\[\]]/g, ' ')
+    .split(/[,\n\/|]+/)
+    .map(token => token.trim())
+    .flatMap(token => token.split(/\s{2,}/).map(part => part.trim()))
+    .filter(Boolean)
+}
+
+function buildUserIdentityTokens(user = {}) {
+  return [
+    user.name,
+    user.nickname,
+    user.display_name,
+    user.email,
+    user.username,
+    user.login_id,
+    user.user_id,
+  ]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+}
+
+function findTaggedUsersForSchedule(scheduleItem, users = []) {
+  const names = [
+    ...splitScheduleAssigneeNames(scheduleItem?.representative_text),
+    ...splitScheduleAssigneeNames(scheduleItem?.staff_text),
+  ]
+  const normalizedNames = [...new Set(names.map(name => name.replace(/\s+/g, '').toLowerCase()).filter(Boolean))]
+  if (!normalizedNames.length) return []
+  return users.filter(user => {
+    const tokens = buildUserIdentityTokens(user).map(token => token.replace(/\s+/g, '').toLowerCase())
+    return normalizedNames.some(name => tokens.some(token => token && (token === name || token.includes(name) || name.includes(token))))
+  })
+}
+
+function getUserBaseAddress(user = {}) {
+  return String(
+    user.resident_address
+    || user.business_address
+    || user.address
+    || user.region
+    || ''
+  ).trim()
+}
+
+function normalizeMarkerPositionTitle(value) {
+  return String(value || '').replace(/\s+/g, '')
+}
+
+function resolveStaffMarkerTone(user = {}) {
+  const title = normalizeMarkerPositionTitle(user.position_title || user.position || user.grade_name || '')
+  if (['대표', '부대표', '호점대표'].includes(title)) return 'executive'
+  return 'staff'
+}
+
+function haversineDistanceKm(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY
+  const lat1 = Number(a.lat)
+  const lon1 = Number(a.lng)
+  const lat2 = Number(b.lat)
+  const lon2 = Number(b.lng)
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Number.POSITIVE_INFINITY
+  const toRad = value => value * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const p1 = toRad(lat1)
+  const p2 = toRad(lat2)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLon / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+function buildAddressSimilarityScore(source, target) {
+  const a = String(source || '').trim()
+  const b = String(target || '').trim()
+  if (!a || !b) return -1
+  const aTokens = a.split(/\s+/).filter(Boolean)
+  const bTokens = new Set(b.split(/\s+/).filter(Boolean))
+  let score = 0
+  aTokens.forEach((token, index) => {
+    if (bTokens.has(token)) score += Math.max(1, 4 - index)
+  })
+  return score
+}
+
+async function geocodeAddress(address) {
+  const normalized = String(address || '').trim()
+  if (!normalized) return null
+  const memoryCache = window.__icjGeocodeCache = window.__icjGeocodeCache || {}
+  if (memoryCache[normalized]) return memoryCache[normalized]
+  try {
+    const storageKey = `icj_geocode_${normalized}`
+    const stored = window.localStorage.getItem(storageKey)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng)) {
+        memoryCache[normalized] = parsed
+        return parsed
+      }
+    }
+  } catch (_) {}
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=kr&q=${encodeURIComponent(normalized)}`)
+    const rows = await response.json()
+    const first = Array.isArray(rows) ? rows[0] : null
+    const point = first ? { lat: Number(first.lat), lng: Number(first.lon), label: normalized } : null
+    if (point && Number.isFinite(point.lat) && Number.isFinite(point.lng)) {
+      memoryCache[normalized] = point
+      try {
+        window.localStorage.setItem(`icj_geocode_${normalized}`, JSON.stringify(point))
+      } catch (_) {}
+      return point
+    }
+  } catch (_) {}
+  return null
+}
+
+async function resolveMapDepartureData(scheduleItems = [], users = []) {
+  const filteredItems = (scheduleItems || []).filter(item => String(item?.start_address || item?.location || '').trim())
+  const uniqueAddresses = [...new Set(filteredItems.map(item => String(item.start_address || item.location || '').trim()).filter(Boolean))]
+  const addressPoints = {}
+  await Promise.all(uniqueAddresses.map(async address => {
+    addressPoints[address] = await geocodeAddress(address)
+  }))
+
+  const accountCandidates = []
+  for (const scheduleItem of filteredItems) {
+    const taggedUsers = findTaggedUsersForSchedule(scheduleItem, users)
+    for (const user of taggedUsers) {
+      const address = getUserBaseAddress(user)
+      if (!address) continue
+      const point = await geocodeAddress(address)
+      accountCandidates.push({
+        id: `account-${scheduleItem.id}-${user.id}`,
+        scheduleId: scheduleItem.id,
+        userId: user.id,
+        nickname: user.nickname || user.name || user.display_name || user.email || '미지정',
+        positionTitle: user.position_title || user.position || '',
+        address,
+        point,
+        tone: resolveStaffMarkerTone(user),
+      })
+    }
+  }
+
+  const accountMap = new Map()
+  accountCandidates.forEach(item => {
+    const key = `${item.userId}-${item.address}`
+    if (!accountMap.has(key)) accountMap.set(key, item)
+  })
+  const accountMarkers = [...accountMap.values()].filter(item => item.point)
+
+  const customerMarkers = filteredItems.map(item => {
+    const address = String(item.start_address || item.location || '').trim()
+    return {
+      id: `customer-${item.id}`,
+      scheduleId: item.id,
+      title: item.customer_name || item.title || '고객',
+      address,
+      point: addressPoints[address] || null,
+      raw: item,
+    }
+  }).filter(item => item.point)
+
+  const customerList = filteredItems.map(item => {
+    const address = String(item.start_address || item.location || '').trim()
+    const customerPoint = addressPoints[address] || null
+    const nearest = accountMarkers
+      .map(account => ({
+        ...account,
+        distanceKm: haversineDistanceKm(customerPoint, account.point),
+        similarityScore: buildAddressSimilarityScore(address, account.address),
+      }))
+      .sort((a, b) => {
+        const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.POSITIVE_INFINITY
+        const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.POSITIVE_INFINITY
+        if (aDistance !== bDistance) return aDistance - bDistance
+        return b.similarityScore - a.similarityScore
+      })[0] || null
+    return {
+      id: `customer-list-${item.id}`,
+      title: item.customer_name || item.title || '고객',
+      address,
+      visitTime: item.visit_time || item.start_time || '',
+      departmentInfo: item.department_info || '',
+      nearestLabel: nearest ? `${nearest.nickname}${Number.isFinite(nearest.distanceKm) ? ` · 약 ${nearest.distanceKm.toFixed(1)}km` : ''}` : '가까운 계정 계산 대기',
+      raw: item,
+    }
+  })
+
+  return { customerMarkers, accountMarkers, customerList }
+}
+
 function MapPage() {
   const isMobile = useIsMobile()
   const mapRef = useRef(null)
@@ -3470,8 +3664,15 @@ function MapPage() {
   const markerLayerRef = useRef(null)
   const watchIdRef = useRef(null)
   const shareToastTimerRef = useRef(null)
+  const dateInputRef = useRef(null)
   const [users, setUsers] = useState([])
+  const [accountUsers, setAccountUsers] = useState([])
+  const [scheduleItems, setScheduleItems] = useState([])
   const [shareNotice, setShareNotice] = useState('')
+  const [mapFilterOpen, setMapFilterOpen] = useState(false)
+  const [mapFilter, setMapFilter] = useState('live')
+  const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
+  const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], customerList: [] })
   const [shareStatus, setShareStatus] = useState({ eligible: false, consent_granted: false, sharing_enabled: false, active_now: false, active_assignment: null })
 
   function showShareNotice(message) {
@@ -3507,6 +3708,24 @@ function MapPage() {
     }
   }
 
+  async function loadAccountUsers() {
+    try {
+      const list = await api('/api/users')
+      setAccountUsers(Array.isArray(list) ? list : [])
+    } catch (_) {
+      setAccountUsers([])
+    }
+  }
+
+  async function loadSchedules(dateValue = selectedDate) {
+    try {
+      const list = await api(`/api/calendar/events?start_date=${dateValue}&end_date=${dateValue}`)
+      setScheduleItems(Array.isArray(list) ? list : [])
+    } catch (_) {
+      setScheduleItems([])
+    }
+  }
+
   async function refreshStatus() {
     try {
       const status = await api('/api/location-sharing/status')
@@ -3516,11 +3735,30 @@ function MapPage() {
 
   useEffect(() => {
     loadMapUsers().catch(() => {})
+    loadAccountUsers().catch(() => {})
+    loadSchedules(selectedDate).catch(() => {})
     refreshStatus().catch(() => {})
     return () => {
       if (shareToastTimerRef.current) window.clearTimeout(shareToastTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    loadSchedules(selectedDate).catch(() => {})
+  }, [selectedDate])
+
+  useEffect(() => {
+    let ignore = false
+    async function updateDeparture() {
+      if (mapFilter !== 'departure') return
+      const resolved = await resolveMapDepartureData(scheduleItems, accountUsers)
+      if (!ignore) setDepartureData(resolved)
+    }
+    updateDeparture().catch(() => {
+      if (!ignore) setDepartureData({ customerMarkers: [], accountMarkers: [], customerList: [] })
+    })
+    return () => { ignore = true }
+  }, [mapFilter, scheduleItems, accountUsers])
 
   async function handleToggleShare(nextEnabled) {
     if (!nextEnabled) {
@@ -3602,59 +3840,147 @@ function MapPage() {
     }
   }, [])
 
+  const activeMarkers = useMemo(() => {
+    if (mapFilter === 'departure') {
+      const customer = (departureData.customerMarkers || []).map(item => ({
+        type: 'customer',
+        id: item.id,
+        lat: item.point?.lat,
+        lng: item.point?.lng,
+        label: '●',
+        popup: `<strong>${item.title}</strong><br/>출발지<br/>${item.address}`,
+      }))
+      const accounts = (departureData.accountMarkers || []).map(item => ({
+        type: item.tone === 'executive' ? 'executive' : 'staff',
+        id: item.id,
+        lat: item.point?.lat,
+        lng: item.point?.lng,
+        label: '●',
+        popup: `<strong>${item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
+      }))
+      return [...customer, ...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+    }
+    return (users || []).map(item => ({
+      type: item.map_status?.is_moving ? 'moving' : 'stopped',
+      id: item.id,
+      lat: Number(item.latitude),
+      lng: Number(item.longitude),
+      label: ENCLOSED_NUMBERS[item.branch_no] || String(item.branch_no || '?'),
+      popup: `<strong>${item.branch_no || '-'}호점</strong><br/>${item.nickname}<br/>${item.vehicle_number || '-'}<br/>${item.region}`,
+    })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+  }, [mapFilter, users, departureData])
+
   useEffect(() => {
     if (!leafletRef.current || !markerLayerRef.current) return
     markerLayerRef.current.clearLayers()
-    if (users.length === 0) return
+    if (activeMarkers.length === 0) return
     const bounds = []
-    users.forEach(item => {
-      const label = ENCLOSED_NUMBERS[item.branch_no] || String(item.branch_no || '?')
-      const markerClass = item.map_status?.is_moving ? 'branch-marker moving' : 'branch-marker stopped'
-      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${label}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] })
-      L.marker([item.latitude, item.longitude], { icon })
-        .bindPopup(`<strong>${item.branch_no || '-'}호점</strong><br/>${item.nickname}<br/>${item.vehicle_number || '-'}<br/>${item.region}`)
-        .addTo(markerLayerRef.current)
-      bounds.push([item.latitude, item.longitude])
+    activeMarkers.forEach(item => {
+      const markerClass = item.type === 'customer'
+        ? 'branch-marker customer'
+        : item.type === 'executive'
+          ? 'branch-marker executive'
+          : item.type === 'staff'
+            ? 'branch-marker staff'
+            : item.type === 'moving'
+              ? 'branch-marker moving'
+              : 'branch-marker stopped'
+      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] })
+      L.marker([item.lat, item.lng], { icon }).bindPopup(item.popup).addTo(markerLayerRef.current)
+      bounds.push([item.lat, item.lng])
     })
     if (bounds.length === 1) leafletRef.current.setView(bounds[0], 12)
     else leafletRef.current.fitBounds(bounds, { padding: [30, 30] })
-  }, [users])
+  }, [activeMarkers])
+
+  function handlePickDate(value) {
+    if (!value) return
+    setSelectedDate(value)
+    setMapFilter('departure')
+    setMapFilterOpen(false)
+  }
+
+  function openDatePicker() {
+    try {
+      dateInputRef.current?.showPicker?.()
+    } catch (_) {
+      dateInputRef.current?.focus?.()
+      dateInputRef.current?.click?.()
+    }
+  }
 
   return (
     <div className="stack-page">
       <section className="card map-card enhanced-map-card">
         <div className={`map-card-head ${isMobile ? 'mobile' : ''}`}>
           <div className="map-head-spacer" />
-          <label className="share-toggle map-share-toggle">
-            <span>내위치 공유</span>
-            <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
-            <span className="share-toggle-slider" />
-          </label>
+          <div className="map-overlay-controls">
+            <div className="map-filter-date-wrap">
+              <button type="button" className="map-overlay-button icon" onClick={openDatePicker} aria-label="날짜 선택">📅</button>
+              <input ref={dateInputRef} type="date" className="map-hidden-date-input" value={selectedDate} onChange={e => handlePickDate(e.target.value)} />
+            </div>
+            <div className="map-filter-wrap">
+              <button type="button" className="map-overlay-button" onClick={() => setMapFilterOpen(prev => !prev)}>필터</button>
+              {mapFilterOpen && (
+                <div className="map-filter-popover">
+                  <button type="button" className={mapFilter === 'live' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('live'); setMapFilterOpen(false) }}>실시간</button>
+                  <button type="button" className={mapFilter === 'departure' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('departure'); setMapFilterOpen(false) }}>출발지</button>
+                </div>
+              )}
+            </div>
+            <label className="share-toggle map-share-toggle">
+              <span>내위치 공유</span>
+              <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
+              <span className="share-toggle-slider" />
+            </label>
+          </div>
         </div>
         {shareNotice && <div className="map-toast-notice">{shareNotice}</div>}
         <div ref={mapRef} className="real-map-canvas" />
         <div className="vehicle-list-panel">
-          <div className="vehicle-list-title">차량 목록</div>
-          <div className="vehicle-list-items">
-            {users.map(item => {
-              const statusText = item.map_status?.status_text || `현위치 ${item.map_status?.current_location || item.region || '-'}에 있고 정차 중`
-              return (
-                <div key={item.id} className={`vehicle-list-item ${item.map_status?.is_moving ? 'moving' : 'stopped'}`}>
-                  <div className="vehicle-list-line primary">
-                    <strong>[{item.branch_no}호점]</strong>
-                    <span>[{statusText}]</span>
+          {mapFilter === 'departure' ? (
+            <>
+              <div className="vehicle-list-title">출발지 목록 · {selectedDate}</div>
+              <div className="vehicle-list-items">
+                {(departureData.customerList || []).map(item => (
+                  <div key={item.id} className="vehicle-list-item stopped">
+                    <div className="vehicle-list-line primary">
+                      <strong>[{item.departmentInfo || '일정'}]</strong>
+                      <span>{item.title}</span>
+                    </div>
+                    <div className="vehicle-list-line sub">출발지 : {item.address || '-'}</div>
+                    <div className="vehicle-list-line sub">가까운 계정 : {item.nearestLabel}</div>
+                    {item.visitTime ? <div className="vehicle-list-line sub">방문시각 : {item.visitTime}</div> : null}
                   </div>
-                  {item.map_status?.is_moving && (
-                    <>
-                      <div className="vehicle-list-line sub">* {item.branch_no}호점 이동소요시간 카카오맵 API 연동 후 표시 예정</div>
-                      <div className="vehicle-list-line sub">* {item.branch_no}호점 예상도착시간 카카오맵 API 연동 후 표시 예정</div>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-            {users.length === 0 && <div className="muted">지도에 표시할 차량 위치가 없습니다.</div>}
-          </div>
+                ))}
+                {!(departureData.customerList || []).length && <div className="muted">선택한 날짜의 출발지 일정이 없습니다.</div>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="vehicle-list-title">차량 목록</div>
+              <div className="vehicle-list-items">
+                {users.map(item => {
+                  const statusText = item.map_status?.status_text || `현위치 ${item.map_status?.current_location || item.region || '-'}에 있고 정차 중`
+                  return (
+                    <div key={item.id} className={`vehicle-list-item ${item.map_status?.is_moving ? 'moving' : 'stopped'}`}>
+                      <div className="vehicle-list-line primary">
+                        <strong>[{item.branch_no}호점]</strong>
+                        <span>[{statusText}]</span>
+                      </div>
+                      {item.map_status?.is_moving && (
+                        <>
+                          <div className="vehicle-list-line sub">* {item.branch_no}호점 이동소요시간 카카오맵 API 연동 후 표시 예정</div>
+                          <div className="vehicle-list-line sub">* {item.branch_no}호점 예상도착시간 카카오맵 API 연동 후 표시 예정</div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+                {users.length === 0 && <div className="muted">지도에 표시할 차량 위치가 없습니다.</div>}
+              </div>
+            </>
+          )}
         </div>
       </section>
     </div>

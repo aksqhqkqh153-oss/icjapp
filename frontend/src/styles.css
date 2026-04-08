@@ -16825,3 +16825,132 @@ body.layout-guide-enabled .error {
     max-width: calc(100vw - 20px);
   }
 }
+
+/* 2026-04-08 schedule mobile full-height + map filter controls */
+@media (max-width: 768px) {
+  .schedule-page.mobile {
+    min-height: calc(100dvh - 124px);
+    height: calc(100dvh - 124px);
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .schedule-page.mobile .schedule-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    border-radius: 0;
+    margin-top: 0;
+    padding-top: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .schedule-page.mobile .schedule-detail-card,
+  .schedule-page.mobile .mobile-schedule-detail-panel,
+  .schedule-page.mobile .calendar-grid,
+  .schedule-page.mobile .calendar-cell,
+  .schedule-page.mobile .calendar-date-select,
+  .schedule-page.mobile .calendar-entry-band,
+  .schedule-page.mobile .calendar-lane,
+  .schedule-page.mobile .calendar-weekdays,
+  .schedule-page.mobile .weekday,
+  .schedule-page.mobile .detail-schedule-item {
+    border-radius: 0 !important;
+  }
+
+  .schedule-page.mobile .calendar-grid.detail-mode {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel {
+    margin-top: 0;
+  }
+}
+
+.map-overlay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.map-filter-wrap,
+.map-filter-date-wrap {
+  position: relative;
+}
+
+.map-overlay-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  background: rgba(255,255,255,0.96);
+  color: #0f172a;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.map-overlay-button.icon {
+  min-width: 40px;
+  padding-inline: 8px;
+}
+
+.map-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 86px;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  z-index: 25;
+}
+
+.map-hidden-date-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.branch-marker.customer {
+  background: #dc2626;
+  color: #fff;
+  border-color: #7f1d1d;
+}
+
+.branch-marker.executive {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+
+.branch-marker.staff {
+  background: #fff;
+  color: #111827;
+  border-color: #111827;
+}
+
+@media (max-width: 768px) {
+  .map-overlay-controls {
+    justify-content: flex-end;
+    pointer-events: auto;
+  }
+
+  .map-overlay-button,
+  .map-filter-popover,
+  .map-share-toggle {
+    pointer-events: auto;
+  }
+
+  .real-map-canvas {
+    border-radius: 0;
+  }
+}
