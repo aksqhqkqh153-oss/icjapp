@@ -242,6 +242,8 @@ class CalendarEventIn(BaseModel):
     visit_time: str = ""
     move_start_date: str = ""
     move_end_date: str = ""
+    move_end_start_time: str = ""
+    move_end_end_time: str = ""
     start_address: str = ""
     end_address: str = ""
     platform: str = ""

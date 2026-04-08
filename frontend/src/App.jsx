@@ -3740,13 +3740,31 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
         if (aDistance !== bDistance) return aDistance - bDistance
         return b.similarityScore - a.similarityScore
       })[0] || null
+    const rankedAccounts = accountMarkers
+      .map(account => ({
+        ...account,
+        distanceKm: haversineDistanceKm(customerPoint, account.point),
+        similarityScore: buildAddressSimilarityScore(address, account.address),
+      }))
+      .sort((a, b) => {
+        const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.POSITIVE_INFINITY
+        const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.POSITIVE_INFINITY
+        if (aDistance !== bDistance) return aDistance - bDistance
+        return b.similarityScore - a.similarityScore
+      })
+    const businessCandidates = rankedAccounts.filter(account => account.tone === 'executive').slice(0, 3)
+    const staffCandidates = rankedAccounts.filter(account => account.tone !== 'executive').slice(0, 3)
     return {
       id: `customer-list-${item.id}`,
       title: item.customer_name || item.title || '고객',
       address,
+      point: customerPoint,
       visitTime: item.visit_time || item.start_time || '',
       departmentInfo: item.department_info || '',
+      startTime: item.start_time || '',
       nearestLabel: nearest ? `${nearest.nickname}${Number.isFinite(nearest.distanceKm) ? ` · 약 ${nearest.distanceKm.toFixed(1)}km` : ''}` : '가까운 계정 계산 대기',
+      businessCandidates,
+      staffCandidates,
       raw: item,
     }
   })
@@ -4006,6 +4024,25 @@ function MapPage() {
       dateInputRef.current?.focus?.()
       dateInputRef.current?.click?.()
     }
+  }
+
+  function handleFocusDepartureItem(item) {
+    const lat = Number(item?.point?.lat)
+    const lng = Number(item?.point?.lng)
+    if (!leafletRef.current || !Number.isFinite(lat) || !Number.isFinite(lng)) return
+    leafletRef.current.setView([lat, lng], 15, { animate: true })
+    markerLayerRef.current?.eachLayer?.(layer => {
+      const target = layer?.getLatLng?.()
+      if (!target) return
+      if (Math.abs(target.lat - lat) < 0.000001 && Math.abs(target.lng - lng) < 0.000001) {
+        try { layer.openPopup?.() } catch (_) {}
+      }
+    })
+  }
+
+  function formatCandidateList(items = []) {
+    if (!items.length) return '계산 대기'
+    return items.map((candidate, index) => `${index + 1}순위 : ${candidate.nickname}${Number.isFinite(candidate.distanceKm) ? `/${candidate.distanceKm.toFixed(1)}km` : ''}`).join(' / ')
   }
 
   return (
@@ -4410,6 +4447,11 @@ function applyAlphaToHex(hex, alpha = '22') {
 function eventTimeLine(item) {
   const start = item.start_time || '미정'
   const end = item.end_time || '미정'
+  const endDayStart = item.move_end_start_time || ''
+  const endDayEnd = item.move_end_end_time || ''
+  if (endDayStart || endDayEnd) {
+    return `${start} ~ ${end} / 종료일 ${endDayStart || '미정'} ~ ${endDayEnd || '미정'}`
+  }
   return `${start} ~ ${end}`
 }
 
@@ -6108,6 +6150,8 @@ function ScheduleFormPage({ mode }) {
   const [visitTimeText, setVisitTimeText] = useState('')
   const [startTimeText, setStartTimeText] = useState('')
   const [endTimeText, setEndTimeText] = useState('')
+  const [endDateStartTimeText, setEndDateStartTimeText] = useState('')
+  const [endDateEndTimeText, setEndDateEndTimeText] = useState('')
   const [assignableUsers, setAssignableUsers] = useState([])
   const [form, setForm] = useState({
     title: '',
@@ -6120,6 +6164,8 @@ function ScheduleFormPage({ mode }) {
     color: '#2563eb',
     move_start_date: presetDate,
     move_end_date: presetDate,
+    move_end_start_time: '미정',
+    move_end_end_time: '미정',
     start_address: '',
     end_address: '',
     platform: PLATFORM_OPTIONS[0],
@@ -6175,6 +6221,8 @@ function ScheduleFormPage({ mode }) {
           color: data.color || '#2563eb',
           move_start_date: toIsoDateInputValue(data.move_start_date || data.event_date || presetDate) || presetDate,
           move_end_date: toIsoDateInputValue(data.move_end_date || data.event_date || presetDate) || presetDate,
+          move_end_start_time: data.move_end_start_time || '미정',
+          move_end_end_time: data.move_end_end_time || '미정',
           start_address: data.start_address || data.location || '',
           end_address: data.end_address || '',
           platform: data.platform || PLATFORM_OPTIONS[0],
@@ -6201,6 +6249,8 @@ function ScheduleFormPage({ mode }) {
         setVisitTimeText(data.visit_time && data.visit_time !== '미정' ? data.visit_time : '')
         setStartTimeText(data.start_time && data.start_time !== '미정' ? data.start_time : '')
         setEndTimeText(data.end_time && data.end_time !== '미정' ? data.end_time : '')
+        setEndDateStartTimeText(data.move_end_start_time && data.move_end_start_time !== '미정' ? data.move_end_start_time : '')
+        setEndDateEndTimeText(data.move_end_end_time && data.move_end_end_time !== '미정' ? data.move_end_end_time : '')
         setTitleLocked(!(data.title || '').trim() || (data.title || '').trim() === buildScheduleTitle({ ...data, amount1: data.amount1 || '' }).trim())
       } catch (err) {
         setError(err.message)
@@ -6258,6 +6308,22 @@ function ScheduleFormPage({ mode }) {
     }
     setEndTimeText(form.end_time || '')
   }, [form.end_time])
+
+  useEffect(() => {
+    if (form.move_end_start_time === '미정') {
+      setEndDateStartTimeText('')
+      return
+    }
+    setEndDateStartTimeText(form.move_end_start_time || '')
+  }, [form.move_end_start_time])
+
+  useEffect(() => {
+    if (form.move_end_end_time === '미정') {
+      setEndDateEndTimeText('')
+      return
+    }
+    setEndDateEndTimeText(form.move_end_end_time || '')
+  }, [form.move_end_end_time])
 
   function commitVisitTimeInput(rawValue) {
     const normalized = normalizeScheduleTimeInput(rawValue, form.visit_time === '미정' ? '' : form.visit_time)
@@ -6319,6 +6385,14 @@ function ScheduleFormPage({ mode }) {
 
   function handleEndTimeBlur() {
     commitGenericTimeInput('end_time', endTimeText, form.end_time, setEndTimeText)
+  }
+
+  function handleEndDateStartTimeBlur() {
+    commitGenericTimeInput('move_end_start_time', endDateStartTimeText, form.move_end_start_time, setEndDateStartTimeText)
+  }
+
+  function handleEndDateEndTimeBlur() {
+    commitGenericTimeInput('move_end_end_time', endDateEndTimeText, form.move_end_end_time, setEndDateEndTimeText)
   }
 
   async function handleImageChange(e) {
@@ -6559,31 +6633,31 @@ function ScheduleFormPage({ mode }) {
             </div>
             <div className="schedule-date-time-fields">
               <div className="stack compact-gap schedule-time-field">
-                <label>이사시작시각</label>
+                <label>이사종료일 시작시각</label>
                 <div className="inline-actions schedule-time-actions">
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={5}
-                    value={startTimeText}
-                    onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleStartTimeBlur}
+                    value={endDateStartTimeText}
+                    onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleEndDateStartTimeBlur}
                   />
-                  <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
+                  <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
                 </div>
               </div>
               <div className="stack compact-gap schedule-time-field">
-                <label>이사종료예상시각</label>
+                <label>이사종료일 종료시각</label>
                 <div className="inline-actions schedule-time-actions">
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={5}
-                    value={endTimeText}
-                    onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleEndTimeBlur}
+                    value={endDateEndTimeText}
+                    onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                    onBlur={handleEndDateEndTimeBlur}
                   />
-                  <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
+                  <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
                 </div>
               </div>
             </div>

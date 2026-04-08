@@ -1990,6 +1990,8 @@ def init_db() -> None:
             'visit_time': "TEXT DEFAULT ''",
             'move_start_date': "TEXT DEFAULT ''",
             'move_end_date': "TEXT DEFAULT ''",
+            'move_end_start_time': "TEXT DEFAULT ''",
+            'move_end_end_time': "TEXT DEFAULT ''",
             'start_address': "TEXT DEFAULT ''",
             'end_address': "TEXT DEFAULT ''",
             'platform': "TEXT DEFAULT ''",

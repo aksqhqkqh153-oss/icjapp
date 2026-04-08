@@ -17386,3 +17386,91 @@ textarea,
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+
+/* 2026-04-08 topbar alignment + schedule end-day time separation + map departure focus */
+.topbar {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 114px;
+  align-items: center;
+}
+.topbar-left,
+.topbar-right {
+  min-height: 40px;
+  height: 40px;
+}
+.topbar-right {
+  gap: 0;
+}
+.topbar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.topbar-icon-svg {
+  width: 21px;
+  height: 21px;
+  stroke: #111111;
+  stroke-width: 1.85;
+}
+.notification-icon-button .topbar-icon-svg {
+  width: 21px;
+  height: 21px;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.departure-list-button {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  cursor: pointer;
+}
+.departure-list-button:hover {
+  background: #f8fafc;
+}
+.departure-list-primary {
+  align-items: center;
+}
+.departure-list-primary strong {
+  min-width: 0;
+}
+.departure-detail-chip {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  border: 1px solid #cbd5e1;
+  padding: 2px 8px;
+}
+
+@media (max-width: 768px) {
+  .topbar {
+    grid-template-columns: 62px minmax(0, 1fr) 102px;
+  }
+  .page-heading {
+    font-size: 15px;
+  }
+  .topbar-left,
+  .topbar-right,
+  .page-heading {
+    min-height: 36px;
+    height: 36px;
+  }
+  .topbar-icon-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+  .topbar-icon-svg,
+  .notification-icon-button .topbar-icon-svg {
+    width: 19px;
+    height: 19px;
+  }
+}
