@@ -16165,3 +16165,36 @@ body.layout-guide-enabled .error {
     font-size: 12px;
   }
 }
+
+/* 2026-04-08 mobile schedule screen shell full viewport fit */
+@media (max-width: 768px) {
+  .app-shell.schedule-wide,
+  .page-container.work-schedule-wide,
+  .page-container.work-schedule-wide > .work-schedule-page.mobile,
+  .work-schedule-page.mobile {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .page-container.work-schedule-wide {
+    min-height: calc(100dvh - 50px - 58px) !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .page-container.work-schedule-wide > .work-schedule-page.mobile,
+  .work-schedule-page.mobile {
+    min-height: calc(100dvh - 50px - 58px) !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day {
+    min-height: calc(100dvh - 50px - 58px) !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+}
