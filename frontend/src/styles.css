@@ -17117,3 +17117,84 @@ body.layout-guide-enabled .work-schedule-page.mobile .work-exclusion-section.wor
   outline: 2px solid rgba(34, 197, 94, 0.9) !important;
   outline-offset: -1px;
 }
+
+
+/* 2026-04-08 late mobile schedule/map cleanup */
+.map-filter-popover-side {
+  top: 0;
+  right: auto;
+  left: calc(100% + 6px);
+}
+
+.popover-share-toggle {
+  margin-left: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .map-card-head.mobile {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    left: auto !important;
+    z-index: 2 !important;
+    pointer-events: auto !important;
+    justify-content: flex-start !important;
+    margin-bottom: 8px;
+  }
+
+  .map-overlay-controls {
+    width: 100%;
+    justify-content: flex-start !important;
+    align-items: flex-start;
+    gap: 8px;
+    margin-left: 0;
+  }
+
+  .map-filter-wrap,
+  .map-filter-date-wrap {
+    z-index: 6;
+  }
+
+  .map-filter-popover,
+  .map-filter-popover-side {
+    top: 0;
+    left: calc(100% + 6px);
+    right: auto;
+  }
+
+  .map-share-toggle {
+    margin-left: 0;
+  }
+
+  .enhanced-map-card {
+    gap: 10px;
+  }
+
+  .real-map-canvas {
+    order: 3;
+    margin-top: 0;
+  }
+
+  .vehicle-list-panel {
+    order: 4;
+  }
+
+  .work-schedule-mobile-group-shell.mobile,
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-mobile-block,
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-list.unified-list .work-schedule-line-item,
+  .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block .work-schedule-exclusion-row {
+    outline: none !important;
+    border-color: inherit !important;
+  }
+}
+
+body.layout-guide-enabled .work-schedule-mobile-group-shell.mobile,
+body.layout-guide-enabled .work-schedule-mobile-group-shell.mobile .work-schedule-mobile-block,
+body.layout-guide-enabled .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-list.unified-list .work-schedule-line-item,
+body.layout-guide-enabled .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block .work-schedule-exclusion-row {
+  outline: none !important;
+}

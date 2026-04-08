@@ -3670,6 +3670,7 @@ function MapPage() {
   const [scheduleItems, setScheduleItems] = useState([])
   const [shareNotice, setShareNotice] = useState('')
   const [mapFilterOpen, setMapFilterOpen] = useState(false)
+  const [mapSettingsOpen, setMapSettingsOpen] = useState(false)
   const [mapFilter, setMapFilter] = useState('live')
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
   const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], customerList: [] })
@@ -3898,6 +3899,7 @@ function MapPage() {
     setSelectedDate(value)
     setMapFilter('departure')
     setMapFilterOpen(false)
+    setMapSettingsOpen(false)
   }
 
   function openDatePicker() {
@@ -3913,26 +3915,32 @@ function MapPage() {
     <div className="stack-page">
       <section className="card map-card enhanced-map-card">
         <div className={`map-card-head ${isMobile ? 'mobile' : ''}`}>
-          <div className="map-head-spacer" />
           <div className="map-overlay-controls">
             <div className="map-filter-date-wrap">
               <button type="button" className="map-overlay-button icon" onClick={openDatePicker} aria-label="날짜 선택">📅</button>
               <input ref={dateInputRef} type="date" className="map-hidden-date-input" value={selectedDate} onChange={e => handlePickDate(e.target.value)} />
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button" onClick={() => setMapFilterOpen(prev => !prev)}>필터</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapFilterOpen(prev => !prev); setMapSettingsOpen(false) }}>필터</button>
               {mapFilterOpen && (
-                <div className="map-filter-popover">
+                <div className="map-filter-popover map-filter-popover-side">
                   <button type="button" className={mapFilter === 'live' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('live'); setMapFilterOpen(false) }}>실시간</button>
                   <button type="button" className={mapFilter === 'departure' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('departure'); setMapFilterOpen(false) }}>출발지</button>
                 </div>
               )}
             </div>
-            <label className="share-toggle map-share-toggle">
-              <span>내위치 공유</span>
-              <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
-              <span className="share-toggle-slider" />
-            </label>
+            <div className="map-filter-wrap">
+              <button type="button" className="map-overlay-button icon" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false) }} aria-label="설정">⚙️</button>
+              {mapSettingsOpen && (
+                <div className="map-filter-popover map-filter-popover-side map-settings-popover">
+                  <label className="share-toggle map-share-toggle popover-share-toggle">
+                    <span>내위치 공유</span>
+                    <input type="checkbox" checked={Boolean(shareStatus?.sharing_enabled)} onChange={e => handleToggleShare(e.target.checked).catch(err => window.alert(err.message))} />
+                    <span className="share-toggle-slider" />
+                  </label>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {shareNotice && <div className="map-toast-notice">{shareNotice}</div>}
@@ -5549,8 +5557,22 @@ function WorkSchedulePage() {
   }
 
 
+  function isEntryFormChanged(form) {
+    return Boolean(
+      String(form.schedule_time || '').trim()
+      || String(form.customer_name || '').trim()
+      || String(form.representative_names || '').trim()
+      || String(form.staff_names || '').trim()
+      || String(form.memo || '').trim()
+    )
+  }
+
   async function submitEntry(e) {
     e.preventDefault()
+    if (!isEntryFormChanged(entryForm)) {
+      closeEntryForm()
+      return
+    }
     await api('/api/work-schedule/entries', { method: 'POST', body: JSON.stringify({ ...entryForm, schedule_time: entryForm.schedule_time || '' }) })
     setMessage('스케줄이 등록되었습니다.')
     closeEntryForm()
@@ -5722,7 +5744,7 @@ function WorkSchedulePage() {
                   <div className="work-schedule-section-title-wrap">
                     <strong className="work-schedule-section-title">스케줄 목록</strong>
                   </div>
-                  {!readOnly && <button type="button" className="small ghost" onClick={() => openCreate(day.date)}>스케줄추가</button>}
+                  {!readOnly && <button type="button" className="small ghost" onClick={() => activeFormDate === day.date ? closeEntryForm() : openCreate(day.date)}>수정/삭제</button>}
                 </div>
 
             {activeFormDate === day.date && !readOnly && (
@@ -5738,8 +5760,7 @@ function WorkSchedulePage() {
                   <input value={entryForm.memo} placeholder="기타 메모" onChange={e => setEntryForm({ ...entryForm, memo: e.target.value })} />
                 </div>
                 <div className="inline-actions wrap">
-                  <button>스케줄 저장</button>
-                  <button type="button" className="ghost" onClick={closeEntryForm}>닫기</button>
+                  <button>저장</button>
                 </div>
               </form>
             )}
