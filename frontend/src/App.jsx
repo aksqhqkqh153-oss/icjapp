@@ -4136,6 +4136,8 @@ function MapPage() {
     })
   }
 
+  const [departureExpanded, setDepartureExpanded] = useState(false)
+
   function formatCandidateList(items = []) {
     if (!items.length) return '계산 대기'
     return items
@@ -4149,7 +4151,7 @@ function MapPage() {
         <div className={`map-card-head ${isMobile ? 'mobile' : ''}`}>
           <div className="map-overlay-controls">
             <div className="map-filter-date-wrap">
-              <button type="button" className="map-overlay-button icon" onClick={openDatePicker} aria-label="날짜 선택">📅</button>
+              <button type="button" className="map-overlay-button" onClick={openDatePicker} aria-label="날짜 선택">날짜</button>
               <input ref={dateInputRef} type="date" className="map-hidden-date-input" value={selectedDate} onChange={e => handlePickDate(e.target.value)} />
             </div>
             <div className="map-filter-wrap">
@@ -4162,7 +4164,7 @@ function MapPage() {
               )}
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button icon" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false) }} aria-label="설정">⚙️</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false) }} aria-label="설정">설정</button>
               {mapSettingsOpen && (
                 <div className="map-filter-popover map-filter-popover-side map-settings-popover">
                   <label className="share-toggle map-share-toggle popover-share-toggle">
@@ -4181,39 +4183,54 @@ function MapPage() {
           {mapFilter === 'departure' ? (
             <>
               <div className="vehicle-list-title departure-list-title-row">
-                <span>출발지 목록 - {selectedDate}</span>
-                <span className="departure-distance-legend">* 거리 : km</span>
+                <div className="departure-list-title-main">
+                  <span>출발지 목록 - {selectedDate}</span>
+                  <span className="departure-distance-legend">* 거리 : km</span>
+                </div>
+                <button
+                  type="button"
+                  className="small ghost departure-fold-toggle"
+                  onClick={() => setDepartureExpanded(prev => !prev)}
+                >
+                  {departureExpanded ? '접기' : '펼치기'}
+                </button>
               </div>
               <div className="vehicle-list-items">
                 {(departureData.customerList || []).map(item => {
                   const summaryTime = item.startTime || item.visitTime || '-'
                   return (
-                    <div key={item.id} className="vehicle-list-item stopped departure-list-item">
+                    <div key={item.id} className={`vehicle-list-item stopped departure-list-item${departureExpanded ? ' expanded' : ' collapsed'}`}>
                       <div className="departure-summary-row">
                         <span className="departure-summary-chip">{item.departmentInfo || '일정'}</span>
                         <span className="departure-summary-time">{summaryTime}</span>
                         <strong className="departure-summary-customer">{item.title}</strong>
-                        <button
-                          type="button"
-                          className="small ghost departure-detail-button"
-                          onClick={() => navigate(`/schedule/${item.raw?.id}`)}
-                        >
-                          상세일정
-                        </button>
+                        {departureExpanded && (
+                          <button
+                            type="button"
+                            className="small ghost departure-detail-button"
+                            onClick={() => navigate(`/schedule/${item.raw?.id}`)}
+                          >
+                            상세일정
+                          </button>
+                        )}
                       </div>
-                      <div className="vehicle-list-line sub departure-detail-line">
-                        <strong>출발지 :</strong>
-                        <span>{item.address || '-'}</span>
-                        {item.geocodeApproximate && <em className="departure-approx-note">(주소 중심 좌표 기준)</em>}
-                      </div>
-                      <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
-                        <strong>사업자 :</strong>
-                        <span className="departure-rank-text">{formatCandidateList(item.businessCandidates)}</span>
-                      </div>
-                      <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
-                        <strong>직원 :</strong>
-                        <span className="departure-rank-text">{formatCandidateList(item.staffCandidates)}</span>
-                      </div>
+                      {departureExpanded && (
+                        <>
+                          <div className="vehicle-list-line sub departure-detail-line">
+                            <strong>출발지 :</strong>
+                            <span>{item.address || '-'}</span>
+                            {item.geocodeApproximate && <em className="departure-approx-note">(주소 중심 좌표 기준)</em>}
+                          </div>
+                          <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
+                            <strong>사업자 :</strong>
+                            <span className="departure-rank-text">{formatCandidateList(item.businessCandidates)}</span>
+                          </div>
+                          <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
+                            <strong>직원 :</strong>
+                            <span className="departure-rank-text">{formatCandidateList(item.staffCandidates)}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )
                 })}
@@ -5433,15 +5450,33 @@ function resolveScheduleAssigneeRole(user = {}) {
 
 function buildAssigneeTagValue(user) {
   const displayName = String(user?.name || user?.nickname || user?.email || '').trim()
+  const role = resolveScheduleAssigneeRole(user)
   const branchNo = Number(user?.branch_no)
   const branchLabel = Number.isFinite(branchNo) && branchNo >= 0 ? `${branchNo}호점` : '미지정'
-  return displayName ? `[${branchLabel}][${displayName}]` : ''
+  const positionLabel = String(user?.position_title || user?.position || user?.grade_name || '').trim() || '미지정'
+  const phoneLabel = String(user?.phone || user?.email || '').trim()
+  if (!displayName) return ''
+  if (role === 'business') return `[${branchLabel}] [${displayName}]${phoneLabel ? ` [${phoneLabel}]` : ''}`
+  if (role === 'staff') return `[${positionLabel}] [${displayName}]${phoneLabel ? ` [${phoneLabel}]` : ''}`
+  return `[${displayName}]${phoneLabel ? ` [${phoneLabel}]` : ''}`
 }
 
 function buildAssigneeOptionMeta(user) {
-  const roleLabel = resolveScheduleAssigneeRole(user) === 'business' ? '사업자' : (resolveScheduleAssigneeRole(user) === 'staff' ? '직원' : '')
-  const position = String(user?.position_title || user?.position || '').trim()
-  const parts = [roleLabel, position, String(user?.email || '').trim(), String(user?.phone || '').trim()].filter(Boolean)
+  const role = resolveScheduleAssigneeRole(user)
+  if (role === 'business') {
+    const branchNo = Number(user?.branch_no)
+    const branchLabel = Number.isFinite(branchNo) && branchNo >= 0 ? `${branchNo}호점` : '미지정'
+    const displayName = String(user?.name || user?.nickname || user?.email || '').trim() || '-'
+    const phoneLabel = String(user?.phone || user?.email || '').trim() || '-'
+    return `[${branchLabel}] [${displayName}] [${phoneLabel}]`
+  }
+  if (role === 'staff') {
+    const positionLabel = String(user?.position_title || user?.position || user?.grade_name || '').trim() || '미지정'
+    const displayName = String(user?.name || user?.nickname || user?.email || '').trim() || '-'
+    const phoneLabel = String(user?.phone || user?.email || '').trim() || '-'
+    return `[${positionLabel}] [${displayName}] [${phoneLabel}]`
+  }
+  const parts = [String(user?.name || user?.nickname || user?.email || '').trim(), String(user?.phone || user?.email || '').trim()].filter(Boolean)
   return parts.join(' · ')
 }
 
@@ -6692,6 +6727,18 @@ function ScheduleFormPage({ mode }) {
     setForm(prev => ({ ...prev, staff1: first || '', staff2: second || '', staff3: third || '' }))
   }
 
+  async function handleDeleteCurrentSchedule() {
+    if (mode !== 'edit' || !eventId) return
+    const confirmed = window.confirm('현재 일정을 삭제하시겠습니까?')
+    if (!confirmed) return
+    try {
+      await api(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
+      navigate('/schedule')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   async function submit(e) {
     e.preventDefault()
     setError('')
@@ -6744,7 +6791,8 @@ function ScheduleFormPage({ mode }) {
             </button>
             <div className="inline-actions wrap end">
               <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(v => !v)}>설정</button>
-              <button type="submit" className="small schedule-save-button top-save-button">일정 저장</button>
+              {mode === 'edit' && <button type="button" className="ghost small schedule-save-button top-delete-button" onClick={handleDeleteCurrentSchedule}>삭제</button>}
+              <button type="submit" className="small schedule-save-button top-save-button">수정</button>
             </div>
           </div>
           <div className="schedule-form-grid-1 schedule-type-row">
@@ -6970,9 +7018,7 @@ function ScheduleFormPage({ mode }) {
             <AssigneeInput label="담당직원" users={assignableUsers} value={[form.staff1, form.staff2, form.staff3].filter(Boolean).join(' / ')} onChange={updateStaffNames} placeholder="이름/아이디 입력 후 태그 선택" />
           </div>
           {error && <div className="error">{error}</div>}
-          <div className="schedule-form-footer">
-            <button type="submit" className="small schedule-save-button">일정 저장</button>
-          </div>
+
         </form>
       </section>
     </div>
