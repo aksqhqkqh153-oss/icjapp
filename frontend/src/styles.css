@@ -2841,25 +2841,41 @@ label { font-size: 14px; color: #4f6f8c; }
 .vehicle-list-line.primary strong { min-width: 70px; }
 .vehicle-list-line.sub { padding-left: 6px; color: #475569; font-size: 14px; }
 
+.departure-list-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.departure-distance-legend {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
 .departure-list-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  padding: 8px 0;
 }
 
 .departure-summary-row {
   display: grid;
   grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .departure-summary-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 6px 10px;
+  min-height: 28px;
+  padding: 4px 8px;
   border-radius: 10px;
   background: #eef2ff;
   color: #334155;
@@ -2888,7 +2904,8 @@ label { font-size: 14px; color: #4f6f8c; }
 
 .departure-detail-line {
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
+  line-height: 1.32;
 }
 
 .departure-detail-line strong {
@@ -2902,6 +2919,21 @@ label { font-size: 14px; color: #4f6f8c; }
   word-break: break-word;
 }
 
+.departure-rank-line {
+  flex-wrap: nowrap;
+}
+
+.departure-rank-text {
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.departure-rank-text::-webkit-scrollbar {
+  display: none;
+}
+
 .departure-approx-note {
   font-style: normal;
   color: #64748b;
@@ -2909,6 +2941,12 @@ label { font-size: 14px; color: #4f6f8c; }
 }
 
 @media (max-width: 768px) {
+  .departure-list-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .departure-summary-row {
     grid-template-columns: 1fr auto;
     grid-template-areas:
@@ -2935,6 +2973,14 @@ label { font-size: 14px; color: #4f6f8c; }
   .departure-detail-button {
     grid-area: button;
     justify-self: end;
+  }
+
+  .departure-rank-line {
+    gap: 3px;
+  }
+
+  .departure-rank-text {
+    font-size: 13px;
   }
 }
 

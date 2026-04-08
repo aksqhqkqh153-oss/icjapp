@@ -3791,6 +3791,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
       id: `account-${user.id}`,
       scheduleId: null,
       userId: user.id,
+      displayName: user.name || user.nickname || user.display_name || user.email || '미지정',
       nickname: user.nickname || user.name || user.display_name || user.email || '미지정',
       positionTitle: user.position_title || user.position || '',
       address,
@@ -3855,7 +3856,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
       visitTime: item.visit_time || item.start_time || '',
       departmentInfo: item.department_info || '',
       startTime: item.start_time || '',
-      nearestLabel: nearest ? `${nearest.nickname}${Number.isFinite(nearest.distanceKm) ? ` · 약 ${nearest.distanceKm.toFixed(1)}km` : ''}` : '가까운 계정 계산 대기',
+      nearestLabel: nearest ? `${nearest.displayName || nearest.nickname}${Number.isFinite(nearest.distanceKm) ? ` · 약 ${nearest.distanceKm.toFixed(1)}` : ''}` : '가까운 계정 계산 대기',
       businessCandidates,
       staffCandidates,
       geocodeApproximate: Boolean(customerPoint?.approximate),
@@ -4067,7 +4068,7 @@ function MapPage() {
         lat: item.point?.lat,
         lng: item.point?.lng,
         label: '●',
-        popup: `<strong>${item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
+        popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
       }))
       return [...customer, ...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
@@ -4137,7 +4138,9 @@ function MapPage() {
 
   function formatCandidateList(items = []) {
     if (!items.length) return '계산 대기'
-    return items.map((candidate, index) => `${index + 1}순위 : ${candidate.nickname}${Number.isFinite(candidate.distanceKm) ? `/${candidate.distanceKm.toFixed(1)}km` : ''}`).join(' / ')
+    return items
+      .map((candidate, index) => `${index + 1}순위 : ${candidate.displayName || candidate.nickname}${Number.isFinite(candidate.distanceKm) ? `/${candidate.distanceKm.toFixed(1)}` : ''}`)
+      .join(' | ')
   }
 
   return (
@@ -4177,7 +4180,10 @@ function MapPage() {
         <div className="vehicle-list-panel">
           {mapFilter === 'departure' ? (
             <>
-              <div className="vehicle-list-title">출발지 목록 · {selectedDate}</div>
+              <div className="vehicle-list-title departure-list-title-row">
+                <span>출발지 목록 - {selectedDate}</span>
+                <span className="departure-distance-legend">* 거리 : km</span>
+              </div>
               <div className="vehicle-list-items">
                 {(departureData.customerList || []).map(item => {
                   const summaryTime = item.startTime || item.visitTime || '-'
@@ -4200,13 +4206,13 @@ function MapPage() {
                         <span>{item.address || '-'}</span>
                         {item.geocodeApproximate && <em className="departure-approx-note">(주소 중심 좌표 기준)</em>}
                       </div>
-                      <div className="vehicle-list-line sub departure-detail-line">
+                      <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
                         <strong>사업자 :</strong>
-                        <span>{formatCandidateList(item.businessCandidates)}</span>
+                        <span className="departure-rank-text">{formatCandidateList(item.businessCandidates)}</span>
                       </div>
-                      <div className="vehicle-list-line sub departure-detail-line">
+                      <div className="vehicle-list-line sub departure-detail-line departure-rank-line">
                         <strong>직원 :</strong>
-                        <span>{formatCandidateList(item.staffCandidates)}</span>
+                        <span className="departure-rank-text">{formatCandidateList(item.staffCandidates)}</span>
                       </div>
                     </div>
                   )
