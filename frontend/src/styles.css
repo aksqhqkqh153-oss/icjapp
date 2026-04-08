@@ -16400,3 +16400,95 @@ body.layout-guide-enabled .error {
     gap: 0 !important;
   }
 }
+
+
+/* 2026-04-08 admin menu lock fix + disposal/work-schedule mobile refinement */
+.disposal-month-switch-card.disposal-month-switch-card-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-switch-title {
+  order: 1;
+}
+
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-nav-button:first-of-type {
+  order: 2;
+}
+
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-nav-button:last-of-type {
+  order: 3;
+}
+
+@media (max-width: 768px) {
+  .disposal-month-switch-card.disposal-month-switch-card-inline {
+    justify-content: flex-start;
+    gap: 4px;
+  }
+
+  .disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-switch-title {
+    font-size: 14px;
+    line-height: 1;
+    margin-right: 2px;
+  }
+
+  .disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-nav-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 0 !important;
+  }
+
+  .disposal-sales-sheet-row.is-title .disposal-sales-sheet-cell {
+    font-size: 19px;
+  }
+
+  .disposal-sales-sheet-row.is-title .disposal-sales-sheet-cell:last-child {
+    font-size: 17px;
+  }
+
+  .work-schedule-page.mobile,
+  .page-container.work-schedule-wide > .work-schedule-page.mobile {
+    padding-left: 5px !important;
+    padding-right: 5px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day,
+  .work-schedule-page.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form,
+  .work-schedule-page.mobile .work-day-status-editor,
+  .work-schedule-page.mobile .work-day-status-button,
+  .work-schedule-page.mobile .work-schedule-entry-form,
+  .work-schedule-page.mobile .work-schedule-line-item {
+    border-radius: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day {
+    border-left: 0 !important;
+    border-right: 0 !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form,
+  .work-schedule-page.mobile .work-day-status-editor,
+  .work-schedule-page.mobile .work-day-status-button,
+  .work-schedule-page.mobile .work-schedule-entry-form {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}

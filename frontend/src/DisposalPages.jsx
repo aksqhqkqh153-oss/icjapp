@@ -2526,7 +2526,7 @@ export function DisposalSettlementsPage() {
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
-      <section className="card disposal-month-switch-card disposal-month-switch-card-compact">
+      <section className="card disposal-month-switch-card disposal-month-switch-card-compact disposal-month-switch-card-inline">
         <button
           type="button"
           className="ghost disposal-month-nav-button"

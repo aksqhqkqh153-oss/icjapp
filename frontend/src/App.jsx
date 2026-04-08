@@ -5916,7 +5916,7 @@ function ScheduleFormPage({ mode }) {
     }))
   }
 
-  async function saveLayoutGuideSetting(nextValue) {
+  const saveLayoutGuideSetting = useCallback(async (nextValue) => {
     setLayoutGuideSaving(true)
     setMessage('')
     setError('')
@@ -5935,9 +5935,9 @@ function ScheduleFormPage({ mode }) {
     } finally {
       setLayoutGuideSaving(false)
     }
-  }
+  }, [])
 
-  async function saveMenuLocks() {
+  const saveMenuLocks = useCallback(async () => {
     setMenuLockSaving(true)
     setMessage('')
     setError('')
@@ -5961,7 +5961,7 @@ function ScheduleFormPage({ mode }) {
     } finally {
       setMenuLockSaving(false)
     }
-  }
+  }, [configForm, menuLockMap])
 
   if (loading) return <div className="card">불러오는 중...</div>
 
