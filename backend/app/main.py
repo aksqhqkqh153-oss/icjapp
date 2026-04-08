@@ -5346,7 +5346,7 @@ def _disposal_place_keys_match(left: str, right: str) -> bool:
         return False
     if not left_district or not right_district:
         return left_region == right_region
-    return (left_district == right_district) or left_district.startswith(right_district) or right_district.startswith(left_district)
+    return left_district == right_district
 
 
 def _disposal_location_compact_tokens(value: str) -> set[str]:

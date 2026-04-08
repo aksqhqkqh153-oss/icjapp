@@ -3159,10 +3159,46 @@ function ChatsPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [pinArrangeOpen, setPinArrangeOpen] = useState(false)
   const [pinOrder, setPinOrder] = useState(() => loadChatPinnedOrder(currentUser?.id))
+  const chatCustomCategoryKey = useMemo(() => `icj_chat_custom_categories_${currentUser?.id || 'guest'}`, [currentUser?.id])
+  const chatRoomCategoryKey = useMemo(() => `icj_chat_room_categories_${currentUser?.id || 'guest'}`, [currentUser?.id])
+  const [customCategories, setCustomCategories] = useState(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(`icj_chat_custom_categories_${currentUser?.id || 'guest'}`) || '[]')
+      return Array.isArray(raw) ? raw.map(item => ({ id: String(item?.id || item?.value || ''), label: String(item?.label || item?.name || '').trim() })).filter(item => item.id && item.label) : []
+    } catch {
+      return []
+    }
+  })
+  const [roomCategoryMap, setRoomCategoryMap] = useState(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(`icj_chat_room_categories_${currentUser?.id || 'guest'}`) || '{}')
+      return raw && typeof raw === 'object' ? raw : {}
+    } catch {
+      return {}
+    }
+  })
 
   useEffect(() => {
     setPinOrder(loadChatPinnedOrder(currentUser?.id))
   }, [currentUser?.id])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(chatCustomCategoryKey, JSON.stringify(customCategories))
+  }, [chatCustomCategoryKey, customCategories])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(chatRoomCategoryKey, JSON.stringify(roomCategoryMap))
+  }, [chatRoomCategoryKey, roomCategoryMap])
+
+  const visibleChatCategories = useMemo(() => ([
+    ['all', '전체'],
+    ['favorite', '즐겨찾기'],
+    ...customCategories.map(item => [item.id, item.label]),
+  ]), [customCategories])
 
   function updatePinOrder(updater) {
     setPinOrder(prev => {
@@ -3176,7 +3212,7 @@ function ChatsPage() {
     setLoading(true)
     try {
       const [items, userList] = await Promise.all([
-        api(`/api/chat-list?category=${category}`),
+        api('/api/chat-list'),
         api('/api/users'),
       ])
       setRooms(items)
@@ -3231,6 +3267,42 @@ ${guide}`)
     await load()
   }
 
+  function handleAddCustomCategory() {
+    const label = window.prompt('카테고리 이름을 입력하세요.')
+    const trimmed = String(label || '').trim()
+    if (!trimmed) return
+    const duplicated = customCategories.some(item => item.label === trimmed)
+    if (duplicated) {
+      window.alert('이미 같은 이름의 카테고리가 있습니다.')
+      return
+    }
+    const id = `custom-${Date.now()}`
+    setCustomCategories(prev => [...prev, { id, label: trimmed }])
+    setCategory(id)
+  }
+
+  async function handleAssignRoomCategory(room) {
+    if (!customCategories.length) {
+      window.alert('먼저 + 버튼으로 카테고리를 추가해 주세요.')
+      return
+    }
+    const guide = ['0: 카테고리 해제', ...customCategories.map((item, index) => `${index + 1}: ${item.label}`)].join('\n')
+    const picked = window.prompt(`카테고리를 선택하세요.\n${guide}`)
+    if (picked === null) return
+    const index = Number(String(picked).trim())
+    if (!Number.isFinite(index) || index < 0 || index > customCategories.length) {
+      window.alert('올바른 번호를 입력해 주세요.')
+      return
+    }
+    const nextCategoryId = index === 0 ? '' : customCategories[index - 1].id
+    setRoomCategoryMap(prev => {
+      const next = { ...prev }
+      if (nextCategoryId) next[room.id] = nextCategoryId
+      else delete next[room.id]
+      return next
+    })
+  }
+
   async function handleCreateGroupRoom() {
     const title = window.prompt('새 단체 채팅방 이름을 입력하세요.')
     if (!title || !title.trim()) return
@@ -3256,9 +3328,12 @@ ${guide}`)
       }
       return String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
     })
-    if (!q) return ordered
-    return ordered.filter(room => [room.title, room.subtitle, room.target_user?.nickname].join(' ').toLowerCase().includes(q))
-  }, [rooms, query, pinOrder])
+    let categoryFiltered = ordered
+    if (category === 'favorite') categoryFiltered = ordered.filter(room => room.favorite)
+    else if (category !== 'all') categoryFiltered = ordered.filter(room => String(roomCategoryMap?.[room.id] || '') === String(category))
+    if (!q) return categoryFiltered
+    return categoryFiltered.filter(room => [room.title, room.subtitle, room.target_user?.nickname].join(' ').toLowerCase().includes(q))
+  }, [rooms, query, pinOrder, category, roomCategoryMap])
 
   const pinnedRooms = useMemo(() => filteredRooms.filter(room => room.pinned), [filteredRooms])
 
@@ -3286,6 +3361,7 @@ ${guide}`)
     { label: '채팅방 나가기', danger: true, onClick: async () => { await handleLeave(actionRoom) } },
     { label: actionRoom.pinned ? '채팅방 상단고정 해제' : '채팅방 상단고정', onClick: async () => { await updateRoomSetting(actionRoom, { pinned: !actionRoom.pinned }) } },
     { label: actionRoom.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가', onClick: async () => { await updateRoomSetting(actionRoom, { favorite: !actionRoom.favorite }) } },
+    { label: '카테고리 지정', onClick: async () => { await handleAssignRoomCategory(actionRoom) } },
     { label: actionRoom.muted ? '채팅방 알람켜기' : '채팅방 알람끄기', onClick: async () => { await updateRoomSetting(actionRoom, { muted: !actionRoom.muted }) } },
   ] : null
 
@@ -3293,9 +3369,10 @@ ${guide}`)
     <div className="stack-page chat-page-layout">
       <section className="card chat-category-shell">
         <div className="chat-category-row evenly-spaced chat-category-row-spaced">
-          {CHAT_CATEGORIES.map(([value, label]) => (
+          {visibleChatCategories.map(([value, label]) => (
             <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
           ))}
+          <button type="button" className="small ghost chat-tab chat-tab-add" onClick={handleAddCustomCategory} aria-label="카테고리 추가">+</button>
         </div>
       </section>
 
@@ -5742,8 +5819,8 @@ function buildWorkScheduleForm(item, scheduleDate = '') {
     schedule_date: item?.schedule_date || scheduleDate || '',
     schedule_time: item?.schedule_time || '',
     customer_name: item?.customer_name || '',
-    representative_names: item?.representative_names || '',
-    staff_names: item?.staff_names || '',
+    representative_names: normalizeAssigneeValueForSave(item?.representative_names || [item?.representative1, item?.representative2, item?.representative3].filter(Boolean).join(' / ')),
+    staff_names: normalizeAssigneeValueForSave(item?.staff_names || [item?.staff1, item?.staff2, item?.staff3].filter(Boolean).join(' / ')),
     memo: item?.memo || '',
   }
 }
@@ -5874,9 +5951,23 @@ function applyTextOverridesForPath(overrides = [], pathName = '') {
   })
 }
 
+function extractAssigneeDisplayName(token) {
+  const raw = String(token || '').trim()
+  if (!raw) return ''
+  const bracketMatches = [...raw.matchAll(/\[([^\]]+)\]/g)].map(match => String(match[1] || '').trim()).filter(Boolean)
+  if (bracketMatches.length >= 2) return bracketMatches[1]
+  if (bracketMatches.length === 1) return bracketMatches[0]
+  return raw.replace(/^@+/, '').trim()
+}
+
+function normalizeAssigneeValueForSave(value) {
+  return splitScheduleNames(value).join(' / ')
+}
+
 function splitScheduleNames(value) {
   return String(value || '')
     .split(/[\n,/]+/)
+    .map(token => extractAssigneeDisplayName(token))
     .map(token => token.trim())
     .filter(Boolean)
     .slice(0, 3)
@@ -5945,7 +6036,7 @@ function filterAssignableUsers(users, query, selectedValues = [], predicate = nu
     .slice(0, 8)
 }
 
-function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false }) {
+function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false, showMeta = false }) {
   const [query, setQuery] = useState('')
   const [activeChip, setActiveChip] = useState('')
   const [portalStyle, setPortalStyle] = useState(null)
@@ -5953,7 +6044,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   const inputRef = useRef(null)
   const selectedValues = useMemo(() => splitScheduleNames(value), [value])
   const normalizedQuery = String(query || '').replace(/^@+/, '').trim()
-  const shouldShowSuggestions = String(query || '').includes('@') || normalizedQuery.length > 0
+  const shouldShowSuggestions = String(query || '').includes('@')
   const suggestions = useMemo(() => shouldShowSuggestions ? filterAssignableUsers(users, query, selectedValues, predicate) : [], [users, query, selectedValues, predicate, shouldShowSuggestions])
 
   function syncNext(values) {
@@ -6039,7 +6130,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
             onClick={() => addByText(tagValue)}
           >
             <strong>{tagValue}</strong>
-            <span>{buildAssigneeOptionMeta(user)}</span>
+            {showMeta ? <span>{buildAssigneeOptionMeta(user)}</span> : null}
           </button>
         )
       })}
@@ -6175,7 +6266,7 @@ function HandlessDaysPage() {
           </div>
           <div className="inline-actions wrap handless-toolbar-actions">
             <button type="button" className="ghost small" onClick={() => navigate('/schedule')}>닫기</button>
-            <button type="button" className="small" onClick={() => saveSelected().catch(err => window.alert(err.message))}>편집저장</button>
+            <button type="button" className="small" onClick={() => saveSelected().catch(err => window.alert(err.message))}>저장</button>
           </div>
         </div>
         <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
@@ -6490,8 +6581,8 @@ function WorkSchedulePage() {
         schedule_date: form.schedule_date,
         schedule_time: normalizedTime || '',
         customer_name: form.customer_name || '',
-        representative_names: form.representative_names || '',
-        staff_names: form.staff_names || '',
+        representative_names: normalizeAssigneeValueForSave(form.representative_names || ''),
+        staff_names: normalizeAssigneeValueForSave(form.staff_names || ''),
         memo: form.memo || '',
       }),
     })
@@ -6631,7 +6722,7 @@ function WorkSchedulePage() {
                           return
                         }
                         openBulkEdit(day)
-                      }}>수정</button>
+                      }}>{isBulkEdit ? '저장' : '수정'}</button>
                     </div>
                   )}
                 </div>
@@ -6709,7 +6800,7 @@ function WorkSchedulePage() {
                           <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
                         </div>
                         <div className="inline-actions wrap end schedule-edit-actions">
-                          <button type="submit">수정</button>
+                          <button type="submit">저장</button>
                         </div>
                       </form>
                     )}

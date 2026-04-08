@@ -18477,3 +18477,124 @@ textarea,
     font-size: 11px !important;
   }
 }
+
+/* 2026-04-08 schedule/chat/handless/disposal/settlement follow-up */
+.assignee-input-shell.input-like,
+.assignee-chip-list.input-like {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+.assignee-chip-list.input-like {
+  padding: 6px 8px;
+}
+.assignee-chip-list.input-like input {
+  min-height: 26px;
+}
+.assignee-suggestion-item {
+  grid-template-columns: minmax(0, 1fr);
+}
+.assignee-suggestion-item strong {
+  color: #2563eb;
+}
+
+@media (max-width: 768px) {
+  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error,
+  .schedule-page.mobile .calendar-day-summary-button.redesigned,
+  .schedule-page.mobile .calendar-handless-pill.mobile-compact,
+  .schedule-page.mobile .calendar-handless-banner {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border-color: #d1d5db !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error .calendar-date {
+    color: #111827 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-four-col,
+  .work-schedule-page.mobile .work-schedule-mobile-four-col.header {
+    grid-template-columns: 38px minmax(48px, 0.7fr) minmax(122px, 1.7fr) minmax(122px, 1.7fr) !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line,
+  .work-schedule-page.mobile .work-schedule-table.header,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table {
+    grid-template-columns: 38px minmax(48px, 0.7fr) minmax(122px, 1.7fr) minmax(122px, 1.7fr) minmax(54px, 0.6fr) !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+    grid-template-columns: 22px 38px minmax(48px, 0.7fr) minmax(122px, 1.7fr) minmax(122px, 1.7fr) minmax(54px, 0.6fr) !important;
+  }
+
+  .handless-picker-cell.selected,
+  .handless-picker-cell.selected.handless-day-cell,
+  .handless-date-number.active,
+  .handless-date-button:active,
+  .handless-date-button:focus,
+  .handless-date-button:focus-visible {
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .handless-toolbar-month-nav .icon-month-button,
+  .handless-toolbar-actions .small,
+  .handless-toolbar-actions .ghost.small {
+    min-width: 28px;
+    min-height: 28px;
+    height: 28px;
+    padding: 2px 8px;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .handless-toolbar-month-nav strong {
+    font-size: 15px;
+  }
+
+  .work-schedule-page.mobile .work-day-status-button,
+  .mobile-schedule-vehicle-chip.centered,
+  .mobile-schedule-vehicle-inline.centered {
+    background: #dbeafe !important;
+    border-color: #bfdbfe !important;
+    color: #1e3a8a !important;
+  }
+}
+
+.disposal-list-board-card,
+.disposal-list-date-group,
+.disposal-records-card {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.disposal-record-card,
+.disposal-list-grid,
+.disposal-group-card,
+.disposal-list-grid.disposal-list-grid-customer {
+  border-radius: 0 !important;
+}
+
+.chat-category-row-spaced {
+  align-items: center;
+  gap: 8px;
+}
+.chat-tab.chat-tab-add {
+  min-width: 40px;
+  padding-left: 0;
+  padding-right: 0;
+}
