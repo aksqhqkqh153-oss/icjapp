@@ -3006,12 +3006,19 @@ ${guide}`)
   ] : null
 
   return (
-    <div className="stack-page">
+    <div className="stack-page chat-page-layout">
+      <section className="card chat-category-shell">
+        <div className="chat-category-row evenly-spaced chat-category-row-spaced">
+          {CHAT_CATEGORIES.map(([value, label]) => (
+            <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
+          ))}
+        </div>
+      </section>
+
       <section className="card chat-list-card">
-        <div className="chat-list-toolbar">
-          <div className="chat-list-toolbar-top">
-            <div className="chat-toolbar-spacer" />
-            <div className="chat-search-trigger">
+        <div className="chat-list-toolbar chat-list-toolbar-separated">
+          <div className="chat-list-toolbar-top chat-list-toolbar-top-right">
+            <div className="chat-search-trigger chat-search-trigger-top-right">
               <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setSearchOpen(v => !v)} aria-label="검색">
                 <SearchIcon className="topbar-icon-svg" />
               </button>
@@ -3027,11 +3034,6 @@ ${guide}`)
                 )}
               </div>
             </div>
-          </div>
-          <div className="chat-category-row evenly-spaced chat-category-row-spaced">
-            {CHAT_CATEGORIES.map(([value, label]) => (
-              <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
-            ))}
           </div>
         </div>
         {searchOpen && (
@@ -5682,13 +5684,13 @@ function HandlessDaysPage() {
   return (
     <div className="stack-page">
       <section className={`card schedule-card handless-page${isMobile ? ' mobile' : ''}`}>
-        <div className="calendar-toolbar upgraded">
-          <div className="inline-actions">
+        <div className="calendar-toolbar upgraded handless-toolbar-centered">
+          <div className="handless-toolbar-month-nav">
             <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))}>◀</button>
             <strong>{monthLabel}</strong>
             <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}>▶</button>
           </div>
-          <div className="inline-actions wrap">
+          <div className="inline-actions wrap handless-toolbar-actions">
             <button type="button" className="ghost small" onClick={() => navigate('/schedule')}>닫기</button>
             <button type="button" className="small" onClick={() => saveSelected().catch(err => window.alert(err.message))}>편집저장</button>
           </div>
@@ -6126,8 +6128,8 @@ function WorkSchedulePage() {
               </div>
 
               <div className={`work-schedule-main-top${isMobile ? ' work-schedule-mobile-stack' : ''}`}>
-                <button type="button" className={`work-day-status-button${isMobile ? ' work-schedule-mobile-block' : ''}`} onClick={() => openStatusEditor(day)} disabled={readOnly}>
-                <span className="work-day-status-vehicle">가용차량 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                <button type="button" className={`work-day-status-button${isMobile ? ' work-schedule-mobile-block centered-mobile-vehicle' : ''}`} onClick={() => openStatusEditor(day)} disabled={readOnly}>
+                <span className="work-day-status-vehicle">가용차량수 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                 <span className="work-day-status-divider" />
                 <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
               </button>
@@ -6159,6 +6161,14 @@ function WorkSchedulePage() {
             )}
 
             <div className="work-schedule-list unified-list">
+              {isMobile && day.entries.length > 0 && !isBulkEdit && (
+                <div className="work-schedule-mobile-four-col header">
+                  <span className="work-schedule-mobile-cell time">시간</span>
+                  <span className="work-schedule-mobile-cell customer">고객명</span>
+                  <span className="work-schedule-mobile-cell business">사업자1 / 2 / 3</span>
+                  <span className="work-schedule-mobile-cell staff">직원1 / 2 / 3</span>
+                </div>
+              )}
               {day.entries.length > 0 && !isBulkEdit && day.entries.map(item => {
                 const key = rowKey(day.date, item)
                 const isEditing = editingKey === key
