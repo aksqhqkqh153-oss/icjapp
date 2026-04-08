@@ -6242,27 +6242,6 @@ function ScheduleFormPage({ mode }) {
     }))
   }
 
-  const saveLayoutGuideSetting = useCallback(async (nextValue) => {
-    setLayoutGuideSaving(true)
-    setMessage('')
-    setError('')
-    try {
-      const currentPrefs = await api('/api/preferences').catch(() => ({}))
-      const nextPrefs = { ...(currentPrefs || {}), layoutGuideEnabled: !!nextValue }
-      await api('/api/preferences', {
-        method: 'POST',
-        body: JSON.stringify({ data: nextPrefs }),
-      })
-      setLayoutGuideEnabled(!!nextValue)
-      applyLayoutGuideMode(!!nextValue)
-      setMessage(`관리용기능 · 테두리 표시가 ${nextValue ? 'ON' : 'OFF'}으로 저장되었습니다.`)
-    } catch (err) {
-      setError(err.message || '관리용기능 저장 중 오류가 발생했습니다.')
-    } finally {
-      setLayoutGuideSaving(false)
-    }
-  }, [])
-
   const saveMenuLocks = useCallback(async () => {
     setMenuLockSaving(true)
     setMessage('')
@@ -9320,6 +9299,28 @@ function AdminModePage() {
     }
   }, [configForm, menuLockMap])
 
+
+  const saveLayoutGuideSetting = useCallback(async (nextValue) => {
+    setLayoutGuideSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const currentPrefs = await api('/api/preferences').catch(() => ({}))
+      const nextPrefs = { ...(currentPrefs || {}), layoutGuideEnabled: !!nextValue }
+      await api('/api/preferences', {
+        method: 'POST',
+        body: JSON.stringify({ data: nextPrefs }),
+      })
+      setLayoutGuideEnabled(!!nextValue)
+      applyLayoutGuideMode(!!nextValue)
+      setMessage(`관리용기능 · 테두리 표시가 ${nextValue ? 'ON' : 'OFF'}으로 저장되었습니다.`)
+    } catch (err) {
+      setError(err.message || '관리용기능 저장 중 오류가 발생했습니다.')
+    } finally {
+      setLayoutGuideSaving(false)
+    }
+  }, [])
+
   async function saveAccounts() {
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
@@ -10757,34 +10758,39 @@ function AdminModePage() {
                 )
               })}
             </div>
-            <div className="menu-lock-admin-list">
-              <div className="card menu-lock-admin-section">
-                <div className="between">
-                  <strong>관리용기능</strong>
-                  <span className="muted small-text">현재 로그인한 계정에만 적용</span>
-                </div>
-                <div className="stack compact-gap menu-lock-admin-items">
-                  <div className="quick-edit-row menu-lock-admin-row">
-                    <span>테두리 표시</span>
-                    <button
-                      type="button"
-                      className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
-                      disabled={layoutGuideSaving}
-                      onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
-                    >
-                      {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
-                    </button>
-                  </div>
-                </div>
-                <div className="muted tiny-text">화면의 큰 레이아웃부터 빨강 → 주황 → 노랑 → 초록 → 파랑 → 남색 → 보라 순으로 테두리를 표시합니다.</div>
-              </div>
-            </div>
             <div className="inline-actions wrap end">
               <button type="button" className="small ghost" disabled={menuLockSaving} onClick={saveMenuLocks}>{menuLockSaving ? '저장중...' : '저장'}</button>
             </div>
             <div className="muted tiny-text">OFF로 저장하면 해당 메뉴는 관리자/부관리자를 제외한 계정에서 숨김 처리되고, 직접 경로 접근도 차단됩니다.</div>
           </div>
         )}
+      </section>
+
+      <section className="card admin-mode-card">
+        <div className="between admin-mode-section-head">
+          <h2>관리용 기능(테두리 표시)</h2>
+          <span className="muted small-text">현재 로그인한 계정에만 적용</span>
+        </div>
+        <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
+          <div className="menu-lock-admin-list">
+            <div className="card menu-lock-admin-section">
+              <div className="stack compact-gap menu-lock-admin-items">
+                <div className="quick-edit-row menu-lock-admin-row">
+                  <span>테두리 표시</span>
+                  <button
+                    type="button"
+                    className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
+                    disabled={layoutGuideSaving}
+                    onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
+                  >
+                    {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
+                  </button>
+                </div>
+              </div>
+              <div className="muted tiny-text">화면의 큰 레이아웃부터 빨강 → 주황 → 노랑 → 초록 → 파랑 → 남색 → 보라 순으로 테두리를 표시합니다.</div>
+            </div>
+          </div>
+        </div>
       </section>
 
 
