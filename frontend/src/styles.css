@@ -17839,3 +17839,62 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* 2026-04-08 map departure geocode fallback + mobile schedule list */
+.work-schedule-mobile-four-col {
+  display: grid;
+  grid-template-columns: 64px minmax(88px, 1fr) minmax(108px, 1.15fr) minmax(108px, 1.15fr);
+  gap: 6px;
+  width: 100%;
+  align-items: center;
+}
+.work-schedule-mobile-cell {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.work-schedule-mobile-cell.time {
+  font-weight: 800;
+  color: #0f172a;
+}
+.work-schedule-mobile-cell.customer {
+  font-weight: 700;
+  color: #1e293b;
+}
+.work-schedule-mobile-cell.business,
+.work-schedule-mobile-cell.staff {
+  color: #475569;
+}
+.mobile-schedule-vehicle-chip.centered,
+.mobile-schedule-vehicle-inline.centered {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+@media (max-width: 768px) {
+  .work-schedule-page.mobile .work-schedule-line-item.mobile-four-col {
+    padding: 10px 8px;
+  }
+  .work-schedule-page.mobile .work-schedule-line-head {
+    width: 100%;
+  }
+  .work-schedule-page.mobile .work-schedule-line-body {
+    width: 100%;
+  }
+  .work-schedule-page.mobile .work-schedule-mobile-four-col {
+    grid-template-columns: 58px minmax(72px, 0.95fr) minmax(96px, 1.1fr) minmax(96px, 1.1fr);
+    gap: 4px;
+  }
+  .work-schedule-page.mobile .work-schedule-mobile-cell {
+    font-size: 11px;
+  }
+  .work-schedule-page.mobile .mobile-schedule-vehicle-chip.centered,
+  .work-schedule-page.mobile .mobile-schedule-vehicle-inline.centered {
+    text-align: center;
+    justify-content: center;
+  }
+}

@@ -3728,8 +3728,20 @@ function deriveFallbackPointFromAddress(address) {
   return null
 }
 
-async function geocodeAddress(address) {
+function sanitizeGeocodeAddress(address) {
   const normalized = String(address || '').trim()
+  if (!normalized) return ''
+  return normalized
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/([0-9가-힣])([A-Za-z]{1,4})$/g, '$1')
+    .replace(/,+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+async function geocodeAddress(address) {
+  const normalized = sanitizeGeocodeAddress(address)
   if (!normalized) return null
   const memoryCache = window.__icjGeocodeCache = window.__icjGeocodeCache || {}
   if (memoryCache[normalized]) return memoryCache[normalized]
@@ -3744,17 +3756,7 @@ async function geocodeAddress(address) {
       }
     }
   } catch (_) {}
-  try {
-    const point = await api(`/api/geocode?address=${encodeURIComponent(normalized)}`).catch(() => null)
-    if (point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng))) {
-      const normalizedPoint = { lat: Number(point.lat), lng: Number(point.lng), label: normalized, approximate: Boolean(point.approximate) }
-      memoryCache[normalized] = normalizedPoint
-      try {
-        window.localStorage.setItem(`icj_geocode_${normalized}`, JSON.stringify(normalizedPoint))
-      } catch (_) {}
-      return normalizedPoint
-    }
-  } catch (_) {}
+
   const fallbackPoint = deriveFallbackPointFromAddress(normalized)
   if (fallbackPoint && Number.isFinite(Number(fallbackPoint.lat)) && Number.isFinite(Number(fallbackPoint.lng))) {
     const normalizedPoint = { lat: Number(fallbackPoint.lat), lng: Number(fallbackPoint.lng), label: normalized, approximate: true }
@@ -3764,12 +3766,13 @@ async function geocodeAddress(address) {
     } catch (_) {}
     return normalizedPoint
   }
+
   return null
 }
 
 async function resolveMapDepartureData(scheduleItems = [], users = []) {
   const filteredItems = (scheduleItems || []).filter(item => String(item?.start_address || item?.location || '').trim())
-  const uniqueAddresses = [...new Set(filteredItems.map(item => String(item.start_address || item.location || '').trim()).filter(Boolean))]
+  const uniqueAddresses = [...new Set(filteredItems.map(item => sanitizeGeocodeAddress(item.start_address || item.location || '')).filter(Boolean))]
   const addressPoints = {}
   await Promise.all(uniqueAddresses.map(async address => {
     addressPoints[address] = await geocodeAddress(address)
@@ -3805,7 +3808,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
   const accountMarkers = [...accountMap.values()].filter(item => item.point)
 
   const customerMarkers = filteredItems.map(item => {
-    const address = String(item.start_address || item.location || '').trim()
+    const address = sanitizeGeocodeAddress(item.start_address || item.location || '')
     return {
       id: `customer-${item.id}`,
       scheduleId: item.id,
@@ -3817,7 +3820,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
   }).filter(item => item.point)
 
   const customerList = filteredItems.map(item => {
-    const address = String(item.start_address || item.location || '').trim()
+    const address = sanitizeGeocodeAddress(item.start_address || item.location || '')
     const customerPoint = addressPoints[address] || null
     const nearest = accountMarkers
       .map(account => ({
@@ -5067,8 +5070,8 @@ function CalendarPage() {
               <div className="mobile-schedule-detail-meta summary-inline-row">
                 <span className={`mobile-schedule-kind-chip ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손' : '일'}</span>
                 <button type="button" className="mobile-schedule-status-button" onClick={() => openCalendarStatus(selectedDaySummary)}>
-                  <span className="mobile-schedule-vehicle-chip">가용차량수 {String(selectedDaySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                  <span className="mobile-schedule-vehicle-inline">A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+                  <span className="mobile-schedule-vehicle-chip centered">가용차량수 {String(selectedDaySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                  <span className="mobile-schedule-vehicle-inline centered">A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
                 </button>
               </div>
             </div>
@@ -6159,21 +6162,40 @@ function WorkSchedulePage() {
               {day.entries.length > 0 && !isBulkEdit && day.entries.map(item => {
                 const key = rowKey(day.date, item)
                 const isEditing = editingKey === key
+                const businessNames = [item.representative1, item.representative2, item.representative3]
+                  .map(value => String(value || '').trim())
+                  .filter(Boolean)
+                  .join(' / ') || '-'
+                const staffNames = [item.staff1, item.staff2, item.staff3]
+                  .map(value => String(value || '').trim())
+                  .filter(Boolean)
+                  .join(' / ') || '-'
                 return (
-                  <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}`}>
+                  <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}${isMobile ? ' mobile-four-col' : ''}`}>
                     <div className="work-schedule-line-head">
                       <div className="work-schedule-line-body">
-                        <div className="work-schedule-line-primary">
-                          <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
-                          <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
-                          {item.platform && <span className="work-schedule-chip platform">{item.platform}</span>}
-                        </div>
-                        <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
-                        {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
+                        {isMobile ? (
+                          <div className="work-schedule-mobile-four-col" title={`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${businessNames} ${staffNames}`}>
+                            <span className="work-schedule-mobile-cell time">{item.schedule_time || '미정'}</span>
+                            <span className="work-schedule-mobile-cell customer">{item.customer_name || '고객명'}</span>
+                            <span className="work-schedule-mobile-cell business">{businessNames}</span>
+                            <span className="work-schedule-mobile-cell staff">{staffNames}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="work-schedule-line-primary">
+                              <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
+                              <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
+                              {item.platform && <span className="work-schedule-chip platform">{item.platform}</span>}
+                            </div>
+                            <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
+                            {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
+                          </>
+                        )}
                       </div>
-                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>수정</button>}
+                      {!isMobile && !readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>수정</button>}
                     </div>
-                    {isEditing && !readOnly && (
+                    {!isMobile && isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line">
                           <input value={editingForm.schedule_time} placeholder="시간" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
