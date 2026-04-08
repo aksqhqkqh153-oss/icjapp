@@ -49,6 +49,7 @@ const PAGE_TITLES = {
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
 const LAYOUT_GUIDE_BODY_CLASS = 'layout-guide-enabled'
 const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
+const TEXT_EDIT_BODY_CLASS = 'text-edit-enabled'
 const SETTLEMENT_OVERRIDE_STORAGE_KEY = 'icj_settlement_overrides_v20260408'
 
 function normalizeAppTheme(theme) {
@@ -88,6 +89,14 @@ function applyHtmlInspectorMode(enabled) {
   const active = !!enabled
   if (document.body) document.body.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
   if (document.documentElement) document.documentElement.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
+  return active
+}
+
+function applyTextEditMode(enabled) {
+  if (typeof document === 'undefined') return !!enabled
+  const active = !!enabled
+  if (document.body) document.body.classList.toggle(TEXT_EDIT_BODY_CLASS, active)
+  if (document.documentElement) document.documentElement.classList.toggle(TEXT_EDIT_BODY_CLASS, active)
   return active
 }
 
@@ -3770,8 +3779,11 @@ async function geocodeAddress(address) {
 }
 
 async function resolveMapDepartureData(scheduleItems = [], users = []) {
-  const filteredItems = (scheduleItems || []).filter(item => String(item?.start_address || item?.location || '').trim())
-  const uniqueAddresses = [...new Set(filteredItems.map(item => sanitizeGeocodeAddress(item.start_address || item.location || '')).filter(Boolean))]
+  const filteredItems = (scheduleItems || []).filter(item => String(item?.start_address || item?.location || item?.end_address || '').trim())
+  const uniqueAddresses = [...new Set(filteredItems.flatMap(item => ([
+    sanitizeGeocodeAddress(item.start_address || item.location || ''),
+    sanitizeGeocodeAddress(item.end_address || ''),
+  ])).filter(Boolean))]
   const addressPoints = {}
   await Promise.all(uniqueAddresses.map(async address => {
     addressPoints[address] = await geocodeAddress(address)
@@ -3797,6 +3809,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
       address,
       point,
       tone: resolveStaffMarkerTone(user),
+      markerKind: resolveStaffMarkerTone(user) === 'executive' ? 'business-start' : 'staff-start',
     })
   }
 
@@ -3807,17 +3820,30 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
   })
   const accountMarkers = [...accountMap.values()].filter(item => item.point)
 
-  const customerMarkers = filteredItems.map(item => {
-    const address = sanitizeGeocodeAddress(item.start_address || item.location || '')
-    return {
-      id: `customer-${item.id}`,
-      scheduleId: item.id,
-      title: item.customer_name || item.title || '고객',
-      address,
-      point: addressPoints[address] || null,
-      raw: item,
-    }
-  }).filter(item => item.point)
+  const customerMarkers = filteredItems.flatMap(item => {
+    const startAddress = sanitizeGeocodeAddress(item.start_address || item.location || '')
+    const endAddress = sanitizeGeocodeAddress(item.end_address || '')
+    return [
+      {
+        id: `customer-start-${item.id}`,
+        scheduleId: item.id,
+        title: item.customer_name || item.title || '고객',
+        address: startAddress,
+        point: addressPoints[startAddress] || null,
+        raw: item,
+        markerKind: 'customer-start',
+      },
+      {
+        id: `customer-end-${item.id}`,
+        scheduleId: item.id,
+        title: item.customer_name || item.title || '고객',
+        address: endAddress,
+        point: addressPoints[endAddress] || null,
+        raw: item,
+        markerKind: 'customer-end',
+      },
+    ].filter(entry => entry.address && entry.point)
+  })
 
   const customerList = filteredItems.map(item => {
     const address = sanitizeGeocodeAddress(item.start_address || item.location || '')
@@ -3882,7 +3908,14 @@ function MapPage() {
   const [shareNotice, setShareNotice] = useState('')
   const [mapFilterOpen, setMapFilterOpen] = useState(false)
   const [mapSettingsOpen, setMapSettingsOpen] = useState(false)
+  const [mapDisplayOpen, setMapDisplayOpen] = useState(false)
   const [mapFilter, setMapFilter] = useState('live')
+  const [mapDisplayOptions, setMapDisplayOptions] = useState({
+    customerStart: true,
+    customerEnd: false,
+    businessStart: true,
+    staffStart: true,
+  })
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
   const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], customerList: [] })
   const [shareStatus, setShareStatus] = useState({ eligible: false, consent_granted: false, sharing_enabled: false, active_now: false, active_assignment: null })
@@ -4054,22 +4087,34 @@ function MapPage() {
 
   const activeMarkers = useMemo(() => {
     if (mapFilter === 'departure') {
-      const customer = (departureData.customerMarkers || []).map(item => ({
-        type: 'customer',
-        id: item.id,
-        lat: item.point?.lat,
-        lng: item.point?.lng,
-        label: '●',
-        popup: `<strong>${item.title}</strong><br/>출발지<br/>${item.address}`,
-      }))
-      const accounts = (departureData.accountMarkers || []).map(item => ({
-        type: item.tone === 'executive' ? 'executive' : 'staff',
-        id: item.id,
-        lat: item.point?.lat,
-        lng: item.point?.lng,
-        label: '●',
-        popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
-      }))
+      const customer = (departureData.customerMarkers || [])
+        .filter(item => {
+          if (item.markerKind === 'customer-start') return mapDisplayOptions.customerStart
+          if (item.markerKind === 'customer-end') return mapDisplayOptions.customerEnd
+          return false
+        })
+        .map(item => ({
+          type: item.markerKind === 'customer-end' ? 'customer-end' : 'customer-start',
+          id: item.id,
+          lat: item.point?.lat,
+          lng: item.point?.lng,
+          label: '',
+          popup: `<strong>${item.title}</strong><br/>${item.markerKind === 'customer-end' ? '도착지' : '출발지'}<br/>${item.address}`,
+        }))
+      const accounts = (departureData.accountMarkers || [])
+        .filter(item => {
+          if (item.markerKind === 'business-start') return mapDisplayOptions.businessStart
+          if (item.markerKind === 'staff-start') return mapDisplayOptions.staffStart
+          return true
+        })
+        .map(item => ({
+          type: item.markerKind === 'business-start' ? 'business-start' : 'staff-start',
+          id: item.id,
+          lat: item.point?.lat,
+          lng: item.point?.lng,
+          label: '',
+          popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
+        }))
       return [...customer, ...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
     return (users || []).map(item => ({
@@ -4080,7 +4125,7 @@ function MapPage() {
       label: ENCLOSED_NUMBERS[item.branch_no] || String(item.branch_no || '?'),
       popup: `<strong>${item.branch_no || '-'}호점</strong><br/>${item.nickname}<br/>${item.vehicle_number || '-'}<br/>${item.region}`,
     })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
-  }, [mapFilter, users, departureData])
+  }, [mapFilter, users, departureData, mapDisplayOptions])
 
   useEffect(() => {
     if (!leafletRef.current || !markerLayerRef.current) return
@@ -4088,16 +4133,19 @@ function MapPage() {
     if (activeMarkers.length === 0) return
     const bounds = []
     activeMarkers.forEach(item => {
-      const markerClass = item.type === 'customer'
-        ? 'branch-marker customer'
-        : item.type === 'executive'
-          ? 'branch-marker executive'
-          : item.type === 'staff'
-            ? 'branch-marker staff'
-            : item.type === 'moving'
-              ? 'branch-marker moving'
-              : 'branch-marker stopped'
-      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] })
+      const markerClass = item.type === 'customer-start'
+        ? 'branch-marker customer-start'
+        : item.type === 'customer-end'
+          ? 'branch-marker customer-end'
+          : item.type === 'business-start'
+            ? 'branch-marker business-start'
+            : item.type === 'staff-start'
+              ? 'branch-marker staff-start'
+              : item.type === 'moving'
+                ? 'branch-marker moving'
+                : 'branch-marker stopped'
+      const markerSize = item.type === 'moving' || item.type === 'stopped' ? 34 : 12
+      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [markerSize, markerSize], iconAnchor: [markerSize / 2, markerSize / 2] })
       L.marker([item.lat, item.lng], { icon }).bindPopup(item.popup).addTo(markerLayerRef.current)
       bounds.push([item.lat, item.lng])
     })
@@ -4111,6 +4159,7 @@ function MapPage() {
     setMapFilter('departure')
     setMapFilterOpen(false)
     setMapSettingsOpen(false)
+    setMapDisplayOpen(false)
   }
 
   function openDatePicker() {
@@ -4155,7 +4204,7 @@ function MapPage() {
               <input ref={dateInputRef} type="date" className="map-hidden-date-input" value={selectedDate} onChange={e => handlePickDate(e.target.value)} />
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button" onClick={() => { setMapFilterOpen(prev => !prev); setMapSettingsOpen(false) }}>필터</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapFilterOpen(prev => !prev); setMapSettingsOpen(false); setMapDisplayOpen(false) }}>필터</button>
               {mapFilterOpen && (
                 <div className="map-filter-popover map-filter-popover-side">
                   <button type="button" className={mapFilter === 'live' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('live'); setMapFilterOpen(false) }}>실시간</button>
@@ -4164,7 +4213,18 @@ function MapPage() {
               )}
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false) }} aria-label="설정">설정</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapDisplayOpen(prev => !prev); setMapFilterOpen(false); setMapSettingsOpen(false) }} aria-label="표기">표기</button>
+              {mapDisplayOpen && (
+                <div className="map-filter-popover map-filter-popover-side map-settings-popover">
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerStart: e.target.checked }))} /> 고출ㅁ</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerEnd: e.target.checked }))} /> 고도ㅁ</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessStart: e.target.checked }))} /> 사출ㅁ</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffStart: e.target.checked }))} /> 직출ㅁ</label>
+                </div>
+              )}
+            </div>
+            <div className="map-filter-wrap">
+              <button type="button" className="map-overlay-button" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false); setMapDisplayOpen(false) }} aria-label="설정">설정</button>
               {mapSettingsOpen && (
                 <div className="map-filter-popover map-filter-popover-side map-settings-popover">
                   <label className="share-toggle map-share-toggle popover-share-toggle">
@@ -5433,6 +5493,38 @@ function ScheduleLegendModal({ onClose }) {
   )
 }
 
+
+function buildTextEditableSelector(element) {
+  if (!(element instanceof Element)) return ''
+  const direct = buildHtmlInspectorSelector(element)
+  if (direct) return direct
+  const editable = element.closest('[data-text-edit-key], h1, h2, h3, h4, h5, h6, strong, span, p, label, button, a, th, td, div')
+  if (!(editable instanceof Element)) return ''
+  return buildHtmlInspectorSelector(editable)
+}
+
+function normalizeTextOverrideList(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(item => ({
+      path: String(item?.path || '*').trim() || '*',
+      selector: String(item?.selector || '').trim(),
+      text: String(item?.text ?? ''),
+    }))
+    .filter(item => item.selector)
+}
+
+function applyTextOverridesForPath(overrides = [], pathName = '') {
+  if (typeof document === 'undefined') return
+  const normalizedPath = String(pathName || window.location?.pathname || '').trim() || '/'
+  normalizeTextOverrideList(overrides).forEach(item => {
+    if (item.path !== '*' && item.path !== normalizedPath) return
+    const target = document.querySelector(item.selector)
+    if (!(target instanceof Element)) return
+    target.textContent = item.text
+  })
+}
+
 function splitScheduleNames(value) {
   return String(value || '')
     .split(/[\n,/]+/)
@@ -6182,7 +6274,18 @@ function WorkSchedulePage() {
                   <div className="work-schedule-section-title-wrap">
                     <strong className="work-schedule-section-title">스케줄 목록</strong>
                   </div>
-                  {!readOnly && <button type="button" className="small ghost" onClick={() => openBulkEdit(day)}>수정</button>}
+                  {!readOnly && (
+                    <div className="inline-actions wrap">
+                      {isBulkEdit && <button type="button" className="small ghost danger-outline top-delete-button" onClick={() => applyBulkDelete(day.date).catch(err => window.alert(err.message))}>삭제</button>}
+                      <button type="button" className="small ghost" onClick={() => {
+                        if (isBulkEdit) {
+                          submitBulkEdit(day.date).catch(err => window.alert(err.message))
+                          return
+                        }
+                        openBulkEdit(day)
+                      }}>수정</button>
+                    </div>
+                  )}
                 </div>
 
             {activeFormDate === day.date && !readOnly && (
@@ -6287,10 +6390,7 @@ function WorkSchedulePage() {
                       </div>
                     </div>
                   ))}
-                  <div className="inline-actions wrap end schedule-edit-actions">
-                    <button type="button" className="ghost danger-outline" onClick={() => applyBulkDelete(day.date).catch(err => window.alert(err.message))}>삭제</button>
-                    <button type="submit">수정</button>
-                  </div>
+                  <div className="inline-actions wrap end schedule-edit-actions" />
                 </form>
               )}
 
@@ -9616,6 +9716,8 @@ function AdminModePage() {
   const [layoutGuideSaving, setLayoutGuideSaving] = useState(false)
   const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(false)
   const [htmlInspectorSaving, setHtmlInspectorSaving] = useState(false)
+  const [textEditEnabled, setTextEditEnabled] = useState(false)
+  const [textEditSaving, setTextEditSaving] = useState(false)
   const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
   const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
   const [materialsTableScaleSettings, setMaterialsTableScaleSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, 100])))
@@ -9725,10 +9827,13 @@ function AdminModePage() {
       setMenuLockMap(normalizeMenuLocks(nextConfigForm.menu_locks_json))
       const nextLayoutGuideEnabled = !!prefsResponse?.layoutGuideEnabled
       const nextHtmlInspectorEnabled = !!prefsResponse?.htmlInspectorEnabled
+      const nextTextEditEnabled = !!prefsResponse?.textEditEnabled
       setLayoutGuideEnabled(nextLayoutGuideEnabled)
       setHtmlInspectorEnabled(nextHtmlInspectorEnabled)
+      setTextEditEnabled(nextTextEditEnabled)
       applyLayoutGuideMode(nextLayoutGuideEnabled)
       applyHtmlInspectorMode(nextHtmlInspectorEnabled)
+      applyTextEditMode(nextTextEditEnabled)
       const normalizedAccounts = (response.accounts || []).map(normalizeAdminRow)
       setAccountRows(normalizedAccounts)
       setAccountRowsSortBase(normalizedAccounts)
@@ -9849,6 +9954,27 @@ function AdminModePage() {
       setError(err.message || 'html 요소확인 저장 중 오류가 발생했습니다.')
     } finally {
       setHtmlInspectorSaving(false)
+    }
+  }, [])
+
+  const saveTextEditSetting = useCallback(async (nextValue) => {
+    setTextEditSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const currentPrefs = await api('/api/preferences').catch(() => ({}))
+      const nextPrefs = { ...(currentPrefs || {}), textEditEnabled: !!nextValue }
+      await api('/api/preferences', {
+        method: 'POST',
+        body: JSON.stringify({ data: nextPrefs }),
+      })
+      setTextEditEnabled(!!nextValue)
+      applyTextEditMode(!!nextValue)
+      setMessage(`관리용기능 · 텍스트 편집이 ${nextValue ? 'ON' : 'OFF'}으로 저장되었습니다.`)
+    } catch (err) {
+      setError(err.message || '텍스트 편집 저장 중 오류가 발생했습니다.')
+    } finally {
+      setTextEditSaving(false)
     }
   }, [])
 
@@ -11299,32 +11425,51 @@ function AdminModePage() {
 
       <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
-          <h2>테두리 표시</h2>
-          <button
-            type="button"
-            className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
-            disabled={layoutGuideSaving}
-            onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
-          >
-            {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
-          </button>
-        </div>
-      </section>
-
-      <section className="card admin-mode-card">
-        <div className="between admin-mode-section-head">
           <div>
-            <h2>html 요소확인</h2>
-            <div className="muted tiny-text">ON 후 현재 화면에서 Ctrl + 클릭하면 selector, 크기, HTML이 함께 복사됩니다.</div>
+            <h2>개발자기능</h2>
+            <div className="muted tiny-text">테두리표시 / HTML 요소확인 / 텍스트 편집을 한 곳에서 제어합니다.</div>
           </div>
-          <button
-            type="button"
-            className={htmlInspectorEnabled ? 'small selected-toggle' : 'small ghost danger'}
-            disabled={htmlInspectorSaving}
-            onClick={() => saveHtmlInspectorSetting(!htmlInspectorEnabled)}
-          >
-            {htmlInspectorSaving ? '저장중...' : (htmlInspectorEnabled ? 'ON' : 'OFF')}
-          </button>
+        </div>
+        <div className="stack compact-gap admin-mode-section-body">
+          <div className="between admin-mode-section-head">
+            <h2>테두리표시</h2>
+            <button
+              type="button"
+              className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
+              disabled={layoutGuideSaving}
+              onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
+            >
+              {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
+            </button>
+          </div>
+          <div className="between admin-mode-section-head">
+            <div>
+              <h2>HTML 요소확인</h2>
+              <div className="muted tiny-text">ON 후 현재 화면에서 Ctrl + 클릭하면 selector, 크기, HTML이 함께 복사됩니다.</div>
+            </div>
+            <button
+              type="button"
+              className={htmlInspectorEnabled ? 'small selected-toggle' : 'small ghost danger'}
+              disabled={htmlInspectorSaving}
+              onClick={() => saveHtmlInspectorSetting(!htmlInspectorEnabled)}
+            >
+              {htmlInspectorSaving ? '저장중...' : (htmlInspectorEnabled ? 'ON' : 'OFF')}
+            </button>
+          </div>
+          <div className="between admin-mode-section-head">
+            <div>
+              <h2>텍스트 편집 (ON/OFF)</h2>
+              <div className="muted tiny-text">ON 후 Alt + Shift + 클릭 시 현재 페이지 텍스트를 DB 기준으로 저장/반영합니다.</div>
+            </div>
+            <button
+              type="button"
+              className={textEditEnabled ? 'small selected-toggle' : 'small ghost danger'}
+              disabled={textEditSaving}
+              onClick={() => saveTextEditSetting(!textEditEnabled)}
+            >
+              {textEditSaving ? '저장중...' : (textEditEnabled ? 'ON' : 'OFF')}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -14367,6 +14512,7 @@ function AppAssignmentNotificationWatcher({ user }) {
 function App() {
   const [user, setUser] = useState(getStoredUser())
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     applyAppTheme(getStoredThemePreference())
@@ -14376,6 +14522,7 @@ function App() {
     if (!user?.id) {
       applyLayoutGuideMode(false)
       applyHtmlInspectorMode(false)
+      applyTextEditMode(false)
       return undefined
     }
     let cancelled = false
@@ -14383,10 +14530,13 @@ function App() {
       if (cancelled) return
       applyLayoutGuideMode(!!prefs?.layoutGuideEnabled)
       applyHtmlInspectorMode(!!prefs?.htmlInspectorEnabled)
+      applyTextEditMode(!!prefs?.textEditEnabled)
+      applyTextOverridesForPath(prefs?.textOverrides, window.location?.pathname || '/')
     }).catch(() => {
       if (!cancelled) {
         applyLayoutGuideMode(false)
         applyHtmlInspectorMode(false)
+        applyTextEditMode(false)
       }
     })
     return () => {
@@ -14517,3 +14667,4 @@ function App() {
 }
 
 export default App
+
