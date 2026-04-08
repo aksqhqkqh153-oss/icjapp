@@ -2902,6 +2902,12 @@ label { font-size: 14px; color: #4f6f8c; }
   word-break: break-word;
 }
 
+.departure-approx-note {
+  font-style: normal;
+  color: #64748b;
+  font-size: 12px;
+}
+
 @media (max-width: 768px) {
   .departure-summary-row {
     grid-template-columns: 1fr auto;

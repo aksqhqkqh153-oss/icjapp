@@ -3646,6 +3646,84 @@ function buildAddressSimilarityScore(source, target) {
   return score
 }
 
+const KOREA_ADDRESS_FALLBACK_CENTERS = {
+  '서울 강서구': { lat: 37.5509, lng: 126.8495 },
+  '서울 양천구': { lat: 37.5169, lng: 126.8666 },
+  '서울 구로구': { lat: 37.4954, lng: 126.8874 },
+  '서울 금천구': { lat: 37.4569, lng: 126.8956 },
+  '서울 영등포구': { lat: 37.5264, lng: 126.8962 },
+  '서울 동작구': { lat: 37.5124, lng: 126.9393 },
+  '서울 관악구': { lat: 37.4782, lng: 126.9515 },
+  '서울 서초구': { lat: 37.4837, lng: 127.0324 },
+  '서울 강남구': { lat: 37.5172, lng: 127.0473 },
+  '서울 송파구': { lat: 37.5145, lng: 127.1059 },
+  '서울 강동구': { lat: 37.5301, lng: 127.1238 },
+  '서울 마포구': { lat: 37.5663, lng: 126.9019 },
+  '서울 서대문구': { lat: 37.5792, lng: 126.9368 },
+  '서울 은평구': { lat: 37.6176, lng: 126.9227 },
+  '서울 종로구': { lat: 37.5735, lng: 126.9790 },
+  '서울 중구': { lat: 37.5636, lng: 126.9976 },
+  '서울 용산구': { lat: 37.5324, lng: 126.9900 },
+  '서울 성동구': { lat: 37.5634, lng: 127.0369 },
+  '서울 광진구': { lat: 37.5384, lng: 127.0822 },
+  '서울 동대문구': { lat: 37.5744, lng: 127.0396 },
+  '서울 중랑구': { lat: 37.6066, lng: 127.0926 },
+  '서울 성북구': { lat: 37.5894, lng: 127.0167 },
+  '서울 강북구': { lat: 37.6398, lng: 127.0257 },
+  '서울 도봉구': { lat: 37.6688, lng: 127.0471 },
+  '서울 노원구': { lat: 37.6542, lng: 127.0568 },
+  '경기 고양시': { lat: 37.6584, lng: 126.8320 },
+  '경기 파주시': { lat: 37.7600, lng: 126.7802 },
+  '경기 의정부시': { lat: 37.7381, lng: 127.0338 },
+  '경기 양주시': { lat: 37.7853, lng: 127.0458 },
+  '경기 남양주시': { lat: 37.6360, lng: 127.2165 },
+  '경기 구리시': { lat: 37.5943, lng: 127.1296 },
+  '경기 하남시': { lat: 37.5392, lng: 127.2149 },
+  '경기 성남시': { lat: 37.4200, lng: 127.1267 },
+  '경기 용인시': { lat: 37.2411, lng: 127.1776 },
+  '경기 수원시': { lat: 37.2636, lng: 127.0286 },
+  '경기 부천시': { lat: 37.5034, lng: 126.7660 },
+  '경기 안양시': { lat: 37.3943, lng: 126.9568 },
+  '경기 광명시': { lat: 37.4786, lng: 126.8646 },
+  '경기 김포시': { lat: 37.6152, lng: 126.7156 },
+  '경기 시흥시': { lat: 37.3803, lng: 126.8029 },
+  '경기 안산시': { lat: 37.3219, lng: 126.8309 },
+  '인천 부평구': { lat: 37.5070, lng: 126.7219 },
+  '인천 계양구': { lat: 37.5371, lng: 126.7378 },
+  '인천 서구': { lat: 37.5453, lng: 126.6758 },
+  '인천 남동구': { lat: 37.4473, lng: 126.7314 },
+  '인천 미추홀구': { lat: 37.4635, lng: 126.6506 },
+}
+
+function normalizeAdministrativeAddress(address) {
+  return String(address || '')
+    .replace(/특별시/g, '')
+    .replace(/광역시/g, '')
+    .replace(/특별자치시/g, '')
+    .replace(/특별자치도/g, '')
+    .replace(/자치시/g, '')
+    .replace(/자치도/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function deriveFallbackPointFromAddress(address) {
+  const normalized = normalizeAdministrativeAddress(address)
+  if (!normalized) return null
+  const directKey = Object.keys(KOREA_ADDRESS_FALLBACK_CENTERS).find(key => normalized.startsWith(key))
+  if (directKey) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[directKey], label: normalized, approximate: true }
+  const tokens = normalized.split(' ').filter(Boolean)
+  if (tokens.length >= 2) {
+    const key2 = `${tokens[0]} ${tokens[1]}`
+    if (KOREA_ADDRESS_FALLBACK_CENTERS[key2]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key2], label: normalized, approximate: true }
+  }
+  if (tokens.length >= 3) {
+    const key3 = `${tokens[0]} ${tokens[1]} ${tokens[2]}`
+    if (KOREA_ADDRESS_FALLBACK_CENTERS[key3]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key3], label: normalized, approximate: true }
+  }
+  return null
+}
+
 async function geocodeAddress(address) {
   const normalized = String(address || '').trim()
   if (!normalized) return null
@@ -3665,7 +3743,7 @@ async function geocodeAddress(address) {
   try {
     const point = await api(`/api/geocode?address=${encodeURIComponent(normalized)}`).catch(() => null)
     if (point && Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng))) {
-      const normalizedPoint = { lat: Number(point.lat), lng: Number(point.lng), label: normalized }
+      const normalizedPoint = { lat: Number(point.lat), lng: Number(point.lng), label: normalized, approximate: Boolean(point.approximate) }
       memoryCache[normalized] = normalizedPoint
       try {
         window.localStorage.setItem(`icj_geocode_${normalized}`, JSON.stringify(normalizedPoint))
@@ -3673,6 +3751,15 @@ async function geocodeAddress(address) {
       return normalizedPoint
     }
   } catch (_) {}
+  const fallbackPoint = deriveFallbackPointFromAddress(normalized)
+  if (fallbackPoint && Number.isFinite(Number(fallbackPoint.lat)) && Number.isFinite(Number(fallbackPoint.lng))) {
+    const normalizedPoint = { lat: Number(fallbackPoint.lat), lng: Number(fallbackPoint.lng), label: normalized, approximate: true }
+    memoryCache[normalized] = normalizedPoint
+    try {
+      window.localStorage.setItem(`icj_geocode_${normalized}`, JSON.stringify(normalizedPoint))
+    } catch (_) {}
+    return normalizedPoint
+  }
   return null
 }
 
@@ -3765,6 +3852,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
       nearestLabel: nearest ? `${nearest.nickname}${Number.isFinite(nearest.distanceKm) ? ` · 약 ${nearest.distanceKm.toFixed(1)}km` : ''}` : '가까운 계정 계산 대기',
       businessCandidates,
       staffCandidates,
+      geocodeApproximate: Boolean(customerPoint?.approximate),
       raw: item,
     }
   })
@@ -4104,6 +4192,7 @@ function MapPage() {
                       <div className="vehicle-list-line sub departure-detail-line">
                         <strong>출발지 :</strong>
                         <span>{item.address || '-'}</span>
+                        {item.geocodeApproximate && <em className="departure-approx-note">(주소 중심 좌표 기준)</em>}
                       </div>
                       <div className="vehicle-list-line sub departure-detail-line">
                         <strong>사업자 :</strong>

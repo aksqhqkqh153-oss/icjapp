@@ -48,6 +48,54 @@ logger = logging.getLogger('icj24app')
 
 GEOCODE_CACHE: dict[str, dict[str, Any]] = {}
 GEOCODE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
+KOREA_ADDRESS_FALLBACK_CENTERS: dict[str, dict[str, float]] = {
+    '서울 강서구': {'lat': 37.5509, 'lng': 126.8495},
+    '서울 양천구': {'lat': 37.5169, 'lng': 126.8666},
+    '서울 구로구': {'lat': 37.4954, 'lng': 126.8874},
+    '서울 금천구': {'lat': 37.4569, 'lng': 126.8956},
+    '서울 영등포구': {'lat': 37.5264, 'lng': 126.8962},
+    '서울 동작구': {'lat': 37.5124, 'lng': 126.9393},
+    '서울 관악구': {'lat': 37.4782, 'lng': 126.9515},
+    '서울 서초구': {'lat': 37.4837, 'lng': 127.0324},
+    '서울 강남구': {'lat': 37.5172, 'lng': 127.0473},
+    '서울 송파구': {'lat': 37.5145, 'lng': 127.1059},
+    '서울 강동구': {'lat': 37.5301, 'lng': 127.1238},
+    '서울 마포구': {'lat': 37.5663, 'lng': 126.9019},
+    '서울 서대문구': {'lat': 37.5792, 'lng': 126.9368},
+    '서울 은평구': {'lat': 37.6176, 'lng': 126.9227},
+    '서울 종로구': {'lat': 37.5735, 'lng': 126.9790},
+    '서울 중구': {'lat': 37.5636, 'lng': 126.9976},
+    '서울 용산구': {'lat': 37.5324, 'lng': 126.9900},
+    '서울 성동구': {'lat': 37.5634, 'lng': 127.0369},
+    '서울 광진구': {'lat': 37.5384, 'lng': 127.0822},
+    '서울 동대문구': {'lat': 37.5744, 'lng': 127.0396},
+    '서울 중랑구': {'lat': 37.6066, 'lng': 127.0926},
+    '서울 성북구': {'lat': 37.5894, 'lng': 127.0167},
+    '서울 강북구': {'lat': 37.6398, 'lng': 127.0257},
+    '서울 도봉구': {'lat': 37.6688, 'lng': 127.0471},
+    '서울 노원구': {'lat': 37.6542, 'lng': 127.0568},
+    '경기 고양시': {'lat': 37.6584, 'lng': 126.8320},
+    '경기 파주시': {'lat': 37.7600, 'lng': 126.7802},
+    '경기 의정부시': {'lat': 37.7381, 'lng': 127.0338},
+    '경기 양주시': {'lat': 37.7853, 'lng': 127.0458},
+    '경기 남양주시': {'lat': 37.6360, 'lng': 127.2165},
+    '경기 구리시': {'lat': 37.5943, 'lng': 127.1296},
+    '경기 하남시': {'lat': 37.5392, 'lng': 127.2149},
+    '경기 성남시': {'lat': 37.4200, 'lng': 127.1267},
+    '경기 용인시': {'lat': 37.2411, 'lng': 127.1776},
+    '경기 수원시': {'lat': 37.2636, 'lng': 127.0286},
+    '경기 부천시': {'lat': 37.5034, 'lng': 126.7660},
+    '경기 안양시': {'lat': 37.3943, 'lng': 126.9568},
+    '경기 광명시': {'lat': 37.4786, 'lng': 126.8646},
+    '경기 김포시': {'lat': 37.6152, 'lng': 126.7156},
+    '경기 시흥시': {'lat': 37.3803, 'lng': 126.8029},
+    '경기 안산시': {'lat': 37.3219, 'lng': 126.8309},
+    '인천 부평구': {'lat': 37.5070, 'lng': 126.7219},
+    '인천 계양구': {'lat': 37.5371, 'lng': 126.7378},
+    '인천 서구': {'lat': 37.5453, 'lng': 126.6758},
+    '인천 남동구': {'lat': 37.4473, 'lng': 126.7314},
+    '인천 미추홀구': {'lat': 37.4635, 'lng': 126.6506},
+}
 
 app = FastAPI(title="이청잘 앱 API", version="1.1.0")
 app.add_middleware(
@@ -76,6 +124,35 @@ def _origin_allowed(origin: str) -> bool:
         except re.error:
             return False
     return False
+
+def _normalize_administrative_address(value: str) -> str:
+    return (
+        str(value or '')
+        .replace('특별시', '')
+        .replace('광역시', '')
+        .replace('특별자치시', '')
+        .replace('특별자치도', '')
+        .replace('자치시', '')
+        .replace('자치도', '')
+    ).strip()
+
+
+def _derive_fallback_geocode(address: str) -> dict[str, Any] | None:
+    normalized = re.sub(r'\s+', ' ', _normalize_administrative_address(address)).strip()
+    if not normalized:
+        return None
+    for key, point in KOREA_ADDRESS_FALLBACK_CENTERS.items():
+        if normalized.startswith(key):
+            return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False, 'approximate': True}
+    tokens = [token for token in normalized.split(' ') if token]
+    for size in (3, 2):
+        if len(tokens) >= size:
+            key = ' '.join(tokens[:size])
+            point = KOREA_ADDRESS_FALLBACK_CENTERS.get(key)
+            if point:
+                return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False, 'approximate': True}
+    return None
+
 
 def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
     gender = str(value or '').strip()
@@ -3085,6 +3162,7 @@ def toggle_workday(payload: WorkdayToggleIn, user=Depends(require_user)):
         return {'ok': True, 'item': row_to_dict(updated)}
 
 @app.get("/api/geocode")
+@app.get("/api/geocode/")
 def geocode_address(address: str = Query(..., min_length=2), user=Depends(require_user)):
     normalized = str(address or '').strip()
     if not normalized:
@@ -3092,7 +3170,7 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
     now_ts = time.time()
     cached = GEOCODE_CACHE.get(normalized)
     if cached and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
-        return {'lat': cached['lat'], 'lng': cached['lng'], 'label': normalized, 'cached': True}
+        return {'lat': cached['lat'], 'lng': cached['lng'], 'label': normalized, 'cached': True, 'approximate': bool(cached.get('approximate'))}
     url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
         'format': 'jsonv2',
         'limit': 1,
@@ -3106,19 +3184,28 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
     try:
         with urllib.request.urlopen(request, timeout=8) as response:
             payload = json.loads(response.read().decode('utf-8'))
+        first = payload[0] if isinstance(payload, list) and payload else None
+        if first:
+            point = {
+                'lat': float(first.get('lat')),
+                'lng': float(first.get('lon')),
+                'stored_at': now_ts,
+                'approximate': False,
+            }
+            GEOCODE_CACHE[normalized] = point
+            return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False, 'approximate': False}
     except Exception as exc:
         logger.warning('geocode lookup failed for %s: %s', normalized, exc)
-        raise HTTPException(status_code=502, detail='주소 좌표 조회에 실패했습니다.')
-    first = payload[0] if isinstance(payload, list) and payload else None
-    if not first:
-        raise HTTPException(status_code=404, detail='주소 좌표를 찾을 수 없습니다.')
-    point = {
-        'lat': float(first.get('lat')),
-        'lng': float(first.get('lon')),
-        'stored_at': now_ts,
-    }
-    GEOCODE_CACHE[normalized] = point
-    return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False}
+    fallback = _derive_fallback_geocode(normalized)
+    if fallback:
+        GEOCODE_CACHE[normalized] = {
+            'lat': float(fallback['lat']),
+            'lng': float(fallback['lng']),
+            'stored_at': now_ts,
+            'approximate': True,
+        }
+        return fallback
+    raise HTTPException(status_code=404, detail='주소 좌표를 찾을 수 없습니다.')
 
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):
