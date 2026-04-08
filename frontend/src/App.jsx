@@ -89,6 +89,9 @@ function applyHtmlInspectorMode(enabled) {
   const active = !!enabled
   if (document.body) document.body.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
   if (document.documentElement) document.documentElement.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
+  try {
+    window.dispatchEvent(new CustomEvent('icj-html-inspector-mode', { detail: { enabled: active } }))
+  } catch (_) {}
   return active
 }
 
@@ -152,6 +155,205 @@ function buildHtmlInspectorPayload(element) {
   return payload
 }
 
+function pickComputedStyle(style, keys) {
+  return Object.fromEntries(keys.map((key) => [key, style?.[key] || '']))
+}
+
+function buildInspectorAttributes(element) {
+  if (!(element instanceof Element)) return {}
+  return Array.from(element.attributes || []).reduce((acc, attr) => {
+    acc[attr.name] = attr.value
+    return acc
+  }, {})
+}
+
+function getElementTextValue(element) {
+  if (!(element instanceof Element)) return ''
+  return String(element.innerText || element.textContent || element.getAttribute('value') || '').replace(/\s+/g, ' ').trim().slice(0, 500)
+}
+
+function estimateComponentPath(element) {
+  if (!(element instanceof Element)) return ''
+  const route = window.location?.pathname || '/'
+  if (route.startsWith('/map')) return 'frontend/src/App.jsx :: MapPage'
+  if (route.startsWith('/schedule')) return 'frontend/src/App.jsx :: CalendarPage / ScheduleFormPage'
+  if (route.startsWith('/work-schedule')) return 'frontend/src/App.jsx :: WorkSchedulePage'
+  if (route.startsWith('/admin-mode')) return 'frontend/src/App.jsx :: AdminModePage'
+  return 'frontend/src/App.jsx'
+}
+
+function collectActiveStylesheetNames() {
+  if (typeof document === 'undefined') return []
+  const hrefs = Array.from(document.styleSheets || []).map((sheet) => {
+    try {
+      const href = sheet?.href || ''
+      if (href) return href.split('/').pop() || href
+      const owner = sheet?.ownerNode
+      if (owner?.tagName === 'STYLE') return 'inline-style'
+    } catch (_) {}
+    return ''
+  }).filter(Boolean)
+  return Array.from(new Set(hrefs)).slice(0, 20)
+}
+
+function buildAiUiContextPayload(element, options = {}) {
+  if (!(element instanceof Element)) return null
+  const style = window.getComputedStyle(element)
+  const rect = element.getBoundingClientRect()
+  const parentDepth = Math.max(0, Math.min(6, Number(options.parentDepth || 3)))
+  const siblingLimit = Math.max(0, Math.min(10, Number(options.siblingLimit || 6)))
+  const parentChain = []
+  let current = element.parentElement
+  let depth = 0
+  while (current && depth < parentDepth) {
+    const currentRect = current.getBoundingClientRect()
+    parentChain.push({
+      tagName: current.tagName,
+      id: current.id || '',
+      className: typeof current.className === 'string' ? current.className : '',
+      selector: buildHtmlInspectorSelector(current),
+      text: getElementTextValue(current).slice(0, 180),
+      rect: {
+        x: Math.round(currentRect.x),
+        y: Math.round(currentRect.y),
+        width: Math.round(currentRect.width),
+        height: Math.round(currentRect.height),
+      },
+    })
+    current = current.parentElement
+    depth += 1
+  }
+  const siblings = siblingLimit > 0
+    ? Array.from(element.parentElement?.children || [])
+      .filter((node) => node !== element)
+      .slice(0, siblingLimit)
+      .map((node) => {
+        const nodeRect = node.getBoundingClientRect()
+        return {
+          tagName: node.tagName,
+          id: node.id || '',
+          className: typeof node.className === 'string' ? node.className : '',
+          selector: buildHtmlInspectorSelector(node),
+          text: getElementTextValue(node).slice(0, 120),
+          rect: {
+            x: Math.round(nodeRect.x),
+            y: Math.round(nodeRect.y),
+            width: Math.round(nodeRect.width),
+            height: Math.round(nodeRect.height),
+          },
+        }
+      })
+    : []
+  const computedStyle = pickComputedStyle(style, [
+    'display', 'position', 'top', 'right', 'bottom', 'left',
+    'color', 'backgroundColor', 'fontSize', 'fontWeight', 'fontFamily',
+    'lineHeight', 'letterSpacing', 'textAlign', 'width', 'height',
+    'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'marginTop',
+    'marginRight', 'marginBottom', 'marginLeft', 'paddingTop', 'paddingRight',
+    'paddingBottom', 'paddingLeft', 'border', 'borderRadius', 'boxShadow',
+    'gap', 'justifyContent', 'alignItems', 'flexDirection', 'gridTemplateColumns',
+    'zIndex', 'opacity', 'whiteSpace', 'overflow', 'textOverflow'
+  ])
+  const route = options.pathname || window.location?.pathname || '/'
+  return {
+    exportedAt: new Date().toISOString(),
+    pageMeta: {
+      pageName: options.pageName || pageTitle(route),
+      route,
+      fullUrl: window.location?.href || route,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      theme: document.documentElement?.getAttribute('data-theme') || document.body?.getAttribute('data-theme') || 'light',
+      breakpoint: window.innerWidth <= 768 ? 'mobile' : (window.innerWidth <= 1200 ? 'tablet' : 'desktop'),
+      menuPath: options.menuPath || '',
+    },
+    currentUser: {
+      id: options.user?.id || null,
+      name: options.user?.name || options.user?.nickname || '',
+      nickname: options.user?.nickname || '',
+      grade: options.user?.grade ?? null,
+      roleLabel: options.user?.grade === 1 ? '관리자' : String(options.user?.position_title || ''),
+    },
+    targetElement: {
+      selector: buildHtmlInspectorSelector(element),
+      tag: element.tagName.toLowerCase(),
+      id: element.id || '',
+      classList: Array.from(element.classList || []),
+      role: element.getAttribute('role') || '',
+      name: element.getAttribute('name') || '',
+      type: element.getAttribute('type') || '',
+      text: getElementTextValue(element),
+      attributes: buildInspectorAttributes(element),
+      rect: {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      },
+      computedStyle,
+      html: element.outerHTML,
+    },
+    context: {
+      parentChain,
+      siblings,
+      activeCssFiles: collectActiveStylesheetNames(),
+      componentPathGuess: estimateComponentPath(element),
+      clickHandlerGuess: typeof element.onclick === 'function' ? 'inline onclick' : '',
+    },
+    request: {
+      goal: String(options.request?.goal || '').trim(),
+      similarScreen: String(options.request?.similarScreen || '').trim(),
+      priorityDevice: String(options.request?.priorityDevice || '').trim(),
+      constraints: String(options.request?.constraints || '').trim(),
+    },
+  }
+}
+
+function buildAiUiContextText(payload) {
+  if (!payload) return ''
+  return [
+    `[페이지]`,
+    `- ${payload.pageMeta?.pageName || '-'}`,
+    `- 경로: ${payload.pageMeta?.route || '-'}`,
+    `- 뷰포트: ${payload.pageMeta?.viewport?.width || '-'} x ${payload.pageMeta?.viewport?.height || '-'}`,
+    `- 테마: ${payload.pageMeta?.theme || '-'}`,
+    '',
+    `[선택 요소]`,
+    `- selector: ${payload.targetElement?.selector || '-'}`,
+    `- tag: ${payload.targetElement?.tag || '-'}`,
+    `- text: ${payload.targetElement?.text || '-'}`,
+    `- rect: ${payload.targetElement?.rect?.width || '-'} x ${payload.targetElement?.rect?.height || '-'} @ (${payload.targetElement?.rect?.x || '-'}, ${payload.targetElement?.rect?.y || '-'})`,
+    '',
+    `[요청]`,
+    `- goal: ${payload.request?.goal || '-'}`,
+    `- similarScreen: ${payload.request?.similarScreen || '-'}`,
+    `- priorityDevice: ${payload.request?.priorityDevice || '-'}`,
+    `- constraints: ${payload.request?.constraints || '-'}`,
+    '',
+    `[JSON]`,
+    JSON.stringify(payload, null, 2),
+  ].join('\n')
+}
+
+function downloadInspectorFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
+  try {
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
 async function copyHtmlInspectorPayload(element) {
   const payload = buildHtmlInspectorPayload(element)
   if (!payload) return false
@@ -186,6 +388,82 @@ async function copyHtmlInspectorPayload(element) {
   } catch (_) {
     return false
   }
+}
+
+function HtmlInspectorPanel({
+  open,
+  payload,
+  selectedSelector,
+  options,
+  onChangeOption,
+  onClear,
+  onClose,
+  onCopyJson,
+  onSaveJson,
+  onSaveTxt,
+}) {
+  if (!open) return null
+  const jsonText = payload ? JSON.stringify(payload, null, 2) : ''
+  return createPortal(
+    <div className="ai-ui-inspector-panel" onClick={(event) => event.stopPropagation()}>
+      <div className="between ai-ui-inspector-panel-head">
+        <div>
+          <strong>AI UI 컨텍스트 추출기</strong>
+          <div className="muted tiny-text">Ctrl + 클릭으로 요소 선택 · JSON/TXT 저장 가능</div>
+        </div>
+        <button type="button" className="small ghost" onClick={onClose}>닫기</button>
+      </div>
+      <div className="stack compact-gap ai-ui-inspector-panel-body">
+        <div className="ai-ui-inspector-actions">
+          <button type="button" className="small ghost" onClick={onClear}>선택해제</button>
+          <button type="button" className="small ghost" onClick={onCopyJson} disabled={!payload}>JSON 복사</button>
+          <button type="button" className="small ghost" onClick={onSaveJson} disabled={!payload}>JSON 저장</button>
+          <button type="button" className="small ghost" onClick={onSaveTxt} disabled={!payload}>TXT 저장</button>
+        </div>
+        <div className="card ai-ui-inspector-summary-card">
+          <div className="muted tiny-text">현재 선택</div>
+          <div className="small-text ai-ui-inspector-selector">{selectedSelector || '선택된 요소 없음'}</div>
+        </div>
+        <div className="ai-ui-inspector-grid">
+          <label>
+            <span>부모 단계</span>
+            <input type="number" min="0" max="6" value={options.parentDepth} onChange={(e) => onChangeOption('parentDepth', Number(e.target.value || 0))} />
+          </label>
+          <label>
+            <span>형제 요소 수</span>
+            <input type="number" min="0" max="10" value={options.siblingLimit} onChange={(e) => onChangeOption('siblingLimit', Number(e.target.value || 0))} />
+          </label>
+        </div>
+        <label>
+          <span>원하는 수정사항</span>
+          <textarea rows="3" value={options.goal} onChange={(e) => onChangeOption('goal', e.target.value)} placeholder="예: 버튼을 더 고급스럽게, 글자 크기 1단계 확대" />
+        </label>
+        <label>
+          <span>비슷하게 맞추고 싶은 화면</span>
+          <input value={options.similarScreen} onChange={(e) => onChangeOption('similarScreen', e.target.value)} placeholder="예: 메인홈 상단 버튼" />
+        </label>
+        <div className="ai-ui-inspector-grid">
+          <label>
+            <span>우선 디바이스</span>
+            <select value={options.priorityDevice} onChange={(e) => onChangeOption('priorityDevice', e.target.value)}>
+              <option value="mobile">mobile</option>
+              <option value="desktop">desktop</option>
+              <option value="both">both</option>
+            </select>
+          </label>
+          <label>
+            <span>제약사항</span>
+            <input value={options.constraints} onChange={(e) => onChangeOption('constraints', e.target.value)} placeholder="예: 현재 폭 유지, 한 줄 표시 유지" />
+          </label>
+        </div>
+        <label>
+          <span>AI 전달용 JSON</span>
+          <textarea className="ai-ui-inspector-json" rows="18" value={jsonText} readOnly placeholder="Ctrl + 클릭으로 요소를 선택하면 JSON이 생성됩니다." />
+        </label>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 function pageTitle(pathname) {
@@ -11445,7 +11723,7 @@ function AdminModePage() {
           <div className="between admin-mode-section-head">
             <div>
               <h2>HTML 요소확인</h2>
-              <div className="muted tiny-text">ON 후 현재 화면에서 Ctrl + 클릭하면 selector, 크기, HTML이 함께 복사됩니다.</div>
+              <div className="muted tiny-text">ON 후 현재 화면에서 Ctrl + 클릭하면 AI UI 컨텍스트 패널이 열리고 JSON/TXT 저장이 가능합니다.</div>
             </div>
             <button
               type="button"
@@ -14513,9 +14791,31 @@ function App() {
   const [user, setUser] = useState(getStoredUser())
   const navigate = useNavigate()
   const location = useLocation()
+  const [htmlInspectorActive, setHtmlInspectorActive] = useState(() => typeof document !== 'undefined' ? document.body?.classList.contains(HTML_INSPECTOR_BODY_CLASS) : false)
+  const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false)
+  const [inspectorSelectionVersion, setInspectorSelectionVersion] = useState(0)
+  const [inspectorPayload, setInspectorPayload] = useState(null)
+  const [inspectorOptions, setInspectorOptions] = useState({
+    parentDepth: 3,
+    siblingLimit: 6,
+    goal: '',
+    similarScreen: '',
+    priorityDevice: 'mobile',
+    constraints: '',
+  })
+  const inspectorSelectedElementRef = useRef(null)
+  const inspectorHighlightElementRef = useRef(null)
 
   useEffect(() => {
     applyAppTheme(getStoredThemePreference())
+  }, [])
+
+  useEffect(() => {
+    function handleModeChange(event) {
+      setHtmlInspectorActive(!!event?.detail?.enabled)
+    }
+    window.addEventListener('icj-html-inspector-mode', handleModeChange)
+    return () => window.removeEventListener('icj-html-inspector-mode', handleModeChange)
   }, [])
 
   useEffect(() => {
@@ -14546,22 +14846,22 @@ function App() {
 
   useEffect(() => {
     function handleHtmlInspectorClick(event) {
-      if (!document.body?.classList.contains(HTML_INSPECTOR_BODY_CLASS)) return
+      if (!htmlInspectorActive) return
       if (!event.ctrlKey) return
       const target = event.target
       if (!(target instanceof Element)) return
+      if (target.closest('.ai-ui-inspector-panel')) return
       const ignored = target.closest('input, textarea, select')
       if (ignored) return
       event.preventDefault()
       event.stopPropagation()
-      copyHtmlInspectorPayload(target).then((copied) => {
-        const selector = buildHtmlInspectorSelector(target) || target.tagName.toLowerCase()
-        window.alert(copied ? `HTML 요소가 복사되었습니다.\n${selector}` : `복사에 실패했습니다.\n${selector}`)
-      })
+      inspectorSelectedElementRef.current = target
+      setInspectorPanelOpen(true)
+      setInspectorSelectionVersion((prev) => prev + 1)
     }
     document.addEventListener('click', handleHtmlInspectorClick, true)
     return () => document.removeEventListener('click', handleHtmlInspectorClick, true)
-  }, [])
+  }, [htmlInspectorActive])
 
   useEffect(() => {
     if (!user || !getStoredUser()) return
@@ -14593,6 +14893,78 @@ function App() {
     clearSession()
     setUser(null)
     navigate('/login')
+  }
+
+  useEffect(() => {
+    const element = inspectorSelectedElementRef.current
+    if (!element || !document.contains(element) || !htmlInspectorActive) {
+      setInspectorPayload(null)
+      return
+    }
+    const nextPayload = buildAiUiContextPayload(element, {
+      pathname: location.pathname,
+      pageName: pageTitle(location.pathname),
+      menuPath: location.pathname,
+      user,
+      request: inspectorOptions,
+      parentDepth: inspectorOptions.parentDepth,
+      siblingLimit: inspectorOptions.siblingLimit,
+    })
+    setInspectorPayload(nextPayload)
+  }, [inspectorSelectionVersion, inspectorOptions, location.pathname, user, htmlInspectorActive])
+
+  useEffect(() => {
+    const previous = inspectorHighlightElementRef.current
+    if (previous instanceof Element) previous.classList.remove('ai-ui-inspector-selected')
+    const next = htmlInspectorActive ? inspectorSelectedElementRef.current : null
+    if (next instanceof Element) {
+      next.classList.add('ai-ui-inspector-selected')
+      inspectorHighlightElementRef.current = next
+    } else {
+      inspectorHighlightElementRef.current = null
+    }
+    return () => {
+      if (inspectorHighlightElementRef.current instanceof Element) {
+        inspectorHighlightElementRef.current.classList.remove('ai-ui-inspector-selected')
+      }
+    }
+  }, [inspectorSelectionVersion, inspectorPayload, htmlInspectorActive])
+
+  useEffect(() => {
+    if (htmlInspectorActive) return
+    inspectorSelectedElementRef.current = null
+    setInspectorPayload(null)
+    setInspectorPanelOpen(false)
+  }, [user?.id, location.pathname, htmlInspectorActive])
+
+  async function copyInspectorJson() {
+    if (!inspectorPayload) return
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(JSON.stringify(inspectorPayload, null, 2))
+        window.alert('AI 전달용 JSON이 복사되었습니다.')
+        return
+      }
+    } catch (_) {}
+    window.alert('JSON 복사에 실패했습니다.')
+  }
+
+  function saveInspectorJsonFile() {
+    if (!inspectorPayload) return
+    const ok = downloadInspectorFile(`icj_ui_context_${Date.now()}.json`, JSON.stringify(inspectorPayload, null, 2), 'application/json;charset=utf-8')
+    if (!ok) window.alert('JSON 저장에 실패했습니다.')
+  }
+
+  function saveInspectorTxtFile() {
+    if (!inspectorPayload) return
+    const ok = downloadInspectorFile(`icj_ui_context_${Date.now()}.txt`, buildAiUiContextText(inspectorPayload), 'text/plain;charset=utf-8')
+    if (!ok) window.alert('TXT 저장에 실패했습니다.')
+  }
+
+  function clearInspectorSelection() {
+    inspectorSelectedElementRef.current = null
+    setInspectorPayload(null)
+    setInspectorSelectionVersion((prev) => prev + 1)
   }
 
   if (!user) {
