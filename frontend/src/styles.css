@@ -16597,3 +16597,231 @@ body.layout-guide-enabled .error {
     max-width: calc(100vw - 20px);
   }
 }
+
+
+/* 2026-04-08 final schedule/admin/disposal/warehouse mobile cleanup */
+.disposal-month-switch-card.disposal-month-switch-card-inline {
+  justify-content: center;
+}
+
+.disposal-month-switch-inline-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+}
+
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-switch-title {
+  order: 0;
+}
+
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-nav-button:first-of-type,
+.disposal-month-switch-card.disposal-month-switch-card-inline .disposal-month-nav-button:last-of-type {
+  order: 0;
+}
+
+@media (max-width: 768px) {
+  .disposal-month-switch-card.disposal-month-switch-card-inline {
+    justify-content: flex-start;
+  }
+
+  .disposal-month-switch-inline-group {
+    justify-content: flex-start;
+    gap: 4px;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+    font-size: calc(1em + 2pt) !important;
+    font-weight: 800;
+  }
+
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    display: grid;
+    grid-template-columns: minmax(50px, 0.7fr) minmax(64px, 1fr) minmax(68px, 0.95fr) minmax(84px, 1.05fr);
+    gap: 4px;
+    align-items: stretch;
+  }
+
+  .disposal-page .disposal-top-status-actions,
+  .disposal-page .disposal-top-status-actions.no-actions,
+  .disposal-page .disposal-top-status-actions.has-actions {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select,
+  .disposal-page .disposal-final-status-select {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .disposal-item-settings-inline,
+  .disposal-settings-inline {
+    position: relative;
+  }
+
+  .disposal-item-settings-popover,
+  .disposal-settings-popover.disposal-item-settings-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    width: clamp(168px, 56vw, 220px);
+    min-width: 168px;
+    max-width: min(220px, calc(100vw - 24px));
+    transform: none;
+    z-index: 80;
+  }
+
+  .work-schedule-page.mobile {
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .work-schedule-page.mobile .card.work-schedule-day,
+  .work-schedule-page.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form,
+  .work-schedule-page.mobile .work-schedule-entry-form,
+  .work-schedule-page.mobile .work-day-status-editor,
+  .work-schedule-page.mobile .work-day-status-editor-grid {
+    border-radius: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day {
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 0 8px 0 !important;
+    display: block;
+  }
+
+  .work-schedule-page.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section {
+    padding: 6px !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top {
+    display: block !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-list.unified-list {
+    overflow: visible !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-row,
+  .work-schedule-page.mobile .detail-schedule-item,
+  .work-schedule-page.mobile .work-schedule-line-item {
+    border-radius: 0 !important;
+  }
+
+  .warehouse-top-tabs-card,
+  .work-shift-top-tabs-card {
+    border-radius: 0 !important;
+  }
+
+  .warehouse-mode-tabs-top,
+  .work-shift-mode-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .warehouse-mode-tabs-top .settlement-tab,
+  .work-shift-mode-tabs .settlement-tab {
+    width: 100%;
+    min-height: 38px;
+    border-radius: 0 !important;
+  }
+
+  .disposal-list-grid.disposal-list-grid-customer {
+    overflow: hidden !important;
+    border: 1px solid #111827 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row {
+    width: 100%;
+    min-width: 0 !important;
+    grid-template-columns: 24px minmax(40px, 1fr) minmax(24px, 0.36fr) minmax(32px, 0.44fr) minmax(34px, 0.46fr) minmax(34px, 0.42fr) minmax(36px, 0.48fr) 24px 24px !important;
+  }
+
+  .disposal-list-grid-button-customer {
+    grid-column: 2 / span 6;
+    grid-template-columns: minmax(40px, 1fr) minmax(24px, 0.36fr) minmax(32px, 0.44fr) minmax(34px, 0.46fr) minmax(34px, 0.42fr) minmax(36px, 0.48fr) !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row > div,
+  .disposal-list-grid-customer .disposal-list-grid-row > label,
+  .disposal-list-grid-button-customer > span,
+  .disposal-list-grid-customer .disposal-list-grid-status-button,
+  .disposal-list-grid-customer .disposal-list-grid-payment-cell {
+    min-height: 26px;
+    padding: 2px 1px !important;
+    border-right: 1px solid #111827 !important;
+    border-bottom: 1px solid #111827 !important;
+    color: #111827 !important;
+    font-size: 8px !important;
+    line-height: 1.1;
+    background: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 0 !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head,
+  .disposal-list-grid-customer .disposal-list-grid-summary-row {
+    background: #f8fafc !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-button-customer > span:first-child {
+    justify-content: flex-start;
+    padding-left: 3px !important;
+    font-size: 8px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    grid-template-columns: minmax(46px, 0.66fr) minmax(58px, 0.96fr) minmax(62px, 0.9fr) minmax(76px, 1fr);
+    gap: 3px;
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select,
+  .disposal-page .disposal-final-status-select {
+    font-size: 10px !important;
+    padding: 5px 6px !important;
+    min-height: 32px !important;
+  }
+
+  .disposal-item-settings-popover,
+  .disposal-settings-popover.disposal-item-settings-popover {
+    width: min(180px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+  }
+}

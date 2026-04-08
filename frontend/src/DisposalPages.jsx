@@ -2529,25 +2529,27 @@ export function DisposalSettlementsPage() {
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
       <section className="card disposal-month-switch-card disposal-month-switch-card-compact disposal-month-switch-card-inline">
-        <button
-          type="button"
-          className="ghost disposal-month-nav-button"
-          aria-label="이전 달"
-          title="이전 달"
-          onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}
-        >
-          ◀
-        </button>
-        <div className="disposal-month-switch-title">{monthLabel}</div>
-        <button
-          type="button"
-          className="ghost disposal-month-nav-button"
-          aria-label="다음 달"
-          title="다음 달"
-          onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}
-        >
-          ▶
-        </button>
+        <div className="disposal-month-switch-inline-group">
+          <button
+            type="button"
+            className="ghost disposal-month-nav-button"
+            aria-label="이전 달"
+            title="이전 달"
+            onClick={() => setMonthKey(prev => shiftMonthKey(prev, -1))}
+          >
+            ◀
+          </button>
+          <div className="disposal-month-switch-title">{monthLabel}</div>
+          <button
+            type="button"
+            className="ghost disposal-month-nav-button"
+            aria-label="다음 달"
+            title="다음 달"
+            onClick={() => setMonthKey(prev => shiftMonthKey(prev, 1))}
+          >
+            ▶
+          </button>
+        </div>
       </section>
 
       <section className="card disposal-monthly-sheet-card">

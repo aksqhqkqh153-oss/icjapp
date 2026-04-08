@@ -8968,6 +8968,32 @@ function AdminModePage() {
     await load()
   }
 
+  const saveMenuLocks = useCallback(async () => {
+    setMenuLockSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const nextConfig = { ...configForm, menu_locks_json: JSON.stringify(menuLockMap) }
+      await api('/api/admin-mode/config', {
+        method: 'POST',
+        body: JSON.stringify(nextConfig),
+      })
+      setConfigForm(nextConfig)
+      const storedUser = getStoredUser()
+      if (storedUser) {
+        const nextUser = { ...storedUser, permission_config: { ...(storedUser.permission_config || {}), ...nextConfig } }
+        sessionStorage.setItem('icj_user', JSON.stringify(nextUser))
+        if (getRememberedLogin()) localStorage.setItem('icj_user', JSON.stringify(nextUser))
+      }
+      setMessage('메뉴잠금 설정이 저장되었습니다.')
+      await load()
+    } catch (err) {
+      setError(err.message || '메뉴잠금 저장 중 오류가 발생했습니다.')
+    } finally {
+      setMenuLockSaving(false)
+    }
+  }, [configForm, menuLockMap])
+
   async function saveAccounts() {
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
@@ -9331,6 +9357,11 @@ function AdminModePage() {
     if (Object.prototype.hasOwnProperty.call(normalizedPatch, 'grade')) {
       normalizedPatch.grade = Number(normalizedPatch.grade || 6)
       normalizedPatch.grade_label = gradeLabel(normalizedPatch.grade)
+    }
+    if (Object.prototype.hasOwnProperty.call(normalizedPatch, 'login_id')) {
+      const nextLoginId = normalizeFlexibleLoginId(normalizedPatch.login_id || '')
+      normalizedPatch.login_id = nextLoginId
+      normalizedPatch.email = nextLoginId
     }
     setAccountRows(prev => prev.map(item => item.id === userId ? enforceVehicleRules({ ...item, ...normalizedPatch }) : item))
     setBranchRows(prev => prev.map(item => item.id === userId ? enforceVehicleRules({ ...item, ...normalizedPatch }) : item))
@@ -10203,7 +10234,7 @@ function AdminModePage() {
               <div className="admin-select-field locked-field admin-field-group"><span>구분</span><input value={groupNumberDisplay(item)} readOnly disabled /></div>
               <div className="admin-select-field locked-field admin-field-branch"><span>호점</span><input value={isAssignedBranchNo(item.branch_no) ? String(item.branch_no) : ''} readOnly disabled /></div>
               <div className="admin-select-field locked-field admin-field-name"><span>이름</span><input value={item.name || item.nickname || ''} readOnly disabled /></div>
-              <div className="admin-select-field locked-field admin-field-id"><span>아이디</span><input value={item.email || ''} readOnly disabled /></div>
+              <div className="admin-select-field locked-field admin-field-id"><span>아이디</span><input value={item.login_id || item.email || ''} readOnly disabled /></div>
               <label className="admin-select-field admin-field-vehicle-available">
                 <span>차량가용여부</span>
                 <select value={vehicleAvailableSelectValue(item)} onChange={e => updateAccountRow(item.id, { vehicle_available: e.target.value === '가용' })} disabled={isStaffGradeValue(item?.grade)}>
