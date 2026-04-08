@@ -2841,6 +2841,97 @@ label { font-size: 14px; color: #4f6f8c; }
 .vehicle-list-line.primary strong { min-width: 70px; }
 .vehicle-list-line.sub { padding-left: 6px; color: #475569; font-size: 14px; }
 
+.departure-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.departure-summary-row {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+}
+
+.departure-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.departure-summary-time {
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.departure-summary-customer {
+  min-width: 0;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.departure-detail-button {
+  white-space: nowrap;
+}
+
+.departure-detail-line {
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.departure-detail-line strong {
+  flex: 0 0 auto;
+  min-width: 48px;
+  color: #334155;
+}
+
+.departure-detail-line span {
+  min-width: 0;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .departure-summary-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'chip time'
+      'customer button';
+    align-items: center;
+  }
+
+  .departure-summary-chip {
+    grid-area: chip;
+    justify-self: start;
+  }
+
+  .departure-summary-time {
+    grid-area: time;
+    justify-self: end;
+  }
+
+  .departure-summary-customer {
+    grid-area: customer;
+    white-space: normal;
+  }
+
+  .departure-detail-button {
+    grid-area: button;
+    justify-self: end;
+  }
+}
+
 .segmented-chat-layout { padding: 0; overflow: hidden; }
 .chat-room-topbar-section { padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #fff; }
 .chat-room-topbar-grid { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

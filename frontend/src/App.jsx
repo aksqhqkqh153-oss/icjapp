@@ -3774,6 +3774,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
 
 function MapPage() {
   const isMobile = useIsMobile()
+  const navigate = useNavigate()
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerLayerRef = useRef(null)
@@ -4084,18 +4085,37 @@ function MapPage() {
             <>
               <div className="vehicle-list-title">출발지 목록 · {selectedDate}</div>
               <div className="vehicle-list-items">
-                {(departureData.customerList || []).map(item => (
-                  <div key={item.id} className="vehicle-list-item stopped">
-                    <div className="vehicle-list-line primary">
-                      <strong>[{item.departmentInfo || '일정'}]</strong>
-                      <span>{item.title}</span>
+                {(departureData.customerList || []).map(item => {
+                  const summaryTime = item.startTime || item.visitTime || '-'
+                  return (
+                    <div key={item.id} className="vehicle-list-item stopped departure-list-item">
+                      <div className="departure-summary-row">
+                        <span className="departure-summary-chip">{item.departmentInfo || '일정'}</span>
+                        <span className="departure-summary-time">{summaryTime}</span>
+                        <strong className="departure-summary-customer">{item.title}</strong>
+                        <button
+                          type="button"
+                          className="small ghost departure-detail-button"
+                          onClick={() => navigate(`/schedule/${item.raw?.id}`)}
+                        >
+                          상세일정
+                        </button>
+                      </div>
+                      <div className="vehicle-list-line sub departure-detail-line">
+                        <strong>출발지 :</strong>
+                        <span>{item.address || '-'}</span>
+                      </div>
+                      <div className="vehicle-list-line sub departure-detail-line">
+                        <strong>사업자 :</strong>
+                        <span>{formatCandidateList(item.businessCandidates)}</span>
+                      </div>
+                      <div className="vehicle-list-line sub departure-detail-line">
+                        <strong>직원 :</strong>
+                        <span>{formatCandidateList(item.staffCandidates)}</span>
+                      </div>
                     </div>
-                    <div className="vehicle-list-line sub">출발지 : {item.address || '-'}</div>
-                    <div className="vehicle-list-line sub">사업자 : {formatCandidateList(item.businessCandidates)}</div>
-                    <div className="vehicle-list-line sub">직원 : {formatCandidateList(item.staffCandidates)}</div>
-                    {item.visitTime ? <div className="vehicle-list-line sub">방문시각 : {item.visitTime}</div> : null}
-                  </div>
-                ))}
+                  )
+                })}
                 {!(departureData.customerList || []).length && <div className="muted">선택한 날짜의 출발지 일정이 없습니다.</div>}
               </div>
             </>
