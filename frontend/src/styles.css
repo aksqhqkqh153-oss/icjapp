@@ -17198,3 +17198,13 @@ body.layout-guide-enabled .work-schedule-page.mobile .work-schedule-mobile-group
 body.layout-guide-enabled .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block .work-schedule-exclusion-row {
   outline: none !important;
 }
+
+/* 2026-04-08 html inspector admin tool */
+html.html-inspector-enabled,
+body.html-inspector-enabled {
+  cursor: crosshair;
+}
+
+.html-inspector-enabled * {
+  cursor: crosshair !important;
+}

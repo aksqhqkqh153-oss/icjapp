@@ -48,6 +48,7 @@ const PAGE_TITLES = {
 
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
 const LAYOUT_GUIDE_BODY_CLASS = 'layout-guide-enabled'
+const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
 
 function normalizeAppTheme(theme) {
   return theme === 'dark' ? 'dark' : 'light'
@@ -79,6 +80,102 @@ function applyLayoutGuideMode(enabled) {
   if (document.body) document.body.classList.toggle(LAYOUT_GUIDE_BODY_CLASS, active)
   if (document.documentElement) document.documentElement.classList.toggle(LAYOUT_GUIDE_BODY_CLASS, active)
   return active
+}
+
+function applyHtmlInspectorMode(enabled) {
+  if (typeof document === 'undefined') return !!enabled
+  const active = !!enabled
+  if (document.body) document.body.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
+  if (document.documentElement) document.documentElement.classList.toggle(HTML_INSPECTOR_BODY_CLASS, active)
+  return active
+}
+
+function escapeSelectorToken(value) {
+  const raw = String(value || '')
+  if (!raw) return ''
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(raw)
+  return raw.replace(/([^a-zA-Z0-9_-])/g, '\\$1')
+}
+
+function buildHtmlInspectorSelector(element) {
+  if (!(element instanceof Element)) return ''
+  if (element.id) return `#${escapeSelectorToken(element.id)}`
+  const parts = []
+  let current = element
+  while (current instanceof Element && parts.length < 6) {
+    let part = current.tagName.toLowerCase()
+    if (current.classList?.length) {
+      part += '.' + Array.from(current.classList).slice(0, 3).map(escapeSelectorToken).join('.')
+    }
+    const parent = current.parentElement
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(node => node.tagName === current.tagName)
+      if (siblings.length > 1) {
+        part += `:nth-of-type(${siblings.indexOf(current) + 1})`
+      }
+    }
+    parts.unshift(part)
+    if (current.id) break
+    current = current.parentElement
+  }
+  return parts.join(' > ')
+}
+
+function buildHtmlInspectorPayload(element) {
+  if (!(element instanceof Element)) return null
+  const rect = element.getBoundingClientRect()
+  const textPreview = (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 180)
+  const payload = {
+    tagName: element.tagName.toLowerCase(),
+    id: element.id || '',
+    className: element.className || '',
+    selector: buildHtmlInspectorSelector(element),
+    textPreview,
+    rect: {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    },
+    html: element.outerHTML,
+  }
+  return payload
+}
+
+async function copyHtmlInspectorPayload(element) {
+  const payload = buildHtmlInspectorPayload(element)
+  if (!payload) return false
+  const message = [
+    `selector: ${payload.selector || payload.tagName}`,
+    `tag: ${payload.tagName}`,
+    `id: ${payload.id || '-'}`,
+    `class: ${payload.className || '-'}`,
+    `text: ${payload.textPreview || '-'}`,
+    `rect: ${payload.rect.width}x${payload.rect.height} @ (${payload.rect.x}, ${payload.rect.y})`,
+    '',
+    payload.html,
+  ].join('\n')
+  window.__icjLastHtmlInspectData = payload
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(message)
+      return true
+    }
+  } catch (_) {}
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = message
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const success = document.execCommand('copy')
+    textarea.remove()
+    return success
+  } catch (_) {
+    return false
+  }
 }
 
 function pageTitle(pathname) {
@@ -9132,6 +9229,8 @@ function AdminModePage() {
   const [menuLockSaving, setMenuLockSaving] = useState(false)
   const [layoutGuideEnabled, setLayoutGuideEnabled] = useState(false)
   const [layoutGuideSaving, setLayoutGuideSaving] = useState(false)
+  const [htmlInspectorEnabled, setHtmlInspectorEnabled] = useState(false)
+  const [htmlInspectorSaving, setHtmlInspectorSaving] = useState(false)
   const [materialsTableEditor, setMaterialsTableEditor] = useState({ mode: 'width', target: 'sales' })
   const [materialsTableLayouts, setMaterialsTableLayouts] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, [...MATERIALS_TABLE_WIDTH_DEFAULTS[key]]])))
   const [materialsTableScaleSettings, setMaterialsTableScaleSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, 100])))
@@ -9240,8 +9339,11 @@ function AdminModePage() {
       setConfigForm(nextConfigForm)
       setMenuLockMap(normalizeMenuLocks(nextConfigForm.menu_locks_json))
       const nextLayoutGuideEnabled = !!prefsResponse?.layoutGuideEnabled
+      const nextHtmlInspectorEnabled = !!prefsResponse?.htmlInspectorEnabled
       setLayoutGuideEnabled(nextLayoutGuideEnabled)
+      setHtmlInspectorEnabled(nextHtmlInspectorEnabled)
       applyLayoutGuideMode(nextLayoutGuideEnabled)
+      applyHtmlInspectorMode(nextHtmlInspectorEnabled)
       const normalizedAccounts = (response.accounts || []).map(normalizeAdminRow)
       setAccountRows(normalizedAccounts)
       setAccountRowsSortBase(normalizedAccounts)
@@ -9341,6 +9443,27 @@ function AdminModePage() {
       setError(err.message || '관리용기능 저장 중 오류가 발생했습니다.')
     } finally {
       setLayoutGuideSaving(false)
+    }
+  }, [])
+
+  const saveHtmlInspectorSetting = useCallback(async (nextValue) => {
+    setHtmlInspectorSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const currentPrefs = await api('/api/preferences').catch(() => ({}))
+      const nextPrefs = { ...(currentPrefs || {}), htmlInspectorEnabled: !!nextValue }
+      await api('/api/preferences', {
+        method: 'POST',
+        body: JSON.stringify({ data: nextPrefs }),
+      })
+      setHtmlInspectorEnabled(!!nextValue)
+      applyHtmlInspectorMode(!!nextValue)
+      setMessage(`관리용기능 · html 요소확인이 ${nextValue ? 'ON' : 'OFF'}으로 저장되었습니다.`)
+    } catch (err) {
+      setError(err.message || 'html 요소확인 저장 중 오류가 발생했습니다.')
+    } finally {
+      setHtmlInspectorSaving(false)
     }
   }, [])
 
@@ -10799,6 +10922,23 @@ function AdminModePage() {
             onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
           >
             {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
+          </button>
+        </div>
+      </section>
+
+      <section className="card admin-mode-card">
+        <div className="between admin-mode-section-head">
+          <div>
+            <h2>html 요소확인</h2>
+            <div className="muted tiny-text">ON 후 현재 화면에서 Ctrl + 클릭하면 selector, 크기, HTML이 함께 복사됩니다.</div>
+          </div>
+          <button
+            type="button"
+            className={htmlInspectorEnabled ? 'small selected-toggle' : 'small ghost danger'}
+            disabled={htmlInspectorSaving}
+            onClick={() => saveHtmlInspectorSetting(!htmlInspectorEnabled)}
+          >
+            {htmlInspectorSaving ? '저장중...' : (htmlInspectorEnabled ? 'ON' : 'OFF')}
           </button>
         </div>
       </section>
@@ -13610,19 +13750,43 @@ function App() {
   useEffect(() => {
     if (!user?.id) {
       applyLayoutGuideMode(false)
+      applyHtmlInspectorMode(false)
       return undefined
     }
     let cancelled = false
     api('/api/preferences').then((prefs) => {
       if (cancelled) return
       applyLayoutGuideMode(!!prefs?.layoutGuideEnabled)
+      applyHtmlInspectorMode(!!prefs?.htmlInspectorEnabled)
     }).catch(() => {
-      if (!cancelled) applyLayoutGuideMode(false)
+      if (!cancelled) {
+        applyLayoutGuideMode(false)
+        applyHtmlInspectorMode(false)
+      }
     })
     return () => {
       cancelled = true
     }
   }, [user?.id])
+
+  useEffect(() => {
+    function handleHtmlInspectorClick(event) {
+      if (!document.body?.classList.contains(HTML_INSPECTOR_BODY_CLASS)) return
+      if (!event.ctrlKey) return
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const ignored = target.closest('input, textarea, select')
+      if (ignored) return
+      event.preventDefault()
+      event.stopPropagation()
+      copyHtmlInspectorPayload(target).then((copied) => {
+        const selector = buildHtmlInspectorSelector(target) || target.tagName.toLowerCase()
+        window.alert(copied ? `HTML 요소가 복사되었습니다.\n${selector}` : `복사에 실패했습니다.\n${selector}`)
+      })
+    }
+    document.addEventListener('click', handleHtmlInspectorClick, true)
+    return () => document.removeEventListener('click', handleHtmlInspectorClick, true)
+  }, [])
 
   useEffect(() => {
     if (!user || !getStoredUser()) return
