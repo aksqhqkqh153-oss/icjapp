@@ -17025,3 +17025,80 @@ body.layout-guide-enabled .error {
     font-size: 14px !important;
   }
 }
+
+/* 2026-04-08 admin border guide label + mobile schedule grouped layout */
+@media (max-width: 768px) {
+  .work-schedule-mobile-group-shell.mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-head,
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-exclusion-section {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-mobile-block {
+    display: block;
+    margin: 0 !important;
+    padding: 8px !important;
+    border-radius: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-head.work-schedule-mobile-block .work-schedule-headline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-head.work-schedule-mobile-block .work-schedule-headline strong,
+  .work-schedule-page.mobile .work-schedule-mobile-group-shell.mobile .work-schedule-head.work-schedule-mobile-block .work-schedule-date-inline {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-stack {
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-stack .work-day-status-button.work-schedule-mobile-block {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-stack .work-schedule-section.work-schedule-mobile-block,
+  .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block {
+    display: block;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-stack .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-exclusion-section.work-schedule-mobile-block .work-notes-form,
+  .work-schedule-page.mobile .work-schedule-mobile-stack .work-schedule-entry-form,
+  .work-schedule-page.mobile .work-schedule-mobile-stack .work-day-status-editor {
+    margin-top: 6px !important;
+  }
+}
+
+body.layout-guide-enabled .work-schedule-mobile-group-shell.mobile {
+  outline: 3px solid rgba(255, 127, 0, 0.8) !important;
+  outline-offset: -2px;
+}
+
+body.layout-guide-enabled .work-schedule-mobile-group-shell.mobile .work-schedule-mobile-block {
+  outline: 2px solid rgba(255, 215, 0, 0.85) !important;
+  outline-offset: -1px;
+}

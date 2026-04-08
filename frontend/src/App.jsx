@@ -5702,21 +5702,22 @@ function WorkSchedulePage() {
         const dayBulkForms = bulkForms[day.date] || []
         return (
           <section key={day.date} className={`card work-schedule-day${day.entries.length > 0 ? ' has-entries' : ' empty-day'}`}>
-            <div className="between work-schedule-head">
-              <div className="work-schedule-headline">
-                <strong>{workScheduleHeading(index)}</strong>
-                <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+            <div className={`work-schedule-mobile-group-shell${isMobile ? ' mobile' : ''}`}>
+              <div className={`between work-schedule-head${isMobile ? ' work-schedule-mobile-block' : ''}`}>
+                <div className="work-schedule-headline">
+                  <strong>{workScheduleHeading(index)}</strong>
+                  <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="work-schedule-main-top">
-              <button type="button" className="work-day-status-button" onClick={() => openStatusEditor(day)} disabled={readOnly}>
+              <div className={`work-schedule-main-top${isMobile ? ' work-schedule-mobile-stack' : ''}`}>
+                <button type="button" className={`work-day-status-button${isMobile ? ' work-schedule-mobile-block' : ''}`} onClick={() => openStatusEditor(day)} disabled={readOnly}>
                 <span className="work-day-status-vehicle">가용차량 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                 <span className="work-day-status-divider" />
                 <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
               </button>
 
-              <section className="work-schedule-section">
+              <section className={`work-schedule-section${isMobile ? ' work-schedule-mobile-block' : ''}`}>
                 <div className="between work-schedule-section-head">
                   <div className="work-schedule-section-title-wrap">
                     <strong className="work-schedule-section-title">스케줄 목록</strong>
@@ -5821,7 +5822,7 @@ function WorkSchedulePage() {
               )}
             </div>
 
-            <section className="work-schedule-section work-exclusion-section">
+            <section className={`work-schedule-section work-exclusion-section${isMobile ? ' work-schedule-mobile-block' : ''}`}>
               <div className="between work-schedule-section-head">
                 <div className="work-schedule-section-title-wrap">
                   <strong className="work-schedule-section-title">열외자 목록</strong>
@@ -5889,6 +5890,7 @@ function WorkSchedulePage() {
               <div className="work-schedule-exclusion-row"><strong>직원</strong><span>{staffCount ? day.excluded_staff_names.join(' / ') : '-'}</span></div>
             </div>
             </section>
+            </div>
           </section>
         )
       })}
@@ -10768,25 +10770,19 @@ function AdminModePage() {
 
       <section className="card admin-mode-card">
         <div className="between admin-mode-section-head">
-          <h2>관리용 기능(테두리 표시)</h2>
-          <span className="muted small-text">현재 로그인한 계정에만 적용</span>
+          <h2>테두리 표시</h2>
+          <button
+            type="button"
+            className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
+            disabled={layoutGuideSaving}
+            onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
+          >
+            {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
+          </button>
         </div>
         <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
           <div className="menu-lock-admin-list">
             <div className="card menu-lock-admin-section">
-              <div className="stack compact-gap menu-lock-admin-items">
-                <div className="quick-edit-row menu-lock-admin-row">
-                  <span>테두리 표시</span>
-                  <button
-                    type="button"
-                    className={layoutGuideEnabled ? 'small selected-toggle' : 'small ghost danger'}
-                    disabled={layoutGuideSaving}
-                    onClick={() => saveLayoutGuideSetting(!layoutGuideEnabled)}
-                  >
-                    {layoutGuideSaving ? '저장중...' : (layoutGuideEnabled ? 'ON' : 'OFF')}
-                  </button>
-                </div>
-              </div>
               <div className="muted tiny-text">화면의 큰 레이아웃부터 빨강 → 주황 → 노랑 → 초록 → 파랑 → 남색 → 보라 순으로 테두리를 표시합니다.</div>
             </div>
           </div>
