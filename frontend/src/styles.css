@@ -17999,3 +17999,111 @@ textarea,
     display: none;
   }
 }
+
+
+/* 2026-04-08 mobile schedule density + assignee suggestion width tune */
+@media (max-width: 768px) {
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-exclusion-section {
+    border-color: #000 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-four-col,
+  .work-schedule-page.mobile .work-schedule-mobile-four-col.header {
+    grid-template-columns: 44px minmax(56px, 0.78fr) minmax(110px, 1.45fr) minmax(110px, 1.45fr) !important;
+    gap: 3px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-cell.time {
+    width: 44px;
+    justify-self: start;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-cell.customer {
+    width: 56px;
+    justify-self: start;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-item.mobile-four-col {
+    padding: 5px 6px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-head {
+    padding: 5px 6px !important;
+    gap: 4px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-body {
+    gap: 2px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-mobile-cell {
+    line-height: 1.15 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line,
+  .work-schedule-page.mobile .work-schedule-table.header,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table {
+    grid-template-columns: 38px minmax(48px, 0.72fr) minmax(112px, 1.5fr) minmax(112px, 1.5fr) minmax(56px, 0.72fr) !important;
+    gap: 4px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+    grid-template-columns: 22px 38px minmax(48px, 0.72fr) minmax(112px, 1.5fr) minmax(112px, 1.5fr) minmax(56px, 0.72fr) !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-bulk-row-shell.with-check-column {
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .work-schedule-page.mobile .schedule-row-check-cell {
+    min-height: 32px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-editor.bulk-row {
+    padding: 6px 6px 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-bulk-editor {
+    gap: 6px !important;
+  }
+}
+
+.assignee-suggestion-list.portal {
+  min-width: min(320px, calc(100vw - 16px));
+}
+
+.assignee-suggestion-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.assignee-suggestion-item strong,
+.assignee-suggestion-item span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assignee-suggestion-item span {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .assignee-suggestion-list.portal {
+    min-width: min(340px, calc(100vw - 12px));
+    max-height: 280px;
+    padding: 10px;
+  }
+
+  .assignee-suggestion-item {
+    padding: 11px 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  }
+}

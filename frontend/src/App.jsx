@@ -5523,11 +5523,16 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
     const updatePosition = () => {
       const rect = shellRef.current?.getBoundingClientRect()
       if (!rect) return
+      const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || rect.width
+      const desiredWidth = Math.max(rect.width, Math.min(viewportWidth - 16, 320))
+      const maxLeft = Math.max(8, viewportWidth - desiredWidth - 8)
+      const safeLeft = Math.min(Math.max(8, rect.left), maxLeft)
       setPortalStyle({
         position: 'fixed',
         top: rect.bottom + 6,
-        left: rect.left,
-        width: rect.width,
+        left: safeLeft,
+        width: desiredWidth,
+        maxWidth: viewportWidth - 16,
         zIndex: 5000,
       })
     }
