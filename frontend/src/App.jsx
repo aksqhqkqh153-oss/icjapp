@@ -3888,13 +3888,7 @@ function findTaggedUsersForSchedule(scheduleItem, users = []) {
 }
 
 function getUserBaseAddress(user = {}) {
-  return String(
-    user.resident_address
-    || user.business_address
-    || user.address
-    || user.region
-    || ''
-  ).trim()
+  return String(user?.resident_address || '').trim()
 }
 
 function normalizeMarkerPositionTitle(value) {
@@ -4000,7 +3994,8 @@ function normalizeAdministrativeAddress(address) {
 function deriveFallbackPointFromAddress(address) {
   const normalized = normalizeAdministrativeAddress(address)
   if (!normalized) return null
-  const directKey = Object.keys(KOREA_ADDRESS_FALLBACK_CENTERS).find(key => normalized.startsWith(key))
+  const keys = Object.keys(KOREA_ADDRESS_FALLBACK_CENTERS)
+  const directKey = keys.find(key => normalized.startsWith(key))
   if (directKey) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[directKey], label: normalized, approximate: true }
   const tokens = normalized.split(' ').filter(Boolean)
   if (tokens.length >= 2) {
@@ -4011,6 +4006,13 @@ function deriveFallbackPointFromAddress(address) {
     const key3 = `${tokens[0]} ${tokens[1]} ${tokens[2]}`
     if (KOREA_ADDRESS_FALLBACK_CENTERS[key3]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key3], label: normalized, approximate: true }
   }
+  const compact = normalized.replace(/\s+/g, ' ').trim()
+  const bareToken = tokens[0] || ''
+  const matchedKey = keys.find(key => key.endsWith(` ${compact}`))
+    || keys.find(key => key.endsWith(` ${bareToken}`))
+    || keys.find(key => key.includes(` ${compact}`))
+    || keys.find(key => key.includes(` ${bareToken}`))
+  if (matchedKey) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[matchedKey], label: normalized, approximate: true }
   return null
 }
 
@@ -4422,7 +4424,7 @@ function MapPage() {
               : item.type === 'moving'
                 ? 'branch-marker moving'
                 : 'branch-marker stopped'
-      const markerSize = item.type === 'moving' || item.type === 'stopped' ? 34 : 12
+      const markerSize = item.type === 'moving' || item.type === 'stopped' ? 28 : 9
       const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [markerSize, markerSize], iconAnchor: [markerSize / 2, markerSize / 2] })
       L.marker([item.lat, item.lng], { icon }).bindPopup(item.popup).addTo(markerLayerRef.current)
       bounds.push([item.lat, item.lng])
@@ -4463,13 +4465,19 @@ function MapPage() {
     })
   }
 
-  const [departureExpanded, setDepartureExpanded] = useState(false)
+  const [departureExpanded, setDepartureExpanded] = useState({})
+  const [displayLegendHelpOpen, setDisplayLegendHelpOpen] = useState(false)
 
   function formatCandidateList(items = []) {
     if (!items.length) return '계산 대기'
     return items
       .map((candidate, index) => `${index + 1}순위 : ${candidate.displayName || candidate.nickname}${Number.isFinite(candidate.distanceKm) ? `/${candidate.distanceKm.toFixed(1)}` : ''}`)
       .join(' | ')
+  }
+
+  function toggleDepartureItem(item) {
+    setDepartureExpanded(prev => ({ ...prev, [item.id]: !prev?.[item.id] }))
+    handleFocusDepartureItem(item)
   }
 
   return (
@@ -4494,10 +4502,11 @@ function MapPage() {
               <button type="button" className="map-overlay-button" onClick={() => { setMapDisplayOpen(prev => !prev); setMapFilterOpen(false); setMapSettingsOpen(false) }} aria-label="표기">표기</button>
               {mapDisplayOpen && (
                 <div className="map-filter-popover map-filter-popover-side map-settings-popover">
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerStart: e.target.checked }))} /> 고출ㅁ</label>
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerEnd: e.target.checked }))} /> 고도ㅁ</label>
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessStart: e.target.checked }))} /> 사출ㅁ</label>
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffStart: e.target.checked }))} /> 직출ㅁ</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerStart: e.target.checked }))} /> <span className="marker-legend-icon customer-start" /> 고출</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerEnd: e.target.checked }))} /> <span className="marker-legend-icon customer-end" /> 고도</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessStart: e.target.checked }))} /> <span className="marker-legend-icon business-start" /> 사출</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffStart: e.target.checked }))} /> <span className="marker-legend-icon staff-start" /> 직출</label>
+                  <button type="button" className="small ghost map-display-help-button" onClick={() => setDisplayLegendHelpOpen(true)}>설명</button>
                 </div>
               )}
             </div>
@@ -4525,34 +4534,28 @@ function MapPage() {
                   <span>출발지 목록 - {selectedDate}</span>
                   <span className="departure-distance-legend">* 거리 : km</span>
                 </div>
-                <button
-                  type="button"
-                  className="small ghost departure-fold-toggle"
-                  onClick={() => setDepartureExpanded(prev => !prev)}
-                >
-                  {departureExpanded ? '접기' : '펼치기'}
-                </button>
               </div>
               <div className="vehicle-list-items">
                 {(departureData.customerList || []).map(item => {
                   const summaryTime = item.startTime || item.visitTime || '-'
+                  const isExpanded = !!departureExpanded?.[item.id]
                   return (
-                    <div key={item.id} className={`vehicle-list-item stopped departure-list-item${departureExpanded ? ' expanded' : ' collapsed'}`}>
+                    <div key={item.id} className={`vehicle-list-item stopped departure-list-item${isExpanded ? ' expanded' : ' collapsed'}`} onClick={() => toggleDepartureItem(item)}>
                       <div className="departure-summary-row">
                         <span className="departure-summary-chip">{item.departmentInfo || '일정'}</span>
                         <span className="departure-summary-time">{summaryTime}</span>
                         <strong className="departure-summary-customer">{item.title}</strong>
-                        {departureExpanded && (
+                        {isExpanded && (
                           <button
                             type="button"
                             className="small ghost departure-detail-button"
-                            onClick={() => navigate(`/schedule/${item.raw?.id}`)}
+                            onClick={event => { event.stopPropagation(); navigate(`/schedule/${item.raw?.id}`) }}
                           >
                             상세일정
                           </button>
                         )}
                       </div>
-                      {departureExpanded && (
+                      {isExpanded && (
                         <>
                           <div className="vehicle-list-line sub departure-detail-line">
                             <strong>출발지 :</strong>
@@ -5874,7 +5877,7 @@ function filterAssignableUsers(users, query, selectedValues = [], predicate = nu
     .slice(0, 8)
 }
 
-function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3 }) {
+function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false }) {
   const [query, setQuery] = useState('')
   const [activeChip, setActiveChip] = useState('')
   const [portalStyle, setPortalStyle] = useState(null)
@@ -5915,9 +5918,8 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       event.preventDefault()
       if (shouldShowSuggestions && suggestions[0]) {
         addByText(buildAssigneeTagValue(suggestions[0]))
-        return
       }
-      addByText(query)
+      return
     }
     if (event.key === 'Backspace' && !query && selectedValues.length > 0) {
       event.preventDefault()
@@ -5980,8 +5982,8 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   return (
     <div className="stack compact-gap assignee-field-wrap">
       {label && <label>{label}</label>}
-      <div className="assignee-input-shell" ref={shellRef}>
-        <div className="assignee-chip-list" onClick={() => inputRef.current?.focus()}>
+      <div className={`assignee-input-shell${inputLike ? ' input-like' : ''}`} ref={shellRef}>
+        <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}`} onClick={() => inputRef.current?.focus()}>
           {selectedValues.map(item => {
             const isActive = activeChip === item
             return (
@@ -6574,8 +6576,8 @@ function WorkSchedulePage() {
                 <div className="work-schedule-table work-schedule-assignee-table">
                   <input value={entryForm.schedule_time} placeholder="09:00" onChange={e => setEntryForm({ ...entryForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                   <input value={entryForm.customer_name} placeholder="고객명" onChange={e => setEntryForm({ ...entryForm, customer_name: e.target.value })} />
-                  <AssigneeInput users={assignableUsers} predicate={businessAssigneePredicate} value={entryForm.representative_names} onChange={value => setEntryForm({ ...entryForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
-                  <AssigneeInput users={assignableUsers} predicate={staffAssigneePredicate} value={entryForm.staff_names} onChange={value => setEntryForm({ ...entryForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
+                  <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={entryForm.representative_names} onChange={value => setEntryForm({ ...entryForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
+                  <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={entryForm.staff_names} onChange={value => setEntryForm({ ...entryForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
                   <input value={entryForm.memo} placeholder="기타 메모" onChange={e => setEntryForm({ ...entryForm, memo: e.target.value })} />
                 </div>
                 <div className="inline-actions wrap">
@@ -6599,11 +6601,11 @@ function WorkSchedulePage() {
                 const businessNames = [item.representative1, item.representative2, item.representative3]
                   .map(value => String(value || '').trim())
                   .filter(Boolean)
-                  .join(' / ') || '-'
+                  .join(' / ') || String(item.representative_names || '').trim() || '-'
                 const staffNames = [item.staff1, item.staff2, item.staff3]
                   .map(value => String(value || '').trim())
                   .filter(Boolean)
-                  .join(' / ') || '-'
+                  .join(' / ') || String(item.staff_names || '').trim() || '-'
                 return (
                   <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}${isMobile ? ' mobile-four-col' : ''}`}>
                     <div className="work-schedule-line-head">
@@ -6634,8 +6636,8 @@ function WorkSchedulePage() {
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line">
                           <input value={editingForm.schedule_time} placeholder="시간" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                           <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
-                          <AssigneeInput users={assignableUsers} predicate={businessAssigneePredicate} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
-                          <AssigneeInput users={assignableUsers} predicate={staffAssigneePredicate} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
+                          <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
+                          <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
                           <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
                         </div>
                         <div className="inline-actions wrap end schedule-edit-actions">
@@ -6661,8 +6663,8 @@ function WorkSchedulePage() {
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line with-check-column">
                           <input value={form.schedule_time} placeholder="시간" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
                           <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
-                          <AssigneeInput users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
-                          <AssigneeInput users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
+                          <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
+                          <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
                           <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
                         </div>
                       </div>
@@ -11751,6 +11753,24 @@ function AdminModePage() {
         </div>
       </section>
 
+
+      {displayLegendHelpOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setDisplayLegendHelpOpen(false)}>
+          <div className="modal-card map-legend-help-modal" onClick={e => e.stopPropagation()}>
+            <div className="between">
+              <strong>표기 설명</strong>
+              <button type="button" className="small ghost" onClick={() => setDisplayLegendHelpOpen(false)}>닫기</button>
+            </div>
+            <div className="stack compact-gap">
+              <div><strong>고출</strong> : 고객 출발지</div>
+              <div><strong>고도</strong> : 고객 도착지</div>
+              <div><strong>사출</strong> : 사업자 출발지</div>
+              <div><strong>직출</strong> : 직원 출발지</div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {sortModal.open && createPortal(
         <div className="modal-overlay" onClick={() => setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })}>
