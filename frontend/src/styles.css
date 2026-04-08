@@ -17208,3 +17208,53 @@ body.html-inspector-enabled {
 .html-inspector-enabled * {
   cursor: crosshair !important;
 }
+
+
+/* 2026-04-08 map control stacking fix */
+.enhanced-map-card {
+  position: relative;
+  overflow: visible !important;
+}
+
+.map-card-head {
+  position: relative;
+  z-index: 50;
+}
+
+.map-overlay-controls,
+.map-filter-wrap,
+.map-filter-date-wrap {
+  position: relative;
+  z-index: 60;
+}
+
+.map-filter-popover,
+.map-filter-popover-side,
+.map-settings-popover {
+  z-index: 2000 !important;
+}
+
+.real-map-canvas {
+  position: relative;
+  z-index: 1;
+}
+
+.vehicle-list-panel {
+  position: relative;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .map-card-head.mobile {
+    z-index: 70 !important;
+  }
+
+  .map-overlay-controls {
+    position: relative;
+    z-index: 80;
+  }
+
+  .real-map-canvas {
+    z-index: 1;
+  }
+}
