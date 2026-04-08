@@ -49,6 +49,7 @@ const PAGE_TITLES = {
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
 const LAYOUT_GUIDE_BODY_CLASS = 'layout-guide-enabled'
 const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
+const SETTLEMENT_OVERRIDE_STORAGE_KEY = 'icj_settlement_overrides_v20260408'
 
 function normalizeAppTheme(theme) {
   return theme === 'dark' ? 'dark' : 'light'
@@ -190,6 +191,9 @@ function pageTitle(pathname) {
 
 
 function MenuIcon({ className = '' }) {
+  const editableSummaryRows = (editorDraft?.summaryRows || []).filter(row => ['숨고', '오늘', '공홈'].includes(String(row?.source || '')))
+  const contractSummaryRowIndex = (editorDraft?.summaryRows || []).findIndex(row => String(row?.label || '').includes('2. 총 계약 수(건)'))
+
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M4 7h16" />
@@ -9033,9 +9037,13 @@ function WorkShiftSchedulePage() {
 
   return (
     <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
-      <div className="settlement-tabs settlement-tabs-inline work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
-        <button type="button" className={workMode === 'vacation' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
-        <button type="button" className={workMode === 'view' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('view')}>편집/보기</button>
+      <div className="work-shift-top-tabs-shell">
+        <div className="work-shift-top-tabs-card">
+          <div className="settlement-tabs settlement-tabs-inline work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
+            <button type="button" className={workMode === 'vacation' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
+            <button type="button" className={workMode === 'view' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('view')}>편집/보기</button>
+          </div>
+        </div>
       </div>
 
       <section className="card work-shift-page-card">
@@ -12008,6 +12016,79 @@ function SettlementRecordBoard({ recordsByType, onSaveDailyRecord, canEdit = fal
   )
 }
 
+function loadSettlementOverrides() {
+  if (typeof window === "undefined") return { daily: {}, weekly: {}, monthly: {} }
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SETTLEMENT_OVERRIDE_STORAGE_KEY) || '{}')
+    return {
+      daily: parsed?.daily && typeof parsed.daily === 'object' ? parsed.daily : {},
+      weekly: parsed?.weekly && typeof parsed.weekly === 'object' ? parsed.weekly : {},
+      monthly: parsed?.monthly && typeof parsed.monthly === 'object' ? parsed.monthly : {},
+    }
+  } catch (_error) {
+    return { daily: {}, weekly: {}, monthly: {} }
+  }
+}
+
+function saveSettlementOverrides(nextOverrides) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(SETTLEMENT_OVERRIDE_STORAGE_KEY, JSON.stringify({
+      daily: nextOverrides?.daily || {},
+      weekly: nextOverrides?.weekly || {},
+      monthly: nextOverrides?.monthly || {},
+    }))
+  } catch (_error) {}
+}
+
+function applySettlementBlockOverrides(blocks = [], overrideMap = {}) {
+  return (blocks || []).map(block => {
+    const dateKey = getSettlementBlockDateKey(block)
+    if (!dateKey) return block
+    const override = overrideMap?.[dateKey]
+    return override ? override : block
+  })
+}
+
+function buildSettlementEditorDraft(block) {
+  const cloned = cloneSettlementBlock(block)
+  if (!cloned) return null
+  cloned.summaryRows = (cloned.summaryRows || []).map(row => ({ ...row }))
+  cloned.branchRows = (cloned.branchRows || []).map(row => ({ ...row }))
+  cloned.total = { ...(cloned.total || {}) }
+  return cloned
+}
+
+function resetEditableSettlementBlock(block) {
+  const cloned = buildSettlementEditorDraft(block)
+  if (!cloned) return block
+  cloned.summaryRows = (cloned.summaryRows || []).map(row => {
+    const label = String(row?.label || '')
+    const source = String(row?.source || '')
+    if (['숨고', '오늘', '공홈'].includes(source)) {
+      return { ...row, count: '0', value: label.includes('2. 총 계약 수(건)') ? '0' : row.value }
+    }
+    if (label.includes('2. 총 계약 수(건)')) {
+      return { ...row, value: '0' }
+    }
+    return row
+  })
+  cloned.branchRows = (cloned.branchRows || []).map(row => ({
+    ...row,
+    platformCount: row?.platform ? '0' : (row?.platformCount || ''),
+    branchCount: '0',
+    issues: '0',
+  }))
+  const totals = summarizeSettlementRows(cloned.summaryRows || [], cloned.total || {})
+  cloned.total = {
+    ...(cloned.total || {}),
+    platformReview: String(totals.플랫폼리뷰 || 0),
+    branchReview: String(totals.호점리뷰 || 0),
+    issues: String(totals.이슈 || 0),
+  }
+  return cloned
+}
+
 function SettlementPage() {
   const categories = [
     { id: 'daily', label: '일일' },
@@ -12039,7 +12120,13 @@ function SettlementPage() {
   const [dailyIndex, setDailyIndex] = useState(0)
   const [weeklyIndex, setWeeklyIndex] = useState(0)
   const [monthlyIndex, setMonthlyIndex] = useState(0)
-  const [monthlyOverrideMap, setMonthlyOverrideMap] = useState({})
+  const [dailyOverrideMap, setDailyOverrideMap] = useState(() => loadSettlementOverrides().daily)
+  const [weeklyOverrideMap, setWeeklyOverrideMap] = useState(() => loadSettlementOverrides().weekly)
+  const [monthlyOverrideMap, setMonthlyOverrideMap] = useState(() => loadSettlementOverrides().monthly)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorTarget, setEditorTarget] = useState('daily')
+  const [editorDateKey, setEditorDateKey] = useState('')
+  const [editorDraft, setEditorDraft] = useState(null)
 
   async function loadSyncStatus() {
     try {
@@ -12155,7 +12242,10 @@ function SettlementPage() {
     () => applySettlementPlatformMetrics(buildDynamicSettlementDailyBlocks(SETTLEMENT_DATA.daily || []), syncStatus.platforms, { reflectionMap }),
     [syncStatus.platforms, reflectionMap],
   )
-  const sortedDailyBlocks = useMemo(() => [...dailyBlocks].sort((left, right) => String(getSettlementBlockDateKey(left)).localeCompare(String(getSettlementBlockDateKey(right)))), [dailyBlocks])
+  const sortedDailyBlocks = useMemo(() => {
+    const applied = applySettlementBlockOverrides(dailyBlocks, dailyOverrideMap)
+    return [...applied].sort((left, right) => String(getSettlementBlockDateKey(left)).localeCompare(String(getSettlementBlockDateKey(right))))
+  }, [dailyBlocks, dailyOverrideMap])
   const allSettlementSourceBlocks = useMemo(
     () => buildAllSettlementSourceBlocks(sortedDailyBlocks, recordsData.daily_records || []),
     [sortedDailyBlocks, recordsData.daily_records],
@@ -12163,7 +12253,7 @@ function SettlementPage() {
   const weeklyBlocks = useMemo(() => {
     const pages = buildSettlementWeeklyPages(allSettlementSourceBlocks)
     const baseTemplate = cloneSettlementBlock((SETTLEMENT_DATA.weekly || [])[0] || (SETTLEMENT_DATA.daily || [])[0] || null)
-    return pages.map((page, index) => {
+    const mapped = pages.map((page, index) => {
       const firstBlock = page.blocks[0] || null
       return buildAggregatedSettlementBlockFromBlocks(
         firstBlock || baseTemplate,
@@ -12172,22 +12262,21 @@ function SettlementPage() {
         `${formatSettlementDateShort(page.start)} ~ ${formatSettlementDateShort(page.end)} 금요일 18:00 기준`,
       )
     })
-  }, [allSettlementSourceBlocks])
+    return applySettlementBlockOverrides(mapped, weeklyOverrideMap)
+  }, [allSettlementSourceBlocks, weeklyOverrideMap])
   const monthlyBlocks = useMemo(() => {
     const pages = buildSettlementMonthlyPages(allSettlementSourceBlocks)
     const baseTemplate = cloneSettlementBlock((SETTLEMENT_DATA.monthly || [])[0] || (SETTLEMENT_DATA.daily || [])[0] || null)
-    return pages.map((page, index) => {
+    const mapped = pages.map((page, index) => {
       const firstBlock = page.blocks[0] || null
-      const base = buildAggregatedSettlementBlockFromBlocks(
+      return buildAggregatedSettlementBlockFromBlocks(
         firstBlock || baseTemplate,
         page.blocks,
         formatMonthlySettlementTitle(firstBlock || { date: page.start }, index),
         `${String(page.start || '').slice(0, 7)} 월간결산`,
       )
-      const dateKey = getSettlementBlockDateKey(base)
-      const override = dateKey ? monthlyOverrideMap[dateKey] : null
-      return override || base
     })
+    return applySettlementBlockOverrides(mapped, monthlyOverrideMap)
   }, [allSettlementSourceBlocks, monthlyOverrideMap])
 
   useEffect(() => {
@@ -12213,6 +12302,10 @@ function SettlementPage() {
       return monthlyBlocks.length - 1
     })
   }, [monthlyBlocks])
+
+  useEffect(() => {
+    saveSettlementOverrides({ daily: dailyOverrideMap, weekly: weeklyOverrideMap, monthly: monthlyOverrideMap })
+  }, [dailyOverrideMap, weeklyOverrideMap, monthlyOverrideMap])
 
   const soomgoMetric = syncStatus.platforms?.['숨고'] || { value: 0, updated_at: '', sync_message: '' }
   const ohouMetric = syncStatus.platforms?.['오늘'] || { value: 0, updated_at: '', sync_message: '' }
@@ -12324,6 +12417,72 @@ function SettlementPage() {
     window.alert(`${formatSettlementDateKeyLabel(targetDateKey)} 일일결산이 저장되었습니다.`)
   }
 
+  function handleOpenSettlementEditor(target, block) {
+    const dateKey = getSettlementBlockDateKey(block)
+    if (!block || !dateKey) {
+      window.alert('수정할 결산 데이터를 찾을 수 없습니다.')
+      return
+    }
+    setEditorTarget(target)
+    setEditorDateKey(dateKey)
+    setEditorDraft(buildSettlementEditorDraft(block))
+    setEditorOpen(true)
+  }
+
+  function handleCloseSettlementEditor() {
+    setEditorOpen(false)
+    setEditorDraft(null)
+    setEditorDateKey('')
+  }
+
+  function updateSettlementEditorDraft(section, index, field, value) {
+    setEditorDraft(prev => {
+      if (!prev) return prev
+      const next = buildSettlementEditorDraft(prev)
+      if (!next) return prev
+      next[section][index][field] = value
+      const totals = summarizeSettlementRows(next.summaryRows || [], next.total || {})
+      next.total = {
+        ...(next.total || {}),
+        platformReview: String(totals.플랫폼리뷰 || 0),
+        branchReview: String(totals.호점리뷰 || 0),
+        issues: String(totals.이슈 || 0),
+      }
+      return next
+    })
+  }
+
+  function applySettlementOverride(target, dateKey, block) {
+    if (target === 'weekly') {
+      setWeeklyOverrideMap(prev => ({ ...prev, [dateKey]: buildSettlementEditorDraft(block) }))
+      return
+    }
+    if (target === 'monthly') {
+      setMonthlyOverrideMap(prev => ({ ...prev, [dateKey]: buildSettlementEditorDraft(block) }))
+      return
+    }
+    setDailyOverrideMap(prev => ({ ...prev, [dateKey]: buildSettlementEditorDraft(block) }))
+  }
+
+  function handleSaveSettlementEditor() {
+    if (!editorDraft || !editorDateKey) return
+    applySettlementOverride(editorTarget, editorDateKey, editorDraft)
+    handleCloseSettlementEditor()
+    window.alert('결산 수정값이 저장되었습니다.')
+  }
+
+  function handleResetSettlementBlock(target, block) {
+    const dateKey = getSettlementBlockDateKey(block)
+    if (!block || !dateKey) {
+      window.alert('초기화할 결산 데이터를 찾을 수 없습니다.')
+      return
+    }
+    if (!window.confirm('수정 가능한 결산 수치를 0으로 초기화할까요?')) return
+    applySettlementOverride(target, dateKey, resetEditableSettlementBlock(block))
+    window.alert('수정 가능한 결산 수치를 0으로 초기화했습니다.')
+  }
+
+
   let content = null
   if (activeCategory === 'records') {
     content = <SettlementRecordBoard recordsByType={recordsData} onSaveDailyRecord={handleSaveDailyRecord} canEdit={true} />
@@ -12336,7 +12495,11 @@ function SettlementPage() {
             <strong>일일 결산</strong>
             <span className="muted">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</span>
           </div>
-          <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
+          <div className="settlement-day-nav-actions">
+            <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('daily', selectedDailyBlock)}>수정</button>
+            <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('daily', selectedDailyBlock)}>초기화</button>
+            <button type="button" className="ghost small" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
+          </div>
         </div>
         <div className="settlement-sheet-grid settlement-sheet-grid-single">
           <div className="settlement-daily-week-card-wrap">
@@ -12359,7 +12522,11 @@ function SettlementPage() {
             <strong>주간 결산</strong>
             <span className="muted">{selectedWeeklyBlock.title}</span>
           </div>
-          <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
+          <div className="settlement-day-nav-actions">
+            <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('weekly', selectedWeeklyBlock)}>수정</button>
+            <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('weekly', selectedWeeklyBlock)}>초기화</button>
+            <button type="button" className="ghost small" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
+          </div>
         </div>
         <div className="settlement-sheet-grid settlement-sheet-grid-single">
           <SettlementSheetCard block={selectedWeeklyBlock} hideTitleDate />
@@ -12375,7 +12542,11 @@ function SettlementPage() {
             <strong>월간 결산</strong>
             <span className="muted">{selectedMonthlyBlock.title}</span>
           </div>
-          <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
+          <div className="settlement-day-nav-actions">
+            <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('monthly', selectedMonthlyBlock)}>수정</button>
+            <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('monthly', selectedMonthlyBlock)}>초기화</button>
+            <button type="button" className="ghost small" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
+          </div>
         </div>
         <div className="settlement-sheet-grid settlement-sheet-grid-single">
           <SettlementSheetCard block={selectedMonthlyBlock} hideTitleDate />
@@ -12391,6 +12562,83 @@ function SettlementPage() {
 
   return (
     <div className="stack-page settlement-page">
+      {editorOpen && editorDraft ? (
+        <div className="settlement-editor-backdrop" onClick={handleCloseSettlementEditor}>
+          <div className="settlement-editor-modal card" onClick={event => event.stopPropagation()}>
+            <div className="between settlement-editor-head">
+              <strong>{editorTarget === 'daily' ? '일일 결산 수정' : (editorTarget === 'weekly' ? '주간 결산 수정' : '월간 결산 수정')}</strong>
+              <button type="button" className="ghost small" onClick={handleCloseSettlementEditor}>닫기</button>
+            </div>
+            <div className="settlement-editor-sections">
+              <section className="settlement-editor-section">
+                <strong>플랫폼 발송 건수</strong>
+                <div className="settlement-editor-grid compact">
+                  {editableSummaryRows.map(row => {
+                    const rowIndex = (editorDraft.summaryRows || []).findIndex(item => item === row)
+                    return (
+                      <label key={`summary-count-${row.source}`}>
+                        <span>{row.source}</span>
+                        <input value={row.count || ''} onChange={e => updateSettlementEditorDraft('summaryRows', rowIndex, 'count', e.target.value)} inputMode="numeric" />
+                      </label>
+                    )
+                  })}
+                </div>
+              </section>
+              <section className="settlement-editor-section">
+                <strong>플랫폼 리뷰 건수</strong>
+                <div className="settlement-editor-grid compact">
+                  {(editorDraft.branchRows || []).filter(row => row?.platform).map(row => {
+                    const rowIndex = (editorDraft.branchRows || []).findIndex(item => item === row)
+                    return (
+                      <label key={`platform-review-${row.platform}`}>
+                        <span>{row.platform}</span>
+                        <input value={row.platformCount || ''} onChange={e => updateSettlementEditorDraft('branchRows', rowIndex, 'platformCount', e.target.value)} inputMode="numeric" />
+                      </label>
+                    )
+                  })}
+                </div>
+              </section>
+              <section className="settlement-editor-section">
+                <strong>각 호점별 누적리뷰 건수</strong>
+                <div className="settlement-editor-grid">
+                  {(editorDraft.branchRows || []).map((row, rowIndex) => (
+                    <label key={`branch-review-${row.branch || rowIndex}`}>
+                      <span>{row.branch || `행 ${rowIndex + 1}`}</span>
+                      <input value={row.branchCount || ''} onChange={e => updateSettlementEditorDraft('branchRows', rowIndex, 'branchCount', e.target.value)} inputMode="numeric" />
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <section className="settlement-editor-section">
+                <strong>이슈 건수</strong>
+                <div className="settlement-editor-grid">
+                  {(editorDraft.branchRows || []).map((row, rowIndex) => (
+                    <label key={`issue-${row.branch || rowIndex}`}>
+                      <span>{row.branch || `행 ${rowIndex + 1}`}</span>
+                      <input value={row.issues || ''} onChange={e => updateSettlementEditorDraft('branchRows', rowIndex, 'issues', e.target.value)} inputMode="numeric" />
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <section className="settlement-editor-section">
+                <strong>견적 발송 및 계약률 결산</strong>
+                <div className="settlement-editor-grid compact single">
+                  {contractSummaryRowIndex >= 0 ? (
+                    <label>
+                      <span>2. 총 계약 수(건)</span>
+                      <input value={editorDraft.summaryRows?.[contractSummaryRowIndex]?.value || ''} onChange={e => updateSettlementEditorDraft('summaryRows', contractSummaryRowIndex, 'value', e.target.value)} inputMode="numeric" />
+                    </label>
+                  ) : <div className="muted">수정 가능한 계약 수 데이터가 없습니다.</div>}
+                </div>
+              </section>
+            </div>
+            <div className="settlement-editor-actions">
+              <button type="button" className="ghost small" onClick={() => setEditorDraft(resetEditableSettlementBlock(editorDraft))}>수정칸 0으로 채우기</button>
+              <button type="button" onClick={handleSaveSettlementEditor}>저장</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <section className="card settlement-hero">
         <div className="settlement-hero-topbar">
           <div className="settlement-tabs settlement-tabs-inline" role="tablist" aria-label="결산 카테고리">

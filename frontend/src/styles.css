@@ -17641,3 +17641,201 @@ textarea,
   border: 0 !important;
   box-shadow: none !important;
 }
+
+/* 2026-04-08 disposal / warehouse / work-shift / settlement editor follow-up */
+.disposal-list-board-card {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.disposal-list-date-group {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.disposal-list-grid.disposal-list-grid-customer {
+  width: calc(100% - 4px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.disposal-page .disposal-meta-row.disposal-meta-row-top {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.disposal-page .disposal-meta-row.disposal-meta-row-top > select,
+.disposal-page .disposal-meta-row.disposal-meta-row-top > input,
+.disposal-page .disposal-top-status-actions,
+.disposal-page .disposal-top-status-actions.no-actions,
+.disposal-page .disposal-top-status-actions.has-actions {
+  width: 100%;
+  min-width: 0;
+}
+
+.disposal-page .disposal-top-status-actions {
+  display: flex;
+  align-items: stretch;
+}
+
+.disposal-page .disposal-final-status-shell,
+.disposal-page .disposal-final-status-select {
+  width: 100%;
+}
+
+.work-shift-top-tabs-shell {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.work-shift-top-tabs-card,
+.warehouse-top-tabs-card {
+  width: 100%;
+  border: 1px solid #d9e2ef !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06) !important;
+  border-radius: 16px;
+  padding: 10px !important;
+}
+
+.work-shift-mode-tabs,
+.warehouse-mode-tabs-top {
+  gap: 8px;
+}
+
+.work-shift-mode-tabs .settlement-tab,
+.warehouse-mode-tabs-top .settlement-tab {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid #d7dfeb;
+  background: linear-gradient(180deg, #ffffff 0%, #eef4ff 100%);
+  color: #334155;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.work-shift-mode-tabs .settlement-tab:hover,
+.warehouse-mode-tabs-top .settlement-tab:hover {
+  background: linear-gradient(180deg, #f8fbff 0%, #e2ebff 100%);
+  border-color: #b9c9e9;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.work-shift-mode-tabs .settlement-tab.active,
+.warehouse-mode-tabs-top .settlement-tab.active {
+  border-color: #7c9cff;
+  background: linear-gradient(180deg, #dfe9ff 0%, #bfd2ff 100%);
+  color: #102a56;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+.settlement-day-nav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.settlement-day-nav-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settlement-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.46);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.settlement-editor-modal {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.settlement-editor-head {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.settlement-editor-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.settlement-editor-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.settlement-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settlement-editor-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settlement-editor-grid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settlement-editor-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.settlement-editor-grid label span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.settlement-editor-grid input {
+  width: 100%;
+}
+
+.settlement-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settlement-day-nav {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .settlement-day-nav-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .settlement-editor-grid,
+  .settlement-editor-grid.compact {
+    grid-template-columns: 1fr;
+  }
+}
