@@ -3686,24 +3686,26 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
     addressPoints[address] = await geocodeAddress(address)
   }))
 
+  const eligibleUsers = (users || []).filter(user => {
+    const title = normalizeMarkerPositionTitle(user?.position_title || user?.position || user?.grade_name || '')
+    return ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원'].includes(title)
+  })
+
   const accountCandidates = []
-  for (const scheduleItem of filteredItems) {
-    const taggedUsers = findTaggedUsersForSchedule(scheduleItem, users)
-    for (const user of taggedUsers) {
-      const address = getUserBaseAddress(user)
-      if (!address) continue
-      const point = await geocodeAddress(address)
-      accountCandidates.push({
-        id: `account-${scheduleItem.id}-${user.id}`,
-        scheduleId: scheduleItem.id,
-        userId: user.id,
-        nickname: user.nickname || user.name || user.display_name || user.email || '미지정',
-        positionTitle: user.position_title || user.position || '',
-        address,
-        point,
-        tone: resolveStaffMarkerTone(user),
-      })
-    }
+  for (const user of eligibleUsers) {
+    const address = getUserBaseAddress(user)
+    if (!address) continue
+    const point = await geocodeAddress(address)
+    accountCandidates.push({
+      id: `account-${user.id}`,
+      scheduleId: null,
+      userId: user.id,
+      nickname: user.nickname || user.name || user.display_name || user.email || '미지정',
+      positionTitle: user.position_title || user.position || '',
+      address,
+      point,
+      tone: resolveStaffMarkerTone(user),
+    })
   }
 
   const accountMap = new Map()
@@ -4091,7 +4093,8 @@ function MapPage() {
                       <span>{item.title}</span>
                     </div>
                     <div className="vehicle-list-line sub">출발지 : {item.address || '-'}</div>
-                    <div className="vehicle-list-line sub">가까운 계정 : {item.nearestLabel}</div>
+                    <div className="vehicle-list-line sub">사업자 : {formatCandidateList(item.businessCandidates)}</div>
+                    <div className="vehicle-list-line sub">직원 : {formatCandidateList(item.staffCandidates)}</div>
                     {item.visitTime ? <div className="vehicle-list-line sub">방문시각 : {item.visitTime}</div> : null}
                   </div>
                 ))}
@@ -5570,6 +5573,7 @@ function WorkSchedulePage() {
   const [editingForm, setEditingForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
   const [bulkEditDate, setBulkEditDate] = useState('')
   const [bulkForms, setBulkForms] = useState({})
+  const [bulkDeleteChecks, setBulkDeleteChecks] = useState({})
   const [activeStatusDate, setActiveStatusDate] = useState('')
   const [statusForm, setStatusForm] = useState(buildDayStatusForm(null))
   const [assignableUsers, setAssignableUsers] = useState([])
@@ -5769,6 +5773,7 @@ function WorkSchedulePage() {
   function openBulkEdit(day) {
     if (bulkEditDate === day.date) {
       setBulkEditDate('')
+      setBulkDeleteChecks(prev => ({ ...prev, [day.date]: [] }))
       return
     }
     setBulkEditDate(day.date)
@@ -5776,6 +5781,7 @@ function WorkSchedulePage() {
       ...prev,
       [day.date]: day.entries.map(item => buildWorkScheduleForm(item, day.date)),
     }))
+    setBulkDeleteChecks(prev => ({ ...prev, [day.date]: [] }))
     setMessage('')
   }
 
@@ -5849,15 +5855,41 @@ function WorkSchedulePage() {
     await load()
   }
 
-  async function handleDeleteBulkRow(dayDate, index) {
-    const target = (bulkForms[dayDate] || [])[index]
-    if (!target) return
-    await deleteScheduleForm(target)
+  function toggleBulkDeleteCheck(dayDate, index, checked) {
+    setBulkDeleteChecks(prev => {
+      const current = Array.isArray(prev?.[dayDate]) ? prev[dayDate] : []
+      const next = checked ? [...new Set([...current, index])].sort((a, b) => a - b) : current.filter(item => item !== index)
+      return { ...prev, [dayDate]: next }
+    })
+  }
+
+  function buildBulkDeleteMessage(forms = []) {
+    if (!forms.length) return ''
+    if (forms.length === 1) {
+      const target = forms[0]
+      const timeText = String(target?.schedule_time || '미정').trim() || '미정'
+      const customerText = String(target?.customer_name || '고객').trim() || '고객'
+      return `${timeText} ${customerText} 고객의 일정을 삭제하겠습니까?`
+    }
+    return `${forms.length}개의 선택한 일정을 삭제하겠습니까?`
+  }
+
+  async function applyBulkDelete(dayDate) {
+    const indexes = Array.isArray(bulkDeleteChecks?.[dayDate]) ? bulkDeleteChecks[dayDate] : []
+    if (!indexes.length) {
+      window.alert('삭제할 일정을 체크해 주세요.')
+      return
+    }
+    const forms = (bulkForms[dayDate] || []).filter((_, index) => indexes.includes(index))
+    if (!forms.length) return
+    const confirmed = window.confirm(buildBulkDeleteMessage(forms))
+    if (!confirmed) return
+    for (const form of forms) {
+      await deleteScheduleForm(form)
+    }
     setMessage('스케줄이 삭제되었습니다.')
-    setBulkForms(prev => ({
-      ...prev,
-      [dayDate]: (prev[dayDate] || []).filter((_, formIndex) => formIndex !== index),
-    }))
+    setBulkDeleteChecks(prev => ({ ...prev, [dayDate]: [] }))
+    setBulkEditDate('')
     await load()
   }
 
@@ -5882,6 +5914,24 @@ function WorkSchedulePage() {
     setMessage('일정현황 정보가 저장되었습니다.')
     setActiveStatusDate('')
     await load()
+  }
+
+
+  function isBulkDeleteChecked(dayDate, index) {
+    return Array.isArray(bulkDeleteChecks?.[dayDate]) && bulkDeleteChecks[dayDate].includes(index)
+  }
+
+  function isBulkDeleteAllChecked(dayDate) {
+    const forms = bulkForms[dayDate] || []
+    const checks = bulkDeleteChecks?.[dayDate] || []
+    return forms.length > 0 && forms.every((_, index) => checks.includes(index))
+  }
+
+  function toggleBulkDeleteAll(dayDate, checked) {
+    setBulkDeleteChecks(prev => ({
+      ...prev,
+      [dayDate]: checked ? (bulkForms[dayDate] || []).map((_, index) => index) : [],
+    }))
   }
 
   return (
@@ -5975,14 +6025,16 @@ function WorkSchedulePage() {
 
               {day.entries.length > 0 && isBulkEdit && (
                 <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
-                  <div className="work-schedule-table header compact-single-line">
-                    <div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>메모</div>
+                  <div className="work-schedule-table header compact-single-line with-check-column">
+                    <div><input type="checkbox" checked={isBulkDeleteAllChecked(day.date)} onChange={e => toggleBulkDeleteAll(day.date, e.target.checked)} aria-label="전체선택" /></div><div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>메모</div>
                   </div>
                   {dayBulkForms.map((form, index) => (
                     <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row compact-one-line-row">
-                      <div className="work-schedule-bulk-row-shell">
-                        <button type="button" className="ghost danger-outline schedule-row-delete-button" onClick={() => handleDeleteBulkRow(day.date, index).catch(err => window.alert(err.message))}>삭제</button>
-                        <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line">
+                      <div className="work-schedule-bulk-row-shell with-check-column">
+                        <label className="schedule-row-check-cell">
+                          <input type="checkbox" checked={isBulkDeleteChecked(day.date, index)} onChange={e => toggleBulkDeleteCheck(day.date, index, e.target.checked)} aria-label={`${form.schedule_time || '미정'} ${form.customer_name || '고객'} 일정 선택`} />
+                        </label>
+                        <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line with-check-column">
                           <input value={form.schedule_time} placeholder="시간" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
                           <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
                           <input value={form.representative_names} placeholder="사업자" onChange={e => updateBulkForm(day.date, index, 'representative_names', e.target.value)} />
@@ -5993,6 +6045,7 @@ function WorkSchedulePage() {
                     </div>
                   ))}
                   <div className="inline-actions wrap end schedule-edit-actions">
+                    <button type="button" className="ghost danger-outline" onClick={() => applyBulkDelete(day.date).catch(err => window.alert(err.message))}>삭제</button>
                     <button type="submit">수정</button>
                   </div>
                 </form>
