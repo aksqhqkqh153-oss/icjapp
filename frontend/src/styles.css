@@ -17300,3 +17300,89 @@ textarea,
 [class*="wrap"] {
   border-radius: 0 !important;
 }
+
+
+/* 2026-04-08 work schedule edit row compact one-line refinement */
+.danger-outline {
+  border-color: #dc2626 !important;
+  color: #dc2626 !important;
+  background: #fff !important;
+}
+
+.schedule-edit-actions {
+  gap: 8px;
+}
+
+.work-schedule-bulk-row-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.schedule-row-delete-button {
+  min-height: 38px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.work-schedule-inline-grid.one-line,
+.work-schedule-table.compact-single-line {
+  grid-template-columns: 64px minmax(72px, 0.9fr) minmax(84px, 1fr) minmax(84px, 1fr) minmax(88px, 1.1fr);
+}
+
+.work-schedule-inline-grid.one-line input,
+.work-schedule-table.compact-single-line > div,
+.work-schedule-page .work-schedule-inline-grid.one-line .assignee-input-shell,
+.work-schedule-page .work-schedule-inline-grid.one-line .assignee-chip-list {
+  min-width: 0;
+}
+
+.work-schedule-table.compact-single-line > div {
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .work-schedule-page.mobile .work-schedule-bulk-row-shell {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .work-schedule-page.mobile .schedule-row-delete-button {
+    min-height: 34px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line,
+  .work-schedule-page.mobile .work-schedule-table.header,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table {
+    grid-template-columns: 46px minmax(56px, 0.9fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(64px, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line input,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table > input,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table .assignee-chip-list input,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line > div,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip-remove {
+    font-size: 10px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line input,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table > input {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-editor.bulk-row,
+  .work-schedule-page.mobile .work-schedule-inline-editor {
+    overflow-x: hidden;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

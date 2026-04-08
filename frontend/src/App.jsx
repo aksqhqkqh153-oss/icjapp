@@ -5737,6 +5737,19 @@ function WorkSchedulePage() {
     setMessage('')
   }
 
+  async function deleteScheduleForm(form) {
+    const entryType = String(form?.entry_type || 'manual')
+    const eventId = form?.event_id
+    const rawId = String(form?.id || '')
+    if (entryType === 'calendar' && eventId) {
+      await api(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
+      return
+    }
+    const entryId = rawId.replace(/^manual-/, '')
+    if (!entryId) return
+    await api(`/api/work-schedule/entries/${entryId}`, { method: 'DELETE' })
+  }
+
   function updateBulkForm(dayDate, index, field, value) {
     setBulkForms(prev => ({
       ...prev,
@@ -5784,6 +5797,25 @@ function WorkSchedulePage() {
     await saveScheduleForm(editingForm)
     setMessage('스케줄이 수정되었습니다.')
     closeRowEdit()
+    await load()
+  }
+
+  async function handleDeleteRowEdit() {
+    await deleteScheduleForm(editingForm)
+    setMessage('스케줄이 삭제되었습니다.')
+    closeRowEdit()
+    await load()
+  }
+
+  async function handleDeleteBulkRow(dayDate, index) {
+    const target = (bulkForms[dayDate] || [])[index]
+    if (!target) return
+    await deleteScheduleForm(target)
+    setMessage('스케줄이 삭제되었습니다.')
+    setBulkForms(prev => ({
+      ...prev,
+      [dayDate]: (prev[dayDate] || []).filter((_, formIndex) => formIndex !== index),
+    }))
     await load()
   }
 
@@ -5841,7 +5873,7 @@ function WorkSchedulePage() {
                   <div className="work-schedule-section-title-wrap">
                     <strong className="work-schedule-section-title">스케줄 목록</strong>
                   </div>
-                  {!readOnly && <button type="button" className="small ghost" onClick={() => activeFormDate === day.date ? closeEntryForm() : openCreate(day.date)}>수정/삭제</button>}
+                  {!readOnly && <button type="button" className="small ghost" onClick={() => openBulkEdit(day)}>수정</button>}
                 </div>
 
             {activeFormDate === day.date && !readOnly && (
@@ -5878,20 +5910,20 @@ function WorkSchedulePage() {
                         <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
                         {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
                       </div>
-                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>스케줄편집</button>}
+                      {!readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>수정</button>}
                     </div>
                     {isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
-                        <div className="work-schedule-inline-grid work-schedule-assignee-grid">
-                          <input value={editingForm.schedule_time} placeholder="09:00" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
+                        <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line">
+                          <input value={editingForm.schedule_time} placeholder="시간" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                           <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
-                          <AssigneeInput users={assignableUsers} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="대표자 이름/계정 입력 후 선택" />
-                          <AssigneeInput users={assignableUsers} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="직원 이름/계정 입력 후 선택" />
+                          <input value={editingForm.representative_names} placeholder="사업자" onChange={e => setEditingForm({ ...editingForm, representative_names: e.target.value })} />
+                          <input value={editingForm.staff_names} placeholder="직원" onChange={e => setEditingForm({ ...editingForm, staff_names: e.target.value })} />
                           <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
                         </div>
-                        <div className="inline-actions wrap end">
-                          <button type="submit">저장</button>
-                          <button type="button" className="ghost" onClick={closeRowEdit}>취소</button>
+                        <div className="inline-actions wrap end schedule-edit-actions">
+                          <button type="button" className="ghost danger-outline" onClick={() => handleDeleteRowEdit().catch(err => window.alert(err.message))}>삭제</button>
+                          <button type="submit">수정</button>
                         </div>
                       </form>
                     )}
@@ -5901,20 +5933,25 @@ function WorkSchedulePage() {
 
               {day.entries.length > 0 && isBulkEdit && (
                 <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
+                  <div className="work-schedule-table header compact-single-line">
+                    <div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>메모</div>
+                  </div>
                   {dayBulkForms.map((form, index) => (
-                    <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row">
-                      <div className="work-schedule-inline-grid work-schedule-assignee-grid">
-                        <input value={form.schedule_time} placeholder="09:00" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
-                        <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
-                        <AssigneeInput users={assignableUsers} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="대표자 이름/계정 입력 후 선택" />
-                        <AssigneeInput users={assignableUsers} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="직원 이름/계정 입력 후 선택" />
-                        <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
+                    <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row compact-one-line-row">
+                      <div className="work-schedule-bulk-row-shell">
+                        <button type="button" className="ghost danger-outline schedule-row-delete-button" onClick={() => handleDeleteBulkRow(day.date, index).catch(err => window.alert(err.message))}>삭제</button>
+                        <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line">
+                          <input value={form.schedule_time} placeholder="시간" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
+                          <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
+                          <input value={form.representative_names} placeholder="사업자" onChange={e => updateBulkForm(day.date, index, 'representative_names', e.target.value)} />
+                          <input value={form.staff_names} placeholder="직원" onChange={e => updateBulkForm(day.date, index, 'staff_names', e.target.value)} />
+                          <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
+                        </div>
                       </div>
                     </div>
                   ))}
-                  <div className="inline-actions wrap end">
-                    <button type="submit">전체 저장</button>
-                    <button type="button" className="ghost" onClick={() => setBulkEditDate('')}>닫기</button>
+                  <div className="inline-actions wrap end schedule-edit-actions">
+                    <button type="submit">수정</button>
                   </div>
                 </form>
               )}
