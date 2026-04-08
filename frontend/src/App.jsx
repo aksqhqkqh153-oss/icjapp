@@ -10759,15 +10759,15 @@ function getSettlementWeekOfMonth(dateKey) {
 function formatWeeklySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
-  if (!date) return `${fallbackIndex + 1}주차 주간결산`
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
+  if (!date) return `0월 ${fallbackIndex + 1}주차 주간결산`
+  return `${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
 }
 
 function formatMonthlySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
-  if (!date) return `${fallbackIndex + 1}월 월간결산`
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 월간결산`
+  if (!date) return `${fallbackIndex + 1}월 월간 결산`
+  return `${date.getMonth() + 1}월 월간 결산`
 }
 
 function getSettlementWeekStartKey(dateKey) {
