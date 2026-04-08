@@ -16498,3 +16498,102 @@ body.layout-guide-enabled .error {
     margin-right: 0 !important;
   }
 }
+
+
+/* 2026-04-08 disposal mobile popover + compact meta row + work shift top category shell */
+.disposal-top-status-actions.no-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.disposal-top-status-actions.has-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.disposal-item-settings-inline {
+  position: relative;
+  isolation: isolate;
+}
+
+.disposal-item-settings-popover {
+  max-width: min(240px, calc(100vw - 24px));
+}
+
+.work-shift-top-tabs-shell {
+  padding: 8px;
+}
+
+.work-shift-screen-shell.desktop .work-shift-top-tabs-shell,
+.work-shift-screen-shell.mobile .work-shift-top-tabs-shell {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .disposal-item-settings-popover {
+    top: calc(100% + 6px);
+    left: auto;
+    right: 0;
+    min-width: min(180px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+
+  .disposal-page .disposal-items-toolbar {
+    justify-content: flex-start;
+  }
+
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    grid-template-columns: minmax(54px, 0.72fr) minmax(70px, 1fr) minmax(74px, 0.94fr) minmax(88px, 1fr);
+    gap: 5px;
+  }
+
+  .disposal-page .disposal-top-status-actions.no-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select,
+  .disposal-page .disposal-final-status-select {
+    font-size: 11px;
+    padding: 6px 7px;
+    min-height: 34px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-top-tabs-shell {
+    padding: 6px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-top-tabs-card {
+    padding: 8px;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-mode-tabs {
+    justify-content: stretch;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .work-shift-screen-shell.mobile .work-shift-mode-tabs > button {
+    flex: 1 1 0;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top {
+    grid-template-columns: minmax(50px, 0.68fr) minmax(62px, 0.96fr) minmax(68px, 0.9fr) minmax(82px, 0.98fr);
+    gap: 4px;
+  }
+
+  .disposal-page .disposal-meta-layout input,
+  .disposal-page .disposal-meta-layout select,
+  .disposal-page .disposal-final-status-select {
+    font-size: 10px;
+    padding: 5px 6px;
+    min-height: 32px;
+  }
+
+  .disposal-item-settings-popover {
+    min-width: min(168px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+  }
+}

@@ -8313,16 +8313,17 @@ function WorkShiftSchedulePage() {
 
   return (
     <div className={`stack-page work-shift-screen-shell${isMobile ? ' mobile' : ' desktop'}`}>
+      <section className="card work-shift-top-tabs-shell">
+        <div className="work-shift-top-tabs-card">
+          <div className="settlement-tabs settlement-tabs-inline work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
+            <button type="button" className={workMode === 'vacation' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
+            <button type="button" className={workMode === 'view' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('view')}>편집/보기</button>
+          </div>
+        </div>
+      </section>
+
       <section className="card work-shift-page-card">
         <div className={`work-shift-toolbar${isMobile ? ' mobile' : ''}`}>
-          <div className="work-shift-title-row work-shift-title-row-compact">
-            <div className="work-shift-top-tabs-card">
-              <div className="settlement-tabs settlement-tabs-inline work-shift-mode-tabs" role="tablist" aria-label="근무스케줄 카테고리">
-                <button type="button" className={workMode === 'vacation' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('vacation')}>휴가신청</button>
-                <button type="button" className={workMode === 'view' ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setWorkMode('view')}>편집/보기</button>
-              </div>
-            </div>
-          </div>
           {workMode === 'view' ? (
             <div className="work-shift-control-row">
               <div className="inline-actions wrap work-shift-section-tabs">

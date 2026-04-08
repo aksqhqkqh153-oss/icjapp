@@ -983,7 +983,7 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved, actions
           </select>
           <input ref={customerNameRef} value={draft.customerName} onChange={e => updateDraftField('customerName', e.target.value)} onKeyDown={e => moveFocus(e, disposalDateRef, platformRef)} placeholder="고객명" />
           <input ref={disposalDateRef} value={draft.disposalDate} onChange={e => updateDraftField('disposalDate', e.target.value)} onKeyDown={e => moveFocus(e, finalStatusRef, customerNameRef)} placeholder="폐기일자" />
-          <div className="disposal-top-status-actions">
+          <div className={`disposal-top-status-actions${actions ? ' has-actions' : ' no-actions'}`}> 
             <div className={`disposal-final-status-shell ${statusClass}`.trim()}>
               <select
                 ref={finalStatusRef}
