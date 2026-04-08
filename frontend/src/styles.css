@@ -16954,3 +16954,74 @@ body.layout-guide-enabled .error {
     border-radius: 0;
   }
 }
+
+/* 2026-04-08 mobile schedule visibility + settlement title/nav alignment refinements */
+@media (max-width: 768px) {
+  .work-schedule-page.mobile {
+    min-height: calc(100dvh - 50px - 58px) !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    scroll-snap-type: none !important;
+    padding-bottom: 12px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-day {
+    height: auto !important;
+    min-height: calc(100dvh - 50px - 58px) !important;
+    max-height: none !important;
+    display: block !important;
+    overflow: visible !important;
+    padding-bottom: 10px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form {
+    display: block !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-main-top {
+    padding-top: 0 !important;
+    padding-bottom: 8px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-schedule-exclusion,
+  .work-schedule-page.mobile .work-notes-form {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-line-item,
+  .work-schedule-page.mobile .work-exclusion-section .work-schedule-exclusion-row,
+  .work-schedule-page.mobile .work-excluded-business-row,
+  .work-schedule-page.mobile .work-excluded-staff-row {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .disposal-month-switch-card.disposal-month-switch-card-inline {
+    justify-content: center !important;
+  }
+
+  .disposal-month-switch-inline-group {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell {
+    font-size: 16px !important;
+    font-weight: 800;
+  }
+
+  .disposal-monthly-sheet-card .disposal-sales-sheet-two-col .disposal-sales-sheet-row-two-col.is-title .disposal-sales-sheet-cell:last-child {
+    font-size: 14px !important;
+  }
+}
