@@ -17258,3 +17258,45 @@ body.html-inspector-enabled {
     z-index: 1;
   }
 }
+
+/* 2026-04-08 global square corner layout standard */
+:root {
+  --radius-lg: 0px;
+  --radius-md: 0px;
+  --radius-sm: 0px;
+}
+
+button,
+input,
+select,
+textarea,
+.card,
+.list-item,
+.sheet-panel,
+.sheet-action,
+.replying-banner,
+.chat-room-row,
+.search-result-row,
+.chat-search-panel,
+.group-member-panel,
+.group-member-row,
+.map-driver-item,
+.real-map-canvas,
+.profile-preview-card,
+.profile-image-viewer,
+.work-shift-table-wrap,
+.vehicle-list-row,
+.vehicle-list-item,
+.vehicle-list-panel,
+.schedule-inline-popup-card,
+.quote-step-header-boxed,
+.quote-mode-button,
+[class*="layout"],
+[class*="panel"],
+[class*="card"],
+[class*="modal"],
+[class*="popup"],
+[class*="sheet"],
+[class*="wrap"] {
+  border-radius: 0 !important;
+}
