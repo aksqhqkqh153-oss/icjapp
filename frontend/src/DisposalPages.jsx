@@ -1295,17 +1295,19 @@ function DisposalItemsEditor({
             <button type="button" className="ghost" onClick={() => setShowItemsHelp(true)}>설명</button>
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
-            <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
+            <div className="disposal-settings-inline disposal-item-settings-inline">
+              <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
+              {itemSettingsOpen ? (
+                <div className="disposal-settings-popover disposal-item-settings-popover">
+                  <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); setItemSettingsOpen(false) }}>폐기견적서 전체 미리보기</button>
+                  <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
+                  <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onSaveEstimate(); setItemSettingsOpen(false) }}>견적저장</button>
+                  <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
+                  <div className="disposal-settings-popover-caption">현재: {defaultVisibleRows}칸</div>
+                </div>
+              ) : null}
+            </div>
             {deleteMode ? <button type="button" className="ghost active" onClick={deleteSelectedItemRows}>선택삭제</button> : null}
-            {itemSettingsOpen ? (
-              <div className="disposal-settings-popover disposal-item-settings-popover">
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); setItemSettingsOpen(false) }}>폐기견적서 전체 미리보기</button>
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onSaveEstimate(); setItemSettingsOpen(false) }}>견적저장</button>
-                <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
-                <div className="disposal-settings-popover-caption">현재: {defaultVisibleRows}칸</div>
-              </div>
-            ) : null}
           </div>
         </div>
 

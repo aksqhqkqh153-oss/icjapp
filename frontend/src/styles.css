@@ -11006,9 +11006,15 @@ a:focus-visible {
 }
 
 
+.disposal-item-settings-inline {
+  position: relative;
+  display: inline-flex;
+}
+
 .disposal-item-settings-popover {
-  right: 0;
-  left: auto;
+  top: 0;
+  left: calc(100% + 6px);
+  right: auto;
   min-width: 132px;
 }
 
