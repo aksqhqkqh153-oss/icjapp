@@ -19115,3 +19115,77 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+
+/* 2026-04-09 settlement nav refinement + assignee popup anchor */
+.settlement-day-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.settlement-day-nav-title {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.settlement-day-nav-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.settlement-day-nav-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settlement-day-nav-date {
+  white-space: nowrap;
+}
+
+.settlement-arrow-button {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
+.settlement-day-nav-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 768px) {
+  .settlement-day-nav-control-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .settlement-day-nav-inline {
+    justify-content: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settlement-day-nav-inline::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settlement-day-nav-actions {
+    justify-content: flex-end;
+  }
+}
+
+.assignee-suggestion-list.portal {
+  left: auto;
+  right: auto;
+}
