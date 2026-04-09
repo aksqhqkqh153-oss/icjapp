@@ -4942,6 +4942,14 @@ function MapPage() {
     setMapDisplayOpen(false)
   }
 
+  function insertTemplateToken(token) {
+    setTemplateDraft(prev => {
+      const base = String(prev || '')
+      if (!base.trim()) return String(token || '')
+      return `${base}${base.endsWith('\n') ? '' : ' '}${String(token || '')}`
+    })
+  }
+
   function openDatePicker() {
     try {
       dateInputRef.current?.showPicker?.()
@@ -9338,6 +9346,37 @@ const LADDER_PRICE_MAP = (() => {
   map['25층 이상'] = { '1톤 1대': '협의', '1톤 2대': '협의', '가구만': '협의' }
   return map
 })()
+
+const LADDER_TEMPLATE_HELP_GROUPS = [
+  {
+    title: '윗줄 정보 넣기',
+    items: [
+      { label: '날짜', token: '{{date}}' },
+      { label: '이사시간', token: '{{move_time}}' },
+      { label: '고객명', token: '{{customer_name}}' },
+      { label: '이동시간', token: '{{travel_time}}' },
+    ],
+  },
+  {
+    title: '상세 항목 넣기',
+    items: [
+      { label: '작업', token: '{{work}}' },
+      { label: '주소', token: '{{addr}}' },
+      { label: '층수', token: '{{floor}}' },
+      { label: '작업시간', token: '{{work_time}}' },
+    ],
+  },
+  {
+    title: '담당 호점 정보 넣기',
+    items: [
+      { label: '이름', token: '{{branch_name}}' },
+      { label: '연락처', token: '{{branch_phone}}' },
+      { label: '금액 제목', token: '{{cost_title}}' },
+      { label: '금액', token: '{{cost}}' },
+    ],
+  },
+]
+
 const LADDER_INFO_ROWS = [
   ['2~5층', '5m ~ 13m', '1톤', '저층 작업. QT 차량도 가능.'],
   ['6~8층', '15m ~ 21m', '1톤', '1톤 차량의 한계 높이.'],
@@ -9858,8 +9897,22 @@ function LadderDispatchPage() {
         <div className="modal-overlay" onClick={() => setTemplateEditorOpen(false)}>
           <div className="modal-card ladder-modal-card ladder-template-modal" onClick={e => e.stopPropagation()}>
             <div className="between"><strong>기본양식편집</strong><button type="button" className="small" onClick={() => setTemplateEditorOpen(false)}>닫기</button></div>
-            <div className="muted small-text ladder-token-help">사용 가능 변수: <code>{'{{date}}'}</code>, <code>{'{{move_time}}'}</code>, <code>{'{{customer_name}}'}</code>, <code>{'{{travel_time}}'}</code>, <code>{'{{work}}'}</code>, <code>{'{{addr}}'}</code>, <code>{'{{floor}}'}</code>, <code>{'{{work_time}}'}</code>, <code>{'{{branch_name}}'}</code>, <code>{'{{branch_phone}}'}</code>, <code>{'{{cost_title}}'}</code>, <code>{'{{cost}}'}</code></div>
-            <textarea className="ladder-template-editor" value={templateDraft} onChange={e => setTemplateDraft(e.target.value)} />
+            <div className="muted small-text ladder-token-help">아래 한글 버튼을 눌러 필요한 항목을 쉽게 넣을 수 있습니다. 줄바꿈은 엔터로 입력하면 됩니다.</div>
+            <div className="ladder-token-groups">
+              {LADDER_TEMPLATE_HELP_GROUPS.map(group => (
+                <div key={group.title} className="ladder-token-group">
+                  <div className="ladder-token-group-title">{group.title}</div>
+                  <div className="ladder-token-button-row">
+                    {group.items.map(item => (
+                      <button key={item.token} type="button" className="small ghost ladder-token-button" onClick={() => insertTemplateToken(item.token)}>{item.label}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <textarea className="ladder-template-editor" value={templateDraft} onChange={e => setTemplateDraft(e.target.value)} placeholder="예시)
+★ {{date}} {{move_time}} {{customer_name}} ★
+ㅇ 작업 : {{work}}" />
             <div className="inline-actions between wrap">
               <button type="button" className="small" onClick={() => setTemplateDraft(LADDER_TEMPLATE_DEFAULT)}>기본값 복원</button>
               <button type="button" className="small" onClick={saveTemplateEditor}>저장</button>
