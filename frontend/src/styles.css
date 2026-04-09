@@ -18817,3 +18817,156 @@ textarea,
     white-space: nowrap;
   }
 }
+
+
+/* 2026-04-09 v3 chat/schedule mobile layout refinement */
+.chat-category-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-category-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-category-row.evenly-spaced.chat-category-row-spaced.chat-category-row-scrollable {
+  display: inline-flex;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+  width: max-content;
+  padding-bottom: 2px;
+}
+
+.chat-category-row-scrollable .chat-tab.equal-width {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.chat-category-mini-actions {
+  position: sticky;
+  right: 0;
+  top: 0;
+  background: #ffffff;
+  padding-left: 6px;
+  flex: 0 0 auto;
+  z-index: 2;
+}
+
+.chat-category-delete-modal {
+  width: min(420px, calc(100vw - 24px));
+}
+
+.chat-category-delete-head {
+  margin-bottom: 12px;
+}
+
+.chat-category-delete-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.assignee-suggestion-list.portal {
+  width: max-content !important;
+  min-width: fit-content !important;
+  max-width: calc(100vw - 16px) !important;
+}
+
+.assignee-suggestion-list,
+.assignee-suggestion-list.portal {
+  gap: 2px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.assignee-suggestion-item {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  gap: 1px !important;
+}
+
+.assignee-suggestion-item strong,
+.assignee-suggestion-item span {
+  line-height: 1.12 !important;
+}
+
+.schedule-page.mobile .mobile-schedule-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid #d1d5db !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  padding: 4px 8px !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+.schedule-page.mobile .mobile-schedule-vehicle-chip,
+.schedule-page.mobile .mobile-schedule-vehicle-chip.centered {
+  background: #ffffff !important;
+  color: #111827 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  font-weight: 700;
+}
+
+.schedule-page.mobile .mobile-schedule-vehicle-inline,
+.schedule-page.mobile .mobile-schedule-vehicle-inline.centered {
+  color: #111827 !important;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .chat-category-toolbar {
+    gap: 6px;
+  }
+
+  .chat-category-scroll {
+    margin-right: 0;
+  }
+
+  .chat-category-row.evenly-spaced.chat-category-row-spaced.chat-category-row-scrollable {
+    gap: 5px;
+  }
+
+  .chat-category-row-scrollable .chat-tab.equal-width {
+    padding-left: 9px;
+    padding-right: 9px;
+    font-size: 12px;
+  }
+
+  .chat-category-mini-actions {
+    padding-left: 4px;
+  }
+
+  .chat-category-delete-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .assignee-suggestion-list.portal {
+    min-width: 0 !important;
+    width: max-content !important;
+  }
+
+  .assignee-suggestion-item {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+  }
+}

@@ -3416,24 +3416,40 @@ ${guide}`)
   return (
     <div className="stack-page chat-page-layout">
       <section className="card chat-category-shell">
-        <div className="chat-category-row evenly-spaced chat-category-row-spaced">
-          {visibleChatCategories.map(([value, label]) => (
-            <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
-          ))}
+        <div className="chat-category-toolbar">
+          <div className="chat-category-scroll" role="tablist" aria-label="채팅 카테고리">
+            <div className="chat-category-row evenly-spaced chat-category-row-spaced chat-category-row-scrollable">
+              {visibleChatCategories.map(([value, label]) => (
+                <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
+              ))}
+            </div>
+          </div>
           <div className="chat-category-mini-actions">
             <button type="button" className="small ghost chat-tab chat-tab-mini" onClick={handleAddCustomCategory} aria-label="카테고리 추가">+</button>
             <button type="button" className={`small ghost chat-tab chat-tab-mini${deleteCategoryOpen ? ' active' : ''}`} onClick={handleDeleteCustomCategory} aria-label="카테고리 삭제">-</button>
           </div>
         </div>
-        {deleteCategoryOpen && (
-          <div className="chat-category-delete-panel">
-            <select value={deleteCategoryTarget} onChange={e => setDeleteCategoryTarget(e.target.value)}>
-              {customCategories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
-            <button type="button" className="small danger" onClick={confirmDeleteCustomCategory}>삭제</button>
-          </div>
-        )}
       </section>
+
+      {deleteCategoryOpen && (
+        <div className="schedule-popup-backdrop chat-category-delete-backdrop" onClick={() => setDeleteCategoryOpen(false)}>
+          <section className="schedule-popup-card chat-category-delete-modal" onClick={event => event.stopPropagation()}>
+            <div className="between schedule-popup-head chat-category-delete-head">
+              <div>
+                <strong>카테고리 삭제</strong>
+                <div className="muted">전체와 즐겨찾기를 제외한 추가 카테고리만 삭제할 수 있습니다.</div>
+              </div>
+              <button type="button" className="ghost small" onClick={() => setDeleteCategoryOpen(false)}>닫기</button>
+            </div>
+            <div className="chat-category-delete-panel">
+              <select value={deleteCategoryTarget} onChange={e => setDeleteCategoryTarget(e.target.value)}>
+                {customCategories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+              <button type="button" className="small danger" onClick={confirmDeleteCustomCategory}>삭제</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className="card chat-list-card">
         <div className="chat-list-toolbar chat-list-toolbar-separated">
@@ -5636,10 +5652,10 @@ function CalendarPage() {
               <strong className="mobile-schedule-selected-date">{formatSelectedDateLabel(selectedDate)}</strong>
               <div className="mobile-schedule-detail-meta summary-inline-row">
                 <span className={`mobile-schedule-kind-chip ${selectedDaySummary?.is_handless_day ? 'handless' : 'general'}`}>{selectedDaySummary?.is_handless_day ? '손' : '일'}</span>
-                <button type="button" className="mobile-schedule-status-button" onClick={() => openCalendarStatus(selectedDaySummary)}>
+                <div className="mobile-schedule-status-button" aria-label="가용차량수 요약">
                   <span className="mobile-schedule-vehicle-chip centered">가용차량수 {String(selectedDaySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                  <span className="mobile-schedule-vehicle-inline centered">A {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} | B {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} | C {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
-                </button>
+                  <span className="mobile-schedule-vehicle-inline centered">A: {String(selectedDaySummary?.status_a_count ?? 0).padStart(2, '0')} / B: {String(selectedDaySummary?.status_b_count ?? 0).padStart(2, '0')} / C: {String(selectedDaySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+                </div>
               </div>
             </div>
             <div className="schedule-popup-list embedded">
