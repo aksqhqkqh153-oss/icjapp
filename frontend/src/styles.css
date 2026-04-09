@@ -19398,3 +19398,58 @@ textarea,
     font-size: 11px;
   }
 }
+
+
+/* 2026-04-09 notification + settlement header + assignee anchor shared refinements */
+.single-line-settlement-title {
+  white-space: nowrap;
+  flex-wrap: nowrap;
+}
+
+.settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions.fixed-two-line {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.settlement-day-nav-title.centered-nav-title.single-line-settlement-title strong {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .settlement-day-nav-title.centered-nav-title.single-line-settlement-title {
+    gap: 2px;
+  }
+
+  .settlement-day-nav-title.centered-nav-title.single-line-settlement-title strong {
+    font-size: 17px;
+  }
+
+  .settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions.fixed-two-line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+  }
+
+  .centered-date-pill {
+    justify-self: start;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 420px) {
+  .settlement-day-nav-title.centered-nav-title.single-line-settlement-title strong {
+    font-size: 15px;
+  }
+
+  .settlement-arrow-button {
+    font-size: 12px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .settlement-day-nav-actions.compact-right-actions .ghost.small {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

@@ -602,7 +602,16 @@ function scheduleNotificationCategory(type) {
 }
 
 function isScheduleAlertNotification(item) {
-  return ['work_schedule_assignment', 'work_schedule_assignment_change', 'work_schedule_time_change', 'work_schedule_address_change', 'calendar_assignment_change', 'calendar_time_change', 'calendar_address_change'].includes(String(item?.type || ''))
+  return ['work_schedule_assignment', 'work_schedule_assignment_added', 'work_schedule_assignment_removed', 'work_schedule_assignment_change', 'work_schedule_time_change', 'work_schedule_address_change', 'calendar_assignment_change', 'calendar_assignment_added', 'calendar_assignment_removed', 'calendar_time_change', 'calendar_address_change'].includes(String(item?.type || ''))
+}
+
+function formatNotificationBodyForDevice(item, isMobile) {
+  const body = String(item?.body || '')
+  if (!isMobile) return body.replace(/\n+/g, ' ')
+  if (['work_schedule_assignment_added', 'work_schedule_assignment_removed', 'calendar_assignment_added', 'calendar_assignment_removed'].includes(String(item?.type || ''))) {
+    return body.replace(/고객\s+일정/g, '고객\n일정')
+  }
+  return body
 }
 
 function parseTimeToMinutes(value) {
@@ -6247,9 +6256,11 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       const baseWidth = Math.max(shellRect?.width || 0, inputRect?.width || 0, 168)
       const estimatedWidth = Math.min(viewportWidth - 16, Math.max(baseWidth, Math.min(viewportWidth - 16, (longestText * 9) + 44)))
       const anchorLeft = shellRect?.left ?? inputRect?.left ?? anchorRect.left
+      const anchorRight = inputRect?.right ?? shellRect?.right ?? anchorRect.right
       const anchorBottom = inputRect?.bottom ?? shellRect?.bottom ?? anchorRect.bottom
       const maxLeft = Math.max(8, viewportWidth - estimatedWidth - 8)
-      const safeLeft = Math.min(Math.max(8, anchorLeft), maxLeft)
+      const preferredRightAlignedLeft = anchorRight - estimatedWidth
+      const safeLeft = Math.min(Math.max(8, preferredRightAlignedLeft), maxLeft)
       const safeTop = Math.min(anchorBottom + 6, viewportHeight - 8)
       setPortalStyle({
         position: 'fixed',
@@ -7942,7 +7953,7 @@ function NotificationsPage({ user }) {
               {scheduleItems.map(item => (
                 <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
                   <strong>{item.title}</strong>
-                  <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
+                  <div style={{ whiteSpace: 'pre-line' }}>{formatNotificationBodyForDevice(item, isMobile)}</div>
                 </button>
               ))}
               {scheduleItems.length === 0 && <div className="muted">스케줄 알림이 없습니다.</div>}
@@ -7954,7 +7965,7 @@ function NotificationsPage({ user }) {
               {generalItems.map(item => (
                 <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
                   <strong>{item.title}</strong>
-                  <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
+                  <div style={{ whiteSpace: 'pre-line' }}>{formatNotificationBodyForDevice(item, isMobile)}</div>
                 </button>
               ))}
               {generalItems.length === 0 && <div className="muted">알림이 없습니다.</div>}
@@ -13380,13 +13391,13 @@ function SettlementPage() {
       <>
         <div className="settlement-day-nav card">
           <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
               <strong>일일 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
             </div>
           </div>
-          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('daily', selectedDailyBlock)}>수정</button>
@@ -13411,13 +13422,13 @@ function SettlementPage() {
       <>
         <div className="settlement-day-nav card">
           <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
               <strong>주간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
             </div>
           </div>
-          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedWeeklyBlock?.title || (selectedWeeklyBlockDateKey ? `${String(selectedWeeklyBlockDateKey).slice(0, 7)} 주간 결산` : '-')}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('weekly', selectedWeeklyBlock)}>수정</button>
@@ -13435,13 +13446,13 @@ function SettlementPage() {
       <>
         <div className="settlement-day-nav card">
           <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
               <strong>월간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
             </div>
           </div>
-          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedMonthlyBlock?.title || (selectedMonthlyDateKey ? `${String(selectedMonthlyDateKey).slice(0, 7)} 월간 결산` : '-')}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('monthly', selectedMonthlyBlock)}>수정</button>
@@ -15125,7 +15136,6 @@ function AppAssignmentNotificationWatcher({ user }) {
           if (settings.appEnabled && settings.appTypes?.[category] && !quietNow) {
             const lastShown = Number(nextAppState[item.id] || 0)
             if (!lastShown || now - lastShown >= repeatMs) {
-              newToasts.push({ id: `app-${item.id}-${now}`, title: item.title, body: item.body })
               nextAppState[item.id] = now
             }
           }

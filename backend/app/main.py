@@ -1006,6 +1006,14 @@ def _schedule_assignment_notice_payload(date_value: str, time_value: str, custom
     return title, body
 
 
+def _schedule_assignment_membership_notice_payload(date_value: str, customer_name: str, action: str) -> tuple[str, str]:
+    date_text = _format_notice_date(date_value)
+    customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    if action == 'removed':
+        return '스케줄 변경', f"{date_text} {customer}고객 일정에서 제외되었습니다."
+    return '스케줄 변경', f"{date_text} {customer}고객 일정에 투입되었습니다."
+
+
 def _schedule_time_notice_payload(date_value: str, before_time: str, after_time: str, customer_name: str, representative_names: str, staff_names: str) -> tuple[str, str]:
     date_text = _format_notice_date(date_value)
     customer = str(customer_name or '(고객명)').strip() or '(고객명)'
@@ -1040,8 +1048,20 @@ def _notify_work_schedule_entry_changes(conn, actor: dict, previous_row: dict, n
     previous_assignment = f"대표 {previous_row.get('representative_names') or '-'} / 직원 {previous_row.get('staff_names') or '-'}"
     next_assignment = f"대표 {next_row.get('representative_names') or '-'} / 직원 {next_row.get('staff_names') or '-'}"
     if previous_assignment != next_assignment:
-        title, body = _schedule_assignment_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', next_row.get('schedule_time') or previous_row.get('schedule_time') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', previous_assignment, next_assignment)
-        _notify_schedule_change(conn, target_ids, 'work_schedule_assignment_change', title, body, actor.get('id'))
+        event_date = next_row.get('schedule_date') or previous_row.get('schedule_date') or ''
+        customer_name = next_row.get('customer_name') or previous_row.get('customer_name') or ''
+        added_ids = next_ids - previous_ids
+        removed_ids = previous_ids - next_ids
+        stayed_ids = previous_ids & next_ids
+        if stayed_ids:
+            title, body = _schedule_assignment_notice_payload(event_date, next_row.get('schedule_time') or previous_row.get('schedule_time') or '', customer_name, previous_assignment, next_assignment)
+            _notify_schedule_change(conn, stayed_ids, 'work_schedule_assignment_change', title, body, actor.get('id'))
+        if added_ids:
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added')
+            _notify_schedule_change(conn, added_ids, 'work_schedule_assignment_added', title, body, actor.get('id'))
+        if removed_ids:
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed')
+            _notify_schedule_change(conn, removed_ids, 'work_schedule_assignment_removed', title, body, actor.get('id'))
     if (previous_row.get('schedule_time') or '') != (next_row.get('schedule_time') or ''):
         title, body = _schedule_time_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', previous_row.get('schedule_time') or '', next_row.get('schedule_time') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', next_row.get('representative_names') or '', next_row.get('staff_names') or '')
         _notify_schedule_change(conn, target_ids, 'work_schedule_time_change', title, body, actor.get('id'))
@@ -1064,8 +1084,18 @@ def _notify_calendar_event_changes(conn, actor: dict, previous_row: dict, next_r
     event_time = next_row.get('start_time') or next_row.get('visit_time') or previous_row.get('start_time') or previous_row.get('visit_time') or ''
     customer_name = next_row.get('customer_name') or previous_row.get('customer_name') or next_row.get('title') or previous_row.get('title') or ''
     if previous_assignment != next_assignment:
-        title, body = _schedule_assignment_notice_payload(event_date, event_time, customer_name, previous_assignment, next_assignment)
-        _notify_schedule_change(conn, target_ids, 'calendar_assignment_change', title, body, actor.get('id'))
+        added_ids = next_ids - previous_ids
+        removed_ids = previous_ids - next_ids
+        stayed_ids = previous_ids & next_ids
+        if stayed_ids:
+            title, body = _schedule_assignment_notice_payload(event_date, event_time, customer_name, previous_assignment, next_assignment)
+            _notify_schedule_change(conn, stayed_ids, 'calendar_assignment_change', title, body, actor.get('id'))
+        if added_ids:
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added')
+            _notify_schedule_change(conn, added_ids, 'calendar_assignment_added', title, body, actor.get('id'))
+        if removed_ids:
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed')
+            _notify_schedule_change(conn, removed_ids, 'calendar_assignment_removed', title, body, actor.get('id'))
     prev_time = previous_row.get('start_time') or previous_row.get('visit_time') or ''
     next_time = next_row.get('start_time') or next_row.get('visit_time') or ''
     if prev_time != next_time:
@@ -4093,21 +4123,28 @@ def get_work_schedule(start_date: Optional[str] = Query(default=None), days: int
     date_keys = [(base_date + timedelta(days=index)).isoformat() for index in range(days)]
     with get_conn() as conn:
         placeholders = ','.join('?' for _ in date_keys)
+        if _can_access_shared_schedule(user):
+            shared_ids = _shared_schedule_user_ids(conn)
+        else:
+            shared_ids = [int(user['id'])]
+        if not shared_ids:
+            shared_ids = [int(user['id'])]
+        shared_placeholders = ','.join('?' for _ in shared_ids)
         work_rows = conn.execute(
             f"""
             SELECT * FROM work_schedule_entries
-            WHERE user_id = ? AND schedule_date IN ({placeholders})
+            WHERE user_id IN ({shared_placeholders}) AND schedule_date IN ({placeholders})
             ORDER BY schedule_date, CASE WHEN COALESCE(schedule_time, '') = '' THEN '99:99' ELSE schedule_time END, id
             """,
-            (user['id'], *date_keys),
+            (*shared_ids, *date_keys),
         ).fetchall()
         event_rows = conn.execute(
             f"""
             SELECT * FROM calendar_events
-            WHERE user_id = ? AND event_date IN ({placeholders})
+            WHERE user_id IN ({shared_placeholders}) AND event_date IN ({placeholders})
             ORDER BY event_date, CASE WHEN COALESCE(start_time, '') IN ('', '미정') THEN '99:99' ELSE start_time END, id
             """,
-            (user['id'], *date_keys),
+            (*shared_ids, *date_keys),
         ).fetchall()
         notes_owner_id = _get_schedule_note_owner_id_for_user(conn, user)
         notes_rows = conn.execute(
