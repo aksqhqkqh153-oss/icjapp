@@ -3179,6 +3179,8 @@ function ChatsPage() {
       return {}
     }
   })
+  const [deleteCategoryOpen, setDeleteCategoryOpen] = useState(false)
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState('')
 
   useEffect(() => {
     setPinOrder(loadChatPinnedOrder(currentUser?.id))
@@ -3193,6 +3195,17 @@ function ChatsPage() {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(chatRoomCategoryKey, JSON.stringify(roomCategoryMap))
   }, [chatRoomCategoryKey, roomCategoryMap])
+
+  useEffect(() => {
+    if (!customCategories.length) {
+      setDeleteCategoryOpen(false)
+      setDeleteCategoryTarget('')
+      return
+    }
+    if (!customCategories.some(item => String(item.id) === String(deleteCategoryTarget))) {
+      setDeleteCategoryTarget(customCategories[0]?.id || '')
+    }
+  }, [customCategories, deleteCategoryTarget])
 
   const visibleChatCategories = useMemo(() => ([
     ['all', '전체'],
@@ -3286,21 +3299,20 @@ ${guide}`)
       window.alert('삭제할 카테고리가 없습니다.')
       return
     }
+    setDeleteCategoryOpen(prev => !prev)
+    setDeleteCategoryTarget(prev => {
+      if (prev && customCategories.some(item => item.id === prev)) return prev
+      return customCategories.find(item => item.id === category)?.id || customCategories[0]?.id || ''
+    })
+  }
 
-    let target = customCategories.find(item => item.id === category) || null
+  function confirmDeleteCustomCategory() {
+    const target = customCategories.find(item => String(item.id) === String(deleteCategoryTarget))
     if (!target) {
-      const guide = customCategories.map((item, index) => `${index + 1}: ${item.label}`).join('\n')
-      const picked = window.prompt(`삭제할 카테고리 번호를 입력하세요.\n${guide}`)
-      if (picked === null) return
-      const index = Number(String(picked).trim())
-      if (!Number.isFinite(index) || index < 1 || index > customCategories.length) {
-        window.alert('올바른 번호를 입력해 주세요.')
-        return
-      }
-      target = customCategories[index - 1]
+      window.alert('삭제할 카테고리를 선택해 주세요.')
+      return
     }
-
-    const confirmed = window.confirm(`'${target.label}' 카테고리를 삭제하시겠습니까?`)
+    const confirmed = window.confirm('카테고리 항목을 삭제하시겠습니까?')
     if (!confirmed) return
 
     setCustomCategories(prev => prev.filter(item => item.id !== target.id))
@@ -3312,7 +3324,10 @@ ${guide}`)
       return next
     })
     if (String(category) === String(target.id)) setCategory('all')
+    setDeleteCategoryOpen(false)
+    setDeleteCategoryTarget('')
   }
+
 
   async function handleAssignRoomCategory(room) {
     if (!customCategories.length) {
@@ -3407,9 +3422,17 @@ ${guide}`)
           ))}
           <div className="chat-category-mini-actions">
             <button type="button" className="small ghost chat-tab chat-tab-mini" onClick={handleAddCustomCategory} aria-label="카테고리 추가">+</button>
-            <button type="button" className="small ghost chat-tab chat-tab-mini" onClick={handleDeleteCustomCategory} aria-label="카테고리 삭제">-</button>
+            <button type="button" className={`small ghost chat-tab chat-tab-mini${deleteCategoryOpen ? ' active' : ''}`} onClick={handleDeleteCustomCategory} aria-label="카테고리 삭제">-</button>
           </div>
         </div>
+        {deleteCategoryOpen && (
+          <div className="chat-category-delete-panel">
+            <select value={deleteCategoryTarget} onChange={e => setDeleteCategoryTarget(e.target.value)}>
+              {customCategories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+            <button type="button" className="small danger" onClick={confirmDeleteCustomCategory}>삭제</button>
+          </div>
+        )}
       </section>
 
       <section className="card chat-list-card">
@@ -6155,14 +6178,19 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       const rect = shellRef.current?.getBoundingClientRect()
       if (!rect) return
       const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || rect.width
-      const desiredWidth = Math.max(rect.width, Math.min(viewportWidth - 16, 320))
-      const maxLeft = Math.max(8, viewportWidth - desiredWidth - 8)
+      const longestText = suggestions.reduce((max, user) => {
+        const tagValue = buildAssigneeTagValue(user)
+        const meta = showMeta ? buildAssigneeOptionMeta(user) : ''
+        return Math.max(max, tagValue.length, meta.length)
+      }, 0)
+      const estimatedWidth = Math.max(rect.width, Math.min(viewportWidth - 16, Math.max(168, (longestText * 9) + 44)))
+      const maxLeft = Math.max(8, viewportWidth - estimatedWidth - 8)
       const safeLeft = Math.min(Math.max(8, rect.left), maxLeft)
       setPortalStyle({
         position: 'fixed',
         top: rect.bottom + 6,
         left: safeLeft,
-        width: desiredWidth,
+        width: estimatedWidth,
         maxWidth: viewportWidth - 16,
         zIndex: 5000,
       })
@@ -12202,6 +12230,66 @@ function cloneSettlementBlock(block) {
   return JSON.parse(JSON.stringify(block || {}))
 }
 
+function toSettlementNumber(value) {
+  return Number(String(value ?? '').replace(/,/g, '').trim()) || 0
+}
+
+function recalculateSettlementBlock(block) {
+  const cloned = cloneSettlementBlock(block)
+  if (!cloned) return cloned
+
+  const sourceCounts = { 숨고: 0, 오늘: 0, 공홈: 0 }
+  ;(cloned.summaryRows || []).forEach(row => {
+    const source = String(row?.source || '').trim()
+    if (Object.prototype.hasOwnProperty.call(sourceCounts, source)) {
+      sourceCounts[source] = toSettlementNumber(row?.count)
+    }
+  })
+  const totalEstimate = sourceCounts.숨고 + sourceCounts.오늘 + sourceCounts.공홈
+  const contractCount = toSettlementNumber((cloned.summaryRows || []).find(row => String(row?.label || '').includes('2. 총 계약 수(건)'))?.value)
+
+  cloned.summaryRows = (cloned.summaryRows || []).map(row => {
+    const label = String(row?.label || '')
+    if (label.includes('1. 총 견적 발송 수(건)')) return { ...row, value: String(totalEstimate) }
+    if (label.includes('3. 계약률')) {
+      const rate = totalEstimate ? (contractCount / totalEstimate) : 0
+      return { ...row, value: String(rate) }
+    }
+    return { ...row }
+  })
+
+  let totalPlatformReview = 0
+  let totalBranchReview = 0
+  let totalIssues = 0
+  let totalScore = 0
+  cloned.branchRows = (cloned.branchRows || []).map(row => {
+    const platformCount = String(row?.platform || '').trim() ? toSettlementNumber(row?.platformCount) : (String(row?.platformCount || '').trim() ? toSettlementNumber(row?.platformCount) : '')
+    const branchCount = toSettlementNumber(row?.branchCount)
+    const issues = toSettlementNumber(row?.issues)
+    const score = branchCount - (issues * 3)
+    if (typeof platformCount === 'number') totalPlatformReview += platformCount
+    totalBranchReview += branchCount
+    totalIssues += issues
+    totalScore += score
+    return {
+      ...row,
+      platformCount: platformCount === '' ? '' : String(platformCount),
+      branchCount: String(branchCount),
+      issues: String(issues),
+      score: String(score),
+    }
+  })
+
+  cloned.total = {
+    ...(cloned.total || {}),
+    platformReview: String(totalPlatformReview),
+    branchReview: String(totalBranchReview),
+    issues: String(totalIssues),
+    score: String(totalScore),
+  }
+  return cloned
+}
+
 function settlementDateKeyFromText(raw) {
   const text = String(raw || '').trim()
   if (!text) return ''
@@ -12374,7 +12462,7 @@ function buildSettlementMonthlyPages(blocks = []) {
 
 function buildAggregatedSettlementBlockFromBlocks(baseBlock, blocks = [], titleText = '', dateText = '') {
   if (!baseBlock) return null
-  if (!blocks.length) return cloneSettlementBlock(baseBlock)
+  if (!blocks.length) return recalculateSettlementBlock(cloneSettlementBlock(baseBlock))
   const aggregated = cloneSettlementBlock(baseBlock)
   const metrics = blocks.reduce((acc, block) => {
     const current = summarizeSettlementRows(block?.summaryRows || [], block?.total || {})
@@ -12395,8 +12483,8 @@ function buildAggregatedSettlementBlockFromBlocks(baseBlock, blocks = [], titleT
     }
     return row
   })
-  aggregated.total = { ...(aggregated.total || {}), platformReview: String(metrics.플랫폼리뷰 || 0), branchReview: String(metrics.호점리뷰 || 0), issues: String(metrics.이슈 || 0) }
-  return aggregated
+  aggregated.total = { ...(aggregated.total || {}), platformReview: String(metrics.플랫폼리뷰 || 0), branchReview: String(metrics.호점리뷰 || 0), issues: String(metrics.이슈 || 0), score: String((metrics.호점리뷰 || 0) - ((metrics.이슈 || 0) * 3)) }
+  return recalculateSettlementBlock(aggregated)
 }
 
 function formatSettlementDateShort(dateKey) {
@@ -12482,15 +12570,15 @@ function summarizeSettlementRows(summaryRows = [], total = {}) {
     const value = Number(String(row?.value ?? 0).replace(/,/g, '')) || 0
     const label = String(row?.label || '')
     if (source && Object.prototype.hasOwnProperty.call(result, source)) result[source] += count
-    if (label.includes('총 견적 발송 수')) result.총견적 += value
-    else if (label.includes('총 계약 수')) result.총계약 += value
+    if (label.includes('총 계약 수')) result.총계약 += value
   })
+  result.총견적 = result.숨고 + result.오늘 + result.공홈
   return result
 }
 
 function buildAggregatedSettlementBlock(baseBlock, records = [], titleText = '') {
   if (!baseBlock) return null
-  if (!records.length) return cloneSettlementBlock(baseBlock)
+  if (!records.length) return recalculateSettlementBlock(cloneSettlementBlock(baseBlock))
   const aggregated = cloneSettlementBlock(baseBlock)
   const metrics = records.reduce((acc, record) => {
     const current = summarizeSettlementRows(record?.block?.summaryRows || [], record?.block?.total || {})
@@ -12519,8 +12607,9 @@ function buildAggregatedSettlementBlock(baseBlock, records = [], titleText = '')
     platformReview: String(metrics.플랫폼리뷰 || 0),
     branchReview: String(metrics.호점리뷰 || 0),
     issues: String(metrics.이슈 || 0),
+    score: String((metrics.호점리뷰 || 0) - ((metrics.이슈 || 0) * 3)),
   }
-  return aggregated
+  return recalculateSettlementBlock(aggregated)
 }
 
 function buildSettlementSheetRows(block) {
@@ -12804,7 +12893,7 @@ function buildSettlementEditorDraft(block) {
   cloned.summaryRows = (cloned.summaryRows || []).map(row => ({ ...row }))
   cloned.branchRows = (cloned.branchRows || []).map(row => ({ ...row }))
   cloned.total = { ...(cloned.total || {}) }
-  return cloned
+  return recalculateSettlementBlock(cloned)
 }
 
 function resetEditableSettlementBlock(block) {
@@ -12827,14 +12916,7 @@ function resetEditableSettlementBlock(block) {
     branchCount: '0',
     issues: '0',
   }))
-  const totals = summarizeSettlementRows(cloned.summaryRows || [], cloned.total || {})
-  cloned.total = {
-    ...(cloned.total || {}),
-    platformReview: String(totals.플랫폼리뷰 || 0),
-    branchReview: String(totals.호점리뷰 || 0),
-    issues: String(totals.이슈 || 0),
-  }
-  return cloned
+  return recalculateSettlementBlock(cloned)
 }
 
 function SettlementPage() {
@@ -13189,14 +13271,7 @@ function SettlementPage() {
       const next = buildSettlementEditorDraft(prev)
       if (!next) return prev
       next[section][index][field] = value
-      const totals = summarizeSettlementRows(next.summaryRows || [], next.total || {})
-      next.total = {
-        ...(next.total || {}),
-        platformReview: String(totals.플랫폼리뷰 || 0),
-        branchReview: String(totals.호점리뷰 || 0),
-        issues: String(totals.이슈 || 0),
-      }
-      return next
+      return recalculateSettlementBlock(next)
     })
   }
 

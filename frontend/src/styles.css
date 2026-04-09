@@ -18721,3 +18721,99 @@ textarea,
     box-shadow: none !important;
   }
 }
+
+
+/* 2026-04-09 v2 chat/schedule/settlement refinement */
+.chat-category-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-category-row.evenly-spaced.chat-category-row-spaced {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+}
+.chat-category-delete-panel {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.chat-category-delete-panel select {
+  min-width: 140px;
+  max-width: 220px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+}
+.chat-tab.chat-tab-mini.active {
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.35) inset;
+}
+.handless-toolbar-centered {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.handless-toolbar-month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.handless-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+}
+.handless-page .icon-month-button {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+@media (max-width: 768px) {
+  .chat-category-delete-panel {
+    justify-content: stretch;
+  }
+  .chat-category-delete-panel select {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: none;
+  }
+  .assignee-suggestion-list.portal {
+    width: max-content !important;
+    min-width: 168px !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+  .assignee-suggestion-item strong,
+  .assignee-suggestion-item span {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+  }
+  .handless-toolbar-centered {
+    gap: 6px;
+  }
+  .handless-toolbar-month-nav {
+    gap: 4px;
+    font-size: 14px;
+  }
+  .handless-toolbar-month-nav strong {
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .handless-toolbar-centered .icon-month-button,
+  .handless-toolbar-centered .small,
+  .handless-toolbar-centered .ghost.small {
+    min-width: 28px !important;
+    min-height: 28px !important;
+    padding: 4px 7px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+}
