@@ -4183,6 +4183,23 @@ const KOREA_ADDRESS_FALLBACK_CENTERS = {
 
 function normalizeAdministrativeAddress(address) {
   return String(address || '')
+    .replace(/서울특별시/g, '서울')
+    .replace(/부산광역시/g, '부산')
+    .replace(/대구광역시/g, '대구')
+    .replace(/인천광역시/g, '인천')
+    .replace(/광주광역시/g, '광주')
+    .replace(/대전광역시/g, '대전')
+    .replace(/울산광역시/g, '울산')
+    .replace(/세종특별자치시/g, '세종')
+    .replace(/경기도/g, '경기')
+    .replace(/강원특별자치도|강원도/g, '강원')
+    .replace(/충청북도/g, '충북')
+    .replace(/충청남도/g, '충남')
+    .replace(/전라북도|전북특별자치도/g, '전북')
+    .replace(/전라남도/g, '전남')
+    .replace(/경상북도/g, '경북')
+    .replace(/경상남도/g, '경남')
+    .replace(/제주특별자치도|제주도/g, '제주')
     .replace(/특별시/g, '')
     .replace(/광역시/g, '')
     .replace(/특별자치시/g, '')
@@ -4796,6 +4813,26 @@ function MapPage() {
         </div>
         {shareNotice && <div className="map-toast-notice">{shareNotice}</div>}
         <div ref={mapRef} className="real-map-canvas" />
+        {displayLegendHelpOpen && (
+          <div className="map-legend-help-backdrop" onClick={() => setDisplayLegendHelpOpen(false)}>
+            <div className="card stack compact-gap map-legend-help-modal" onClick={event => event.stopPropagation()}>
+              <div className="between map-legend-help-head">
+                <strong>출발지 표기 설명</strong>
+                <button type="button" className="small ghost" onClick={() => setDisplayLegendHelpOpen(false)}>닫기</button>
+              </div>
+              <div className="map-legend-help-list">
+                <div><span className="marker-legend-icon customer-start" /> 고출 : 고객 출발지</div>
+                <div><span className="marker-legend-icon customer-end" /> 고도 : 고객 도착지</div>
+                <div><span className="marker-legend-icon business-start" /> 사출 : 사업자 출발지</div>
+                <div><span className="marker-legend-icon staff-start" /> 직출 : 직원 출발지</div>
+                <div><span className="marker-legend-icon business-end" /> 사도 : 사업자 도착지</div>
+                <div><span className="marker-legend-icon staff-end" /> 직도 : 직원 도착지</div>
+              </div>
+              <div className="muted">하단 출발지 목록의 거리 표시는 고객 출발지 기준 예상 거리(km)입니다.</div>
+            </div>
+          </div>
+        )}
+
         <div className="vehicle-list-panel">
           {mapFilter === 'departure' ? (
             <>
@@ -6307,16 +6344,18 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       {label && <label>{label}</label>}
       <div className={`assignee-input-shell${inputLike ? ' input-like' : ''}`} ref={shellRef}>
         <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}`} onClick={() => inputRef.current?.focus()}>
-          {selectedValues.map(item => {
+          {selectedValues.map((item, index) => {
             const isActive = activeChip === item
+            const displayName = extractAssigneeDisplayName(item)
             return (
               <button
                 key={item}
                 type="button"
-                className={`assignee-chip${isActive ? ' active' : ''}`}
+                className={`assignee-chip assignee-chip-text${isActive ? ' active' : ''}`}
                 onClick={() => setActiveChip(prev => prev === item ? '' : item)}
+                title={displayName}
               >
-                <span>{item}</span>
+                <span>{displayName}{index < selectedValues.length - 1 ? ',' : ''}</span>
                 {isActive && <span className="assignee-chip-remove-inline" onClick={event => { event.stopPropagation(); removeChip(item) }}>×</span>}
               </button>
             )

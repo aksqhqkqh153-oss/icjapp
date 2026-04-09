@@ -19050,8 +19050,6 @@ textarea,
 
 @media (max-width: 768px) {
   .assignee-suggestion-list.portal {
-    left: 8px !important;
-    right: auto !important;
     width: max-content !important;
     min-width: min(180px, calc(100vw - 16px)) !important;
     max-width: calc(100vw - 16px) !important;
@@ -19451,5 +19449,144 @@ textarea,
   .settlement-day-nav-actions.compact-right-actions .ghost.small {
     padding-left: 6px;
     padding-right: 6px;
+  }
+}
+
+
+/* 2026-04-09 map legend modal + assignee inline text refinements */
+.map-card-head,
+.map-filter-wrap,
+.map-filter-popover,
+.map-settings-popover {
+  z-index: 40;
+}
+
+.map-legend-help-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 12px 12px;
+  background: rgba(255,255,255,0.18);
+}
+
+.map-legend-help-modal {
+  position: relative;
+  z-index: 121;
+  width: min(92vw, 360px);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+}
+
+.map-legend-help-head {
+  align-items: center;
+  gap: 10px;
+}
+
+.map-legend-help-list {
+  display: grid;
+  gap: 8px;
+}
+
+.map-legend-help-list > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #111827;
+  font-size: 13px;
+}
+
+.assignee-input-shell.input-like {
+  width: 100%;
+  min-width: 0;
+}
+
+.assignee-chip-list,
+.assignee-chip-list.input-like {
+  display: flex;
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  align-items: center;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+
+.assignee-chip-list input,
+.assignee-chip-list.input-like input {
+  flex: 0 0 88px;
+  min-width: 88px;
+}
+
+.assignee-chip,
+.assignee-chip-text {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #2563eb !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 700;
+}
+
+.assignee-chip.active,
+.assignee-chip-text.active {
+  background: transparent !important;
+  color: #1d4ed8 !important;
+}
+
+.assignee-chip > span:first-child,
+.assignee-chip-text > span:first-child {
+  display: inline;
+  white-space: nowrap;
+}
+
+.assignee-chip-remove-inline {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  color: #1e293b;
+  margin-left: 2px;
+}
+
+.assignee-suggestion-list.portal {
+  left: auto !important;
+  right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .assignee-chip-list,
+  .assignee-chip-list.input-like {
+    gap: 1px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .assignee-chip,
+  .assignee-chip-text,
+  .assignee-chip > span:first-child,
+  .assignee-chip-text > span:first-child {
+    font-size: 12px !important;
+  }
+
+  .assignee-chip-list input,
+  .assignee-chip-list.input-like input {
+    flex-basis: 72px;
+    min-width: 72px;
+  }
+
+  .map-legend-help-backdrop {
+    padding-top: 64px;
   }
 }
