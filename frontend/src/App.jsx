@@ -3431,24 +3431,23 @@ ${guide}`)
         </div>
       </section>
 
-      {deleteCategoryOpen && (
+      {deleteCategoryOpen && createPortal(
         <div className="schedule-popup-backdrop chat-category-delete-backdrop" onClick={() => setDeleteCategoryOpen(false)}>
-          <section className="schedule-popup-card chat-category-delete-modal" onClick={event => event.stopPropagation()}>
-            <div className="between schedule-popup-head chat-category-delete-head">
-              <div>
-                <strong>카테고리 삭제</strong>
-                <div className="muted">전체와 즐겨찾기를 제외한 추가 카테고리만 삭제할 수 있습니다.</div>
-              </div>
-              <button type="button" className="ghost small" onClick={() => setDeleteCategoryOpen(false)}>닫기</button>
+          <section className="schedule-popup-card chat-category-delete-modal chat-category-delete-modal-centered" onClick={event => event.stopPropagation()}>
+            <div className="chat-category-delete-topbar">
+              <button type="button" className="ghost small chat-category-delete-back" onClick={() => setDeleteCategoryOpen(false)} aria-label="뒤로가기">←</button>
+              <strong className="chat-category-delete-title">카테고리삭제</strong>
+              <span className="chat-category-delete-topbar-spacer" aria-hidden="true" />
             </div>
-            <div className="chat-category-delete-panel">
+            <div className="chat-category-delete-panel centered">
               <select value={deleteCategoryTarget} onChange={e => setDeleteCategoryTarget(e.target.value)}>
                 {customCategories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
               </select>
-              <button type="button" className="small danger" onClick={confirmDeleteCustomCategory}>삭제</button>
+              <button type="button" className="small danger chat-category-delete-submit" onClick={confirmDeleteCustomCategory}>삭제</button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <section className="card chat-list-card">
@@ -6218,7 +6217,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [shouldShowSuggestions, suggestions.length])
+  }, [shouldShowSuggestions, suggestions, showMeta, query])
 
   const suggestionLayer = shouldShowSuggestions && suggestions.length > 0 && portalStyle ? createPortal(
     <div className="assignee-suggestion-list portal" style={portalStyle}>
@@ -12017,23 +12016,7 @@ function AdminModePage() {
       </section>
 
 
-      {displayLegendHelpOpen && createPortal(
-        <div className="modal-overlay" onClick={() => setDisplayLegendHelpOpen(false)}>
-          <div className="modal-card map-legend-help-modal" onClick={e => e.stopPropagation()}>
-            <div className="between">
-              <strong>표기 설명</strong>
-              <button type="button" className="small ghost" onClick={() => setDisplayLegendHelpOpen(false)}>닫기</button>
-            </div>
-            <div className="stack compact-gap">
-              <div><strong>고출</strong> : 고객 출발지</div>
-              <div><strong>고도</strong> : 고객 도착지</div>
-              <div><strong>사출</strong> : 사업자 출발지</div>
-              <div><strong>직출</strong> : 직원 출발지</div>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+
 
       {sortModal.open && createPortal(
         <div className="modal-overlay" onClick={() => setSortModal({ open: false, section: 'manage', draftKeys: ['', '', '', '', ''] })}>

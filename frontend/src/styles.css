@@ -18970,3 +18970,101 @@ textarea,
     padding-bottom: 5px !important;
   }
 }
+
+
+/* 2026-04-09 v4 assignee/category/admin hotfix */
+.assignee-suggestion-list.portal {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 5000 !important;
+}
+
+.assignee-suggestion-list,
+.assignee-suggestion-list.portal {
+  width: max-content !important;
+  min-width: 180px !important;
+  max-width: calc(100vw - 16px) !important;
+}
+
+.assignee-suggestion-item {
+  min-height: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  gap: 0 !important;
+}
+
+.assignee-suggestion-item strong,
+.assignee-suggestion-item span {
+  display: block;
+}
+
+.chat-category-delete-modal.chat-category-delete-modal-centered {
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+}
+
+.chat-category-delete-topbar {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.chat-category-delete-back {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-category-delete-title {
+  display: block;
+  text-align: center;
+}
+
+.chat-category-delete-topbar-spacer {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.chat-category-delete-panel.centered {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 12px;
+}
+
+.chat-category-delete-panel.centered select {
+  width: min(220px, 100%);
+  max-width: 100%;
+}
+
+.chat-category-delete-submit {
+  min-width: 96px;
+}
+
+@media (max-width: 768px) {
+  .assignee-suggestion-list.portal {
+    left: 8px !important;
+    right: auto !important;
+    width: max-content !important;
+    min-width: min(180px, calc(100vw - 16px)) !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .assignee-suggestion-item {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .assignee-suggestion-item strong,
+  .assignee-suggestion-item span {
+    font-size: 10px !important;
+    line-height: 1.08 !important;
+  }
+}
