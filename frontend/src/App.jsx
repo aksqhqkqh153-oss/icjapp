@@ -2685,6 +2685,8 @@ function FriendsPage() {
   const [panel, setPanel] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
+  const [addSearchMode, setAddSearchMode] = useState('nickname')
+  const [addSearchText, setAddSearchText] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [toast, setToast] = useState('')
   const currentUser = getStoredUser()
@@ -2740,14 +2742,22 @@ function FriendsPage() {
   const followedIds = useMemo(() => new Set((follows || []).map(item => item.id)), [follows])
   const favorites = useMemo(() => data.friends.filter(friend => followedIds.has(friend.id)), [data.friends, followedIds])
   const normalizedQuery = searchText.trim().toLowerCase()
+  const normalizedAddQuery = addSearchText.trim().toLowerCase()
   const filteredFriends = useMemo(() => {
     if (!normalizedQuery) return data.friends
     return data.friends.filter(friend => [friend.nickname, friend.one_liner, friend.region].join(' ').toLowerCase().includes(normalizedQuery))
   }, [data.friends, normalizedQuery])
   const candidateUsers = useMemo(() => {
     const friendIds = new Set(data.friends.map(item => item.id))
-    return users.filter(item => !friendIds.has(item.id) && (!normalizedQuery || [item.nickname, item.one_liner, item.region].join(' ').toLowerCase().includes(normalizedQuery)))
-  }, [users, data.friends, normalizedQuery])
+    const myId = currentUser?.id
+    return users.filter(item => {
+      if (friendIds.has(item.id) || item.id === myId) return false
+      if (!normalizedAddQuery) return true
+      const nicknameField = String(item.nickname || '').toLowerCase()
+      const nameField = String(item.name || item.full_name || item.real_name || item.username || '').toLowerCase()
+      return addSearchMode === 'name' ? nameField.includes(normalizedAddQuery) : nicknameField.includes(normalizedAddQuery)
+    })
+  }, [users, data.friends, currentUser?.id, normalizedAddQuery, addSearchMode])
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
   const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
   const groupedFriends = useMemo(() => (groupState.groups || []).map(group => ({ ...group, items: data.friends.filter(friend => String(groupState.assignments?.[friend.id] || '') === String(group.id)) })), [groupState, data.friends])
@@ -2984,6 +2994,7 @@ function FriendsPage() {
           <div></div>
           <div className="friends-top-actions">
             <button type="button" className="ghost icon-button" onClick={() => setSearchOpen(v => !v)}>검색</button>
+            <button type="button" className="ghost icon-button" onClick={() => { setPanel('add'); setSearchParams({ panel: 'add' }) }}>추가</button>
             <div className="dropdown-wrap friends-main-menu">
               <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>메뉴{data.received_requests.length > 0 && <span className="notification-badge menu-badge">{data.received_requests.length}</span>}</button>
               {menuOpen && (
@@ -3036,23 +3047,35 @@ function FriendsPage() {
         {panel === 'add' && (
           <section className="friends-subpanel">
             <div className="between"><strong>친구추가</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
+            <div className="friend-add-search-box">
+              <div className="friend-add-search-tabs">
+                <button type="button" className={addSearchMode === 'nickname' ? 'small active' : 'small ghost'} onClick={() => setAddSearchMode('nickname')}>닉네임</button>
+                <button type="button" className={addSearchMode === 'name' ? 'small active' : 'small ghost'} onClick={() => setAddSearchMode('name')}>이름</button>
+              </div>
+              <input
+                value={addSearchText}
+                onChange={e => setAddSearchText(e.target.value)}
+                placeholder={addSearchMode === 'name' ? '이름으로 검색' : '닉네임으로 검색'}
+                className="friends-search-input friend-add-search-input"
+              />
+            </div>
             <div className="friends-group-list">
               {candidateUsers.map(item => (
                 <FriendRow
                   key={`candidate-${item.id}`}
-                  item={item}
+                  item={{ ...item, one_liner: item.one_liner || item.name || item.full_name || item.real_name || item.username || item.region || '친구추가 가능한 계정입니다.' }}
                   section="candidate"
                   actions={sentRequestIds.has(item.id) ? (
                     <button className="small ghost" disabled>요청완료</button>
                   ) : (
                     <button className="small" onClick={() => doAction(async () => {
                       await api(`/api/friends/request/${item.id}`, { method: 'POST' })
-                      setToast(`${item.nickname || '회원'}님에게 친구요청을 신청했습니다.`)
-                    }, `${item.nickname || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
+                      setToast(`${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)
+                    }, `${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
                   )}
                 />
               ))}
-              {candidateUsers.length === 0 && <div className="muted">추가 가능한 친구가 없습니다.</div>}
+              {candidateUsers.length === 0 && <div className="muted">검색 조건에 맞는 계정이 없습니다.</div>}
             </div>
           </section>
         )}
@@ -9930,6 +9953,10 @@ function MemoPadPage({ user }) {
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [selectedArchiveIds, setSelectedArchiveIds] = useState([])
   const [editingArchiveItem, setEditingArchiveItem] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+  const [rowColEditorOpen, setRowColEditorOpen] = useState(false)
+  const [mergedMemoOpen, setMergedMemoOpen] = useState(false)
 
   useEffect(() => {
     setMemoState(getMemoPadState(user?.id))
@@ -10002,6 +10029,31 @@ function MemoPadPage({ user }) {
     setEditingArchiveItem(null)
   }
 
+  const mergedMemoEntries = useMemo(() => {
+    const gridEntries = []
+    ;(memoState.grid || []).forEach((row, rowIndex) => {
+      ;(row || []).forEach((value, colIndex) => {
+        const content = String(value || '').trim()
+        if (!content) return
+        gridEntries.push({
+          id: `grid-${rowIndex}-${colIndex}`,
+          source: 'grid',
+          title: buildMemoArchiveTitle(content, rowIndex, colIndex),
+          content,
+          meta: `${rowIndex + 1}행 ${colIndex + 1}열`,
+        })
+      })
+    })
+    const archiveEntries = (memoState.archive || []).map(item => ({
+      id: `archive-${item.id}`,
+      source: 'archive',
+      title: item.title || buildMemoArchiveTitle(item.content, item.row, item.col),
+      content: String(item.content || ''),
+      meta: `보관함 · ${item.row + 1}행 ${item.col + 1}열`,
+    }))
+    return [...gridEntries, ...archiveEntries]
+  }, [memoState])
+
   return (
     <div className="stack-page memo-pad-page">
       <section className="card memo-pad-card-fixed">
@@ -10010,8 +10062,22 @@ function MemoPadPage({ user }) {
             <h2>메모장</h2>
             <div className="muted">계정별로 자동 저장되는 5열 10행 메모장입니다.</div>
           </div>
-          <div className="inline-actions wrap end">
+          <div className="inline-actions wrap end memo-pad-head-actions">
             <button type="button" className="small" onClick={() => setArchiveOpen(true)}>보관함</button>
+            <div className="dropdown-wrap memo-settings-wrap">
+              <button type="button" className="small ghost" onClick={() => { setSettingsOpen(v => !v); setAdminMenuOpen(false) }}>설정</button>
+              {settingsOpen && (
+                <div className="dropdown-menu right open-inline-menu memo-settings-menu">
+                  <button type="button" className="dropdown-item" onClick={() => setAdminMenuOpen(v => !v)}>메모관리자용</button>
+                  {adminMenuOpen && (
+                    <div className="memo-settings-submenu">
+                      <button type="button" className="dropdown-item" onClick={() => { setRowColEditorOpen(true); setSettingsOpen(false); setAdminMenuOpen(false) }}>행열편집</button>
+                      <button type="button" className="dropdown-item" onClick={() => { setMergedMemoOpen(true); setSettingsOpen(false); setAdminMenuOpen(false) }}>통합메모장</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="memo-pad-grid">
@@ -10071,6 +10137,45 @@ function MemoPadPage({ user }) {
             </div>
             <div className="muted tiny-text">원본 위치: {editingArchiveItem.row + 1}행 {editingArchiveItem.col + 1}열</div>
             <textarea className="memo-archive-editor-textarea" value={editingArchiveItem.content} onChange={event => setEditingArchiveItem(prev => ({ ...prev, content: event.target.value }))} />
+          </div>
+        </div>
+      )}
+
+      {rowColEditorOpen && (
+        <div className="modal-backdrop" onClick={() => setRowColEditorOpen(false)}>
+          <div className="modal-card memo-admin-modal" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <strong>행열편집</strong>
+              <button type="button" className="small ghost" onClick={() => setRowColEditorOpen(false)}>닫기</button>
+            </div>
+            <div className="stack compact">
+              <div className="muted">현재 메모장은 한 화면 고정형으로 5열 10행 구조를 사용합니다.</div>
+              <div className="memo-admin-grid-preview">
+                <div>행 수: {MEMO_PAD_ROWS}</div>
+                <div>열 수: {MEMO_PAD_COLS}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mergedMemoOpen && (
+        <div className="modal-backdrop" onClick={() => setMergedMemoOpen(false)}>
+          <div className="modal-card memo-admin-modal" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <strong>통합메모장</strong>
+              <button type="button" className="small ghost" onClick={() => setMergedMemoOpen(false)}>닫기</button>
+            </div>
+            <div className="stack compact memo-archive-list memo-integrated-list">
+              {mergedMemoEntries.map(item => (
+                <div key={item.id} className="memo-integrated-row">
+                  <div className="memo-archive-title">{item.title}</div>
+                  <div className="memo-archive-meta">{item.meta}</div>
+                  <div className="memo-integrated-content">{item.content}</div>
+                </div>
+              ))}
+              {mergedMemoEntries.length === 0 && <div className="muted">표시할 메모가 없습니다.</div>}
+            </div>
           </div>
         </div>
       )}
