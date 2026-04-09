@@ -1983,6 +1983,8 @@ function WorkdayHistoryPage() {
 function HomePage() {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
+  const menuPermissions = useMemo(() => normalizeMenuPermissions(currentUser?.permission_config?.menu_permissions_json), [currentUser?.permission_config?.menu_permissions_json])
+  const menuLocks = useMemo(() => normalizeMenuLocks(currentUser?.permission_config?.menu_locks_json), [currentUser?.permission_config?.menu_locks_json])
   const employeeRestricted = isEmployeeRestrictedUser(currentUser)
   const [summary, setSummary] = useState(null)
   const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
