@@ -9487,20 +9487,55 @@ function LadderDispatchPage() {
         </div>
         {copiedTarget && <div className="success ladder-copy-notice">{copiedTarget}용 문구를 클립보드에 복사했습니다.</div>}
         <div className="ladder-dispatch-layout">
-          <div className="ladder-preview-panel">
-            <div className="form-section-title">신청 양식 내용</div>
-            <textarea className="ladder-preview-textarea" value={messagePreview} readOnly />
+          <div className="ladder-main-columns">
+            <div className="ladder-preview-panel card inset-card">
+              <div className="form-section-title ladder-panel-title">신청 양식 내용</div>
+              <textarea className="ladder-preview-textarea" value={messagePreview} readOnly />
+            </div>
+            <div className="ladder-form-panel">
+              <section className="card inset-card ladder-form-card">
+                <div className="form-section-title ladder-panel-title">기본정보</div>
+                <div className="ladder-field-grid">
+                  <label className="stack compact"><span>날짜</span><input type="text" value={form.date} onChange={e => updateTopField('date', e.target.value)} /></label>
+                  <label className="stack compact"><span>지점</span><select value={form.branch} onChange={e => updateTopField('branch', e.target.value)}>{Object.keys(LADDER_BRANCH_DB).map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                  <label className="stack compact"><span>이사시간</span><input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="10:00" /></label>
+                  <label className="stack compact"><span>고객명</span><input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="홍길동" /></label>
+                  <label className="stack compact ladder-field-span-2"><span>이동소요예상시간</span><input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="0시간 00분" /></label>
+                </div>
+              </section>
+              {['start', 'end'].map(section => {
+                const title = section === 'start' ? '출발지정보' : '도착지정보'
+                const data = form[section]
+                return (
+                  <section key={section} className="card inset-card ladder-form-card">
+                    <div className="between ladder-section-heading">
+                      <div className="form-section-title ladder-panel-title">{title}</div>
+                      <label className="check ladder-check-head"><input type="checkbox" checked={data.enabled} onChange={e => updateLocation(section, 'enabled', e.target.checked)} /> 사용</label>
+                    </div>
+                    <div className="ladder-field-grid">
+                      <label className="stack compact ladder-field-span-2"><span>작업</span><input type="text" value={data.work} onChange={e => updateLocation(section, 'work', e.target.value)} placeholder="2톤 이상 내리는 작업" /></label>
+                      <label className="stack compact ladder-field-span-2"><span>주소</span><input type="text" value={data.addr} onChange={e => updateLocation(section, 'addr', e.target.value)} placeholder="서울 송파구 삼전로8길 4" /></label>
+                      <label className="stack compact"><span>방법</span><select value={data.method} onChange={e => updateLocation(section, 'method', e.target.value)}>{LADDER_METHOD_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                      <label className="stack compact"><span>층수</span><select value={data.floor} onChange={e => updateLocation(section, 'floor', e.target.value)}>{LADDER_FLOOR_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                      <label className="stack compact ladder-field-span-2"><span>작업 시간</span><input type="text" value={data.time} onChange={e => updateLocation(section, 'time', e.target.value)} placeholder="10시~11시 예상" /></label>
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          </div>
+          <div className="ladder-bottom-section">
+            <div className="form-section-title ladder-bottom-title">사다리차 종류 / 길이 / 층수 정보</div>
             <div className="ladder-info-grid">
               <div className="card inset-card ladder-info-card">
                 <strong>가격 기준</strong>
-                <div className="muted small-text">층수/방법 조합에 따라 금액이 자동 계산됩니다. 21층 이상 또는 일부 가구만 작업은 협의로 표시됩니다.</div>
+                <div className="muted small-text">층수와 방법 조합에 따라 금액이 자동 계산됩니다. 21층 이상 또는 일부 가구만 작업은 협의로 표시됩니다.</div>
               </div>
               <div className="card inset-card ladder-info-card">
                 <strong>전송 안내</strong>
-                <div className="muted small-text">웹앱에서는 카카오톡 창 자동 제어 대신 채팅방별 전송 문구를 즉시 복사하도록 구성했습니다.</div>
+                <div className="muted small-text">PC와 모바일 모두 동일한 화면 구조로 사용하고, 채팅방별 전송 문구를 즉시 복사하도록 구성했습니다.</div>
               </div>
             </div>
-            <div className="form-section-title">사다리차 종류 / 길이 / 층수 정보</div>
             <div className="table-scroll ladder-table-wrap">
               <table className="form-table ladder-info-table">
                 <thead><tr><th>층수</th><th>실제 높이(약)</th><th>권장 차량(제원)</th><th>비고</th></tr></thead>
@@ -9509,34 +9544,6 @@ function LadderDispatchPage() {
                 </tbody>
               </table>
             </div>
-          </div>
-          <div className="ladder-form-panel">
-            <section className="card inset-card ladder-form-card">
-              <div className="form-section-title">기본 정보</div>
-              <div className="ladder-field-grid">
-                <label className="stack compact"><span>날짜</span><input type="text" value={form.date} onChange={e => updateTopField('date', e.target.value)} /></label>
-                <label className="stack compact"><span>지점</span><select value={form.branch} onChange={e => updateTopField('branch', e.target.value)}>{Object.keys(LADDER_BRANCH_DB).map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                <label className="stack compact"><span>이사시간</span><input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="10:00" /></label>
-                <label className="stack compact"><span>고객명</span><input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="홍길동" /></label>
-                <label className="stack compact ladder-field-span-2"><span>이동소요예상시간</span><input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="0시간 00분" /></label>
-              </div>
-            </section>
-            {['start', 'end'].map(section => {
-              const title = section === 'start' ? '출발지' : '도착지'
-              const data = form[section]
-              return (
-                <section key={section} className="card inset-card ladder-form-card">
-                  <label className="check ladder-check-head"><input type="checkbox" checked={data.enabled} onChange={e => updateLocation(section, 'enabled', e.target.checked)} /> {title} 사용</label>
-                  <div className="ladder-field-grid">
-                    <label className="stack compact ladder-field-span-2"><span>작업</span><input type="text" value={data.work} onChange={e => updateLocation(section, 'work', e.target.value)} placeholder="2톤 이상 내리는 작업" /></label>
-                    <label className="stack compact ladder-field-span-2"><span>주소</span><input type="text" value={data.addr} onChange={e => updateLocation(section, 'addr', e.target.value)} placeholder="서울 송파구 삼전로8길 4" /></label>
-                    <label className="stack compact"><span>방법</span><select value={data.method} onChange={e => updateLocation(section, 'method', e.target.value)}>{LADDER_METHOD_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                    <label className="stack compact"><span>층수</span><select value={data.floor} onChange={e => updateLocation(section, 'floor', e.target.value)}>{LADDER_FLOOR_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                    <label className="stack compact ladder-field-span-2"><span>작업 시간</span><input type="text" value={data.time} onChange={e => updateLocation(section, 'time', e.target.value)} placeholder="10시~11시 예상" /></label>
-                  </div>
-                </section>
-              )
-            })}
           </div>
         </div>
       </section>

@@ -19926,38 +19926,61 @@ textarea,
   margin-bottom: 12px;
 }
 .ladder-dispatch-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ladder-main-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(260px, 0.82fr);
+  gap: 14px;
+  align-items: stretch;
 }
 .ladder-preview-panel,
-.ladder-form-panel {
+.ladder-form-panel,
+.ladder-bottom-section {
   min-width: 0;
+}
+.ladder-panel-title,
+.ladder-bottom-title {
+  font-size: clamp(13px, 1.5vw, 17px);
+}
+.ladder-preview-panel {
+  display: flex;
+  flex-direction: column;
 }
 .ladder-preview-textarea {
   width: 100%;
-  min-height: 420px;
+  min-height: 520px;
   border: 1px solid #dbe7f3;
   border-radius: 14px;
-  padding: 14px;
-  resize: vertical;
+  padding: clamp(10px, 1.2vw, 14px);
+  resize: none;
   background: #f8fbff;
   color: #0f172a;
-  font: inherit;
+  font-size: clamp(11px, 1.25vw, 14px);
   line-height: 1.5;
+}
+.ladder-bottom-section {
+  border-top: 1px solid #dbe7f3;
+  padding-top: 14px;
 }
 .ladder-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 .ladder-info-card {
   min-height: 88px;
+  font-size: clamp(11px, 1.15vw, 14px);
 }
 .ladder-table-wrap {
   max-height: 320px;
+}
+.ladder-info-table {
+  font-size: clamp(10px, 1.05vw, 14px);
 }
 .ladder-info-table th,
 .ladder-info-table td {
@@ -19966,20 +19989,48 @@ textarea,
 .ladder-form-card + .ladder-form-card {
   margin-top: 12px;
 }
+.ladder-form-card {
+  padding: 12px;
+}
+.ladder-section-heading {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 .ladder-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+}
+.ladder-field-grid span,
+.ladder-field-grid input,
+.ladder-field-grid select,
+.ladder-check-head,
+.ladder-copy-notice,
+.ladder-dispatch-head .muted,
+.ladder-dispatch-head button {
+  font-size: clamp(10px, 1.1vw, 14px);
 }
 .ladder-field-span-2 {
   grid-column: span 2;
 }
 .ladder-check-head {
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  white-space: nowrap;
 }
-@media (max-width: 1100px) {
-  .ladder-dispatch-layout {
+@media (max-width: 900px) {
+  .ladder-main-columns {
+    grid-template-columns: minmax(0, 1.08fr) minmax(180px, 0.92fr);
+    gap: 10px;
+  }
+  .ladder-field-grid {
     grid-template-columns: 1fr;
+  }
+  .ladder-field-span-2 {
+    grid-column: span 1;
+  }
+  .ladder-preview-textarea {
+    min-height: 420px;
   }
 }
 
