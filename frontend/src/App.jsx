@@ -13783,10 +13783,10 @@ function SettlementPage() {
     { id: 'monthly', label: '월간' },
     { id: 'records', label: '결산기록' },
   ]
-  const [activeCategory, setActiveCategory] = useState(() => {
-    const initialTab = String(searchParams.get('tab') || 'daily')
-    return ['daily', 'weekly', 'monthly', 'records'].includes(initialTab) ? initialTab : 'daily'
-  })
+  const settlementTabOptions = ['daily', 'weekly', 'monthly', 'records']
+  const requestedSettlementTab = String(searchParams.get('tab') || 'daily').trim()
+  const normalizedRequestedSettlementTab = settlementTabOptions.includes(requestedSettlementTab) ? requestedSettlementTab : 'daily'
+  const [activeCategory, setActiveCategory] = useState(normalizedRequestedSettlementTab)
   const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
   const [syncLoading, setSyncLoading] = useState(false)
   const [credentialLoading, setCredentialLoading] = useState(false)
@@ -13814,19 +13814,20 @@ function SettlementPage() {
   const [weeklyOverrideMap, setWeeklyOverrideMap] = useState(() => loadSettlementOverrides().weekly)
   const [monthlyOverrideMap, setMonthlyOverrideMap] = useState(() => loadSettlementOverrides().monthly)
   useEffect(() => {
-    const requestedTab = String(searchParams.get('tab') || '').trim()
-    if (['daily', 'weekly', 'monthly', 'records'].includes(requestedTab) && requestedTab !== activeCategory) {
-      setActiveCategory(requestedTab)
+    if (normalizedRequestedSettlementTab !== activeCategory) {
+      setActiveCategory(normalizedRequestedSettlementTab)
     }
-  }, [activeCategory, searchParams])
+  }, [normalizedRequestedSettlementTab, activeCategory])
 
-  useEffect(() => {
-    const currentTab = String(searchParams.get('tab') || '')
-    if (currentTab === activeCategory) return
-    const next = new URLSearchParams(searchParams)
-    next.set('tab', activeCategory)
-    setSearchParams(next, { replace: true })
-  }, [activeCategory, searchParams, setSearchParams])
+  const handleSettlementCategoryChange = useCallback((nextCategory) => {
+    const nextTab = String(nextCategory || '').trim()
+    if (!settlementTabOptions.includes(nextTab)) return
+    if (nextTab === activeCategory && normalizedRequestedSettlementTab === nextTab) return
+    setActiveCategory(nextTab)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('tab', nextTab)
+    setSearchParams(nextParams, { replace: true })
+  }, [activeCategory, normalizedRequestedSettlementTab, searchParams, setSearchParams])
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorTarget, setEditorTarget] = useState('daily')
   const [editorDateKey, setEditorDateKey] = useState('')
@@ -14357,7 +14358,7 @@ function SettlementPage() {
         <div className="settlement-hero-topbar">
           <div className="settlement-tabs settlement-tabs-inline" role="tablist" aria-label="결산 카테고리">
             {categories.map(tab => (
-              <button key={tab.id} type="button" className={activeCategory === tab.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => setActiveCategory(tab.id)}>
+              <button key={tab.id} type="button" className={activeCategory === tab.id ? 'ghost settlement-tab active' : 'ghost settlement-tab'} onClick={() => handleSettlementCategoryChange(tab.id)}>
                 {tab.label}
               </button>
             ))}
