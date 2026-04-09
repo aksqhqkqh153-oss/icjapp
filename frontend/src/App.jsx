@@ -9408,6 +9408,20 @@ function formatLadderDateLabelFromIso(isoDate) {
   return `${month}월 ${day}일`
 }
 
+
+function normalizeLadderMoveTime(rawValue) {
+  const value = String(rawValue || '').trim()
+  if (!value) return ''
+  if (/^\d{4}$/.test(value)) {
+    return `${value.slice(0, 2)}:${value.slice(2)}`
+  }
+  const colonMatch = value.match(/^(\d{1,2}):(\d{2})$/)
+  if (colonMatch) {
+    return `${colonMatch[1].padStart(2, '0')}:${colonMatch[2]}`
+  }
+  return value
+}
+
 function buildLadderTemplateOutput(template, values) {
   const source = String(template || LADDER_TEMPLATE_DEFAULT)
   return source.replace(/{{\s*([a-z_]+)\s*}}/gi, (_, key) => String(values?.[key] ?? ''))
@@ -9429,7 +9443,7 @@ function calcLadderCost(enabled, method, floor) {
   return { value: Number(price || 0), negotiable: false, selected: true }
 }
 
-function buildLadderMessage(form, options = {}) {
+function getLadderPreviewModel(form, options = {}) {
   const currentDateVal = form.date || formatLadderDefaultDate()
   const branchDb = options?.branchDb || LADDER_BRANCH_DB
   const template = options?.template || LADDER_TEMPLATE_DEFAULT
@@ -9440,36 +9454,55 @@ function buildLadderMessage(form, options = {}) {
   const moveTimeRaw = String(form.moveTime || '').trim()
   const customerNameRaw = String(form.customerName || '').trim()
   const travelTimeRaw = String(form.travelTime || '').trim()
-  const moveTimeVal = moveTimeRaw || '00:00'
+  const moveTimeVal = normalizeLadderMoveTime(moveTimeRaw) || '00:00'
   const customerNameVal = customerNameRaw || '홍길동'
   const travelTimeVal = travelTimeRaw || '0시간 00분'
   const useStart = !!form.start.enabled
   const useEnd = !!form.end.enabled
 
-  const sectionText = (startVal, endVal, defaultVal) => {
-    const startText = String(startVal || '').trim() || defaultVal
-    const endText = String(endVal || '').trim() || defaultVal
-    if (!useStart && !useEnd) return defaultVal
-    if (useStart && useEnd) return `
+  const sectionResult = (startVal, endVal, defaultVal) => {
+    const startRaw = String(startVal || '').trim()
+    const endRaw = String(endVal || '').trim()
+    const startText = startRaw || defaultVal
+    const endText = endRaw || defaultVal
+    if (!useStart && !useEnd) return { text: defaultVal, isDefault: true }
+    if (useStart && useEnd) {
+      return {
+        text: `
  * 출발지 : ${startText}
- * 도착지 : ${endText}`
-    return useStart ? startText : endText
+ * 도착지 : ${endText}`,
+        isDefault: !startRaw && !endRaw,
+      }
+    }
+    return useStart
+      ? { text: startText, isDefault: !startRaw }
+      : { text: endText, isDefault: !endRaw }
   }
 
-  const floorText = () => {
-    const startFloor = !form.start.floor || form.start.floor === '선택해주세요' ? '미정' : form.start.floor
-    const endFloor = !form.end.floor || form.end.floor === '선택해주세요' ? '미정' : form.end.floor
-    if (!useStart && !useEnd) return LADDER_DEFAULTS.floor
-    if (useStart && useEnd) return `
+  const floorResult = () => {
+    const startSelected = !!form.start.floor && form.start.floor !== '선택해주세요'
+    const endSelected = !!form.end.floor && form.end.floor !== '선택해주세요'
+    const startFloor = startSelected ? form.start.floor : '미정'
+    const endFloor = endSelected ? form.end.floor : '미정'
+    if (!useStart && !useEnd) return { text: LADDER_DEFAULTS.floor, isDefault: true }
+    if (useStart && useEnd) {
+      return {
+        text: `
  * 출발지 : ${startFloor}
- * 도착지 : ${endFloor}`
-    return useStart ? startFloor : endFloor
+ * 도착지 : ${endFloor}`,
+        isDefault: !startSelected && !endSelected,
+      }
+    }
+    return useStart
+      ? { text: startFloor, isDefault: !startSelected }
+      : { text: endFloor, isDefault: !endSelected }
   }
 
   const startCost = calcLadderCost(useStart, form.start.method, form.start.floor)
   const endCost = calcLadderCost(useEnd, form.end.method, form.end.floor)
   let costTitle = 'ㅇ 금액 : '
   let txtCost = LADDER_DEFAULTS.cost
+  let costIsDefault = true
   if (useStart && useEnd) {
     costTitle = 'ㅇ 총금액 : '
     const total = (!startCost.negotiable && !endCost.negotiable)
@@ -9478,25 +9511,48 @@ function buildLadderMessage(form, options = {}) {
     txtCost = `${total}
   * 출발지 : ${startCost.negotiable ? '협의' : Number(startCost.value || 0).toLocaleString()}
   * 도착지 : ${endCost.negotiable ? '협의' : Number(endCost.value || 0).toLocaleString()}`
+    costIsDefault = !startCost.selected && !endCost.selected
   } else if (useStart || useEnd) {
     const finalCost = useStart ? startCost : endCost
     txtCost = finalCost.negotiable ? '협의' : Number(finalCost.value || 0).toLocaleString()
+    costIsDefault = !finalCost.selected
   }
+
+  const workResult = sectionResult(form.start.work, form.end.work, LADDER_DEFAULTS.work)
+  const addrResult = sectionResult(form.start.addr, form.end.addr, LADDER_DEFAULTS.addr)
+  const floorResultValue = floorResult()
+  const workTimeResult = sectionResult(form.start.time, form.end.time, LADDER_DEFAULTS.time)
 
   const values = {
     date: currentDateVal,
     move_time: moveTimeVal,
     customer_name: customerNameVal,
     travel_time: travelTimeVal,
-    work: sectionText(form.start.work, form.end.work, LADDER_DEFAULTS.work),
-    addr: sectionText(form.start.addr, form.end.addr, LADDER_DEFAULTS.addr),
-    floor: floorText(),
-    work_time: sectionText(form.start.time, form.end.time, LADDER_DEFAULTS.time),
+    work: workResult.text,
+    addr: addrResult.text,
+    floor: floorResultValue.text,
+    work_time: workTimeResult.text,
     branch_name: branchNameFull,
     branch_phone: branchPhone,
     cost_title: costTitle,
     cost: txtCost,
     branch: branchLabel,
+  }
+
+  const tokenStates = {
+    date: !form.date,
+    move_time: !moveTimeRaw,
+    customer_name: !customerNameRaw,
+    travel_time: !travelTimeRaw,
+    work: workResult.isDefault,
+    addr: addrResult.isDefault,
+    floor: floorResultValue.isDefault,
+    work_time: workTimeResult.isDefault,
+    branch_name: !form.branch,
+    branch_phone: !form.branch,
+    cost_title: costIsDefault,
+    cost: costIsDefault,
+    branch: !form.branch,
   }
 
   let text = buildLadderTemplateOutput(template, values).replace(/\n{3,}/g, '\n\n').trim()
@@ -9511,7 +9567,40 @@ function buildLadderMessage(form, options = {}) {
       return true
     }).join('\n').trimStart()
   }
-  return text
+
+  return { text, values, tokenStates, template }
+}
+
+function buildLadderPreviewNodes(template, values, tokenStates) {
+  const source = String(template || LADDER_TEMPLATE_DEFAULT)
+  const parts = []
+  const regex = /{{\s*([a-z_]+)\s*}}/gi
+  let lastIndex = 0
+  let match
+  let keyIndex = 0
+  while ((match = regex.exec(source)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', text: source.slice(lastIndex, match.index), key: `text-${keyIndex}-${lastIndex}` })
+    }
+    const tokenKey = String(match[1] || '').toLowerCase()
+    parts.push({
+      type: 'token',
+      tokenKey,
+      text: String(values?.[tokenKey] ?? ''),
+      isDefault: !!tokenStates?.[tokenKey],
+      key: `token-${tokenKey}-${keyIndex}`,
+    })
+    lastIndex = regex.lastIndex
+    keyIndex += 1
+  }
+  if (lastIndex < source.length) {
+    parts.push({ type: 'text', text: source.slice(lastIndex), key: `text-tail-${lastIndex}` })
+  }
+  return parts
+}
+
+function buildLadderMessage(form, options = {}) {
+  return getLadderPreviewModel(form, options).text
 }
 
 async function writeClipboardText(text) {
@@ -9577,7 +9666,9 @@ function LadderDispatchPage() {
     })
   }, [branchDb, branchNames])
 
-  const messagePreview = useMemo(() => buildLadderMessage(form, { branchDb, template: templateText }), [branchDb, form, templateText])
+  const previewModel = useMemo(() => getLadderPreviewModel(form, { branchDb, template: templateText }), [branchDb, form, templateText])
+  const messagePreview = previewModel.text
+  const previewNodes = useMemo(() => buildLadderPreviewNodes(templateText, previewModel.values, previewModel.tokenStates), [previewModel.tokenStates, previewModel.values, templateText])
 
   function updateTopField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -9669,7 +9760,7 @@ function LadderDispatchPage() {
                   )}
                 </div>
               </div>
-              <textarea className="ladder-preview-textarea" value={messagePreview} readOnly />
+              <pre className="ladder-preview-textarea">{previewNodes.map(part => part.type === 'token' ? <span key={part.key} className={part.isDefault ? 'ladder-token-default' : 'ladder-token-filled'}>{part.text}</span> : <span key={part.key}>{part.text}</span>)}</pre>
             </div>
             <div className="ladder-form-panel">
               <section className="card inset-card ladder-form-card">
@@ -9768,7 +9859,7 @@ function LadderDispatchPage() {
         <div className="modal-overlay" onClick={() => setTemplateEditorOpen(false)}>
           <div className="modal-card ladder-modal-card ladder-template-modal" onClick={e => e.stopPropagation()}>
             <div className="between"><strong>기본양식편집</strong><button type="button" className="small" onClick={() => setTemplateEditorOpen(false)}>닫기</button></div>
-            <div className="muted small-text ladder-token-help">사용 가능 변수: {{date}}, {{move_time}}, {{customer_name}}, {{travel_time}}, {{work}}, {{addr}}, {{floor}}, {{work_time}}, {{branch_name}}, {{branch_phone}}, {{cost_title}}, {{cost}}</div>
+            <div className="muted small-text ladder-token-help">사용 가능 변수: <code>{'{{date}}'}</code>, <code>{'{{move_time}}'}</code>, <code>{'{{customer_name}}'}</code>, <code>{'{{travel_time}}'}</code>, <code>{'{{work}}'}</code>, <code>{'{{addr}}'}</code>, <code>{'{{floor}}'}</code>, <code>{'{{work_time}}'}</code>, <code>{'{{branch_name}}'}</code>, <code>{'{{branch_phone}}'}</code>, <code>{'{{cost_title}}'}</code>, <code>{'{{cost}}'}</code></div>
             <textarea className="ladder-template-editor" value={templateDraft} onChange={e => setTemplateDraft(e.target.value)} />
             <div className="inline-actions between wrap">
               <button type="button" className="small" onClick={() => setTemplateDraft(LADDER_TEMPLATE_DEFAULT)}>기본값 복원</button>
