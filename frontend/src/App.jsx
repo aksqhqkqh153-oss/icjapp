@@ -1243,10 +1243,18 @@ const BASE_QUICK_ACTION_LIBRARY = [
   { id: 'materialsRequesters', label: '신청목록', kind: 'metric', metricKey: 'pendingMaterialsRequesterCount', path: '/materials?tab=requesters', adminOnly: true },
   { id: 'materialsSettlement', label: '구매결산', kind: 'link', path: '/materials?tab=settlements', adminOnly: true },
   { id: 'storageStatus', label: '짐보관현황', kind: 'placeholder' },
+  { id: 'memoPad', label: '메모장', kind: 'link', path: '/memo-pad', adminOnly: true },
+  { id: 'ladderDispatch', label: '사다리배차', kind: 'link', path: '/settlements/ladder-dispatch', adminOnly: true },
+  { id: 'soomgoReviewFinder', label: '숨고리뷰찾기', kind: 'link', path: '/soomgo-review-finder', adminOnly: true },
+  { id: 'dailySettlement', label: '일일결산', kind: 'link', path: '/settlements?tab=daily', adminOnly: true },
+  { id: 'weeklySettlement', label: '주간결산', kind: 'link', path: '/settlements?tab=weekly', adminOnly: true },
+  { id: 'monthlySettlement', label: '월간결산', kind: 'link', path: '/settlements?tab=monthly', adminOnly: true },
+  { id: 'materialSummary', label: '자재결산', kind: 'link', path: '/settlements/materials-summary', adminOnly: true },
   { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
   { id: 'operationsDashboard', label: '대쉬보드', kind: 'link', path: '/operations-dashboard', adminOnly: true },
 ]
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
+const ADMIN_EXTRA_QUICK_ACTION_IDS = ['memoPad', 'ladderDispatch', 'soomgoReviewFinder', 'dailySettlement', 'weeklySettlement', 'monthlySettlement', 'materialSummary']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 1
 const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
@@ -2198,8 +2206,13 @@ function HomePage() {
 
   const activeQuickItems = useMemo(() => {
     const activeIds = [...quickState.active].filter(id => quickLibrary.some(item => item.id === id))
-    return activeIds.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean)
-  }, [quickState.active, quickLibrary])
+    if (Number(currentUser?.grade || 6) <= 2) {
+      ADMIN_EXTRA_QUICK_ACTION_IDS.forEach(id => {
+        if (quickLibrary.some(item => item.id === id) && !activeIds.includes(id)) activeIds.push(id)
+      })
+    }
+    return activeIds.slice(0, QUICK_ACTION_LIMIT).map(id => quickLibrary.find(item => item.id === id)).filter(Boolean)
+  }, [quickState.active, quickLibrary, currentUser?.grade])
   const archivedQuickItems = useMemo(() => quickState.archived.map(id => quickLibrary.find(item => item.id === id)).filter(Boolean), [quickState.archived, quickLibrary])
 
   const homeSections = useMemo(() => {
@@ -6448,7 +6461,7 @@ function filterAssignableUsers(users, query, selectedValues = [], predicate = nu
     .slice(0, 8)
 }
 
-function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false, showMeta = false, disabled = false }) {
+function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false, showMeta = false, disabled = false, inputClassName = '' }) {
   const [query, setQuery] = useState('')
   const [activeChip, setActiveChip] = useState('')
   const [portalStyle, setPortalStyle] = useState(null)
@@ -6593,8 +6606,8 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   return (
     <div className="stack compact-gap assignee-field-wrap">
       {label && <label>{label}</label>}
-      <div className={`assignee-input-shell${inputLike ? ' input-like' : ''}`} ref={shellRef}>
-        <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}${disabled ? ' disabled' : ''}`} onClick={() => { if (!disabled) inputRef.current?.focus() }}>
+      <div className={`assignee-input-shell${inputLike ? ' input-like' : ''}${inputClassName ? ` ${inputClassName}` : ''}`} ref={shellRef}>
+        <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}${disabled ? ' disabled' : ''}${inputClassName ? ` ${inputClassName}` : ''}`} onClick={() => { if (!disabled) inputRef.current?.focus() }}>
           {selectedValues.map((item, index) => {
             const isActive = activeChip === item
             const displayName = extractAssigneeDisplayName(item)
@@ -6715,6 +6728,7 @@ function HandlessDaysPage() {
     <div className="stack-page">
       <section className={`card schedule-card handless-page${isMobile ? ' mobile' : ''}`}>
         <div className="calendar-toolbar upgraded handless-toolbar-centered">
+          <div className="handless-toolbar-spacer" aria-hidden="true" />
           <div className="handless-toolbar-month-nav">
             <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))}>◀</button>
             <strong>{monthLabel}</strong>
@@ -7282,9 +7296,9 @@ function WorkSchedulePage() {
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line with-check-column">
                           <input className="schedule-bulk-time-input" value={form.schedule_time} placeholder="시간" readOnly disabled onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
                           <input className="schedule-bulk-customer-input" value={form.customer_name} placeholder="고객명" readOnly disabled onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
-                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
-                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
-                          <input value={form.address_text || form.memo} placeholder="주소" readOnly disabled className="schedule-inline-memo schedule-inline-address" />
+                          <AssigneeInput inputLike inputClassName="schedule-bulk-assignee-input" disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
+                          <AssigneeInput inputLike inputClassName="schedule-bulk-assignee-input" disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
+                          <input value={form.address_text || form.memo} placeholder="주소" readOnly disabled className="schedule-inline-memo schedule-inline-address schedule-bulk-address-input" />
                         </div>
                       </div>
                     </div>
@@ -10150,7 +10164,6 @@ function MemoPadPage({ user }) {
               <button type="button" className="small ghost" onClick={() => setRowColEditorOpen(false)}>닫기</button>
             </div>
             <div className="stack compact">
-              <div className="muted">현재 메모장은 한 화면 고정형으로 5열 10행 구조를 사용합니다.</div>
               <div className="memo-admin-grid-preview">
                 <div>행 수: {MEMO_PAD_ROWS}</div>
                 <div>열 수: {MEMO_PAD_COLS}</div>
@@ -13750,14 +13763,14 @@ function getSettlementWeekOfMonth(dateKey) {
 function formatWeeklySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
-  if (!date) return `0월 ${fallbackIndex + 1}주차 주간결산`
-  return `${date.getMonth() + 1}월 ${getSettlementWeekOfMonth(dateKey)}주차 주간결산`
+  if (!date) return `0주차 주간 결산`
+  return `${getSettlementWeekOfMonth(dateKey)}주차 주간 결산`
 }
 
 function formatMonthlySettlementTitle(block, fallbackIndex = 0) {
   const dateKey = getSettlementBlockDateKey(block)
   const date = parseSettlementDateKey(dateKey)
-  if (!date) return `${fallbackIndex + 1}월 월간 결산`
+  if (!date) return `0월 월간 결산`
   return `${date.getMonth() + 1}월 월간 결산`
 }
 
@@ -14682,7 +14695,7 @@ function SettlementPage() {
           <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
             <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
-              <strong>일일 결산</strong>
+              <strong>◀ 일간 결산 ▶</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
             </div>
           </div>
@@ -14714,13 +14727,13 @@ function SettlementPage() {
           <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
             <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
-              <strong>주간 결산</strong>
+              <strong>◀ 주간 결산 ▶</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
             </div>
           </div>
           <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
             <div className="settlement-day-nav-spacer" aria-hidden="true" />
-            <div className="muted settlement-day-nav-date centered-date-pill">{selectedWeeklyBlock?.title || (selectedWeeklyBlockDateKey ? `${String(selectedWeeklyBlockDateKey).slice(0, 7)} 주간 결산` : '-')}</div>
+            <div className="muted settlement-day-nav-date centered-date-pill">{formatWeeklySettlementTitle(selectedWeeklyBlock, weeklyIndex)}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('weekly', selectedWeeklyBlock)}>수정</button>
               <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('weekly', selectedWeeklyBlock)}>초기화</button>
@@ -14739,13 +14752,13 @@ function SettlementPage() {
           <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
             <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
-              <strong>월간 결산</strong>
+              <strong>◀ 월간 결산 ▶</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
             </div>
           </div>
           <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
             <div className="settlement-day-nav-spacer" aria-hidden="true" />
-            <div className="muted settlement-day-nav-date centered-date-pill">{selectedMonthlyBlock?.title || (selectedMonthlyDateKey ? `${String(selectedMonthlyDateKey).slice(0, 7)} 월간 결산` : '-')}</div>
+            <div className="muted settlement-day-nav-date centered-date-pill">{formatMonthlySettlementTitle(selectedMonthlyBlock, monthlyIndex)}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('monthly', selectedMonthlyBlock)}>수정</button>
               <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('monthly', selectedMonthlyBlock)}>초기화</button>
