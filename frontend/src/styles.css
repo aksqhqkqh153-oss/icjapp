@@ -20507,3 +20507,167 @@ textarea,
   color: #475569;
   cursor: not-allowed;
 }
+
+
+/* 2026-04-09 schedule toolbar / memo / settlement / handless one-line refinement */
+.schedule-page .schedule-toolbar-main-row.single-line {
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+}
+.schedule-page .schedule-toolbar-side-left,
+.schedule-page .schedule-toolbar-center,
+.schedule-page .schedule-toolbar-actions.compact-inline {
+  min-height: 40px;
+}
+.schedule-page .schedule-toolbar-side-left {
+  display: inline-flex;
+  align-items: center;
+}
+.schedule-page .schedule-toolbar-actions.compact-inline {
+  gap: 8px;
+}
+.schedule-page .schedule-today-button,
+.schedule-page .schedule-month-nav .icon-month-button,
+.schedule-page .schedule-toolbar-icon-button {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+.schedule-page .schedule-toolbar-icon-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+.schedule-page .schedule-toolbar-icon-button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-weight: 700;
+  line-height: 1;
+}
+.schedule-page .schedule-add-button > span { font-size: 22px; }
+.schedule-page .schedule-handless-button > span { font-size: 15px; }
+.schedule-page .schedule-settings-button > span { font-size: 18px; }
+.schedule-page .schedule-month-nav {
+  gap: 6px;
+}
+.schedule-page .schedule-month-label {
+  min-width: 168px;
+  text-align: center;
+}
+.memo-pad-head {
+  align-items: center;
+}
+.memo-pad-head > div:first-child h2 {
+  margin: 0;
+}
+.settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions.fixed-two-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+.settlement-day-nav-spacer {
+  min-height: 1px;
+}
+.centered-date-pill {
+  justify-self: center;
+  text-align: center;
+  width: max-content;
+  max-width: 100%;
+}
+.settlement-day-nav-actions.compact-right-actions {
+  justify-self: end;
+  margin-left: auto;
+}
+.handless-toolbar-centered {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center;
+  gap: 10px;
+}
+.handless-toolbar-month-nav {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  gap: 6px;
+}
+.handless-toolbar-actions {
+  position: static !important;
+  transform: none !important;
+  justify-self: end;
+  display: inline-flex;
+  flex-wrap: nowrap !important;
+  gap: 6px;
+  width: auto;
+}
+.handless-toolbar-action-button {
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .schedule-page.mobile .schedule-toolbar-main-row.single-line {
+    grid-template-columns: minmax(52px, auto) minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .schedule-page.mobile .schedule-toolbar-actions.compact-inline {
+    gap: 4px;
+  }
+  .schedule-page.mobile .schedule-toolbar-icon-button,
+  .schedule-page.mobile .schedule-month-nav .icon-month-button,
+  .schedule-page.mobile .schedule-today-button {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    border-radius: 9px;
+    padding: 0 4px;
+  }
+  .schedule-page.mobile .schedule-today-button {
+    width: auto;
+    min-width: 44px;
+  }
+  .schedule-page.mobile .schedule-add-button > span { font-size: 18px; }
+  .schedule-page.mobile .schedule-handless-button > span { font-size: 12px; }
+  .schedule-page.mobile .schedule-settings-button > span { font-size: 15px; }
+  .schedule-page.mobile .schedule-month-label {
+    min-width: 0;
+    font-size: 15px;
+  }
+  .settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions.fixed-two-line {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+  }
+  .centered-date-pill {
+    justify-self: center;
+    text-align: center;
+    font-size: 12px;
+  }
+  .handless-toolbar-centered {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 4px;
+    align-items: center;
+  }
+  .handless-toolbar-month-nav {
+    gap: 2px;
+    justify-content: flex-start;
+  }
+  .handless-toolbar-month-nav strong {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .handless-toolbar-actions {
+    justify-self: end;
+    gap: 4px;
+  }
+  .handless-toolbar-actions .ghost.small,
+  .handless-toolbar-actions .small,
+  .handless-toolbar-month-nav .ghost.small.icon-month-button {
+    min-height: 28px;
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+}

@@ -5882,9 +5882,9 @@ function CalendarPage() {
               </div>
             </div>
             <div className={`inline-actions schedule-toolbar-actions compact-inline${isMobile ? ' mobile-inline' : ' desktop-inline'}`}>
-              {!readOnly && <button type="button" className="small icon-only schedule-add-button" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)} title="일정등록" aria-label="일정등록">+</button>}
-              {!readOnly && <button type="button" className="small schedule-handless-button" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}>손</button>}
-              <button type="button" className="small ghost schedule-settings-button" onClick={() => setLegendOpen(true)} title="설정" aria-label="설정">⚙</button>
+              {!readOnly && <button type="button" className="small ghost schedule-toolbar-icon-button schedule-add-button" onClick={() => navigate(`/schedule/new?date=${selectedDate || fmtDate(new Date())}`)} title="일정등록" aria-label="일정등록"><span>+</span></button>}
+              {!readOnly && <button type="button" className="small ghost schedule-toolbar-icon-button schedule-handless-button" onClick={() => navigate(`/schedule/handless?month=${fmtDate(monthCursor).slice(0, 7)}`)}><span>손</span></button>}
+              <button type="button" className="small ghost schedule-toolbar-icon-button schedule-settings-button" onClick={() => setLegendOpen(true)} title="설정" aria-label="설정"><span>⚙</span></button>
             </div>
           </div>
         </div>
@@ -6719,8 +6719,8 @@ function HandlessDaysPage() {
             <button type="button" className="ghost small icon-month-button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}>▶</button>
           </div>
           <div className="inline-actions wrap handless-toolbar-actions">
-            <button type="button" className="ghost small" onClick={() => navigate('/schedule')}>닫기</button>
-            <button type="button" className="small" onClick={() => saveSelected().catch(err => window.alert(err.message))}>저장</button>
+            <button type="button" className="ghost small handless-toolbar-action-button" onClick={() => navigate('/schedule')}>닫기</button>
+            <button type="button" className="small handless-toolbar-action-button" onClick={() => saveSelected().catch(err => window.alert(err.message))}>저장</button>
           </div>
         </div>
         <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
@@ -10060,7 +10060,6 @@ function MemoPadPage({ user }) {
         <div className="between memo-pad-head">
           <div>
             <h2>메모장</h2>
-            <div className="muted">계정별로 자동 저장되는 5열 10행 메모장입니다.</div>
           </div>
           <div className="inline-actions wrap end memo-pad-head-actions">
             <button type="button" className="small" onClick={() => setArchiveOpen(true)}>보관함</button>
@@ -14686,6 +14685,7 @@ function SettlementPage() {
             </div>
           </div>
           <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
+            <div className="settlement-day-nav-spacer" aria-hidden="true" />
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('daily', selectedDailyBlock)}>수정</button>
@@ -14717,6 +14717,7 @@ function SettlementPage() {
             </div>
           </div>
           <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
+            <div className="settlement-day-nav-spacer" aria-hidden="true" />
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedWeeklyBlock?.title || (selectedWeeklyBlockDateKey ? `${String(selectedWeeklyBlockDateKey).slice(0, 7)} 주간 결산` : '-')}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('weekly', selectedWeeklyBlock)}>수정</button>
@@ -14741,6 +14742,7 @@ function SettlementPage() {
             </div>
           </div>
           <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions fixed-two-line">
+            <div className="settlement-day-nav-spacer" aria-hidden="true" />
             <div className="muted settlement-day-nav-date centered-date-pill">{selectedMonthlyBlock?.title || (selectedMonthlyDateKey ? `${String(selectedMonthlyDateKey).slice(0, 7)} 월간 결산` : '-')}</div>
             <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('monthly', selectedMonthlyBlock)}>수정</button>
