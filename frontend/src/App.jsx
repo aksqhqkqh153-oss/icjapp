@@ -6233,20 +6233,27 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       return
     }
     const updatePosition = () => {
-      const anchorRect = inputRef.current?.getBoundingClientRect() || shellRef.current?.getBoundingClientRect()
+      const shellRect = shellRef.current?.getBoundingClientRect()
+      const inputRect = inputRef.current?.getBoundingClientRect()
+      const anchorRect = shellRect || inputRect
       if (!anchorRect) return
       const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || anchorRect.width
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || anchorRect.bottom
       const longestText = suggestions.reduce((max, user) => {
         const tagValue = buildAssigneeTagValue(user)
         const meta = showMeta ? buildAssigneeOptionMeta(user) : ''
         return Math.max(max, tagValue.length, meta.length)
       }, 0)
-      const estimatedWidth = Math.max(anchorRect.width, Math.min(viewportWidth - 16, Math.max(168, (longestText * 9) + 44)))
+      const baseWidth = Math.max(shellRect?.width || 0, inputRect?.width || 0, 168)
+      const estimatedWidth = Math.min(viewportWidth - 16, Math.max(baseWidth, Math.min(viewportWidth - 16, (longestText * 9) + 44)))
+      const anchorLeft = shellRect?.left ?? inputRect?.left ?? anchorRect.left
+      const anchorBottom = inputRect?.bottom ?? shellRect?.bottom ?? anchorRect.bottom
       const maxLeft = Math.max(8, viewportWidth - estimatedWidth - 8)
-      const safeLeft = Math.min(Math.max(8, anchorRect.left), maxLeft)
+      const safeLeft = Math.min(Math.max(8, anchorLeft), maxLeft)
+      const safeTop = Math.min(anchorBottom + 6, viewportHeight - 8)
       setPortalStyle({
         position: 'fixed',
-        top: Math.min(anchorRect.bottom + 6, (window.innerHeight || 0) - 8),
+        top: safeTop,
         left: safeLeft,
         width: estimatedWidth,
         maxWidth: viewportWidth - 16,
@@ -6848,7 +6855,12 @@ function WorkSchedulePage() {
               </div>
 
               <div className={`work-schedule-main-top${isMobile ? ' work-schedule-mobile-stack' : ''}`}>
-                <button type="button" className={`work-day-status-button${isMobile ? ' work-schedule-mobile-block centered-mobile-vehicle' : ''}`} onClick={() => openStatusEditor(day)} disabled={readOnly}>
+                <button
+                  type="button"
+                  className={`work-day-status-button${isMobile ? ' work-schedule-mobile-block centered-mobile-vehicle is-static-mobile-vehicle' : ''}`}
+                  onClick={isMobile ? undefined : () => openStatusEditor(day)}
+                  disabled={!isMobile && readOnly}
+                >
                 <span className="work-day-status-vehicle">가용차량수 {String(day.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                 <span className="work-day-status-divider" />
                 <span className="work-day-status-summary">A: {String(day.status_a_count ?? 0).padStart(2, '0')} / B: {String(day.status_b_count ?? 0).padStart(2, '0')} / C: {String(day.status_c_count ?? 0).padStart(2, '0')}</span>
@@ -13367,16 +13379,16 @@ function SettlementPage() {
     content = selectedDailyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title">
-            <strong>일일 결산</strong>
-          </div>
-          <div className="settlement-day-nav-control-row">
-            <div className="settlement-day-nav-inline">
+          <div className="settlement-day-nav-title-row">
+            <div className="settlement-day-nav-title centered-nav-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
-              <span className="muted settlement-day-nav-date">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</span>
+              <strong>일일 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
             </div>
-            <div className="settlement-day-nav-actions">
+          </div>
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+            <div className="muted settlement-day-nav-date centered-date-pill">{selectedDailyBlock ? `${formatSettlementDateKeyLabel(selectedDailyBlockDateKey)} (${['일', '월', '화', '수', '목', '금', '토'][parseSettlementDateKey(selectedDailyBlockDateKey)?.getDay?.() ?? 0]}) 결산` : '-'}</div>
+            <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('daily', selectedDailyBlock)}>수정</button>
               <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('daily', selectedDailyBlock)}>초기화</button>
             </div>
@@ -13398,16 +13410,16 @@ function SettlementPage() {
     content = selectedWeeklyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title">
-            <strong>주간 결산</strong>
-          </div>
-          <div className="settlement-day-nav-control-row">
-            <div className="settlement-day-nav-inline">
+          <div className="settlement-day-nav-title-row">
+            <div className="settlement-day-nav-title centered-nav-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
-              <span className="muted settlement-day-nav-date">{selectedWeeklyBlock?.title || (selectedWeeklyBlockDateKey ? `${String(selectedWeeklyBlockDateKey).slice(0, 7)} 주간 결산` : '-')}</span>
+              <strong>주간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
             </div>
-            <div className="settlement-day-nav-actions">
+          </div>
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+            <div className="muted settlement-day-nav-date centered-date-pill">{selectedWeeklyBlock?.title || (selectedWeeklyBlockDateKey ? `${String(selectedWeeklyBlockDateKey).slice(0, 7)} 주간 결산` : '-')}</div>
+            <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('weekly', selectedWeeklyBlock)}>수정</button>
               <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('weekly', selectedWeeklyBlock)}>초기화</button>
             </div>
@@ -13422,16 +13434,16 @@ function SettlementPage() {
     content = selectedMonthlyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title">
-            <strong>월간 결산</strong>
-          </div>
-          <div className="settlement-day-nav-control-row">
-            <div className="settlement-day-nav-inline">
+          <div className="settlement-day-nav-title-row">
+            <div className="settlement-day-nav-title centered-nav-title">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
-              <span className="muted settlement-day-nav-date">{selectedMonthlyBlock?.title || (selectedMonthlyDateKey ? `${String(selectedMonthlyDateKey).slice(0, 7)} 월간 결산` : '-')}</span>
+              <strong>월간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
             </div>
-            <div className="settlement-day-nav-actions">
+          </div>
+          <div className="settlement-day-nav-control-row settlement-day-nav-control-row-title-actions">
+            <div className="muted settlement-day-nav-date centered-date-pill">{selectedMonthlyBlock?.title || (selectedMonthlyDateKey ? `${String(selectedMonthlyDateKey).slice(0, 7)} 월간 결산` : '-')}</div>
+            <div className="settlement-day-nav-actions compact-right-actions">
               <button type="button" className="ghost small" onClick={() => handleOpenSettlementEditor('monthly', selectedMonthlyBlock)}>수정</button>
               <button type="button" className="ghost small" onClick={() => handleResetSettlementBlock('monthly', selectedMonthlyBlock)}>초기화</button>
             </div>

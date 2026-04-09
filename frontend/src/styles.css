@@ -19282,3 +19282,119 @@ textarea,
     margin: 0;
   }
 }
+
+
+/* 2026-04-09 settlement header alignment + mobile assignee anchor + static vehicle button */
+.settlement-day-nav-title-row {
+  display: flex;
+  justify-content: center;
+}
+
+.settlement-day-nav-title.centered-nav-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+}
+
+.settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.centered-date-pill {
+  justify-self: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.settlement-day-nav-actions.compact-right-actions {
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.settlement-day-nav-actions.compact-right-actions .ghost.small {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.assignee-suggestion-list.portal {
+  transform-origin: top left;
+}
+
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle {
+  cursor: default;
+  color: #111827 !important;
+  background: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: none !important;
+}
+
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle:focus,
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle:hover,
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle:active {
+  color: #111827 !important;
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle .work-day-status-summary,
+.work-day-status-button.centered-mobile-vehicle.is-static-mobile-vehicle .work-day-status-vehicle {
+  color: #111827 !important;
+}
+
+@media (max-width: 768px) {
+  .settlement-day-nav {
+    gap: 6px;
+  }
+
+  .settlement-day-nav-title.centered-nav-title {
+    gap: 4px;
+  }
+
+  .settlement-day-nav-title.centered-nav-title strong {
+    font-size: 18px;
+    line-height: 1.15;
+  }
+
+  .settlement-day-nav-control-row.settlement-day-nav-control-row-title-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .centered-date-pill {
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .settlement-day-nav-actions.compact-right-actions {
+    gap: 4px;
+  }
+
+  .settlement-day-nav-actions.compact-right-actions .ghost.small {
+    min-height: 30px;
+    padding: 4px 7px;
+    font-size: 12px;
+    line-height: 1.1;
+  }
+}
+
+@media (max-width: 420px) {
+  .settlement-day-nav-title.centered-nav-title strong {
+    font-size: 16px;
+  }
+
+  .centered-date-pill {
+    font-size: 12px;
+  }
+
+  .settlement-day-nav-actions.compact-right-actions .ghost.small {
+    min-height: 28px;
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+}
