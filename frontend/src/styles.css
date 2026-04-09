@@ -20671,3 +20671,99 @@ textarea,
     padding: 3px 6px;
   }
 }
+
+
+/* 2026-04-09 schedule bulk row mobile fit and address readonly display */
+.schedule-inline-address[disabled] {
+  background: #f8fafc;
+  color: #475569;
+}
+@media (max-width: 768px) {
+  .work-schedule-page.mobile .work-schedule-list.unified-list {
+    overflow-x: hidden;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-editor.bulk-row {
+    padding: 8px 0 0 !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-bulk-row-shell.with-check-column {
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    gap: 3px !important;
+    align-items: center;
+  }
+
+  .work-schedule-page.mobile .schedule-row-check-cell {
+    justify-content: flex-start !important;
+    align-items: center !important;
+    min-height: 30px !important;
+    width: 18px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .work-schedule-page.mobile .schedule-row-check-cell input,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    transform: none;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+    grid-template-columns: 44px minmax(50px, 0.72fr) minmax(74px, 1fr) minmax(74px, 1fr) minmax(88px, 1.28fr) !important;
+    gap: 3px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line > div {
+    font-size: 11px !important;
+    padding: 0 !important;
+    white-space: nowrap;
+  }
+
+  .work-schedule-page.mobile .schedule-bulk-time-input,
+  .work-schedule-page.mobile .schedule-bulk-customer-input,
+  .work-schedule-page.mobile .schedule-inline-memo,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-input-shell,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip-list {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .work-schedule-page.mobile .schedule-bulk-time-input {
+    max-width: 44px !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 11px !important;
+  }
+
+  .work-schedule-page.mobile .schedule-bulk-customer-input {
+    max-width: 100% !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 11px !important;
+  }
+
+  .work-schedule-page.mobile .schedule-inline-memo,
+  .work-schedule-page.mobile .schedule-inline-address {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 11px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip-list,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-input-shell {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    min-height: 30px !important;
+    font-size: 11px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip-list input {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 11px !important;
+  }
+}

@@ -6222,6 +6222,7 @@ function emptyWorkScheduleForm(scheduleDate) {
 }
 
 function buildWorkScheduleForm(item, scheduleDate = '') {
+  const addressValue = String(item?.start_address || item?.location || item?.origin_address || item?.memo || '').trim()
   return {
     id: item?.id ?? '',
     entry_type: item?.entry_type || 'manual',
@@ -6232,6 +6233,7 @@ function buildWorkScheduleForm(item, scheduleDate = '') {
     representative_names: normalizeAssigneeValueForSave(item?.representative_names || [item?.representative1, item?.representative2, item?.representative3].filter(Boolean).join(' / ')),
     staff_names: normalizeAssigneeValueForSave(item?.staff_names || [item?.staff1, item?.staff2, item?.staff3].filter(Boolean).join(' / ')),
     memo: item?.memo || '',
+    address_text: addressValue,
   }
 }
 
@@ -7240,7 +7242,7 @@ function WorkSchedulePage() {
                           </div>
                         ) : (
                           <div className="work-schedule-line-summary" title={`${item.schedule_time || '미정'} | ${item.customer_name || '고객명'} | ${item.platform || '플랫폼미정'} | ${businessNames} | ${staffNames} | ${addressText}`}>
-                            <span className="work-schedule-line-summary-text primary">{`${item.schedule_time || '미정'}, ${item.customer_name || '고객명'}, ${item.platform || '플랫폼미정'}`}</span>
+                            <span className="work-schedule-line-summary-text primary">{`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${item.platform || '플랫폼미정'}`}</span>
                             <span className="work-schedule-line-summary-text business">{businessNames}</span>
                             <span className="work-schedule-line-summary-text staff">{staffNames}</span>
                             <span className="work-schedule-line-summary-text address">{addressText}</span>
@@ -7269,7 +7271,7 @@ function WorkSchedulePage() {
               {day.entries.length > 0 && isBulkEdit && (
                 <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
                   <div className="work-schedule-table header compact-single-line with-check-column">
-                    <div><input type="checkbox" checked={isBulkDeleteAllChecked(day.date)} onChange={e => toggleBulkDeleteAll(day.date, e.target.checked)} aria-label="전체선택" /></div><div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>메모</div>
+                    <div><input type="checkbox" checked={isBulkDeleteAllChecked(day.date)} onChange={e => toggleBulkDeleteAll(day.date, e.target.checked)} aria-label="전체선택" /></div><div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>주소</div>
                   </div>
                   {dayBulkForms.map((form, index) => (
                     <div key={`${day.date}-bulk-${form.id}-${index}`} className="work-schedule-inline-editor bulk-row compact-one-line-row">
@@ -7282,7 +7284,7 @@ function WorkSchedulePage() {
                           <input className="schedule-bulk-customer-input" value={form.customer_name} placeholder="고객명" readOnly disabled onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
                           <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
                           <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
-                          <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
+                          <input value={form.address_text || form.memo} placeholder="주소" readOnly disabled className="schedule-inline-memo schedule-inline-address" />
                         </div>
                       </div>
                     </div>
