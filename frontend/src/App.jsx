@@ -3281,6 +3281,39 @@ ${guide}`)
     setCategory(id)
   }
 
+  function handleDeleteCustomCategory() {
+    if (!customCategories.length) {
+      window.alert('삭제할 카테고리가 없습니다.')
+      return
+    }
+
+    let target = customCategories.find(item => item.id === category) || null
+    if (!target) {
+      const guide = customCategories.map((item, index) => `${index + 1}: ${item.label}`).join('\n')
+      const picked = window.prompt(`삭제할 카테고리 번호를 입력하세요.\n${guide}`)
+      if (picked === null) return
+      const index = Number(String(picked).trim())
+      if (!Number.isFinite(index) || index < 1 || index > customCategories.length) {
+        window.alert('올바른 번호를 입력해 주세요.')
+        return
+      }
+      target = customCategories[index - 1]
+    }
+
+    const confirmed = window.confirm(`'${target.label}' 카테고리를 삭제하시겠습니까?`)
+    if (!confirmed) return
+
+    setCustomCategories(prev => prev.filter(item => item.id !== target.id))
+    setRoomCategoryMap(prev => {
+      const next = { ...prev }
+      Object.keys(next).forEach(roomId => {
+        if (String(next[roomId] || '') === String(target.id)) delete next[roomId]
+      })
+      return next
+    })
+    if (String(category) === String(target.id)) setCategory('all')
+  }
+
   async function handleAssignRoomCategory(room) {
     if (!customCategories.length) {
       window.alert('먼저 + 버튼으로 카테고리를 추가해 주세요.')
@@ -3372,7 +3405,10 @@ ${guide}`)
           {visibleChatCategories.map(([value, label]) => (
             <button key={value} type="button" className={category === value ? 'small chat-tab active equal-width selected-toggle' : 'small ghost chat-tab equal-width'} onClick={() => setCategory(value)}>{label}</button>
           ))}
-          <button type="button" className="small ghost chat-tab chat-tab-add" onClick={handleAddCustomCategory} aria-label="카테고리 추가">+</button>
+          <div className="chat-category-mini-actions">
+            <button type="button" className="small ghost chat-tab chat-tab-mini" onClick={handleAddCustomCategory} aria-label="카테고리 추가">+</button>
+            <button type="button" className="small ghost chat-tab chat-tab-mini" onClick={handleDeleteCustomCategory} aria-label="카테고리 삭제">-</button>
+          </div>
         </div>
       </section>
 
@@ -6040,12 +6076,21 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   const [query, setQuery] = useState('')
   const [activeChip, setActiveChip] = useState('')
   const [portalStyle, setPortalStyle] = useState(null)
+  const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(0)
   const shellRef = useRef(null)
   const inputRef = useRef(null)
   const selectedValues = useMemo(() => splitScheduleNames(value), [value])
   const normalizedQuery = String(query || '').replace(/^@+/, '').trim()
   const shouldShowSuggestions = String(query || '').includes('@')
   const suggestions = useMemo(() => shouldShowSuggestions ? filterAssignableUsers(users, query, selectedValues, predicate) : [], [users, query, selectedValues, predicate, shouldShowSuggestions])
+
+  useEffect(() => {
+    if (!shouldShowSuggestions || suggestions.length === 0) {
+      setHighlightedSuggestionIndex(0)
+      return
+    }
+    setHighlightedSuggestionIndex(prev => Math.min(prev, suggestions.length - 1))
+  }, [shouldShowSuggestions, suggestions])
 
   function syncNext(values) {
     onChange(values.slice(0, maxCount).join(' / '))
@@ -6061,22 +6106,36 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
     const token = String(raw || '').replace(/^@+/, '').trim()
     if (!token) {
       setQuery('')
+      setHighlightedSuggestionIndex(0)
       return
     }
     if (selectedValues.includes(token)) {
       setQuery('')
+      setHighlightedSuggestionIndex(0)
       return
     }
     syncNext([...selectedValues, token])
     setQuery('')
     setActiveChip('')
+    setHighlightedSuggestionIndex(0)
   }
 
   function handleKeyDown(event) {
+    if (shouldShowSuggestions && suggestions.length > 0 && event.key === 'ArrowDown') {
+      event.preventDefault()
+      setHighlightedSuggestionIndex(prev => Math.min(prev + 1, suggestions.length - 1))
+      return
+    }
+    if (shouldShowSuggestions && suggestions.length > 0 && event.key === 'ArrowUp') {
+      event.preventDefault()
+      setHighlightedSuggestionIndex(prev => Math.max(prev - 1, 0))
+      return
+    }
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
-      if (shouldShowSuggestions && suggestions[0]) {
-        addByText(buildAssigneeTagValue(suggestions[0]))
+      if (shouldShowSuggestions && suggestions.length > 0) {
+        const picked = suggestions[Math.min(highlightedSuggestionIndex, suggestions.length - 1)] || suggestions[0]
+        if (picked) addByText(buildAssigneeTagValue(picked))
       }
       return
     }
@@ -6119,14 +6178,15 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
 
   const suggestionLayer = shouldShowSuggestions && suggestions.length > 0 && portalStyle ? createPortal(
     <div className="assignee-suggestion-list portal" style={portalStyle}>
-      {suggestions.map(user => {
+      {suggestions.map((user, index) => {
         const tagValue = buildAssigneeTagValue(user)
         return (
           <button
             key={`${label || 'assignee'}-${user.id}`}
             type="button"
-            className="assignee-suggestion-item"
+            className={`assignee-suggestion-item${highlightedSuggestionIndex === index ? ' active' : ''}`}
             onMouseDown={event => event.preventDefault()}
+            onMouseEnter={() => setHighlightedSuggestionIndex(index)}
             onClick={() => addByText(tagValue)}
           >
             <strong>{tagValue}</strong>

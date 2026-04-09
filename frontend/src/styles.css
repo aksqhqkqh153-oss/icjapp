@@ -18598,3 +18598,126 @@ textarea,
   padding-left: 0;
   padding-right: 0;
 }
+
+
+/* 2026-04-09 schedule/chat mobile refinement */
+.chat-category-mini-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.chat-tab.chat-tab-mini {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex: 0 0 28px;
+}
+
+.assignee-suggestion-list,
+.assignee-suggestion-list.portal {
+  border-radius: 0 !important;
+}
+
+.assignee-suggestion-item.active {
+  background: #eff6ff;
+  outline: 1px solid #bfdbfe;
+}
+
+@media (max-width: 768px) {
+  .assignee-suggestion-list.portal {
+    border-radius: 0 !important;
+    padding: 8px !important;
+  }
+
+  .assignee-suggestion-item {
+    padding: 8px 10px !important;
+  }
+
+  .assignee-suggestion-item strong,
+  .assignee-suggestion-item span {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+  .chat-category-row.evenly-spaced.chat-category-row-spaced {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto !important;
+    align-items: center;
+  }
+
+  .schedule-page.mobile,
+  .schedule-page.mobile .schedule-card,
+  .schedule-page.mobile .calendar-toolbar.upgraded.schedule-toolbar-updated,
+  .schedule-page.mobile .calendar-weekdays,
+  .schedule-page.mobile .calendar-grid.schedule-grid.detail-mode.mobile-calendar-grid,
+  .schedule-page.mobile .mobile-schedule-detail-panel,
+  .schedule-page.mobile .mobile-schedule-detail-head.single-row-summary,
+  .schedule-page.mobile .schedule-popup-list.embedded {
+    border: 1px solid #d1d5db !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error,
+  .schedule-page.mobile .calendar-day-summary-button.redesigned,
+  .schedule-page.mobile .calendar-handless-pill.mobile-compact,
+  .schedule-page.mobile .calendar-handless-banner,
+  .schedule-page.mobile .detail-schedule-item.popup-item.colorized {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page.mobile .detail-schedule-item.popup-item.colorized {
+    border-left: 1px solid #d1d5db !important;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full:hover,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical:hover,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning:hover,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error:hover,
+  .schedule-page.mobile .calendar-day-summary-button.redesigned:hover {
+    background: #f9fafb !important;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error .calendar-date,
+  .schedule-page.mobile .mobile-schedule-kind-chip,
+  .schedule-page.mobile .mobile-schedule-vehicle-chip,
+  .schedule-page.mobile .mobile-schedule-vehicle-inline,
+  .schedule-page.mobile .mobile-schedule-vehicle-chip.centered,
+  .schedule-page.mobile .mobile-schedule-vehicle-inline.centered {
+    color: #111827 !important;
+  }
+
+  .schedule-page.mobile .mobile-schedule-status-button,
+  .schedule-page.mobile .work-day-status-button,
+  .schedule-page.mobile .mobile-schedule-vehicle-chip.centered,
+  .schedule-page.mobile .mobile-schedule-vehicle-inline.centered {
+    background: #ffffff !important;
+    border-color: #d1d5db !important;
+    color: #111827 !important;
+  }
+
+  .work-schedule-page.mobile,
+  .work-schedule-page.mobile .work-schedule-day,
+  .work-schedule-page.mobile .work-schedule-list.unified-list,
+  .work-schedule-page.mobile .work-exclusion-section,
+  .work-schedule-page.mobile .work-schedule-section,
+  .work-schedule-page.mobile .work-schedule-mobile-four-col.header {
+    border-color: #d1d5db !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
