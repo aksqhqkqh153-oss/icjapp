@@ -283,6 +283,7 @@ class GroupRoomIn(BaseModel):
     title: str
     description: str = ""
     region: str = ""
+    member_ids: list[int] = Field(default_factory=list)
 class MessageIn(BaseModel):
     message: str = ""
     attachment_name: str = ""
@@ -2844,7 +2845,16 @@ def create_group_room(payload: GroupRoomIn, user=Depends(require_user)):
             (payload.title, payload.description, payload.region, user["id"], utcnow()),
         )
         room_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        conn.execute("INSERT INTO group_room_members(room_id, user_id, created_at) VALUES (?, ?, ?)", (room_id, user["id"], utcnow()))
+        member_ids = {int(user["id"])}
+        for value in payload.member_ids or []:
+            try:
+                member_ids.add(int(value))
+            except Exception:
+                continue
+        for member_id in member_ids:
+            conn.execute("INSERT OR IGNORE INTO group_room_members(room_id, user_id, created_at) VALUES (?, ?, ?)", (room_id, member_id, utcnow()))
+            if member_id != int(user["id"]):
+                insert_notification(conn, member_id, 'group_invite', '단체방 초대', f"{user['nickname']}님이 단체방에 초대했습니다.")
         return {"room_id": room_id}
 @app.post("/api/group-rooms/{room_id}/join")
 def join_group_room(room_id: int, user=Depends(require_user)):

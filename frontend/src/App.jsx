@@ -30,6 +30,10 @@ const PAGE_TITLES = {
   '/reports': '신고관리',
   '/workday-history': '일시작종료',
   '/settlements': '결산자료',
+  '/settlements/complaints-check': '컴플확인',
+  '/settlements/ladder-dispatch': '사다리배차',
+  '/settlements/handover': '인수인계서',
+  '/settlements/materials-summary': '자재결산',
   '/soomgo-review-finder': '숨고리뷰찾기',
   '/warehouse': '창고현황',
   '/materials': '자재구매/현황',
@@ -899,10 +903,8 @@ const MENU_PERMISSION_SECTIONS = [
     items: [
       { id: 'reviews', label: '리뷰', path: '/reviews' },
       { id: 'warehouse', label: '창고현황', path: '/warehouse' },
-      { id: 'materials', label: '자재구매/현황', path: '/materials' },
       { id: 'quotes', label: '견적', path: '/quotes' },
       { id: 'workday-history', label: '일시작종료', path: '/workday-history' },
-      { id: 'points', label: '포인트', path: '/points' },
       { id: 'policies', label: '규정', path: '/policies' },
       { id: 'work-shift-schedule', label: '근무스케줄', path: '/work-shift-schedule' },
     ],
@@ -921,7 +923,16 @@ const MENU_PERMISSION_SECTIONS = [
   {
     id: 'business',
     label: '사업자용',
-    items: [],
+    items: [
+      { id: 'materials', label: '자재구매/현황', path: '/materials' },
+    ],
+  },
+  {
+    id: 'employee',
+    label: '직원용',
+    items: [
+      { id: 'points', label: '포인트', path: '/points' },
+    ],
   },
   {
     id: 'admin',
@@ -953,6 +964,36 @@ const MENU_LOCK_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (
       adminOnly: !!item.adminOnly,
     }))
 ))
+
+const SETTLEMENT_MENU_GROUPS = [
+  {
+    id: 'daily',
+    label: '일일',
+    items: [
+      { key: 'daily-settlement', label: '일일결산', path: '/settlements?tab=daily' },
+      { key: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
+      { key: 'complaints-check', label: '컴플확인', path: '/settlements/complaints-check' },
+      { key: 'ladder-dispatch', label: '사다리배차', path: '/settlements/ladder-dispatch' },
+    ],
+  },
+  {
+    id: 'weekly',
+    label: '주간',
+    items: [
+      { key: 'weekly-settlement', label: '주간결산', path: '/settlements?tab=weekly' },
+      { key: 'storage-status', label: '짐보관현황', path: '/storage-status' },
+      { key: 'handover', label: '인수인계서', path: '/settlements/handover' },
+    ],
+  },
+  {
+    id: 'monthly',
+    label: '월간',
+    items: [
+      { key: 'monthly-settlement', label: '월간결산', path: '/settlements?tab=monthly' },
+      { key: 'materials-summary', label: '자재결산', path: '/settlements/materials-summary' },
+    ],
+  },
+]
 
 function buildDefaultMenuLocks() {
   return MENU_LOCK_ITEMS.reduce((acc, item) => {
@@ -1316,6 +1357,7 @@ function Layout({ children, user, onLogout }) {
           if (section.id === 'common') return grade !== 6 && grade !== 7
           if (section.id === 'head-office') return grade <= 2
           if (section.id === 'business') return grade <= 4
+          if (section.id === 'employee') return grade <= 5
           if (section.id === 'admin') return grade <= 2
           return true
         })() && (isPrivilegedMenuUser || canViewMenuEntry(user, menuPermissions, `section:${section.id}`)),
@@ -1435,6 +1477,43 @@ function Layout({ children, user, onLogout }) {
                                   >
                                     {link.label}
                                   </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      }
+                      if (item.id === 'settlements') {
+                        const expanded = !!expandedMenuItems.settlements
+                        return (
+                          <div key={item.id} className="menu-category-submenu">
+                            <button
+                              type="button"
+                              className="dropdown-item menu-category-item menu-category-item-expand"
+                              onClick={() => setExpandedMenuItems(prev => ({ ...prev, settlements: !prev.settlements }))}
+                            >
+                              <span>{item.label}</span>
+                              <span className="menu-category-expand-icon">{expanded ? '−' : '+'}</span>
+                            </button>
+                            {expanded ? (
+                              <div className="menu-category-submenu-list">
+                                {SETTLEMENT_MENU_GROUPS.map(group => (
+                                  <div key={group.id} className="menu-category-submenu-group">
+                                    <div className="menu-category-submenu-group-title">{group.label}</div>
+                                    {group.items.map(link => (
+                                      <button
+                                        key={link.key}
+                                        type="button"
+                                        className="dropdown-item menu-category-item menu-category-subitem"
+                                        onClick={() => {
+                                          navigate(link.path)
+                                          setMenuOpen(false)
+                                        }}
+                                      >
+                                        {link.label}
+                                      </button>
+                                    ))}
+                                  </div>
                                 ))}
                               </div>
                             ) : null}
@@ -3232,6 +3311,11 @@ function ChatsPage() {
   })
   const [deleteCategoryOpen, setDeleteCategoryOpen] = useState(false)
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState('')
+  const [friendList, setFriendList] = useState([])
+  const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false)
+  const [createGroupRoomTitle, setCreateGroupRoomTitle] = useState('')
+  const [createGroupSelections, setCreateGroupSelections] = useState({})
+  const [createGroupSubmitting, setCreateGroupSubmitting] = useState(false)
 
   useEffect(() => {
     setPinOrder(loadChatPinnedOrder(currentUser?.id))
@@ -3275,12 +3359,14 @@ function ChatsPage() {
   async function load() {
     setLoading(true)
     try {
-      const [items, userList] = await Promise.all([
+      const [items, userList, friendData] = await Promise.all([
         api('/api/chat-list'),
         api('/api/users'),
+        api('/api/friends').catch(() => ({ friends: [] })),
       ])
       setRooms(items)
       setUsers(userList)
+      setFriendList(Array.isArray(friendData?.friends) ? friendData.friends : [])
     } finally {
       setLoading(false)
     }
@@ -3402,15 +3488,38 @@ ${guide}`)
     })
   }
 
-  async function handleCreateGroupRoom() {
-    const title = window.prompt('새 단체 채팅방 이름을 입력하세요.')
-    if (!title || !title.trim()) return
-    const created = await api('/api/group-rooms', {
-      method: 'POST',
-      body: JSON.stringify({ title: title.trim(), description: '', region: '' }),
-    })
-    setMenuOpen(false)
-    navigate(`/chats/group/${created.id}`)
+  function handleCreateGroupRoom() {
+    setCreateGroupRoomTitle('')
+    setCreateGroupSelections({})
+    setCreateGroupModalOpen(true)
+  }
+
+  function toggleCreateGroupSelection(userId) {
+    const key = String(userId)
+    setCreateGroupSelections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function submitCreateGroupRoom() {
+    const title = String(createGroupRoomTitle || '').trim()
+    if (!title) {
+      window.alert('채팅방 이름을 입력해 주세요.')
+      return
+    }
+    const selectedMemberIds = Object.keys(createGroupSelections).filter(key => createGroupSelections[key]).map(value => Number(value)).filter(Number.isFinite)
+    setCreateGroupSubmitting(true)
+    try {
+      const created = await api('/api/group-rooms', {
+        method: 'POST',
+        body: JSON.stringify({ title, description: '', region: '', member_ids: selectedMemberIds }),
+      })
+      setMenuOpen(false)
+      setCreateGroupModalOpen(false)
+      navigate(`/chats/group/${created.room_id || created.id}`)
+    } catch (error) {
+      window.alert(error?.message || '채팅방 개설 중 오류가 발생했습니다.')
+    } finally {
+      setCreateGroupSubmitting(false)
+    }
   }
 
   const filteredRooms = useMemo(() => {
@@ -3481,6 +3590,34 @@ ${guide}`)
           </div>
         </div>
       </section>
+
+
+      {createGroupModalOpen && createPortal(
+        <div className="schedule-popup-backdrop chat-category-delete-backdrop" onClick={() => !createGroupSubmitting && setCreateGroupModalOpen(false)}>
+          <section className="schedule-popup-card chat-group-create-modal" onClick={event => event.stopPropagation()}>
+            <div className="chat-category-delete-topbar">
+              <strong className="chat-category-delete-title">채팅개설</strong>
+              <button type="button" className="ghost small chat-category-delete-back" onClick={() => !createGroupSubmitting && setCreateGroupModalOpen(false)} aria-label="닫기">닫기</button>
+            </div>
+            <div className="stack compact-gap chat-group-create-body">
+              <input value={createGroupRoomTitle} onChange={e => setCreateGroupRoomTitle(e.target.value)} placeholder="채팅방 이름" />
+              <div className="friends-section-label">친구목록</div>
+              <div className="chat-group-create-friend-list">
+                {friendList.length ? friendList.map(friend => (
+                  <label key={`group-friend-${friend.id}`} className="chat-group-create-friend-row">
+                    <input type="checkbox" checked={!!createGroupSelections[String(friend.id)]} onChange={() => toggleCreateGroupSelection(friend.id)} />
+                    <span>{friend.nickname || friend.name || friend.login_id || `회원 ${friend.id}`}</span>
+                  </label>
+                )) : <div className="muted">표시할 친구가 없습니다.</div>}
+              </div>
+              <div className="inline-actions end">
+                <button type="button" className="small" disabled={createGroupSubmitting} onClick={submitCreateGroupRoom}>{createGroupSubmitting ? '개설 중...' : '초대하기'}</button>
+              </div>
+            </div>
+          </section>
+        </div>,
+        document.body,
+      )}
 
       {deleteCategoryOpen && createPortal(
         <div className="schedule-popup-backdrop chat-category-delete-backdrop" onClick={() => setDeleteCategoryOpen(false)}>
@@ -13047,13 +13184,17 @@ function resetEditableSettlementBlock(block) {
 }
 
 function SettlementPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const categories = [
     { id: 'daily', label: '일일' },
     { id: 'weekly', label: '주간' },
     { id: 'monthly', label: '월간' },
     { id: 'records', label: '결산기록' },
   ]
-  const [activeCategory, setActiveCategory] = useState('daily')
+  const [activeCategory, setActiveCategory] = useState(() => {
+    const initialTab = String(searchParams.get('tab') || 'daily')
+    return ['daily', 'weekly', 'monthly'].includes(initialTab) ? initialTab : 'daily'
+  })
   const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
   const [syncLoading, setSyncLoading] = useState(false)
   const [credentialLoading, setCredentialLoading] = useState(false)
@@ -13080,6 +13221,20 @@ function SettlementPage() {
   const [dailyOverrideMap, setDailyOverrideMap] = useState(() => loadSettlementOverrides().daily)
   const [weeklyOverrideMap, setWeeklyOverrideMap] = useState(() => loadSettlementOverrides().weekly)
   const [monthlyOverrideMap, setMonthlyOverrideMap] = useState(() => loadSettlementOverrides().monthly)
+  useEffect(() => {
+    const requestedTab = String(searchParams.get('tab') || '').trim()
+    if (['daily', 'weekly', 'monthly'].includes(requestedTab) && requestedTab !== activeCategory) {
+      setActiveCategory(requestedTab)
+    }
+  }, [activeCategory, searchParams])
+
+  useEffect(() => {
+    const currentTab = String(searchParams.get('tab') || '')
+    if (currentTab === activeCategory) return
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', activeCategory)
+    setSearchParams(next, { replace: true })
+  }, [activeCategory, searchParams, setSearchParams])
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorTarget, setEditorTarget] = useState('daily')
   const [editorDateKey, setEditorDateKey] = useState('')
@@ -15548,6 +15703,10 @@ function App() {
         <Route path="/disposal/jurisdictions" element={staffAllowed ? <DisposalJurisdictionRegistryPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/complaints-check" element={staffAllowed ? <PlaceholderFeaturePage title="컴플확인" description="컴플확인 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/ladder-dispatch" element={staffAllowed ? <PlaceholderFeaturePage title="사다리배차" description="사다리배차 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/handover" element={staffAllowed ? <PlaceholderFeaturePage title="인수인계서" description="인수인계서 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/materials-summary" element={staffAllowed ? <PlaceholderFeaturePage title="자재결산" description="자재결산 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/policies" element={staffAllowed ? <PoliciesPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/work-shift-schedule" element={staffAllowed ? <WorkShiftSchedulePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

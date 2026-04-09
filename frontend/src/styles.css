@@ -19652,3 +19652,12 @@ textarea,
     line-height: 1.1;
   }
 }
+
+
+.menu-category-submenu-group { display:flex; flex-direction:column; gap:4px; padding:6px 0; }
+.menu-category-submenu-group + .menu-category-submenu-group { border-top:1px solid rgba(148,163,184,0.22); margin-top:6px; padding-top:8px; }
+.menu-category-submenu-group-title { font-size:12px; font-weight:700; color:#64748b; padding:0 12px; }
+.chat-group-create-modal { width:min(92vw, 420px); max-height:min(82vh, 640px); overflow:auto; }
+.chat-group-create-body { padding-top:4px; }
+.chat-group-create-friend-list { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto; padding:8px 4px; border:1px solid #e5e7eb; border-radius:0; }
+.chat-group-create-friend-row { display:flex; align-items:center; gap:8px; color:#0f172a; }
