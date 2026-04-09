@@ -48,6 +48,7 @@ const PAGE_TITLES = {
   '/disposal/list': '폐기목록',
   '/disposal/settlements': '폐기결산',
   '/disposal/jurisdictions': '관할구역등록',
+  '/memo-pad': '메모장',
 }
 
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
@@ -918,6 +919,7 @@ const MENU_PERMISSION_SECTIONS = [
       { id: 'disposal', label: '폐기', path: '/disposal' },
       { id: 'soomgo-review-finder', label: '숨고리뷰찾기', path: '/soomgo-review-finder' },
       { id: 'reports', label: '신고관리', path: '/reports' },
+      { id: 'memo-pad', label: '메모장', path: '/memo-pad' },
     ],
   },
   {
@@ -964,6 +966,26 @@ const MENU_LOCK_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (
       adminOnly: !!item.adminOnly,
     }))
 ))
+
+
+const QUICK_ACTION_MENU_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (section.items || []).map(item => ({
+  id: `menu-${item.id}`,
+  label: item.label,
+  kind: 'link',
+  path: item.path,
+  adminOnly: !!item.adminOnly,
+  sourceSectionId: section.id,
+})))
+
+const QUICK_ACTION_TOPBAR_ITEMS = [
+  { id: 'menu-home', label: '홈', kind: 'link', path: '/' },
+  { id: 'menu-search', label: '검색', kind: 'link', path: '/search' },
+  { id: 'menu-notifications', label: '알림', kind: 'link', path: '/notifications' },
+  { id: 'menu-settings', label: '설정', kind: 'link', path: '/settings' },
+  { id: 'menu-profile', label: '프로필', kind: 'link', path: '/profile' },
+]
+
+const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
 
 const SETTLEMENT_MENU_GROUPS = [
   {
@@ -1170,7 +1192,7 @@ function buildExcludedBusinessDetailsFromSlots(slots = [], options = [], reasons
   }).filter(Boolean)
 }
 
-const QUICK_ACTION_LIBRARY = [
+const BASE_QUICK_ACTION_LIBRARY = [
   { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
   { id: 'requestCount', label: '친구요청목록', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
   { id: 'point', label: '포인트', kind: 'placeholder' },
@@ -1186,7 +1208,7 @@ const QUICK_ACTION_LIBRARY = [
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 1
-const QUICK_ACTION_LIMIT = 16
+const QUICK_ACTION_LIMIT = 36
 
 function homeSettingsStorageKey(userId) {
   return `icj_home_settings_${userId || 'guest'}`
@@ -1259,16 +1281,17 @@ function saveProfileCover(userId, value) {
 }
 
 function getQuickActionState(userId) {
-  const fallback = { active: [...DEFAULT_QUICK_ACTION_IDS], archived: [] }
+  const fallbackArchived = QUICK_ACTION_LIBRARY.map(item => item.id).filter(id => !DEFAULT_QUICK_ACTION_IDS.includes(id))
+  const fallback = { active: [...DEFAULT_QUICK_ACTION_IDS], archived: fallbackArchived }
   try {
     const raw = localStorage.getItem(quickActionStorageKey(userId))
     if (!raw) return fallback
     const parsed = JSON.parse(raw)
     const known = new Set(QUICK_ACTION_LIBRARY.map(item => item.id))
     const active = Array.isArray(parsed?.active) ? parsed.active.filter(id => known.has(id)) : fallback.active
-    const archived = Array.isArray(parsed?.archived) ? parsed.archived.filter(id => known.has(id) && !active.includes(id)) : []
+    const archived = Array.isArray(parsed?.archived) ? parsed.archived.filter(id => known.has(id) && !active.includes(id)) : fallback.archived.filter(id => !active.includes(id))
     const missing = QUICK_ACTION_LIBRARY.map(item => item.id).filter(id => !active.includes(id) && !archived.includes(id))
-    return { active: [...active, ...missing].slice(0, QUICK_ACTION_LIMIT), archived }
+    return { active: active.slice(0, QUICK_ACTION_LIMIT), archived: [...archived, ...missing] }
   } catch (_) {
     return fallback
   }
@@ -1323,7 +1346,7 @@ function Layout({ children, user, onLogout }) {
   const isMobile = useIsMobile()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [expandedMenuItems, setExpandedMenuItems] = useState({ disposal: false })
+  const [expandedMenuItems, setExpandedMenuItems] = useState({ disposal: false, settlements: false })
   const menuRef = useRef(null)
   const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
@@ -2175,7 +2198,7 @@ function HomePage() {
               <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
             </div>
           </div>
-          <div className="quick-check-grid quick-check-grid-16">
+          <div className="quick-check-grid quick-check-grid-desktop-6">
             {!employeeRestricted && homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
               <button
                 type="button"
@@ -9118,6 +9141,210 @@ function MenuPermissionPage() {
 }
 
 
+const MEMO_PAD_ROWS = 10
+const MEMO_PAD_COLS = 5
+
+function memoPadStorageKey(userId) {
+  return `icj_memo_pad_${userId || 'guest'}`
+}
+
+function createEmptyMemoPadGrid() {
+  return Array.from({ length: MEMO_PAD_ROWS }, () => Array.from({ length: MEMO_PAD_COLS }, () => ''))
+}
+
+function normalizeMemoPadGrid(rawGrid) {
+  const base = createEmptyMemoPadGrid()
+  return base.map((row, rowIndex) => row.map((_, colIndex) => String(rawGrid?.[rowIndex]?.[colIndex] || '')))
+}
+
+function getMemoPadState(userId) {
+  const fallback = { grid: createEmptyMemoPadGrid(), archive: [] }
+  try {
+    const raw = localStorage.getItem(memoPadStorageKey(userId))
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    const archive = Array.isArray(parsed?.archive) ? parsed.archive.map(item => ({
+      id: String(item?.id || `memo-${Date.now()}`),
+      row: Number(item?.row || 0),
+      col: Number(item?.col || 0),
+      title: String(item?.title || ''),
+      content: String(item?.content || ''),
+      updatedAt: String(item?.updatedAt || ''),
+    })) : []
+    return {
+      grid: normalizeMemoPadGrid(parsed?.grid),
+      archive,
+    }
+  } catch (_) {
+    return fallback
+  }
+}
+
+function saveMemoPadState(userId, nextState) {
+  localStorage.setItem(memoPadStorageKey(userId), JSON.stringify({
+    grid: normalizeMemoPadGrid(nextState?.grid),
+    archive: Array.isArray(nextState?.archive) ? nextState.archive : [],
+  }))
+}
+
+function buildMemoArchiveTitle(content, row, col) {
+  const compact = String(content || '').replace(/\s+/g, ' ').trim()
+  return compact.slice(0, 30) || `${row + 1}행 ${col + 1}열 메모`
+}
+
+function MemoPadPage({ user }) {
+  const [memoState, setMemoState] = useState(() => getMemoPadState(user?.id))
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState([])
+  const [editingArchiveItem, setEditingArchiveItem] = useState(null)
+
+  useEffect(() => {
+    setMemoState(getMemoPadState(user?.id))
+    setArchiveOpen(false)
+    setSelectedArchiveIds([])
+    setEditingArchiveItem(null)
+  }, [user?.id])
+
+  const updateMemoState = useCallback((updater) => {
+    setMemoState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveMemoPadState(user?.id, next)
+      return next
+    })
+  }, [user?.id])
+
+  function updateCell(rowIndex, colIndex, value) {
+    updateMemoState(prev => {
+      const nextGrid = prev.grid.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === colIndex ? value : cell) : row)
+      return { ...prev, grid: nextGrid }
+    })
+  }
+
+  function archiveCell(rowIndex, colIndex) {
+    const content = String(memoState.grid?.[rowIndex]?.[colIndex] || '').trim()
+    if (!content) {
+      window.alert('내용이 있는 메모만 보관함에 저장할 수 있습니다.')
+      return
+    }
+    const entryId = `memo-${Date.now()}-${rowIndex}-${colIndex}`
+    updateMemoState(prev => ({
+      ...prev,
+      archive: [{
+        id: entryId,
+        row: rowIndex,
+        col: colIndex,
+        title: buildMemoArchiveTitle(content, rowIndex, colIndex),
+        content,
+        updatedAt: new Date().toISOString(),
+      }, ...prev.archive],
+    }))
+    setArchiveOpen(true)
+  }
+
+  function toggleArchiveSelect(id, checked) {
+    setSelectedArchiveIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(item => item !== id))
+  }
+
+  function deleteSelectedArchive() {
+    if (selectedArchiveIds.length === 0) {
+      window.alert('삭제할 메모를 선택해 주세요.')
+      return
+    }
+    updateMemoState(prev => ({ ...prev, archive: prev.archive.filter(item => !selectedArchiveIds.includes(item.id)) }))
+    setSelectedArchiveIds([])
+  }
+
+  function saveArchiveEdit() {
+    if (!editingArchiveItem) return
+    const nextContent = String(editingArchiveItem.content || '')
+    updateMemoState(prev => ({
+      ...prev,
+      archive: prev.archive.map(item => item.id === editingArchiveItem.id ? {
+        ...item,
+        title: buildMemoArchiveTitle(nextContent, item.row, item.col),
+        content: nextContent,
+        updatedAt: new Date().toISOString(),
+      } : item),
+    }))
+    setEditingArchiveItem(null)
+  }
+
+  return (
+    <div className="stack-page memo-pad-page">
+      <section className="card">
+        <div className="between memo-pad-head">
+          <div>
+            <h2>메모장</h2>
+            <div className="muted">계정별로 자동 저장되는 5열 10행 메모장입니다.</div>
+          </div>
+          <div className="inline-actions wrap end">
+            <button type="button" className="small" onClick={() => setArchiveOpen(true)}>보관함</button>
+          </div>
+        </div>
+        <div className="memo-pad-grid">
+          {memoState.grid.map((row, rowIndex) => row.map((value, colIndex) => (
+            <div key={`memo-cell-${rowIndex}-${colIndex}`} className="memo-pad-cell">
+              <div className="memo-pad-cell-toolbar">
+                <button type="button" className="memo-archive-button" onClick={() => archiveCell(rowIndex, colIndex)} aria-label="보관함에 저장">보관함</button>
+              </div>
+              <textarea
+                value={value}
+                onChange={event => updateCell(rowIndex, colIndex, event.target.value)}
+                placeholder={`${rowIndex + 1}-${colIndex + 1}`}
+              />
+            </div>
+          )))}
+        </div>
+      </section>
+
+      {archiveOpen && (
+        <div className="modal-backdrop" onClick={() => setArchiveOpen(false)}>
+          <div className="modal-card memo-archive-modal" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <div>
+                <strong>보관함</strong>
+                <div className="muted tiny-text">클릭하면 상세 편집창이 열립니다.</div>
+              </div>
+              <div className="inline-actions wrap end">
+                <button type="button" className="small ghost" onClick={deleteSelectedArchive}>선택삭제</button>
+                <button type="button" className="small ghost" onClick={() => setArchiveOpen(false)}>닫기</button>
+              </div>
+            </div>
+            <div className="stack compact memo-archive-list">
+              {memoState.archive.map(item => (
+                <label key={item.id} className="memo-archive-row">
+                  <input type="checkbox" checked={selectedArchiveIds.includes(item.id)} onChange={event => toggleArchiveSelect(item.id, event.target.checked)} onClick={event => event.stopPropagation()} />
+                  <button type="button" className="memo-archive-open" onClick={() => setEditingArchiveItem({ ...item })}>
+                    <span className="memo-archive-title">{item.title}</span>
+                    <span className="memo-archive-meta">{item.row + 1}행 {item.col + 1}열</span>
+                  </button>
+                </label>
+              ))}
+              {memoState.archive.length === 0 && <div className="muted">보관된 메모가 없습니다.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingArchiveItem && (
+        <div className="modal-backdrop" onClick={() => setEditingArchiveItem(null)}>
+          <div className="modal-card memo-archive-editor" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <strong>메모 상세 편집</strong>
+              <div className="inline-actions wrap end">
+                <button type="button" className="small ghost" onClick={() => setEditingArchiveItem(null)}>닫기</button>
+                <button type="button" className="small" onClick={saveArchiveEdit}>저장</button>
+              </div>
+            </div>
+            <div className="muted tiny-text">원본 위치: {editingArchiveItem.row + 1}행 {editingArchiveItem.col + 1}열</div>
+            <textarea className="memo-archive-editor-textarea" value={editingArchiveItem.content} onChange={event => setEditingArchiveItem(prev => ({ ...prev, content: event.target.value }))} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function buildAppSearchEntries(user, policyMap = {}) {
   const policyEntries = []
   Object.entries(POLICY_CONTENT_DEFAULTS).forEach(([categoryId, targets]) => {
@@ -9152,6 +9379,7 @@ function buildAppSearchEntries(user, policyMap = {}) {
     { id: 'disposal-forms', category: '본사용', type: '전환', title: '폐기양식', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 양식', path: '/disposal/forms', keywords: '폐기양식 폐기 신고' },
     { id: 'disposal-list', category: '본사용', type: '전환', title: '폐기목록', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 목록', path: '/disposal/list', keywords: '폐기목록 폐기 결산진행 입금' },
     { id: 'disposal-settlements', category: '본사용', type: '전환', title: '폐기결산', description: '상단바 -> 메뉴 -> 본사용 -> 폐기 -> 결산', path: '/disposal/settlements', keywords: '폐기결산 결산' },
+    { id: 'memo-pad', category: '본사용', type: '전환', title: '메모장', description: '상단바 -> 메뉴 -> 본사용 -> 메모장', path: '/memo-pad', keywords: '메모장 보관함 자동저장' },
     { id: 'admin', category: '관리자모드', type: '전환', title: '관리자모드', description: '상단바 -> 설정 -> 관리자모드', path: '/admin-mode', keywords: '관리자모드 계정관리 운영현황' },
     { id: 'menu-permissions', category: '관리자모드', type: '전환', title: '메뉴권한', description: '상단바 -> 메뉴 -> 관리자모드 -> 메뉴권한', path: '/menu-permissions', keywords: '메뉴권한' },
   ]
@@ -15718,6 +15946,7 @@ function App() {
         <Route path="/admin-mode" element={staffAllowed ? (canAccessAdminMode(user) ? <AdminModePage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/menu-permissions" element={staffAllowed ? (isAdministrator(user) ? <MenuPermissionPage /> : <AccessDeniedRedirect message="관리자만 접근할 수 있습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/reports" element={staffAllowed ? (canAccessAdminMode(user) ? <ReportsPage /> : <AccessDeniedRedirect />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/memo-pad" element={staffAllowed ? (Number(user?.grade || 6) <= 2 ? <MemoPadPage user={user} /> : <AccessDeniedRedirect message="본사용 계정만 접근할 수 있습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="*" element={staffAllowed ? <Navigate to="/" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
       </Routes>
       </MenuLockGuard>
