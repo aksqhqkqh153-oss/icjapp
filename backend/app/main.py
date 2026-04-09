@@ -693,6 +693,12 @@ def _can_actor_apply(actor: dict, actor_key: str, target_key: str, target_grade:
     return actor_grade <= int(cfg.get(actor_key, 1)) and target_grade >= int(cfg.get(target_key, 7)) and actor_grade < target_grade
 
 
+def _can_edit_calendar_event(user: dict) -> bool:
+    grade = _grade_of(user)
+    position_title = str(user.get('position_title') or '').strip()
+    allowed_titles = {'대표', '부대표', '호점대표', '팀장', '부팀장', '본부장', '상담실장', '상담팀장', '상담사원'}
+    return grade <= 2 or position_title in allowed_titles
+
 def _normalize_account_type(row: Any) -> str:
     data = row_to_dict(row)
     grade = _grade_of(data)
@@ -3583,10 +3589,12 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
 @app.put("/api/calendar/events/{event_id}")
 def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
+    if not _can_edit_calendar_event(user):
+        raise HTTPException(status_code=403, detail="해당 직급만 일정을 수정할 수 있습니다.")
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="본인이 등록한 일정만 수정할 수 있습니다.")
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
         previous_event_date = row["event_date"]
         conn.execute(
             """
@@ -3594,20 +3602,20 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?,
                 platform = ?, customer_name = ?, department_info = ?, schedule_type = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?,
                 representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
-            WHERE id = ? AND user_id = ?
+            WHERE id = ?
             """,
             (
                 payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time, payload.location,
                 payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
                 payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
                 payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount,
-                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id, user["id"]
+                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id
             ),
         )
         previous_data = row_to_dict(row)
         _sync_work_schedule_day_note_counts(conn, user["id"], previous_event_date)
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
-        next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
         if next_row:
             next_data = row_to_dict(next_row)
             reps, staffs = _calendar_assignment_names(next_data)

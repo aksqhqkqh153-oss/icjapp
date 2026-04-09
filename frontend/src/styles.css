@@ -19982,3 +19982,69 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+
+.memo-pad-card-fixed {
+  height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.memo-pad-card-fixed .memo-pad-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+.memo-pad-page {
+  overflow: hidden;
+}
+.memo-pad-grid {
+  width: 100%;
+}
+.memo-pad-cell textarea {
+  font-size: 11px;
+}
+
+@media (max-width: 768px) {
+  .memo-pad-card-fixed {
+    height: calc(100vh - 118px);
+  }
+
+  .work-schedule-page.mobile .work-schedule-bulk-row-shell.with-check-column {
+    grid-template-columns: 16px minmax(0, 1fr) !important;
+    gap: 1px !important;
+    align-items: center !important;
+  }
+
+  .work-schedule-page.mobile .schedule-row-check-cell {
+    width: 16px !important;
+    min-width: 16px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column,
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+    grid-template-columns: 36px minmax(58px, 0.82fr) minmax(68px, 1fr) minmax(78px, 1fr) minmax(78px, 1fr) !important;
+    gap: 1px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column > input:first-child {
+    margin-left: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column .assignee-input-shell,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column .assignee-field-wrap,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column .assignee-chip-list {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column input,
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column .assignee-chip-list input {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+  }
+}

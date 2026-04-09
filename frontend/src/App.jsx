@@ -1514,11 +1514,11 @@ function Layout({ children, user, onLogout }) {
                     ) : section.items.map(item => {
                       if (item.id === 'disposal') {
                         const expanded = !!expandedMenuItems.disposal
-                        const disposalLinks = sortMenuItemsByLabel([
+                        const disposalLinks = [
                           { key: 'forms', label: '양식', path: '/disposal/forms' },
                           { key: 'list', label: '목록', path: '/disposal/list' },
                           { key: 'settlements', label: '결산', path: '/disposal/settlements' },
-                        ])
+                        ]
                         return (
                           <div key={item.id} className="menu-category-submenu">
                             <button
@@ -7996,6 +7996,8 @@ function ScheduleFormPage({ mode }) {
 function ScheduleDetailPage() {
   const navigate = useNavigate()
   const { eventId } = useParams()
+  const currentUser = getStoredUser()
+  const canEditCurrentSchedule = canEditCalendarSchedule(currentUser)
   const [item, setItem] = useState(null)
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -8024,7 +8026,11 @@ function ScheduleDetailPage() {
             <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
             {menuOpen && (
               <div className="dropdown-menu right">
-                <button type="button" className="dropdown-item" onClick={() => navigate(`/schedule/${item.id}/edit`)}>일정수정</button>
+                {canEditCurrentSchedule ? (
+                  <button type="button" className="dropdown-item" onClick={() => navigate(`/schedule/${item.id}/edit`)}>일정수정</button>
+                ) : (
+                  <div className="dropdown-item disabled">일정수정 권한 없음</div>
+                )}
               </div>
             )}
           </div>
@@ -9192,6 +9198,54 @@ function MenuPermissionPage() {
 
 const MEMO_PAD_ROWS = 10
 const MEMO_PAD_COLS = 5
+
+function memoPadStorageKey(userId) {
+  return `icj_memo_pad_${userId || 'guest'}`
+}
+
+function createEmptyMemoPadGrid() {
+  return Array.from({ length: MEMO_PAD_ROWS }, () => Array.from({ length: MEMO_PAD_COLS }, () => ''))
+}
+
+function normalizeMemoPadGrid(rawGrid) {
+  const base = createEmptyMemoPadGrid()
+  return base.map((row, rowIndex) => row.map((_, colIndex) => String(rawGrid?.[rowIndex]?.[colIndex] || '')))
+}
+
+function getMemoPadState(userId) {
+  const fallback = { grid: createEmptyMemoPadGrid(), archive: [] }
+  try {
+    const raw = localStorage.getItem(memoPadStorageKey(userId))
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    const archive = Array.isArray(parsed?.archive) ? parsed.archive.map(item => ({
+      id: String(item?.id || `memo-${Date.now()}`),
+      row: Number(item?.row || 0),
+      col: Number(item?.col || 0),
+      title: String(item?.title || ''),
+      content: String(item?.content || ''),
+      updatedAt: String(item?.updatedAt || ''),
+    })) : []
+    return {
+      grid: normalizeMemoPadGrid(parsed?.grid),
+      archive,
+    }
+  } catch (_) {
+    return fallback
+  }
+}
+
+function saveMemoPadState(userId, nextState) {
+  localStorage.setItem(memoPadStorageKey(userId), JSON.stringify({
+    grid: normalizeMemoPadGrid(nextState?.grid),
+    archive: Array.isArray(nextState?.archive) ? nextState.archive : [],
+  }))
+}
+
+function buildMemoArchiveTitle(content, row, col) {
+  const compact = String(content || '').replace(/\s+/g, ' ').trim()
+  return compact.slice(0, 30) || `${row + 1}행 ${col + 1}열 메모`
+}
 const LADDER_BRANCH_DB = {
   '1호점': { name: '임채영', phone: '010-6614-7795' },
   '2호점': { name: '박우민', phone: '010-2479-2742' },
@@ -9484,6 +9538,160 @@ function LadderDispatchPage() {
           </div>
         </div>
       </section>
+    </div>
+  )
+}
+
+
+function MemoPadPage({ user }) {
+  const [memoState, setMemoState] = useState(() => getMemoPadState(user?.id))
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState([])
+  const [editingArchiveItem, setEditingArchiveItem] = useState(null)
+
+  useEffect(() => {
+    setMemoState(getMemoPadState(user?.id))
+    setArchiveOpen(false)
+    setSelectedArchiveIds([])
+    setEditingArchiveItem(null)
+  }, [user?.id])
+
+  const updateMemoState = useCallback((updater) => {
+    setMemoState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveMemoPadState(user?.id, next)
+      return next
+    })
+  }, [user?.id])
+
+  function updateCell(rowIndex, colIndex, value) {
+    updateMemoState(prev => {
+      const nextGrid = prev.grid.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === colIndex ? value : cell) : row)
+      return { ...prev, grid: nextGrid }
+    })
+  }
+
+  function archiveCell(rowIndex, colIndex) {
+    const content = String(memoState.grid?.[rowIndex]?.[colIndex] || '').trim()
+    if (!content) {
+      window.alert('내용이 있는 메모만 보관함에 저장할 수 있습니다.')
+      return
+    }
+    const entryId = `memo-${Date.now()}-${rowIndex}-${colIndex}`
+    updateMemoState(prev => ({
+      ...prev,
+      archive: [{
+        id: entryId,
+        row: rowIndex,
+        col: colIndex,
+        title: buildMemoArchiveTitle(content, rowIndex, colIndex),
+        content,
+        updatedAt: new Date().toISOString(),
+      }, ...prev.archive],
+    }))
+    setArchiveOpen(true)
+  }
+
+  function toggleArchiveSelect(id, checked) {
+    setSelectedArchiveIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(item => item !== id))
+  }
+
+  function deleteSelectedArchive() {
+    if (selectedArchiveIds.length === 0) {
+      window.alert('삭제할 메모를 선택해 주세요.')
+      return
+    }
+    updateMemoState(prev => ({ ...prev, archive: prev.archive.filter(item => !selectedArchiveIds.includes(item.id)) }))
+    setSelectedArchiveIds([])
+  }
+
+  function saveArchiveEdit() {
+    if (!editingArchiveItem) return
+    const nextContent = String(editingArchiveItem.content || '')
+    updateMemoState(prev => ({
+      ...prev,
+      archive: prev.archive.map(item => item.id === editingArchiveItem.id ? {
+        ...item,
+        title: buildMemoArchiveTitle(nextContent, item.row, item.col),
+        content: nextContent,
+        updatedAt: new Date().toISOString(),
+      } : item),
+    }))
+    setEditingArchiveItem(null)
+  }
+
+  return (
+    <div className="stack-page memo-pad-page">
+      <section className="card memo-pad-card-fixed">
+        <div className="between memo-pad-head">
+          <div>
+            <h2>메모장</h2>
+            <div className="muted">계정별로 자동 저장되는 5열 10행 메모장입니다.</div>
+          </div>
+          <div className="inline-actions wrap end">
+            <button type="button" className="small" onClick={() => setArchiveOpen(true)}>보관함</button>
+          </div>
+        </div>
+        <div className="memo-pad-grid">
+          {memoState.grid.map((row, rowIndex) => row.map((value, colIndex) => (
+            <div key={`memo-cell-${rowIndex}-${colIndex}`} className="memo-pad-cell">
+              <div className="memo-pad-cell-toolbar">
+                <button type="button" className="memo-archive-button" onClick={() => archiveCell(rowIndex, colIndex)} aria-label="보관함에 저장">보관함</button>
+              </div>
+              <textarea
+                value={value}
+                onChange={event => updateCell(rowIndex, colIndex, event.target.value)}
+                placeholder={`${rowIndex + 1}-${colIndex + 1}`}
+              />
+            </div>
+          )))}
+        </div>
+      </section>
+
+      {archiveOpen && (
+        <div className="modal-backdrop" onClick={() => setArchiveOpen(false)}>
+          <div className="modal-card memo-archive-modal" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <div>
+                <strong>보관함</strong>
+                <div className="muted tiny-text">클릭하면 상세 편집창이 열립니다.</div>
+              </div>
+              <div className="inline-actions wrap end">
+                <button type="button" className="small ghost" onClick={deleteSelectedArchive}>선택삭제</button>
+                <button type="button" className="small ghost" onClick={() => setArchiveOpen(false)}>닫기</button>
+              </div>
+            </div>
+            <div className="stack compact memo-archive-list">
+              {memoState.archive.map(item => (
+                <label key={item.id} className="memo-archive-row">
+                  <input type="checkbox" checked={selectedArchiveIds.includes(item.id)} onChange={event => toggleArchiveSelect(item.id, event.target.checked)} onClick={event => event.stopPropagation()} />
+                  <button type="button" className="memo-archive-open" onClick={() => setEditingArchiveItem({ ...item })}>
+                    <span className="memo-archive-title">{item.title}</span>
+                    <span className="memo-archive-meta">{item.row + 1}행 {item.col + 1}열</span>
+                  </button>
+                </label>
+              ))}
+              {memoState.archive.length === 0 && <div className="muted">보관된 메모가 없습니다.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingArchiveItem && (
+        <div className="modal-backdrop" onClick={() => setEditingArchiveItem(null)}>
+          <div className="modal-card memo-archive-editor" onClick={event => event.stopPropagation()}>
+            <div className="between align-center">
+              <strong>메모 상세 편집</strong>
+              <div className="inline-actions wrap end">
+                <button type="button" className="small ghost" onClick={() => setEditingArchiveItem(null)}>닫기</button>
+                <button type="button" className="small" onClick={saveArchiveEdit}>저장</button>
+              </div>
+            </div>
+            <div className="muted tiny-text">원본 위치: {editingArchiveItem.row + 1}행 {editingArchiveItem.col + 1}열</div>
+            <textarea className="memo-archive-editor-textarea" value={editingArchiveItem.content} onChange={event => setEditingArchiveItem(prev => ({ ...prev, content: event.target.value }))} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -9949,6 +10157,13 @@ function canEditWorkShiftSchedule(user) {
   const grade = Number(user?.grade || 6)
   const positionTitle = String(user?.position_title || '').trim()
   return grade <= 2 || positionTitle === '부팀장'
+}
+
+function canEditCalendarSchedule(user) {
+  const grade = Number(user?.grade || 9)
+  const positionTitle = String(user?.position_title || '').trim()
+  const allowedTitles = new Set(['대표', '부대표', '호점대표', '팀장', '부팀장', '본부장', '상담실장', '상담팀장', '상담사원'])
+  return grade <= 2 || allowedTitles.has(positionTitle)
 }
 
 function canEditScheduleAssignments(user) {
@@ -13568,7 +13783,7 @@ function SettlementPage() {
   ]
   const [activeCategory, setActiveCategory] = useState(() => {
     const initialTab = String(searchParams.get('tab') || 'daily')
-    return ['daily', 'weekly', 'monthly'].includes(initialTab) ? initialTab : 'daily'
+    return ['daily', 'weekly', 'monthly', 'records'].includes(initialTab) ? initialTab : 'daily'
   })
   const [syncStatus, setSyncStatus] = useState({ platforms: {}, enabled: false, is_running: false, last_message: '' })
   const [syncLoading, setSyncLoading] = useState(false)
@@ -13598,7 +13813,7 @@ function SettlementPage() {
   const [monthlyOverrideMap, setMonthlyOverrideMap] = useState(() => loadSettlementOverrides().monthly)
   useEffect(() => {
     const requestedTab = String(searchParams.get('tab') || '').trim()
-    if (['daily', 'weekly', 'monthly'].includes(requestedTab) && requestedTab !== activeCategory) {
+    if (['daily', 'weekly', 'monthly', 'records'].includes(requestedTab) && requestedTab !== activeCategory) {
       setActiveCategory(requestedTab)
     }
   }, [activeCategory, searchParams])
@@ -16056,7 +16271,7 @@ function App() {
         <Route path="/schedule/handless" element={staffAllowed ? <HandlessDaysPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/work-schedule" element={staffAllowed ? <WorkSchedulePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/schedule/:eventId" element={staffAllowed ? <ScheduleDetailPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/schedule/:eventId/edit" element={staffAllowed ? <ScheduleFormPage mode="edit" /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/schedule/:eventId/edit" element={staffAllowed ? (canEditCalendarSchedule(user) ? <ScheduleFormPage mode="edit" /> : <AccessDeniedRedirect message="일정 수정 권한이 없습니다." />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/profile" element={staffAllowed ? <ProfilePage onUserUpdate={(u) => { setUser(u); localStorage.setItem('icj_user', JSON.stringify(u)) }} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/meetups" element={staffAllowed ? <MeetupsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/boards" element={staffAllowed ? <BoardsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
