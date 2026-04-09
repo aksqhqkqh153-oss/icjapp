@@ -19189,3 +19189,96 @@ textarea,
   left: auto;
   right: auto;
 }
+
+
+/* 2026-04-09 mobile schedule calendar visual refinement */
+.schedule-page .calendar-handless-banner.special-attention,
+.schedule-page .calendar-handless-pill.mobile-compact.special-attention {
+  background: #dbeafe !important;
+  color: #1e3a8a !important;
+}
+
+@media (max-width: 768px) {
+  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell {
+    overflow: hidden;
+  }
+
+  .schedule-page.mobile .calendar-cell-topline.schedule-header-line {
+    position: relative;
+    background: #ffffff;
+  }
+
+  .schedule-page.mobile .calendar-date-select {
+    position: relative;
+    overflow: hidden;
+    background: #ffffff !important;
+    justify-content: center;
+    align-items: center;
+    isolation: isolate;
+  }
+
+  .schedule-page.mobile .calendar-date-select::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 20%;
+    min-width: 14px;
+    z-index: -1;
+    background: transparent;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full::before {
+    background: #111111;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical::before {
+    background: #b91c1c;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning::before {
+    background: #facc15;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal::before {
+    background: #ffffff;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error::before {
+    background: #f472b6;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error {
+    color: #111827 !important;
+  }
+
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-full .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-critical .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-warning .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-normal .calendar-date,
+  .schedule-page.mobile .calendar-date-select.calendar-day-state-error .calendar-date {
+    color: #111827 !important;
+  }
+
+  .schedule-page.mobile .calendar-day-summary-button.redesigned {
+    min-height: auto;
+    padding: 0 2px 1px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .schedule-page.mobile .calendar-mobile-summary-stack.compact-topline {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .schedule-page.mobile .calendar-handless-pill.mobile-compact {
+    font-size: 8px;
+    line-height: 1;
+    padding: 1px 4px;
+    margin: 0;
+  }
+}

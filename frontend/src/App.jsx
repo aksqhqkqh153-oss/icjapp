@@ -5611,7 +5611,8 @@ function CalendarPage() {
             const dayCapacity = hasWorkDayData && daySummary ? analyzeScheduleDayCapacity(daySummary) : null
             const dayCapacityClass = hasWorkDayData && daySummary ? buildCalendarDayStatusClass(daySummary) : ''
             const isFriday = date && date.getDay() === 5
-            const shouldHighlightDayKind = Boolean(date && (isFriday || isWeekend || daySummary?.is_handless_day))
+            const isSaturday = date && date.getDay() === 6
+            const shouldHighlightDayKind = Boolean(date && (isFriday || isSaturday || daySummary?.is_handless_day))
             const isCurrentMonth = date ? isSameMonthDate(date, monthCursor) : false
             return (
               <div key={key} className={date ? `calendar-cell schedule-cell detail-cell${today ? ' today' : ''}${isWeekend ? ' weekend' : ''}${isSelected ? ' selected' : ''}${dayCapacityClass ? ` ${dayCapacityClass}` : ''}${!isCurrentMonth ? ' outside-month-cell' : ''}` : 'calendar-cell empty'}>
