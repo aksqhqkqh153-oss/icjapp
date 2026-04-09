@@ -19590,3 +19590,65 @@ textarea,
     padding-top: 64px;
   }
 }
+
+
+/* 2026-04-09 notifications/mobile assignee/map modal/handless toolbar refinements */
+.map-legend-help-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+}
+.map-legend-help-modal {
+  position: relative;
+  z-index: 9999 !important;
+}
+.assignee-chip-list.disabled {
+  cursor: default;
+}
+.assignee-chip-list.disabled input {
+  cursor: default;
+}
+.assignee-suggestion-list.portal {
+  transform-origin: top right !important;
+}
+.handless-toolbar-centered {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.handless-toolbar-month-nav,
+.handless-toolbar-actions {
+  min-width: 0;
+  flex-wrap: nowrap !important;
+}
+.handless-toolbar-actions {
+  justify-content: flex-end;
+}
+.handless-toolbar-actions .ghost.small,
+.handless-toolbar-actions .small,
+.handless-toolbar-month-nav .ghost.small.icon-month-button {
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .handless-toolbar-centered {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .handless-toolbar-month-nav {
+    gap: 4px;
+  }
+  .handless-toolbar-month-nav strong {
+    font-size: 15px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .handless-toolbar-actions .ghost.small,
+  .handless-toolbar-actions .small,
+  .handless-toolbar-month-nav .ghost.small.icon-month-button {
+    padding: 4px 6px;
+    min-height: 28px;
+    font-size: 12px;
+    line-height: 1.1;
+  }
+}

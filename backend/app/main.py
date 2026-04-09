@@ -128,6 +128,26 @@ def _origin_allowed(origin: str) -> bool:
 def _normalize_administrative_address(value: str) -> str:
     return (
         str(value or '')
+        .replace('서울특별시', '서울')
+        .replace('부산광역시', '부산')
+        .replace('대구광역시', '대구')
+        .replace('인천광역시', '인천')
+        .replace('광주광역시', '광주')
+        .replace('대전광역시', '대전')
+        .replace('울산광역시', '울산')
+        .replace('세종특별자치시', '세종')
+        .replace('경기도', '경기')
+        .replace('강원특별자치도', '강원')
+        .replace('강원도', '강원')
+        .replace('충청북도', '충북')
+        .replace('충청남도', '충남')
+        .replace('전라북도', '전북')
+        .replace('전북특별자치도', '전북')
+        .replace('전라남도', '전남')
+        .replace('경상북도', '경북')
+        .replace('경상남도', '경남')
+        .replace('제주특별자치도', '제주')
+        .replace('제주도', '제주')
         .replace('특별시', '')
         .replace('광역시', '')
         .replace('특별자치시', '')
@@ -3426,15 +3446,22 @@ def _calendar_event_out(conn, row):
     return item
 def _can_access_shared_schedule(user: dict | None) -> bool:
     try:
-        return int((user or {}).get('grade') or 6) <= 5
+        grade = int((user or {}).get('grade') or 6)
     except Exception:
         return False
+    if grade > 5:
+        return False
+    role_name = str((user or {}).get('role') or '').strip()
+    position_title = str((user or {}).get('position_title') or '').strip()
+    if role_name in {'general', 'other'} or position_title in {'일반', '기타'}:
+        return False
+    return True
 
 
 def _shared_schedule_user_ids(conn) -> list[int]:
     rows = conn.execute(
         """
-        SELECT id
+        SELECT id, role, position_title
         FROM users
         WHERE COALESCE(approved, 1) = 1 AND CAST(COALESCE(grade, '6') AS INTEGER) <= 5
         ORDER BY CAST(COALESCE(grade, '6') AS INTEGER), id
@@ -3442,11 +3469,16 @@ def _shared_schedule_user_ids(conn) -> list[int]:
     ).fetchall()
     output: list[int] = []
     for row in rows:
+        data = row_to_dict(row)
+        role_name = str(data.get('role') or '').strip()
+        position_title = str(data.get('position_title') or '').strip()
+        if role_name in {'general', 'other'} or position_title in {'일반', '기타'}:
+            continue
         try:
-            value = int(row['id']) if hasattr(row, 'keys') else int(row[0])
+            value = int(data.get('id') or 0)
         except Exception:
             continue
-        if value not in output:
+        if value > 0 and value not in output:
             output.append(value)
     return output
 

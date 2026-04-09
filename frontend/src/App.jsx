@@ -5332,6 +5332,7 @@ function CalendarPage() {
   const isMobile = useIsMobile()
   const currentUser = getStoredUser()
   const readOnly = isReadOnlyMember(currentUser)
+  const canEditAssignmentFields = canEditScheduleAssignments(currentUser)
   const initialDate = searchParams.get('date') || fmtDate(new Date())
   const initialMonth = (() => {
     const parsed = new Date(`${initialDate}T00:00:00`)
@@ -6199,7 +6200,7 @@ function filterAssignableUsers(users, query, selectedValues = [], predicate = nu
     .slice(0, 8)
 }
 
-function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false, showMeta = false }) {
+function AssigneeInput({ label, value, onChange, users, placeholder, predicate = null, maxCount = 3, inputLike = false, showMeta = false, disabled = false }) {
   const [query, setQuery] = useState('')
   const [activeChip, setActiveChip] = useState('')
   const [portalStyle, setPortalStyle] = useState(null)
@@ -6220,6 +6221,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   }, [shouldShowSuggestions, suggestions])
 
   function syncNext(values) {
+    if (disabled) return
     onChange(values.slice(0, maxCount).join(' / '))
   }
 
@@ -6248,6 +6250,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
   }
 
   function handleKeyDown(event) {
+    if (disabled) return
     if (shouldShowSuggestions && suggestions.length > 0 && event.key === 'ArrowDown') {
       event.preventDefault()
       setHighlightedSuggestionIndex(prev => Math.min(prev + 1, suggestions.length - 1))
@@ -6317,7 +6320,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
     }
   }, [shouldShowSuggestions, suggestions, showMeta, query])
 
-  const suggestionLayer = shouldShowSuggestions && suggestions.length > 0 && portalStyle ? createPortal(
+  const suggestionLayer = !disabled && shouldShowSuggestions && suggestions.length > 0 && portalStyle ? createPortal(
     <div className="assignee-suggestion-list portal" style={portalStyle}>
       {suggestions.map((user, index) => {
         const tagValue = buildAssigneeTagValue(user)
@@ -6343,7 +6346,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
     <div className="stack compact-gap assignee-field-wrap">
       {label && <label>{label}</label>}
       <div className={`assignee-input-shell${inputLike ? ' input-like' : ''}`} ref={shellRef}>
-        <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}`} onClick={() => inputRef.current?.focus()}>
+        <div className={`assignee-chip-list${inputLike ? ' input-like' : ''}${disabled ? ' disabled' : ''}`} onClick={() => { if (!disabled) inputRef.current?.focus() }}>
           {selectedValues.map((item, index) => {
             const isActive = activeChip === item
             const displayName = extractAssigneeDisplayName(item)
@@ -6352,7 +6355,7 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
                 key={item}
                 type="button"
                 className={`assignee-chip assignee-chip-text${isActive ? ' active' : ''}`}
-                onClick={() => setActiveChip(prev => prev === item ? '' : item)}
+                onClick={() => { if (!disabled) setActiveChip(prev => prev === item ? '' : item) }}
                 title={displayName}
               >
                 <span>{displayName}{index < selectedValues.length - 1 ? ',' : ''}</span>
@@ -6364,7 +6367,9 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
             ref={inputRef}
             value={query}
             placeholder={placeholder}
+            disabled={disabled}
             onChange={e => {
+              if (disabled) return
               setQuery(e.target.value)
               setActiveChip('')
             }}
@@ -6498,6 +6503,7 @@ function WorkSchedulePage() {
   const isMobile = useIsMobile()
   const currentUser = getStoredUser()
   const readOnly = isReadOnlyMember(currentUser)
+  const canEditAssignmentFields = canEditScheduleAssignments(currentUser)
   const [daysData, setDaysData] = useState([])
   const [loading, setLoading] = useState(true)
   const [entryForm, setEntryForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
@@ -6941,10 +6947,11 @@ function WorkSchedulePage() {
                   <div>시간</div><div>고객명</div><div>담당대표명1/2/3</div><div>직원명1/2/3</div><div>기타메모</div>
                 </div>
                 <div className="work-schedule-table work-schedule-assignee-table">
+                  {!canEditAssignmentFields && <div className="muted small-text">사업자/직원 편성은 지정 직급만 수정할 수 있습니다.</div>}
                   <input value={entryForm.schedule_time} placeholder="09:00" onChange={e => setEntryForm({ ...entryForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                   <input value={entryForm.customer_name} placeholder="고객명" onChange={e => setEntryForm({ ...entryForm, customer_name: e.target.value })} />
-                  <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={entryForm.representative_names} onChange={value => setEntryForm({ ...entryForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
-                  <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={entryForm.staff_names} onChange={value => setEntryForm({ ...entryForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
+                  <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={entryForm.representative_names} onChange={value => setEntryForm({ ...entryForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
+                  <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={entryForm.staff_names} onChange={value => setEntryForm({ ...entryForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
                   <input value={entryForm.memo} placeholder="기타 메모" onChange={e => setEntryForm({ ...entryForm, memo: e.target.value })} />
                 </div>
                 <div className="inline-actions wrap">
@@ -7003,8 +7010,8 @@ function WorkSchedulePage() {
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line">
                           <input value={editingForm.schedule_time} placeholder="시간" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                           <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
-                          <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
-                          <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
+                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={editingForm.representative_names} onChange={value => setEditingForm({ ...editingForm, representative_names: value })} placeholder="@ 입력 후 사업자 선택" />
+                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={editingForm.staff_names} onChange={value => setEditingForm({ ...editingForm, staff_names: value })} placeholder="@ 입력 후 직원 선택" />
                           <input value={editingForm.memo} placeholder="메모" onChange={e => setEditingForm({ ...editingForm, memo: e.target.value })} className="schedule-inline-memo" />
                         </div>
                         <div className="inline-actions wrap end schedule-edit-actions">
@@ -7030,8 +7037,8 @@ function WorkSchedulePage() {
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line with-check-column">
                           <input value={form.schedule_time} placeholder="시간" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
                           <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
-                          <AssigneeInput inputLike users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
-                          <AssigneeInput inputLike users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
+                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
+                          <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
                           <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
                         </div>
                       </div>
@@ -7165,6 +7172,7 @@ function ScheduleFormPage({ mode }) {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
   const readOnly = isReadOnlyMember(currentUser)
+  const canEditAssignmentFields = canEditScheduleAssignments(currentUser)
   const { eventId } = useParams()
   const [searchParams] = useSearchParams()
   const presetDate = searchParams.get('date') || fmtDate(new Date())
@@ -7858,6 +7866,7 @@ function ScheduleDetailPage() {
 
 function NotificationsPage({ user }) {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const canReviewSignupRequests = Number(user?.grade || 0) <= 2
   const [items, setItems] = useState([])
   const [prefs, setPrefs] = useState({})
@@ -9428,6 +9437,13 @@ function canEditWorkShiftSchedule(user) {
   const grade = Number(user?.grade || 6)
   const positionTitle = String(user?.position_title || '').trim()
   return grade <= 2 || positionTitle === '부팀장'
+}
+
+function canEditScheduleAssignments(user) {
+  const grade = Number(user?.grade || 9)
+  const positionTitle = String(user?.position_title || '').trim()
+  const allowedTitles = new Set(['대표', '부대표', '호점대표', '팀장', '부팀장', '본부장', '상담실장', '상담팀장', '상담사원'])
+  return grade <= 2 || allowedTitles.has(positionTitle)
 }
 
 function canSubmitWorkShiftVacation(user) {
