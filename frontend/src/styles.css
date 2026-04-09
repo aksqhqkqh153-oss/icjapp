@@ -20405,3 +20405,105 @@ textarea,
   color: #0f172a;
   line-height: 1.45;
 }
+
+/* 2026-04-09 schedule list edit + chat create modal stacked + selected date refinements */
+.schedule-page .calendar-date-select.is-selected,
+.schedule-page.mobile .calendar-date-select.is-selected {
+  border-color: #2563eb !important;
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24) !important;
+}
+
+.work-schedule-line-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(180px, 1.4fr);
+  gap: 8px;
+  align-items: center;
+}
+.work-schedule-line-summary-text.primary {
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.work-schedule-line-summary-text.business,
+.work-schedule-line-summary-text.staff,
+.work-schedule-line-summary-text.address {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-group-create-modal {
+  width: min(92vw, 420px) !important;
+}
+.chat-group-create-topbar {
+  grid-template-columns: 28px minmax(0, 1fr) !important;
+  gap: 6px;
+}
+.chat-group-create-topbar .chat-category-delete-title {
+  text-align: left !important;
+}
+.chat-group-create-topbar-spacer {
+  display: none !important;
+}
+.chat-group-create-body-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+.chat-group-create-pane.full-width {
+  width: 100%;
+}
+.chat-group-create-name-pane.full-width input {
+  width: 100%;
+}
+.chat-group-create-friend-list-inline {
+  max-height: 320px;
+}
+
+.work-schedule-page.mobile .work-schedule-bulk-row-shell.with-check-column {
+  grid-template-columns: 12px minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+.work-schedule-page.mobile .schedule-row-check-cell {
+  width: 12px !important;
+  min-width: 12px !important;
+  justify-content: flex-start !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.work-schedule-page.mobile .schedule-row-check-cell input {
+  margin: 0 !important;
+  transform: translateX(-4px);
+}
+.work-schedule-page.mobile .work-schedule-inline-grid.one-line.compact-single-line.with-check-column,
+.work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+  grid-template-columns: 34px minmax(44px, 0.6fr) minmax(80px, 1fr) minmax(80px, 1fr) minmax(44px, 0.7fr) !important;
+  gap: 2px !important;
+}
+.work-schedule-page.mobile .schedule-bulk-time-input {
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+}
+.work-schedule-page.mobile .schedule-bulk-customer-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+}
+.work-schedule-page.mobile .work-schedule-inline-editor.bulk-row {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.schedule-bulk-time-input[disabled],
+.schedule-bulk-customer-input[disabled],
+.schedule-editor-form input[disabled],
+.schedule-editor-form textarea[disabled],
+.schedule-editor-form select[disabled] {
+  background: #f8fafc;
+  color: #475569;
+  cursor: not-allowed;
+}

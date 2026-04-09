@@ -3697,11 +3697,11 @@ ${guide}`)
               <strong className="chat-category-delete-title">채팅개설</strong>
               <span className="chat-category-delete-topbar-spacer" aria-hidden="true" />
             </div>
-            <div className="chat-group-create-body chat-group-create-body-inline">
-              <div className="chat-group-create-pane chat-group-create-name-pane">
-                <input value={createGroupRoomTitle} onChange={e => setCreateGroupRoomTitle(e.target.value)} placeholder="채팅방 이름" />
+            <div className="chat-group-create-body chat-group-create-body-stacked">
+              <div className="chat-group-create-pane chat-group-create-name-pane full-width">
+                <input value={createGroupRoomTitle} onChange={e => setCreateGroupRoomTitle(e.target.value)} placeholder="채팅방이름" />
               </div>
-              <div className="chat-group-create-pane chat-group-create-friends-pane">
+              <div className="chat-group-create-pane chat-group-create-friends-pane full-width">
                 <div className="chat-group-create-friend-list chat-group-create-friend-list-inline">
                   {friendList.length ? friendList.map(friend => (
                     <label key={`group-friend-${friend.id}`} className="chat-group-create-friend-row">
@@ -5912,7 +5912,7 @@ function CalendarPage() {
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
-                      <button type="button" className={`calendar-date-select ${dayCapacityClass}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
+                      <button type="button" className={`calendar-date-select ${dayCapacityClass} ${isSelected ? 'is-selected' : ''}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
                         <span className="calendar-date">{date.getDate()}</span>
                       </button>
                       {!isMobile && (
@@ -7240,9 +7240,7 @@ function WorkSchedulePage() {
                           </div>
                         ) : (
                           <div className="work-schedule-line-summary" title={`${item.schedule_time || '미정'} | ${item.customer_name || '고객명'} | ${item.platform || '플랫폼미정'} | ${businessNames} | ${staffNames} | ${addressText}`}>
-                            <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
-                            <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
-                            <span className="work-schedule-chip platform">{item.platform || '플랫폼미정'}</span>
+                            <span className="work-schedule-line-summary-text primary">{`${item.schedule_time || '미정'}, ${item.customer_name || '고객명'}, ${item.platform || '플랫폼미정'}`}</span>
                             <span className="work-schedule-line-summary-text business">{businessNames}</span>
                             <span className="work-schedule-line-summary-text staff">{staffNames}</span>
                             <span className="work-schedule-line-summary-text address">{addressText}</span>
@@ -7280,8 +7278,8 @@ function WorkSchedulePage() {
                           <input type="checkbox" checked={isBulkDeleteChecked(day.date, index)} onChange={e => toggleBulkDeleteCheck(day.date, index, e.target.checked)} aria-label={`${form.schedule_time || '미정'} ${form.customer_name || '고객'} 일정 선택`} />
                         </label>
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line compact-single-line with-check-column">
-                          <input value={form.schedule_time} placeholder="시간" onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
-                          <input value={form.customer_name} placeholder="고객명" onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
+                          <input className="schedule-bulk-time-input" value={form.schedule_time} placeholder="시간" readOnly disabled onChange={e => updateBulkForm(day.date, index, 'schedule_time', normalizeScheduleTimeInput(e.target.value, e.target.value))} />
+                          <input className="schedule-bulk-customer-input" value={form.customer_name} placeholder="고객명" readOnly disabled onChange={e => updateBulkForm(day.date, index, 'customer_name', e.target.value)} />
                           <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={businessAssigneePredicate} value={form.representative_names} onChange={value => updateBulkForm(day.date, index, 'representative_names', value)} placeholder="@ 입력 후 사업자 선택" />
                           <AssigneeInput inputLike disabled={!canEditAssignmentFields} users={assignableUsers} predicate={staffAssigneePredicate} value={form.staff_names} onChange={value => updateBulkForm(day.date, index, 'staff_names', value)} placeholder="@ 입력 후 직원 선택" />
                           <input value={form.memo} placeholder="메모" onChange={e => updateBulkForm(day.date, index, 'memo', e.target.value)} className="schedule-inline-memo" />
@@ -7856,8 +7854,10 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setVisitTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleVisitTimeBlur}
                   onKeyDown={handleVisitTimeKeyDown}
+                  readOnly={mode === 'edit'}
+                  disabled={mode === 'edit'}
                 />
-                <button type="button" tabIndex={-1} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
+                <button type="button" tabIndex={-1} disabled={mode === 'edit'} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
             <div className="stack compact-gap platform-select-field highlight-blue-field">
@@ -7880,7 +7880,7 @@ function ScheduleFormPage({ mode }) {
           <div className="schedule-form-grid-2">
             <div className="stack compact-gap highlight-blue-field">
               <label>고객성함</label>
-              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객 성함" onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
+              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객 성함" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
             <div className="stack compact-gap highlight-blue-field">
               <label>이사금액</label>
@@ -8008,7 +8008,7 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           <div className="stack compact-gap">
-            <input value={form.start_address} placeholder="출발지 상세주소" onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
+            <input value={form.start_address} placeholder="출발지 상세주소" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
           </div>
           <div className="stack compact-gap">
             <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
