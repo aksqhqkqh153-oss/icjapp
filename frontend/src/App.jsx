@@ -985,8 +985,6 @@ const QUICK_ACTION_TOPBAR_ITEMS = [
   { id: 'menu-profile', label: '프로필', kind: 'link', path: '/profile' },
 ]
 
-const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
-
 const SETTLEMENT_MENU_GROUPS = [
   {
     id: 'daily',
@@ -1208,6 +1206,8 @@ const BASE_QUICK_ACTION_LIBRARY = [
 const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 1
+const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
+
 const QUICK_ACTION_LIMIT = 36
 
 function homeSettingsStorageKey(userId) {
