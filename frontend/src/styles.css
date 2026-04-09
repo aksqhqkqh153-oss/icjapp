@@ -19920,7 +19920,8 @@ textarea,
 .ladder-dispatch-head {
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  justify-content: flex-end;
 }
 .ladder-copy-notice {
   margin-bottom: 12px;
@@ -19997,37 +19998,53 @@ textarea,
   gap: 8px;
   margin-bottom: 10px;
 }
-.ladder-field-grid {
+.ladder-basic-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
-.ladder-field-grid span,
-.ladder-field-grid input,
-.ladder-field-grid select,
+.ladder-basic-grid > :nth-child(3),
+.ladder-basic-grid > :nth-child(4),
+.ladder-basic-grid > :nth-child(5) {
+  grid-column: span 1;
+}
+.ladder-location-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.ladder-span-3 {
+  grid-column: span 3;
+}
+.ladder-basic-grid input,
+.ladder-basic-grid select,
+.ladder-location-grid input,
+.ladder-location-grid select,
 .ladder-check-head,
 .ladder-copy-notice,
-.ladder-dispatch-head .muted,
 .ladder-dispatch-head button {
   font-size: clamp(10px, 1.1vw, 14px);
 }
-.ladder-field-span-2 {
-  grid-column: span 2;
+.ladder-basic-grid input,
+.ladder-basic-grid select,
+.ladder-location-grid input,
+.ladder-location-grid select {
+  width: 100%;
+  min-height: 38px;
 }
 .ladder-check-head {
   margin-bottom: 0;
   white-space: nowrap;
 }
+
 @media (max-width: 900px) {
   .ladder-main-columns {
     grid-template-columns: minmax(0, 1.08fr) minmax(180px, 0.92fr);
     gap: 10px;
   }
-  .ladder-field-grid {
-    grid-template-columns: 1fr;
-  }
-  .ladder-field-span-2 {
-    grid-column: span 1;
+  .ladder-basic-grid,
+  .ladder-location-grid {
+    gap: 8px;
   }
   .ladder-preview-textarea {
     min-height: 420px;
