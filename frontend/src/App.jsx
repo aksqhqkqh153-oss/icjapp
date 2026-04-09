@@ -7195,9 +7195,10 @@ function WorkSchedulePage() {
                   .map(value => String(value || '').trim())
                   .filter(Boolean)
                   .join(' / ') || String(item.staff_names || '').trim() || '-'
+                const addressText = String(item.start_address || item.location || item.origin_address || '-').trim() || '-'
                 return (
                   <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}${isMobile ? ' mobile-four-col' : ''}`}>
-                    <div className="work-schedule-line-head">
+                    <div className="work-schedule-line-head no-row-edit-button">
                       <div className="work-schedule-line-body">
                         {isMobile ? (
                           <div className="work-schedule-mobile-four-col" title={`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${businessNames} ${staffNames}`}>
@@ -7207,18 +7208,16 @@ function WorkSchedulePage() {
                             <span className="work-schedule-mobile-cell staff">{staffNames}</span>
                           </div>
                         ) : (
-                          <>
-                            <div className="work-schedule-line-primary">
-                              <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
-                              <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
-                              {item.platform && <span className="work-schedule-chip platform">{item.platform}</span>}
-                            </div>
-                            <div className="work-schedule-line-text" title={formatSummary(item)}>{formatSummary(item)}</div>
-                            {item.entry_type === 'calendar' && <div className="work-schedule-line-subtext">{buildAbcInlineText(item)}</div>}
-                          </>
+                          <div className="work-schedule-line-summary" title={`${item.schedule_time || '미정'} | ${item.customer_name || '고객명'} | ${item.platform || '플랫폼미정'} | ${businessNames} | ${staffNames} | ${addressText}`}>
+                            <span className="work-schedule-chip time">{item.schedule_time || '미정'}</span>
+                            <span className="work-schedule-chip customer">{item.customer_name || '고객명'}</span>
+                            <span className="work-schedule-chip platform">{item.platform || '플랫폼미정'}</span>
+                            <span className="work-schedule-line-summary-text business">{businessNames}</span>
+                            <span className="work-schedule-line-summary-text staff">{staffNames}</span>
+                            <span className="work-schedule-line-summary-text address">{addressText}</span>
+                          </div>
                         )}
                       </div>
-                      {!isMobile && !readOnly && <button type="button" className="small ghost compact-edit-button" onClick={() => openRowEdit(day.date, item)}>수정</button>}
                     </div>
                     {!isMobile && isEditing && !readOnly && (
                       <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
