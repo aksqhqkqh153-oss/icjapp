@@ -1026,19 +1026,27 @@ def _calendar_assignment_names(row: dict) -> tuple[str, str]:
 
 def _schedule_assignment_notice_payload(date_value: str, time_value: str, customer_name: str, before_text: str, after_text: str) -> tuple[str, str]:
     date_text = _format_notice_date(date_value)
-    time_text = str(time_value or '미정').strip() or '미정'
     customer = str(customer_name or '(고객명)').strip() or '(고객명)'
-    title = '담당자 변경'
-    body = f"{date_text} {time_text} {customer} 고객님의 담당자 변경([{before_text}] → [{after_text}])되었습니다."
+    added_name = '-'
+    removed_name = '-'
+    after_match = re.search(r'([가-힣A-Za-z0-9_]+)\s*(대표|부대표|호점대표|팀장|부팀장|본부장|상담실장|상담팀장|상담사원|직원)', str(after_text or ''))
+    before_match = re.search(r'([가-힣A-Za-z0-9_]+)\s*(대표|부대표|호점대표|팀장|부팀장|본부장|상담실장|상담팀장|상담사원|직원)', str(before_text or ''))
+    if after_match:
+        added_name = f"{after_match.group(1)} {after_match.group(2)}"
+    if before_match:
+        removed_name = f"{before_match.group(1)} {before_match.group(2)}"
+    title = '스케줄 변경'
+    body = f"{date_text} {customer} 고객 | {removed_name} 삭제\n{date_text} {customer} 고객 | {added_name} 배정"
     return title, body
 
 
-def _schedule_assignment_membership_notice_payload(date_value: str, customer_name: str, action: str) -> tuple[str, str]:
+def _schedule_assignment_membership_notice_payload(date_value: str, customer_name: str, action: str, assignee_name: str = '') -> tuple[str, str]:
     date_text = _format_notice_date(date_value)
     customer = str(customer_name or '(고객명)').strip() or '(고객명)'
+    assignee = str(assignee_name or '담당자').strip() or '담당자'
     if action == 'removed':
-        return '스케줄 변경', f"{date_text} {customer}고객 일정에서 제외되었습니다."
-    return '스케줄 변경', f"{date_text} {customer}고객 일정에 투입되었습니다."
+        return '스케줄 변경', f"{date_text} {customer} 고객 | {assignee} 삭제"
+    return '스케줄 변경', f"{date_text} {customer} 고객 | {assignee} 배정"
 
 
 def _schedule_time_notice_payload(date_value: str, before_time: str, after_time: str, customer_name: str, representative_names: str, staff_names: str) -> tuple[str, str]:
@@ -1084,10 +1092,12 @@ def _notify_work_schedule_entry_changes(conn, actor: dict, previous_row: dict, n
             title, body = _schedule_assignment_notice_payload(event_date, next_row.get('schedule_time') or previous_row.get('schedule_time') or '', customer_name, previous_assignment, next_assignment)
             _notify_schedule_change(conn, stayed_ids, 'work_schedule_assignment_change', title, body, actor.get('id'))
         if added_ids:
-            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added')
+            added_name = _join_assignment_names(next_row.get('representative_names') or '', next_row.get('staff_names') or '')
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added', added_name)
             _notify_schedule_change(conn, added_ids, 'work_schedule_assignment_added', title, body, actor.get('id'))
         if removed_ids:
-            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed')
+            removed_name = _join_assignment_names(previous_row.get('representative_names') or '', previous_row.get('staff_names') or '')
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed', removed_name)
             _notify_schedule_change(conn, removed_ids, 'work_schedule_assignment_removed', title, body, actor.get('id'))
     if (previous_row.get('schedule_time') or '') != (next_row.get('schedule_time') or ''):
         title, body = _schedule_time_notice_payload(next_row.get('schedule_date') or previous_row.get('schedule_date') or '', previous_row.get('schedule_time') or '', next_row.get('schedule_time') or '', next_row.get('customer_name') or previous_row.get('customer_name') or '', next_row.get('representative_names') or '', next_row.get('staff_names') or '')
@@ -1118,10 +1128,12 @@ def _notify_calendar_event_changes(conn, actor: dict, previous_row: dict, next_r
             title, body = _schedule_assignment_notice_payload(event_date, event_time, customer_name, previous_assignment, next_assignment)
             _notify_schedule_change(conn, stayed_ids, 'calendar_assignment_change', title, body, actor.get('id'))
         if added_ids:
-            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added')
+            added_name = _join_assignment_names(next_reps, next_staffs)
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'added', added_name)
             _notify_schedule_change(conn, added_ids, 'calendar_assignment_added', title, body, actor.get('id'))
         if removed_ids:
-            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed')
+            removed_name = _join_assignment_names(prev_reps, prev_staffs)
+            title, body = _schedule_assignment_membership_notice_payload(event_date, customer_name, 'removed', removed_name)
             _notify_schedule_change(conn, removed_ids, 'calendar_assignment_removed', title, body, actor.get('id'))
     prev_time = previous_row.get('start_time') or previous_row.get('visit_time') or ''
     next_time = next_row.get('start_time') or next_row.get('visit_time') or ''

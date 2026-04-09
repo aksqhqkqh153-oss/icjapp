@@ -20989,3 +20989,135 @@ textarea,
     font-size: 12px;
   }
 }
+
+/* 2026-04-09 friends add + notifications + work shift frozen columns */
+.friends-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.friends-add-panel-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.friends-add-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.friends-add-mode-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.friends-add-search-shell {
+  width: 100%;
+}
+.friends-add-search-shell .friend-add-search-input {
+  width: 100%;
+}
+.friends-add-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.friend-add-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.32);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.32);
+}
+.friend-add-avatar-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.friend-add-info-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.friend-add-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.friend-add-card-row.top strong,
+.friend-add-realname,
+.friend-add-one-liner {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.friend-add-card-row.top strong {
+  font-size: 15px;
+}
+.friend-add-realname {
+  color: #0f172a;
+}
+.friend-add-one-liner {
+  color: #64748b;
+  font-size: 13px;
+}
+.notification-compact-body {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.notification-action-delete {
+  color: #dc2626;
+  font-weight: 800;
+}
+.notification-action-assign {
+  color: #2563eb;
+  font-weight: 800;
+}
+.work-shift-table-wrap {
+  overflow: auto;
+}
+.work-shift-table .row-index-head,
+.work-shift-table .row-index-cell,
+.work-shift-table .col-index-branch,
+.work-shift-table .col-main-head.name-cell-branch,
+.work-shift-table td.sticky.left.name-cell,
+.work-shift-table .col-index-person,
+.work-shift-table .col-main-head.name-cell-person,
+.work-shift-table td.sticky.left.second.name-cell {
+  position: sticky;
+  background-clip: padding-box;
+}
+.work-shift-table .row-index-head,
+.work-shift-table .row-index-cell {
+  left: 0;
+  z-index: 16;
+}
+.work-shift-table .col-index-branch,
+.work-shift-table .col-main-head.name-cell-branch,
+.work-shift-table td.sticky.left.name-cell {
+  left: 34px;
+  z-index: 15;
+}
+.work-shift-table .col-index-person,
+.work-shift-table .col-main-head.name-cell-person,
+.work-shift-table td.sticky.left.second.name-cell {
+  left: 90px;
+  z-index: 15;
+}
+@media (max-width: 768px) {
+  .friend-add-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    padding: 10px;
+  }
+  .friends-add-panel-title {
+    font-size: 17px;
+  }
+}

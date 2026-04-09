@@ -610,12 +610,42 @@ function isScheduleAlertNotification(item) {
   return ['work_schedule_assignment', 'work_schedule_assignment_added', 'work_schedule_assignment_removed', 'work_schedule_assignment_change', 'work_schedule_time_change', 'work_schedule_address_change', 'calendar_assignment_change', 'calendar_assignment_added', 'calendar_assignment_removed', 'calendar_time_change', 'calendar_address_change'].includes(String(item?.type || ''))
 }
 
-function formatNotificationBodyForDevice(item, isMobile) {
+function getNotificationDisplayParts(item) {
+  const type = String(item?.type || '')
   const body = String(item?.body || '')
-  if (!isMobile) return body.replace(/\n+/g, ' ')
-  if (['work_schedule_assignment_added', 'work_schedule_assignment_removed', 'calendar_assignment_added', 'calendar_assignment_removed'].includes(String(item?.type || ''))) {
-    return body.replace(/고객\s+일정/g, '고객\n일정')
+  const title = String(item?.title || '')
+  const compactMatch = body.match(/(\d{1,2}월\s*\d{1,2}일).*?([\w가-힣()]+)\s*고객/)
+  const nameMatch = body.match(/([가-힣A-Za-z0-9_]+)\s*(대표|부대표|호점대표|팀장|부팀장|본부장|상담실장|상담팀장|상담사원|직원)/)
+  const dateText = compactMatch?.[1]?.replace(/\s+/g, ' ') || ''
+  const customerText = compactMatch?.[2] || ''
+  const assigneeText = nameMatch ? `${nameMatch[1]} ${nameMatch[2]}` : ''
+  if (['work_schedule_assignment_change', 'calendar_assignment_change', 'work_schedule_assignment_added', 'calendar_assignment_added', 'work_schedule_assignment_removed', 'calendar_assignment_removed'].includes(type)) {
+    const action = type.includes('removed') ? '삭제' : '배정'
+    return { title: '스케줄 변경', compact: true, dateText, customerText, assigneeText, action }
   }
+  return { title, compact: false, body: formatNotificationBodyText(type, body) }
+}
+
+function formatNotificationBodyText(type, body) {
+  if (['work_schedule_assignment_added', 'work_schedule_assignment_removed', 'calendar_assignment_added', 'calendar_assignment_removed'].includes(String(type || ''))) {
+    return String(body || '').replace(/고객\s+일정/g, '고객\n일정')
+  }
+  return String(body || '')
+}
+
+function formatNotificationBodyForDevice(item, isMobile) {
+  const display = getNotificationDisplayParts(item)
+  if (display.compact) {
+    return (
+      <span className="notification-compact-body">
+        <span>{display.dateText || '-'} {display.customerText || '고객'} 고객 | </span>
+        <span>{display.assigneeText || '담당자'} </span>
+        <span className={display.action === '삭제' ? 'notification-action-delete' : 'notification-action-assign'}>{display.action}</span>
+      </span>
+    )
+  }
+  const body = String(display.body || '')
+  if (!isMobile) return body.replace(/\n+/g, ' ')
   return body
 }
 
@@ -3058,13 +3088,16 @@ function FriendsPage() {
         </div>
 
         {panel === 'add' && (
-          <section className="friends-subpanel">
-            <div className="between"><strong>친구추가</strong><button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button></div>
-            <div className="friend-add-search-box">
-              <div className="friend-add-search-tabs">
+          <section className="friends-subpanel friends-add-panel">
+            <div className="friends-add-panel-title">친구추가</div>
+            <div className="friends-add-top-row">
+              <div className="friend-add-search-tabs friends-add-mode-tabs">
                 <button type="button" className={addSearchMode === 'nickname' ? 'small active' : 'small ghost'} onClick={() => setAddSearchMode('nickname')}>닉네임</button>
                 <button type="button" className={addSearchMode === 'name' ? 'small active' : 'small ghost'} onClick={() => setAddSearchMode('name')}>이름</button>
               </div>
+              <button type="button" className="ghost small" onClick={() => { setPanel(''); setSearchParams({}) }}>닫기</button>
+            </div>
+            <div className="friend-add-search-box friends-add-search-shell">
               <input
                 value={addSearchText}
                 onChange={e => setAddSearchText(e.target.value)}
@@ -3072,22 +3105,37 @@ function FriendsPage() {
                 className="friends-search-input friend-add-search-input"
               />
             </div>
-            <div className="friends-group-list">
-              {candidateUsers.map(item => (
-                <FriendRow
-                  key={`candidate-${item.id}`}
-                  item={{ ...item, one_liner: item.one_liner || item.name || item.full_name || item.real_name || item.username || item.region || '친구추가 가능한 계정입니다.' }}
-                  section="candidate"
-                  actions={sentRequestIds.has(item.id) ? (
-                    <button className="small ghost" disabled>요청완료</button>
-                  ) : (
-                    <button className="small" onClick={() => doAction(async () => {
-                      await api(`/api/friends/request/${item.id}`, { method: 'POST' })
-                      setToast(`${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)
-                    }, `${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
-                  )}
-                />
-              ))}
+            <div className="friends-group-list friends-add-results">
+              {candidateUsers.map(item => {
+                const displayName = item.name || item.full_name || item.real_name || item.username || '이름 미등록'
+                const oneLiner = item.one_liner || item.bio || item.region || '친구추가 가능한 계정입니다.'
+                return (
+                  <div key={`candidate-${item.id}`} className="friend-add-card">
+                    <div className="friend-add-avatar-col">
+                      <AvatarCircle src={item.photo_url} label={item.nickname || displayName} className="friend-avatar large" size={60} />
+                    </div>
+                    <div className="friend-add-info-col">
+                      <div className="friend-add-card-row top">
+                        <strong>{item.nickname || '닉네임 미등록'}</strong>
+                      </div>
+                      <div className="friend-add-card-row middle">
+                        <span className="friend-add-realname">{displayName}</span>
+                        {sentRequestIds.has(item.id) ? (
+                          <button className="small ghost" disabled>요청완료</button>
+                        ) : (
+                          <button className="small" onClick={() => doAction(async () => {
+                            await api(`/api/friends/request/${item.id}`, { method: 'POST' })
+                            setToast(`${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)
+                          }, `${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
+                        )}
+                      </div>
+                      <div className="friend-add-card-row bottom">
+                        <span className="friend-add-one-liner">{oneLiner}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
               {candidateUsers.length === 0 && <div className="muted">검색 조건에 맞는 계정이 없습니다.</div>}
             </div>
           </section>
@@ -5223,7 +5271,7 @@ function MeetupsPage() {
         <div className="list">
           {meetups.map(item => (
             <div className="list-item block" key={item.id}>
-              <div><strong>{item.title}</strong></div>
+              <div><strong>{getNotificationDisplayParts(item).title || item.title}</strong></div>
               <div className="muted">{item.meetup_date} {item.start_time}-{item.end_time} / {item.place}</div>
               <div>{item.content}</div>
             </div>
@@ -5277,7 +5325,7 @@ function BoardsPage() {
         <div className="list">
           {posts.map(item => (
             <div className="list-item block" key={item.id}>
-              <strong>{item.title}</strong>
+              <strong>{getNotificationDisplayParts(item).title || item.title}</strong>
               <div className="muted">{item.user.nickname} / {item.created_at}</div>
               <div>{item.content}</div>
             </div>
@@ -8236,7 +8284,7 @@ function NotificationsPage({ user }) {
           <label className="check"><input type="checkbox" checked={!!alertSettings.quietHoursEnabled} onChange={e => updateAlertSettings(['quietHoursEnabled'], e.target.checked)} /> 지정한 시간에는 알림 울리지 않기</label>
           <div className="stack notification-type-settings">
             <strong>알림 유형</strong>
-            <label className="check"><input type="checkbox" checked={!!typeMap.assignment} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'assignment'], e.target.checked)} /> 담당자 변경 알림</label>
+            <label className="check"><input type="checkbox" checked={!!typeMap.assignment} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'assignment'], e.target.checked)} /> 스케줄 변경 알림</label>
             <label className="check"><input type="checkbox" checked={!!typeMap.time} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'time'], e.target.checked)} /> 이사시간 변경 알림</label>
             <label className="check"><input type="checkbox" checked={!!typeMap.address} onChange={e => updateAlertSettings([isMobile ? 'mobileTypes' : 'appTypes', 'address'], e.target.checked)} /> 출발지 주소변경 알림</label>
           </div>
@@ -8267,7 +8315,7 @@ function NotificationsPage({ user }) {
             <div className="list">
               {scheduleItems.map(item => (
                 <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
-                  <strong>{item.title}</strong>
+                  <strong>{getNotificationDisplayParts(item).title || item.title}</strong>
                   <div style={{ whiteSpace: 'pre-line' }}>{formatNotificationBodyForDevice(item, isMobile)}</div>
                 </button>
               ))}
@@ -8279,7 +8327,7 @@ function NotificationsPage({ user }) {
             <div className="list">
               {generalItems.map(item => (
                 <button key={item.id} type="button" className={item.is_read ? 'list-item block notification-item' : 'list-item block notification-item unread'} onClick={() => handleNotificationClick(item)}>
-                  <strong>{item.title}</strong>
+                  <strong>{getNotificationDisplayParts(item).title || item.title}</strong>
                   <div style={{ whiteSpace: 'pre-line' }}>{formatNotificationBodyForDevice(item, isMobile)}</div>
                 </button>
               ))}
@@ -10324,7 +10372,7 @@ function AppSearchPage({ user }) {
                     onClick={() => navigate(item.path)}
                   >
                     <div className="app-search-result-head">
-                      <strong>{item.title}</strong>
+                      <strong>{getNotificationDisplayParts(item).title || item.title}</strong>
                       <span>{item.type}</span>
                     </div>
                     <div className="app-search-result-desc">{item.description}</div>
@@ -16485,7 +16533,7 @@ function AppAssignmentNotificationWatcher({ user }) {
     <div className="app-alert-toast-stack">
       {toastItems.map(item => (
         <div key={item.id} className="app-alert-toast-card">
-          <strong>{item.title}</strong>
+          <strong>{getNotificationDisplayParts(item).title || item.title}</strong>
           <div style={{ whiteSpace: 'pre-line' }}>{item.body}</div>
         </div>
       ))}
