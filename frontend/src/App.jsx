@@ -390,14 +390,51 @@ async function copyHtmlInspectorPayload(element) {
   }
 }
 
+function buildInspectorClipboardText(payload, selectedSections = {}) {
+  if (!payload) return ''
+  const sections = []
+  const pushSection = (title, value) => {
+    if (!value) return
+    sections.push(`[${title}]`)
+    sections.push(typeof value === 'string' ? value : JSON.stringify(value, null, 2))
+    sections.push('')
+  }
+  const targetElement = payload.targetElement || {}
+  const context = payload.context || {}
+  const pageMeta = payload.pageMeta || {}
+  const selectionSummary = {
+    selector: targetElement.selector || '-',
+    tag: targetElement.tag || '-',
+    id: targetElement.id || '-',
+    classList: targetElement.classList || [],
+    text: targetElement.text || '',
+    rect: targetElement.rect || {},
+  }
+  if (selectedSections.selector) pushSection('HTML 요소', selectionSummary)
+  if (selectedSections.html) pushSection('HTML 원본', targetElement.html || '')
+  if (selectedSections.style) pushSection('스타일', targetElement.computedStyle || {})
+  if (selectedSections.attributes) pushSection('속성', targetElement.attributes || {})
+  if (selectedSections.rect) pushSection('위치/크기', targetElement.rect || {})
+  if (selectedSections.pageMeta) pushSection('페이지 정보', pageMeta)
+  if (selectedSections.componentPath) pushSection('컴포넌트 추정 경로', context.componentPathGuess || '')
+  if (selectedSections.parentChain) pushSection('부모 요소', context.parentChain || [])
+  if (selectedSections.siblings) pushSection('형제 요소', context.siblings || [])
+  if (selectedSections.request) pushSection('요청 메모', payload.request || {})
+  return sections.join('\n').trim()
+}
+
 function HtmlInspectorPanel({
   open,
   payload,
   selectedSelector,
   options,
   onChangeOption,
+  onChangeSection,
+  selectedSections,
+  anchorStyle,
   onClear,
   onClose,
+  onCopyConfirm,
   onCopyJson,
   onSaveJson,
   onSaveTxt,
@@ -405,24 +442,37 @@ function HtmlInspectorPanel({
   if (!open) return null
   const jsonText = payload ? JSON.stringify(payload, null, 2) : ''
   return createPortal(
-    <div className="ai-ui-inspector-panel" onClick={(event) => event.stopPropagation()}>
+    <div className="ai-ui-inspector-panel" style={anchorStyle || undefined} onClick={(event) => event.stopPropagation()}>
       <div className="between ai-ui-inspector-panel-head">
         <div>
-          <strong>AI UI 컨텍스트 추출기</strong>
-          <div className="muted tiny-text">Ctrl + 클릭으로 요소 선택 · JSON/TXT 저장 가능</div>
+          <strong>HTML 요소 정보 추출</strong>
+          <div className="muted tiny-text">Ctrl + 클릭한 요소 아래에 열리며, 체크한 정보만 복사됩니다.</div>
         </div>
         <button type="button" className="small ghost" onClick={onClose}>닫기</button>
       </div>
       <div className="stack compact-gap ai-ui-inspector-panel-body">
+        <div className="card ai-ui-inspector-summary-card">
+          <div className="muted tiny-text">현재 선택</div>
+          <div className="small-text ai-ui-inspector-selector">{selectedSelector || '선택된 요소 없음'}</div>
+        </div>
+        <div className="ai-ui-inspector-checklist">
+          <label><input type="checkbox" checked={!!selectedSections.selector} onChange={e => onChangeSection('selector', e.target.checked)} />HTML 요소</label>
+          <label><input type="checkbox" checked={!!selectedSections.style} onChange={e => onChangeSection('style', e.target.checked)} />스타일</label>
+          <label><input type="checkbox" checked={!!selectedSections.html} onChange={e => onChangeSection('html', e.target.checked)} />outerHTML</label>
+          <label><input type="checkbox" checked={!!selectedSections.attributes} onChange={e => onChangeSection('attributes', e.target.checked)} />속성</label>
+          <label><input type="checkbox" checked={!!selectedSections.rect} onChange={e => onChangeSection('rect', e.target.checked)} />위치/크기</label>
+          <label><input type="checkbox" checked={!!selectedSections.pageMeta} onChange={e => onChangeSection('pageMeta', e.target.checked)} />페이지 정보</label>
+          <label><input type="checkbox" checked={!!selectedSections.componentPath} onChange={e => onChangeSection('componentPath', e.target.checked)} />컴포넌트 경로</label>
+          <label><input type="checkbox" checked={!!selectedSections.parentChain} onChange={e => onChangeSection('parentChain', e.target.checked)} />부모 요소</label>
+          <label><input type="checkbox" checked={!!selectedSections.siblings} onChange={e => onChangeSection('siblings', e.target.checked)} />형제 요소</label>
+          <label><input type="checkbox" checked={!!selectedSections.request} onChange={e => onChangeSection('request', e.target.checked)} />요청 메모</label>
+        </div>
         <div className="ai-ui-inspector-actions">
+          <button type="button" className="small" onClick={onCopyConfirm} disabled={!payload}>확인 후 복사</button>
           <button type="button" className="small ghost" onClick={onClear}>선택해제</button>
           <button type="button" className="small ghost" onClick={onCopyJson} disabled={!payload}>JSON 복사</button>
           <button type="button" className="small ghost" onClick={onSaveJson} disabled={!payload}>JSON 저장</button>
           <button type="button" className="small ghost" onClick={onSaveTxt} disabled={!payload}>TXT 저장</button>
-        </div>
-        <div className="card ai-ui-inspector-summary-card">
-          <div className="muted tiny-text">현재 선택</div>
-          <div className="small-text ai-ui-inspector-selector">{selectedSelector || '선택된 요소 없음'}</div>
         </div>
         <div className="ai-ui-inspector-grid">
           <label>
@@ -436,29 +486,21 @@ function HtmlInspectorPanel({
         </div>
         <label>
           <span>원하는 수정사항</span>
-          <textarea rows="3" value={options.goal} onChange={(e) => onChangeOption('goal', e.target.value)} placeholder="예: 버튼을 더 고급스럽게, 글자 크기 1단계 확대" />
-        </label>
-        <label>
-          <span>비슷하게 맞추고 싶은 화면</span>
-          <input value={options.similarScreen} onChange={(e) => onChangeOption('similarScreen', e.target.value)} placeholder="예: 메인홈 상단 버튼" />
+          <textarea rows="2" value={options.goal} onChange={(e) => onChangeOption('goal', e.target.value)} placeholder="예: 버튼 간격 축소, 모바일 한 줄 유지" />
         </label>
         <div className="ai-ui-inspector-grid">
           <label>
-            <span>우선 디바이스</span>
-            <select value={options.priorityDevice} onChange={(e) => onChangeOption('priorityDevice', e.target.value)}>
-              <option value="mobile">mobile</option>
-              <option value="desktop">desktop</option>
-              <option value="both">both</option>
-            </select>
+            <span>비슷하게 맞출 화면</span>
+            <input value={options.similarScreen} onChange={(e) => onChangeOption('similarScreen', e.target.value)} placeholder="예: 메인홈 상단 버튼" />
           </label>
           <label>
             <span>제약사항</span>
-            <input value={options.constraints} onChange={(e) => onChangeOption('constraints', e.target.value)} placeholder="예: 현재 폭 유지, 한 줄 표시 유지" />
+            <input value={options.constraints} onChange={(e) => onChangeOption('constraints', e.target.value)} placeholder="예: 폭 유지, 밖으로 넘치지 않게" />
           </label>
         </div>
         <label>
-          <span>AI 전달용 JSON</span>
-          <textarea className="ai-ui-inspector-json" rows="18" value={jsonText} readOnly placeholder="Ctrl + 클릭으로 요소를 선택하면 JSON이 생성됩니다." />
+          <span>미리보기 JSON</span>
+          <textarea className="ai-ui-inspector-json" rows="10" value={jsonText} readOnly placeholder="Ctrl + 클릭으로 요소를 선택하면 JSON이 생성됩니다." />
         </label>
       </div>
     </div>,
@@ -6190,20 +6232,20 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
       return
     }
     const updatePosition = () => {
-      const rect = shellRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || rect.width
+      const anchorRect = inputRef.current?.getBoundingClientRect() || shellRef.current?.getBoundingClientRect()
+      if (!anchorRect) return
+      const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || anchorRect.width
       const longestText = suggestions.reduce((max, user) => {
         const tagValue = buildAssigneeTagValue(user)
         const meta = showMeta ? buildAssigneeOptionMeta(user) : ''
         return Math.max(max, tagValue.length, meta.length)
       }, 0)
-      const estimatedWidth = Math.max(rect.width, Math.min(viewportWidth - 16, Math.max(168, (longestText * 9) + 44)))
+      const estimatedWidth = Math.max(anchorRect.width, Math.min(viewportWidth - 16, Math.max(168, (longestText * 9) + 44)))
       const maxLeft = Math.max(8, viewportWidth - estimatedWidth - 8)
-      const safeLeft = Math.min(Math.max(8, rect.left), maxLeft)
+      const safeLeft = Math.min(Math.max(8, anchorRect.left), maxLeft)
       setPortalStyle({
         position: 'fixed',
-        top: rect.bottom + 6,
+        top: Math.min(anchorRect.bottom + 6, (window.innerHeight || 0) - 8),
         left: safeLeft,
         width: estimatedWidth,
         maxWidth: viewportWidth - 16,
@@ -15116,6 +15158,19 @@ function App() {
     priorityDevice: 'mobile',
     constraints: '',
   })
+  const [inspectorSections, setInspectorSections] = useState({
+    selector: true,
+    style: true,
+    html: true,
+    attributes: false,
+    rect: true,
+    pageMeta: true,
+    componentPath: true,
+    parentChain: false,
+    siblings: false,
+    request: true,
+  })
+  const [inspectorAnchorStyle, setInspectorAnchorStyle] = useState(null)
   const inspectorSelectedElementRef = useRef(null)
   const inspectorHighlightElementRef = useRef(null)
 
@@ -15175,6 +15230,42 @@ function App() {
     document.addEventListener('click', handleHtmlInspectorClick, true)
     return () => document.removeEventListener('click', handleHtmlInspectorClick, true)
   }, [htmlInspectorActive])
+
+  useEffect(() => {
+    function updateInspectorAnchor() {
+      const element = inspectorSelectedElementRef.current
+      if (!(element instanceof Element) || !htmlInspectorActive || !inspectorPanelOpen) {
+        setInspectorAnchorStyle(null)
+        return
+      }
+      const rect = element.getBoundingClientRect()
+      const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || 0
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0
+      const panelWidth = Math.min(420, Math.max(280, viewportWidth - 24))
+      const preferredLeft = rect.left
+      const left = Math.max(8, Math.min(preferredLeft, viewportWidth - panelWidth - 8))
+      const estimatedHeight = Math.min(560, Math.max(360, viewportHeight * 0.55))
+      const belowTop = rect.bottom + 8
+      const top = belowTop + estimatedHeight <= viewportHeight - 8
+        ? belowTop
+        : Math.max(8, Math.min(rect.top - estimatedHeight - 8, viewportHeight - estimatedHeight - 8))
+      setInspectorAnchorStyle({
+        position: 'fixed',
+        top,
+        left,
+        width: panelWidth,
+        maxHeight: Math.max(260, viewportHeight - top - 8),
+      })
+    }
+    updateInspectorAnchor()
+    if (!htmlInspectorActive || !inspectorPanelOpen) return undefined
+    window.addEventListener('resize', updateInspectorAnchor)
+    window.addEventListener('scroll', updateInspectorAnchor, true)
+    return () => {
+      window.removeEventListener('resize', updateInspectorAnchor)
+      window.removeEventListener('scroll', updateInspectorAnchor, true)
+    }
+  }, [inspectorSelectionVersion, htmlInspectorActive, inspectorPanelOpen])
 
   useEffect(() => {
     if (!user || !getStoredUser()) return
@@ -15248,6 +15339,7 @@ function App() {
     inspectorSelectedElementRef.current = null
     setInspectorPayload(null)
     setInspectorPanelOpen(false)
+    setInspectorAnchorStyle(null)
   }, [user?.id, location.pathname, htmlInspectorActive])
 
   async function copyInspectorJson() {
@@ -15260,6 +15352,23 @@ function App() {
       }
     } catch (_) {}
     window.alert('JSON 복사에 실패했습니다.')
+  }
+
+  async function copyInspectorSelection() {
+    if (!inspectorPayload) return
+    const text = buildInspectorClipboardText(inspectorPayload, inspectorSections)
+    if (!text) {
+      window.alert('복사할 항목을 최소 1개 이상 선택해 주세요.')
+      return
+    }
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        window.alert('선택한 HTML 요소 정보가 복사되었습니다.')
+        return
+      }
+    } catch (_) {}
+    window.alert('선택 정보 복사에 실패했습니다.')
   }
 
   function saveInspectorJsonFile() {
@@ -15277,6 +15386,7 @@ function App() {
   function clearInspectorSelection() {
     inspectorSelectedElementRef.current = null
     setInspectorPayload(null)
+    setInspectorAnchorStyle(null)
     setInspectorSelectionVersion((prev) => prev + 1)
   }
 
@@ -15347,6 +15457,22 @@ function App() {
       </Routes>
       </MenuLockGuard>
           </Layout>
+      <HtmlInspectorPanel
+        open={inspectorPanelOpen && htmlInspectorActive}
+        payload={inspectorPayload}
+        selectedSelector={inspectorPayload?.targetElement?.selector || ''}
+        options={inspectorOptions}
+        onChangeOption={(key, value) => setInspectorOptions(prev => ({ ...prev, [key]: value }))}
+        selectedSections={inspectorSections}
+        onChangeSection={(key, checked) => setInspectorSections(prev => ({ ...prev, [key]: checked }))}
+        anchorStyle={inspectorAnchorStyle}
+        onClear={clearInspectorSelection}
+        onClose={() => setInspectorPanelOpen(false)}
+        onCopyConfirm={copyInspectorSelection}
+        onCopyJson={copyInspectorJson}
+        onSaveJson={saveInspectorJsonFile}
+        onSaveTxt={saveInspectorTxtFile}
+      />
     </>
   )
 }

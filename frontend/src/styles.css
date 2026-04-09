@@ -19068,3 +19068,50 @@ textarea,
     line-height: 1.08 !important;
   }
 }
+
+
+/* 2026-04-09 v5 assignee anchor + HTML inspector contextual popup */
+.assignee-suggestion-list.portal {
+  transform: none !important;
+}
+
+.ai-ui-inspector-panel {
+  border-radius: 10px;
+}
+
+.ai-ui-inspector-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: #f8fafc;
+}
+
+.ai-ui-inspector-checklist label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ai-ui-inspector-checklist input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .ai-ui-inspector-panel {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-height: calc(100vh - 16px) !important;
+  }
+
+  .ai-ui-inspector-checklist {
+    grid-template-columns: 1fr;
+  }
+}
