@@ -1136,6 +1136,49 @@ function canUseMaterialsPurchase(user) {
   return !isEmployeeRestrictedUser(user)
 }
 
+function canAccessMenuSectionByGrade(user, sectionId) {
+  const grade = Number(user?.grade || 6)
+  if (grade <= 2) return true
+  if (sectionId === 'common') return grade !== 6 && grade !== 7
+  if (sectionId === 'head-office') return grade <= 2
+  if (sectionId === 'business') return grade <= 4
+  if (sectionId === 'employee') return grade <= 5
+  if (sectionId === 'admin') return grade <= 2
+  return true
+}
+
+function canAccessMenuItemByUser(user, item, permissionMap, menuLocks) {
+  if (!item) return false
+  if (!canAccessStaffRoutes(user)) return false
+  if (!canAccessMenuSectionByGrade(user, item.sectionId)) return false
+  if (item.adminOnly && !canAccessAdminMode(user)) return false
+  if (isEmployeeRestrictedUser(user) && ['materials', 'workday-history', 'settlements'].includes(item.id)) return false
+  if (isMenuLockedForUser(user, menuLocks, item.id)) return false
+  return canViewMenuEntry(user, permissionMap, `section:${item.sectionId}`) && canViewMenuEntry(user, permissionMap, `item:${item.id}`)
+}
+
+function canUserAccessPath(user, pathname, permissionMap, menuLocks) {
+  const normalizedPath = String(pathname || '').trim()
+  if (!normalizedPath) return false
+  if (['/', '/search', '/notifications', '/settings', '/profile'].includes(normalizedPath)) {
+    return canAccessStaffRoutes(user)
+  }
+  if (normalizedPath === '/materials?tab=myRequests' || normalizedPath === '/materials?tab=sales') {
+    return canAccessStaffRoutes(user) && !isEmployeeRestrictedUser(user)
+  }
+  if (normalizedPath === '/materials?tab=requesters' || normalizedPath === '/materials?tab=settlements') {
+    return canAccessStaffRoutes(user) && Number(user?.grade || 6) <= 2
+  }
+  if (normalizedPath === '/operations-dashboard') {
+    return canAccessStaffRoutes(user) && Number(user?.grade || 6) <= 2
+  }
+  const lockedItem = findLockedMenuItemByPath(normalizedPath)
+  if (lockedItem) return canAccessMenuItemByUser(user, lockedItem, permissionMap, menuLocks)
+  if (normalizedPath.startsWith('/settlements')) return canAccessStaffRoutes(user) && !isEmployeeRestrictedUser(user)
+  if (normalizedPath === '/memo-pad') return canAccessStaffRoutes(user) && Number(user?.grade || 6) <= 2
+  return canAccessStaffRoutes(user)
+}
+
 function AccessDeniedRedirect({ message = '권한이 없습니다.' }) {
   const navigate = useNavigate()
   useEffect(() => {
@@ -2135,15 +2178,21 @@ function HomePage() {
 
   const quickLibrary = useMemo(() => {
     let base = [...QUICK_ACTION_LIBRARY]
+    base = base.filter(item => {
+      if (item.adminOnly && Number(currentUser?.grade || 6) > 2) return false
+      if (item.path) return canUserAccessPath(currentUser, item.path, menuPermissions, menuLocks)
+      if (item.id === 'point') return canUserAccessPath(currentUser, '/points', menuPermissions, menuLocks)
+      if (item.id === 'warehouse') return canUserAccessPath(currentUser, '/warehouse', menuPermissions, menuLocks)
+      if (item.id === 'storageStatus') return canUserAccessPath(currentUser, '/storage-status', menuPermissions, menuLocks)
+      if (item.id === 'settlements') return canUserAccessPath(currentUser, '/settlements', menuPermissions, menuLocks)
+      return true
+    })
     if (employeeRestricted) {
       const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'settlements'])
       base = base.filter(item => !hiddenQuickIds.has(item.id))
     }
-    if (Number(currentUser?.grade || 6) > 2) {
-      base = base.filter(item => !item.adminOnly)
-    }
     return base
-  }, [employeeRestricted, currentUser?.grade])
+  }, [employeeRestricted, currentUser, menuLocks, menuPermissions])
 
   const activeQuickItems = useMemo(() => {
     const activeIds = [...quickState.active].filter(id => quickLibrary.some(item => item.id === id))
@@ -9143,204 +9192,298 @@ function MenuPermissionPage() {
 
 const MEMO_PAD_ROWS = 10
 const MEMO_PAD_COLS = 5
+const LADDER_BRANCH_DB = {
+  '1호점': { name: '임채영', phone: '010-6614-7795' },
+  '2호점': { name: '박우민', phone: '010-2479-2742' },
+  '3호점': { name: '장준영', phone: '010-4162-4429' },
+  '4호점': { name: '송지훈', phone: '010-4037-1632' },
+  '5호점': { name: '신백윤', phone: '010-6300-5512' },
+  '6호점': { name: '심훈', phone: '010-9461-7299' },
+  '7호점': { name: '손영재', phone: '010-2998-8344' },
+  '8호점': { name: '최명권', phone: '010-4035-7378' },
+  '9호점': { name: '정경호', phone: '010-2641-9701' },
+  '10호점': { name: '백인환', phone: '010-7497-3060' },
+  '11호점': { name: '황인준', phone: '010-8995-3372' },
+  '본점': { name: '심진수', phone: '010-9441-6704' },
+}
+const LADDER_FLOOR_OPTIONS = ['선택해주세요', ...Array.from({ length: 24 }, (_, index) => `${index + 1}층`), '25층 이상']
+const LADDER_METHOD_OPTIONS = ['1톤 1대', '1톤 2대', '가구만']
+const LADDER_DEFAULTS = {
+  date: '12월 22일',
+  work: '2톤 이상 내리는 작업',
+  addr: '서울 송파구 삼전로8길 4',
+  floor: '3층',
+  time: '10시~11시 예상',
+  branch_name: '이청잘 2호점 박우민',
+  phone: '010-2479-2742',
+  cost: '120,000',
+}
+const LADDER_PRICE_MAP = (() => {
+  const map = {}
+  const cost1_5 = { '1톤 1대': 120000, '1톤 2대': 150000, '가구만': 70000 }
+  const cost6_7 = { '1톤 1대': 130000, '1톤 2대': 160000, '가구만': 80000 }
+  const cost8_9 = { '1톤 1대': 140000, '1톤 2대': 170000, '가구만': 90000 }
+  const cost10_11 = { '1톤 1대': 150000, '1톤 2대': 180000, '가구만': 100000 }
+  const cost12_13 = { '1톤 1대': 160000, '1톤 2대': 190000, '가구만': 110000 }
+  for (let i = 1; i <= 5; i += 1) map[`${i}층`] = cost1_5
+  for (let i = 6; i <= 7; i += 1) map[`${i}층`] = cost6_7
+  for (let i = 8; i <= 9; i += 1) map[`${i}층`] = cost8_9
+  for (let i = 10; i <= 11; i += 1) map[`${i}층`] = cost10_11
+  for (let i = 12; i <= 13; i += 1) map[`${i}층`] = cost12_13
+  map['14층'] = { '1톤 1대': 170000, '1톤 2대': 200000, '가구만': 120000 }
+  map['15층'] = { '1톤 1대': 180000, '1톤 2대': 210000, '가구만': 130000 }
+  map['16층'] = { '1톤 1대': 190000, '1톤 2대': 220000, '가구만': 140000 }
+  map['17층'] = { '1톤 1대': 200000, '1톤 2대': 230000, '가구만': 150000 }
+  map['18층'] = { '1톤 1대': 220000, '1톤 2대': 250000, '가구만': 160000 }
+  map['19층'] = { '1톤 1대': 230000, '1톤 2대': 260000, '가구만': 170000 }
+  map['20층'] = { '1톤 1대': 250000, '1톤 2대': 280000, '가구만': 180000 }
+  map['21층'] = { '1톤 1대': 280000, '1톤 2대': 310000, '가구만': '협의' }
+  map['22층'] = { '1톤 1대': 310000, '1톤 2대': 340000, '가구만': '협의' }
+  map['23층'] = { '1톤 1대': 340000, '1톤 2대': 370000, '가구만': '협의' }
+  map['24층'] = { '1톤 1대': 370000, '1톤 2대': 400000, '가구만': '협의' }
+  map['25층 이상'] = { '1톤 1대': '협의', '1톤 2대': '협의', '가구만': '협의' }
+  return map
+})()
+const LADDER_INFO_ROWS = [
+  ['2~5층', '5m ~ 13m', '1톤', '저층 작업. QT 차량도 가능.'],
+  ['6~8층', '15m ~ 21m', '1톤', '1톤 차량의 한계 높이.'],
+  ['9층', '약 24m', '1톤 / 2.5톤', '1톤 맥심 인출 또는 2.5톤 안전 작업.'],
+  ['10~12층', '26m ~ 32m', '2.5톤', '1톤 작업 불가.'],
+  ['13~14층', '34m ~ 37m', '2.5톤 / 3.5톤', '2.5톤 최대치 또는 3.5톤 여유 작업.'],
+  ['15~16층', '40m ~ 43m', '3.5톤', '3.5톤 주력 구간.'],
+  ['17층', '약 45m', '3.5톤 / 5톤', '3.5톤 맥심 인출 또는 5톤 여유 작업.'],
+  ['18~20층', '48m ~ 54m', '5톤', '대형 차량 필수 구간.'],
+  ['21~24층', '56m ~ 65m', '5톤', '5톤 차량의 주력 구간.'],
+  ['25층 이상', '68m ~ 70m', '5톤 (70m급)', '국내 사다리차 최대 한계권.'],
+]
 
-function memoPadStorageKey(userId) {
-  return `icj_memo_pad_${userId || 'guest'}`
+function formatLadderDefaultDate() {
+  const now = new Date()
+  return `${now.getMonth() + 1}월 ${now.getDate()}일`
 }
 
-function createEmptyMemoPadGrid() {
-  return Array.from({ length: MEMO_PAD_ROWS }, () => Array.from({ length: MEMO_PAD_COLS }, () => ''))
+function createLadderLocationState() {
+  return { enabled: false, work: '', addr: '', method: '1톤 1대', floor: '선택해주세요', time: '' }
 }
 
-function normalizeMemoPadGrid(rawGrid) {
-  const base = createEmptyMemoPadGrid()
-  return base.map((row, rowIndex) => row.map((_, colIndex) => String(rawGrid?.[rowIndex]?.[colIndex] || '')))
+function calcLadderCost(enabled, method, floor) {
+  if (!enabled || !LADDER_PRICE_MAP[floor]) return { value: 0, negotiable: false, selected: false }
+  const price = LADDER_PRICE_MAP[floor]?.[method]
+  if (typeof price === 'string') return { value: price, negotiable: true, selected: true }
+  return { value: Number(price || 0), negotiable: false, selected: true }
 }
 
-function getMemoPadState(userId) {
-  const fallback = { grid: createEmptyMemoPadGrid(), archive: [] }
+function buildLadderMessage(form, options = {}) {
+  const currentDateVal = form.date || formatLadderDefaultDate()
+  const branchData = LADDER_BRANCH_DB[form.branch] || LADDER_BRANCH_DB['2호점']
+  const branchNameFull = `이청잘 ${form.branch} ${branchData.name}`
+  const branchPhone = branchData.phone
+  const moveTimeRaw = String(form.moveTime || '').trim()
+  const customerNameRaw = String(form.customerName || '').trim()
+  const travelTimeRaw = String(form.travelTime || '').trim()
+  const moveTimeVal = moveTimeRaw || '00:00'
+  const customerNameVal = customerNameRaw || '홍길동'
+  const travelTimeVal = travelTimeRaw || '0시간 00분'
+  const useStart = !!form.start.enabled
+  const useEnd = !!form.end.enabled
+
+  const sectionText = (startVal, endVal, defaultVal) => {
+    const startText = String(startVal || '').trim() || defaultVal
+    const endText = String(endVal || '').trim() || defaultVal
+    if (!useStart && !useEnd) return defaultVal
+    if (useStart && useEnd) return `
+ * 출발지 : ${startText}
+ * 도착지 : ${endText}`
+    return useStart ? startText : endText
+  }
+
+  const floorText = () => {
+    const startFloor = form.start.floor === '선택해주세요' ? '미정' : form.start.floor
+    const endFloor = form.end.floor === '선택해주세요' ? '미정' : form.end.floor
+    if (!useStart && !useEnd) return LADDER_DEFAULTS.floor
+    if (useStart && useEnd) return `
+ * 출발지 : ${startFloor}
+ * 도착지 : ${endFloor}`
+    return useStart ? startFloor : endFloor
+  }
+
+  const startCost = calcLadderCost(useStart, form.start.method, form.start.floor)
+  const endCost = calcLadderCost(useEnd, form.end.method, form.end.floor)
+  let labelCostTitle = 'ㅇ 금액 : '
+  let txtCost = LADDER_DEFAULTS.cost
+  if (useStart && useEnd) {
+    labelCostTitle = 'ㅇ 총금액 : '
+    const total = (!startCost.negotiable && !endCost.negotiable)
+      ? `${(Number(startCost.value || 0) + Number(endCost.value || 0)).toLocaleString()}`
+      : '협의'
+    txtCost = `${total}
+  * 출발지 : ${startCost.negotiable ? '협의' : Number(startCost.value || 0).toLocaleString()}
+  * 도착지 : ${endCost.negotiable ? '협의' : Number(endCost.value || 0).toLocaleString()}`
+  } else if (useStart || useEnd) {
+    const finalCost = useStart ? startCost : endCost
+    txtCost = finalCost.negotiable ? '협의' : Number(finalCost.value || 0).toLocaleString()
+  }
+
+  const lines = [
+    `★ ${currentDateVal} ${moveTimeVal} ${customerNameVal} ★`,
+    `※ 출발지 -> 도착지 이동소요시간 : ${travelTimeVal}`,
+    '',
+    `${currentDateVal} 예상 배차 말씀드립니다`,
+    '',
+    `ㅇ 작업 : ${sectionText(form.start.work, form.end.work, LADDER_DEFAULTS.work)}`,
+    '',
+    `ㅇ 주소 : ${sectionText(form.start.addr, form.end.addr, LADDER_DEFAULTS.addr)}`,
+    '',
+    `ㅇ 층수 : ${floorText()}`,
+    '',
+    `ㅇ 작업 시간 : ${sectionText(form.start.time, form.end.time, LADDER_DEFAULTS.time)}`,
+    '',
+    `ㅇ 이름 : ${branchNameFull}`,
+    '',
+    `ㅇ 연락처 : ${branchPhone}`,
+    '',
+    `${labelCostTitle}${txtCost}`,
+  ]
+  let text = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (options?.chatName === '사다리차 배차방') {
+    const rawLines = text.split('\n')
+    let removed = 0
+    text = rawLines.filter(line => {
+      if (removed < 2 && line.trim()) {
+        removed += 1
+        return false
+      }
+      return true
+    }).join('\n').trimStart()
+  }
+  return text
+}
+
+async function writeClipboardText(text) {
   try {
-    const raw = localStorage.getItem(memoPadStorageKey(userId))
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw)
-    const archive = Array.isArray(parsed?.archive) ? parsed.archive.map(item => ({
-      id: String(item?.id || `memo-${Date.now()}`),
-      row: Number(item?.row || 0),
-      col: Number(item?.col || 0),
-      title: String(item?.title || ''),
-      content: String(item?.content || ''),
-      updatedAt: String(item?.updatedAt || ''),
-    })) : []
-    return {
-      grid: normalizeMemoPadGrid(parsed?.grid),
-      archive,
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
     }
+  } catch (_) {}
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'readonly')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return true
   } catch (_) {
-    return fallback
+    return false
   }
 }
 
-function saveMemoPadState(userId, nextState) {
-  localStorage.setItem(memoPadStorageKey(userId), JSON.stringify({
-    grid: normalizeMemoPadGrid(nextState?.grid),
-    archive: Array.isArray(nextState?.archive) ? nextState.archive : [],
+function LadderDispatchPage() {
+  const [form, setForm] = useState(() => ({
+    date: formatLadderDefaultDate(),
+    branch: '2호점',
+    moveTime: '',
+    customerName: '',
+    travelTime: '',
+    start: createLadderLocationState(),
+    end: createLadderLocationState(),
   }))
-}
+  const [copiedTarget, setCopiedTarget] = useState('')
 
-function buildMemoArchiveTitle(content, row, col) {
-  const compact = String(content || '').replace(/\s+/g, ' ').trim()
-  return compact.slice(0, 30) || `${row + 1}행 ${col + 1}열 메모`
-}
+  const messagePreview = useMemo(() => buildLadderMessage(form), [form])
 
-function MemoPadPage({ user }) {
-  const [memoState, setMemoState] = useState(() => getMemoPadState(user?.id))
-  const [archiveOpen, setArchiveOpen] = useState(false)
-  const [selectedArchiveIds, setSelectedArchiveIds] = useState([])
-  const [editingArchiveItem, setEditingArchiveItem] = useState(null)
-
-  useEffect(() => {
-    setMemoState(getMemoPadState(user?.id))
-    setArchiveOpen(false)
-    setSelectedArchiveIds([])
-    setEditingArchiveItem(null)
-  }, [user?.id])
-
-  const updateMemoState = useCallback((updater) => {
-    setMemoState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      saveMemoPadState(user?.id, next)
-      return next
-    })
-  }, [user?.id])
-
-  function updateCell(rowIndex, colIndex, value) {
-    updateMemoState(prev => {
-      const nextGrid = prev.grid.map((row, index) => index === rowIndex ? row.map((cell, cellIndex) => cellIndex === colIndex ? value : cell) : row)
-      return { ...prev, grid: nextGrid }
-    })
+  function updateTopField(key, value) {
+    setForm(prev => ({ ...prev, [key]: value }))
   }
 
-  function archiveCell(rowIndex, colIndex) {
-    const content = String(memoState.grid?.[rowIndex]?.[colIndex] || '').trim()
-    if (!content) {
-      window.alert('내용이 있는 메모만 보관함에 저장할 수 있습니다.')
-      return
+  function updateLocation(section, key, value) {
+    setForm(prev => ({ ...prev, [section]: { ...prev[section], [key]: value } }))
+  }
+
+  async function copyMessage(chatName) {
+    const text = buildLadderMessage(form, { chatName })
+    const ok = await writeClipboardText(text)
+    if (ok) {
+      setCopiedTarget(chatName)
+      window.setTimeout(() => setCopiedTarget(''), 1600)
+    } else {
+      window.alert('클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.')
     }
-    const entryId = `memo-${Date.now()}-${rowIndex}-${colIndex}`
-    updateMemoState(prev => ({
-      ...prev,
-      archive: [{
-        id: entryId,
-        row: rowIndex,
-        col: colIndex,
-        title: buildMemoArchiveTitle(content, rowIndex, colIndex),
-        content,
-        updatedAt: new Date().toISOString(),
-      }, ...prev.archive],
-    }))
-    setArchiveOpen(true)
-  }
-
-  function toggleArchiveSelect(id, checked) {
-    setSelectedArchiveIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(item => item !== id))
-  }
-
-  function deleteSelectedArchive() {
-    if (selectedArchiveIds.length === 0) {
-      window.alert('삭제할 메모를 선택해 주세요.')
-      return
-    }
-    updateMemoState(prev => ({ ...prev, archive: prev.archive.filter(item => !selectedArchiveIds.includes(item.id)) }))
-    setSelectedArchiveIds([])
-  }
-
-  function saveArchiveEdit() {
-    if (!editingArchiveItem) return
-    const nextContent = String(editingArchiveItem.content || '')
-    updateMemoState(prev => ({
-      ...prev,
-      archive: prev.archive.map(item => item.id === editingArchiveItem.id ? {
-        ...item,
-        title: buildMemoArchiveTitle(nextContent, item.row, item.col),
-        content: nextContent,
-        updatedAt: new Date().toISOString(),
-      } : item),
-    }))
-    setEditingArchiveItem(null)
   }
 
   return (
-    <div className="stack-page memo-pad-page">
+    <div className="stack-page ladder-dispatch-page">
       <section className="card">
-        <div className="between memo-pad-head">
+        <div className="between ladder-dispatch-head">
           <div>
-            <h2>메모장</h2>
-            <div className="muted">계정별로 자동 저장되는 5열 10행 메모장입니다.</div>
+            <h2>사다리배차</h2>
+            <div className="muted">사다리차 배차 신청 양식을 웹에서 바로 작성하고 복사할 수 있습니다.</div>
           </div>
           <div className="inline-actions wrap end">
-            <button type="button" className="small" onClick={() => setArchiveOpen(true)}>보관함</button>
+            <button type="button" className="small" onClick={() => copyMessage('본사방')}>본사방 복사</button>
+            <button type="button" className="small" onClick={() => copyMessage('본사 상담팀')}>본사 상담팀 복사</button>
+            <button type="button" className="small" onClick={() => copyMessage('사다리차 배차방')}>사다리차 배차방 복사</button>
           </div>
         </div>
-        <div className="memo-pad-grid">
-          {memoState.grid.map((row, rowIndex) => row.map((value, colIndex) => (
-            <div key={`memo-cell-${rowIndex}-${colIndex}`} className="memo-pad-cell">
-              <div className="memo-pad-cell-toolbar">
-                <button type="button" className="memo-archive-button" onClick={() => archiveCell(rowIndex, colIndex)} aria-label="보관함에 저장">보관함</button>
+        {copiedTarget && <div className="success ladder-copy-notice">{copiedTarget}용 문구를 클립보드에 복사했습니다.</div>}
+        <div className="ladder-dispatch-layout">
+          <div className="ladder-preview-panel">
+            <div className="form-section-title">신청 양식 내용</div>
+            <textarea className="ladder-preview-textarea" value={messagePreview} readOnly />
+            <div className="ladder-info-grid">
+              <div className="card inset-card ladder-info-card">
+                <strong>가격 기준</strong>
+                <div className="muted small-text">층수/방법 조합에 따라 금액이 자동 계산됩니다. 21층 이상 또는 일부 가구만 작업은 협의로 표시됩니다.</div>
               </div>
-              <textarea
-                value={value}
-                onChange={event => updateCell(rowIndex, colIndex, event.target.value)}
-                placeholder={`${rowIndex + 1}-${colIndex + 1}`}
-              />
+              <div className="card inset-card ladder-info-card">
+                <strong>전송 안내</strong>
+                <div className="muted small-text">웹앱에서는 카카오톡 창 자동 제어 대신 채팅방별 전송 문구를 즉시 복사하도록 구성했습니다.</div>
+              </div>
             </div>
-          )))}
+            <div className="form-section-title">사다리차 종류 / 길이 / 층수 정보</div>
+            <div className="table-scroll ladder-table-wrap">
+              <table className="form-table ladder-info-table">
+                <thead><tr><th>층수</th><th>실제 높이(약)</th><th>권장 차량(제원)</th><th>비고</th></tr></thead>
+                <tbody>
+                  {LADDER_INFO_ROWS.map(row => <tr key={row[0]}>{row.map(cell => <td key={`${row[0]}-${cell}`}>{cell}</td>)}</tr>)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="ladder-form-panel">
+            <section className="card inset-card ladder-form-card">
+              <div className="form-section-title">기본 정보</div>
+              <div className="ladder-field-grid">
+                <label className="stack compact"><span>날짜</span><input type="text" value={form.date} onChange={e => updateTopField('date', e.target.value)} /></label>
+                <label className="stack compact"><span>지점</span><select value={form.branch} onChange={e => updateTopField('branch', e.target.value)}>{Object.keys(LADDER_BRANCH_DB).map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                <label className="stack compact"><span>이사시간</span><input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="10:00" /></label>
+                <label className="stack compact"><span>고객명</span><input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="홍길동" /></label>
+                <label className="stack compact ladder-field-span-2"><span>이동소요예상시간</span><input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="0시간 00분" /></label>
+              </div>
+            </section>
+            {['start', 'end'].map(section => {
+              const title = section === 'start' ? '출발지' : '도착지'
+              const data = form[section]
+              return (
+                <section key={section} className="card inset-card ladder-form-card">
+                  <label className="check ladder-check-head"><input type="checkbox" checked={data.enabled} onChange={e => updateLocation(section, 'enabled', e.target.checked)} /> {title} 사용</label>
+                  <div className="ladder-field-grid">
+                    <label className="stack compact ladder-field-span-2"><span>작업</span><input type="text" value={data.work} onChange={e => updateLocation(section, 'work', e.target.value)} placeholder="2톤 이상 내리는 작업" /></label>
+                    <label className="stack compact ladder-field-span-2"><span>주소</span><input type="text" value={data.addr} onChange={e => updateLocation(section, 'addr', e.target.value)} placeholder="서울 송파구 삼전로8길 4" /></label>
+                    <label className="stack compact"><span>방법</span><select value={data.method} onChange={e => updateLocation(section, 'method', e.target.value)}>{LADDER_METHOD_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="stack compact"><span>층수</span><select value={data.floor} onChange={e => updateLocation(section, 'floor', e.target.value)}>{LADDER_FLOOR_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label className="stack compact ladder-field-span-2"><span>작업 시간</span><input type="text" value={data.time} onChange={e => updateLocation(section, 'time', e.target.value)} placeholder="10시~11시 예상" /></label>
+                  </div>
+                </section>
+              )
+            })}
+          </div>
         </div>
       </section>
-
-      {archiveOpen && (
-        <div className="modal-backdrop" onClick={() => setArchiveOpen(false)}>
-          <div className="modal-card memo-archive-modal" onClick={event => event.stopPropagation()}>
-            <div className="between align-center">
-              <div>
-                <strong>보관함</strong>
-                <div className="muted tiny-text">클릭하면 상세 편집창이 열립니다.</div>
-              </div>
-              <div className="inline-actions wrap end">
-                <button type="button" className="small ghost" onClick={deleteSelectedArchive}>선택삭제</button>
-                <button type="button" className="small ghost" onClick={() => setArchiveOpen(false)}>닫기</button>
-              </div>
-            </div>
-            <div className="stack compact memo-archive-list">
-              {memoState.archive.map(item => (
-                <label key={item.id} className="memo-archive-row">
-                  <input type="checkbox" checked={selectedArchiveIds.includes(item.id)} onChange={event => toggleArchiveSelect(item.id, event.target.checked)} onClick={event => event.stopPropagation()} />
-                  <button type="button" className="memo-archive-open" onClick={() => setEditingArchiveItem({ ...item })}>
-                    <span className="memo-archive-title">{item.title}</span>
-                    <span className="memo-archive-meta">{item.row + 1}행 {item.col + 1}열</span>
-                  </button>
-                </label>
-              ))}
-              {memoState.archive.length === 0 && <div className="muted">보관된 메모가 없습니다.</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingArchiveItem && (
-        <div className="modal-backdrop" onClick={() => setEditingArchiveItem(null)}>
-          <div className="modal-card memo-archive-editor" onClick={event => event.stopPropagation()}>
-            <div className="between align-center">
-              <strong>메모 상세 편집</strong>
-              <div className="inline-actions wrap end">
-                <button type="button" className="small ghost" onClick={() => setEditingArchiveItem(null)}>닫기</button>
-                <button type="button" className="small" onClick={saveArchiveEdit}>저장</button>
-              </div>
-            </div>
-            <div className="muted tiny-text">원본 위치: {editingArchiveItem.row + 1}행 {editingArchiveItem.col + 1}열</div>
-            <textarea className="memo-archive-editor-textarea" value={editingArchiveItem.content} onChange={event => setEditingArchiveItem(prev => ({ ...prev, content: event.target.value }))} />
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -15936,7 +16079,7 @@ function App() {
         <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/complaints-check" element={staffAllowed ? <PlaceholderFeaturePage title="컴플확인" description="컴플확인 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/settlements/ladder-dispatch" element={staffAllowed ? <PlaceholderFeaturePage title="사다리배차" description="사다리배차 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/ladder-dispatch" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <LadderDispatchPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/handover" element={staffAllowed ? <PlaceholderFeaturePage title="인수인계서" description="인수인계서 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/materials-summary" element={staffAllowed ? <PlaceholderFeaturePage title="자재결산" description="자재결산 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
