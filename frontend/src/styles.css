@@ -19661,3 +19661,146 @@ textarea,
 .chat-group-create-body { padding-top:4px; }
 .chat-group-create-friend-list { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto; padding:8px 4px; border:1px solid #e5e7eb; border-radius:0; }
 .chat-group-create-friend-row { display:flex; align-items:center; gap:8px; color:#0f172a; }
+
+/* 2026-04-09 chat create modal / settlement header / mobile schedule compact row refinements */
+.chat-group-create-modal {
+  width: min(94vw, 720px);
+  max-height: min(84vh, 700px);
+  overflow: auto;
+}
+
+.chat-group-create-topbar {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+}
+
+.chat-group-create-topbar .chat-category-delete-title {
+  text-align: center;
+}
+
+.chat-group-create-body-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.chat-group-create-pane {
+  min-width: 0;
+}
+
+.chat-group-create-name-pane input {
+  width: 100%;
+}
+
+.chat-group-create-friend-list-inline {
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 0;
+}
+
+.chat-group-create-actions {
+  margin-top: 10px;
+}
+
+.settlement-day-nav-title-row-single-line {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.settlement-title-nav-inline {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  width: auto !important;
+  max-width: 100%;
+  gap: 6px !important;
+}
+
+.settlement-title-nav-inline strong {
+  white-space: nowrap !important;
+  line-height: 1.1;
+}
+
+.settlement-arrow-button {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  min-width: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .chat-group-create-modal {
+    width: min(96vw, 640px);
+  }
+
+  .chat-group-create-body-inline {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .chat-group-create-friend-list-inline {
+    max-height: 260px;
+    padding: 6px;
+  }
+
+  .settlement-title-nav-inline {
+    gap: 3px !important;
+  }
+
+  .settlement-title-nav-inline strong {
+    font-size: 16px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-editor.bulk-row {
+    padding: 4px 2px 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-bulk-row-shell.with-check-column {
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    gap: 2px !important;
+  }
+
+  .work-schedule-page.mobile .schedule-row-check-cell {
+    justify-content: flex-start !important;
+    padding-left: 0 !important;
+    min-height: 30px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-table.compact-single-line.with-check-column {
+    grid-template-columns: 18px 40px minmax(54px, .9fr) minmax(86px, 1fr) minmax(86px, 1fr) minmax(44px, .7fr) !important;
+    gap: 2px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line input,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table > input {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-field-wrap,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table .assignee-field-wrap {
+    overflow: hidden;
+  }
+
+  .work-schedule-page.mobile .work-schedule-inline-grid.one-line .assignee-chip-list,
+  .work-schedule-page.mobile .work-schedule-table.work-schedule-assignee-table .assignee-chip-list {
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}

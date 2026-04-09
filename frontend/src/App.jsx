@@ -3595,24 +3595,28 @@ ${guide}`)
       {createGroupModalOpen && createPortal(
         <div className="schedule-popup-backdrop chat-category-delete-backdrop" onClick={() => !createGroupSubmitting && setCreateGroupModalOpen(false)}>
           <section className="schedule-popup-card chat-group-create-modal" onClick={event => event.stopPropagation()}>
-            <div className="chat-category-delete-topbar">
+            <div className="chat-category-delete-topbar chat-group-create-topbar">
+              <button type="button" className="ghost small chat-category-delete-back" onClick={() => !createGroupSubmitting && setCreateGroupModalOpen(false)} aria-label="뒤로가기">←</button>
               <strong className="chat-category-delete-title">채팅개설</strong>
-              <button type="button" className="ghost small chat-category-delete-back" onClick={() => !createGroupSubmitting && setCreateGroupModalOpen(false)} aria-label="닫기">닫기</button>
+              <span className="chat-category-delete-topbar-spacer" aria-hidden="true" />
             </div>
-            <div className="stack compact-gap chat-group-create-body">
-              <input value={createGroupRoomTitle} onChange={e => setCreateGroupRoomTitle(e.target.value)} placeholder="채팅방 이름" />
-              <div className="friends-section-label">친구목록</div>
-              <div className="chat-group-create-friend-list">
-                {friendList.length ? friendList.map(friend => (
-                  <label key={`group-friend-${friend.id}`} className="chat-group-create-friend-row">
-                    <input type="checkbox" checked={!!createGroupSelections[String(friend.id)]} onChange={() => toggleCreateGroupSelection(friend.id)} />
-                    <span>{friend.nickname || friend.name || friend.login_id || `회원 ${friend.id}`}</span>
-                  </label>
-                )) : <div className="muted">표시할 친구가 없습니다.</div>}
+            <div className="chat-group-create-body chat-group-create-body-inline">
+              <div className="chat-group-create-pane chat-group-create-name-pane">
+                <input value={createGroupRoomTitle} onChange={e => setCreateGroupRoomTitle(e.target.value)} placeholder="채팅방 이름" />
               </div>
-              <div className="inline-actions end">
-                <button type="button" className="small" disabled={createGroupSubmitting} onClick={submitCreateGroupRoom}>{createGroupSubmitting ? '개설 중...' : '초대하기'}</button>
+              <div className="chat-group-create-pane chat-group-create-friends-pane">
+                <div className="chat-group-create-friend-list chat-group-create-friend-list-inline">
+                  {friendList.length ? friendList.map(friend => (
+                    <label key={`group-friend-${friend.id}`} className="chat-group-create-friend-row">
+                      <input type="checkbox" checked={!!createGroupSelections[String(friend.id)]} onChange={() => toggleCreateGroupSelection(friend.id)} />
+                      <span>{friend.nickname || friend.name || friend.login_id || `회원 ${friend.id}`}</span>
+                    </label>
+                  )) : <div className="muted">표시할 친구가 없습니다.</div>}
+                </div>
               </div>
+            </div>
+            <div className="inline-actions end chat-group-create-actions">
+              <button type="button" className="small" disabled={createGroupSubmitting} onClick={submitCreateGroupRoom}>{createGroupSubmitting ? '개설 중...' : '초대하기'}</button>
             </div>
           </section>
         </div>,
@@ -13600,8 +13604,8 @@ function SettlementPage() {
     content = selectedDailyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
+          <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.max(0, prev - 1))} disabled={dailyIndex <= 0}>◀</button>
               <strong>일일 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setDailyIndex(prev => Math.min(sortedDailyBlocks.length - 1, prev + 1))} disabled={dailyIndex >= sortedDailyBlocks.length - 1}>▶</button>
@@ -13631,8 +13635,8 @@ function SettlementPage() {
     content = selectedWeeklyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
+          <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.max(0, prev - 1))} disabled={weeklyIndex <= 0}>◀</button>
               <strong>주간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setWeeklyIndex(prev => Math.min(weeklyBlocks.length - 1, prev + 1))} disabled={weeklyIndex >= weeklyBlocks.length - 1}>▶</button>
@@ -13655,8 +13659,8 @@ function SettlementPage() {
     content = selectedMonthlyBlock ? (
       <>
         <div className="settlement-day-nav card">
-          <div className="settlement-day-nav-title-row">
-            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title">
+          <div className="settlement-day-nav-title-row settlement-day-nav-title-row-single-line">
+            <div className="settlement-day-nav-title centered-nav-title single-line-settlement-title settlement-title-nav-inline">
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.max(0, prev - 1))} disabled={monthlyIndex <= 0}>◀</button>
               <strong>월간 결산</strong>
               <button type="button" className="ghost small settlement-arrow-button" onClick={() => setMonthlyIndex(prev => Math.min(monthlyBlocks.length - 1, prev + 1))} disabled={monthlyIndex >= monthlyBlocks.length - 1}>▶</button>
