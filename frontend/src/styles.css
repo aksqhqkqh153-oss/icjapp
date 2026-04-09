@@ -19946,6 +19946,31 @@ textarea,
 .ladder-bottom-title {
   font-size: clamp(13px, 1.5vw, 17px);
 }
+.ladder-panel-header {
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ladder-edit-wrap {
+  position: relative;
+}
+.ladder-edit-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 132px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+}
+.ladder-edit-menu button {
+  width: 100%;
+}
 .ladder-preview-panel {
   display: flex;
   flex-direction: column;
@@ -20028,9 +20053,55 @@ textarea,
 .ladder-basic-grid input,
 .ladder-basic-grid select,
 .ladder-location-grid input,
-.ladder-location-grid select {
+.ladder-location-grid select,
+.ladder-picker-button {
   width: 100%;
   min-height: 38px;
+}
+.ladder-picker-button {
+  border: 1px solid #dbe7f3;
+  border-radius: 12px;
+  background: #fff;
+  color: #64748b;
+  padding: 0 12px;
+  text-align: left;
+  font: inherit;
+}
+.ladder-picker-button.filled {
+  color: #0f172a;
+}
+.ladder-hidden-date-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.ladder-modal-card {
+  width: min(560px, calc(100vw - 24px));
+  display: grid;
+  gap: 14px;
+}
+.ladder-template-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+.ladder-modal-grid {
+  display: grid;
+  gap: 10px;
+}
+.ladder-template-editor {
+  width: 100%;
+  min-height: 340px;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.5;
+}
+.ladder-token-help {
+  line-height: 1.5;
+  word-break: break-word;
 }
 .ladder-check-head {
   margin-bottom: 0;

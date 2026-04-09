@@ -9248,6 +9248,45 @@ function buildMemoArchiveTitle(content, row, col) {
   const compact = String(content || '').replace(/\s+/g, ' ').trim()
   return compact.slice(0, 30) || `${row + 1}행 ${col + 1}열 메모`
 }
+
+function getLadderStorageUserKey() {
+  try {
+    const user = getStoredUser?.() || {}
+    return String(user?.id || user?.username || user?.user_id || 'guest')
+  } catch (_) {
+    return 'guest'
+  }
+}
+
+function ladderBranchStorageKey(userKey) {
+  return `icj_ladder_branch_db_${userKey || 'guest'}`
+}
+
+function ladderTemplateStorageKey(userKey) {
+  return `icj_ladder_template_${userKey || 'guest'}`
+}
+
+const LADDER_TEMPLATE_DEFAULT = [
+  '★ {{date}} {{move_time}} {{customer_name}} ★',
+  '※ 출발지 -> 도착지 이동소요시간 : {{travel_time}}',
+  '',
+  '{{date}} 예상 배차 말씀드립니다',
+  '',
+  'ㅇ 작업 : {{work}}',
+  '',
+  'ㅇ 주소 : {{addr}}',
+  '',
+  'ㅇ 층수 : {{floor}}',
+  '',
+  'ㅇ 작업 시간 : {{work_time}}',
+  '',
+  'ㅇ 이름 : {{branch_name}}',
+  '',
+  'ㅇ 연락처 : {{branch_phone}}',
+  '',
+  '{{cost_title}}{{cost}}',
+].join('\n')
+
 const LADDER_BRANCH_DB = {
   '1호점': { name: '임채영', phone: '010-6614-7795' },
   '2호점': { name: '박우민', phone: '010-2479-2742' },
@@ -9313,6 +9352,67 @@ const LADDER_INFO_ROWS = [
   ['25층 이상', '68m ~ 70m', '5톤 (70m급)', '국내 사다리차 최대 한계권.'],
 ]
 
+
+function cloneLadderBranchDb() {
+  return Object.fromEntries(Object.entries(LADDER_BRANCH_DB).map(([key, value]) => [key, { ...value }]))
+}
+
+function readLadderBranchDb(userKey) {
+  try {
+    const raw = localStorage.getItem(ladderBranchStorageKey(userKey))
+    if (!raw) return cloneLadderBranchDb()
+    const parsed = JSON.parse(raw)
+    const base = cloneLadderBranchDb()
+    if (!parsed || typeof parsed !== 'object') return base
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (!value || typeof value !== 'object') return
+      base[key] = {
+        name: String(value.name || base[key]?.name || ''),
+        phone: String(value.phone || base[key]?.phone || ''),
+      }
+    })
+    return base
+  } catch (_) {
+    return cloneLadderBranchDb()
+  }
+}
+
+function saveLadderBranchDb(userKey, branchDb) {
+  try {
+    localStorage.setItem(ladderBranchStorageKey(userKey), JSON.stringify(branchDb))
+  } catch (_) {}
+}
+
+function readLadderTemplate(userKey) {
+  try {
+    const raw = localStorage.getItem(ladderTemplateStorageKey(userKey))
+    return String(raw || LADDER_TEMPLATE_DEFAULT).trim() || LADDER_TEMPLATE_DEFAULT
+  } catch (_) {
+    return LADDER_TEMPLATE_DEFAULT
+  }
+}
+
+function saveLadderTemplate(userKey, template) {
+  try {
+    localStorage.setItem(ladderTemplateStorageKey(userKey), String(template || LADDER_TEMPLATE_DEFAULT))
+  } catch (_) {}
+}
+
+function formatLadderDateLabelFromIso(isoDate) {
+  if (!isoDate) return ''
+  const parts = String(isoDate).split('-')
+  if (parts.length !== 3) return ''
+  const month = Number(parts[1])
+  const day = Number(parts[2])
+  if (!month || !day) return ''
+  return `${month}월 ${day}일`
+}
+
+function buildLadderTemplateOutput(template, values) {
+  const source = String(template || LADDER_TEMPLATE_DEFAULT)
+  return source.replace(/{{\s*([a-z_]+)\s*}}/gi, (_, key) => String(values?.[key] ?? ''))
+}
+
 function formatLadderDefaultDate() {
   const now = new Date()
   return `${now.getMonth() + 1}월 ${now.getDate()}일`
@@ -9331,8 +9431,11 @@ function calcLadderCost(enabled, method, floor) {
 
 function buildLadderMessage(form, options = {}) {
   const currentDateVal = form.date || formatLadderDefaultDate()
-  const branchData = LADDER_BRANCH_DB[form.branch] || LADDER_BRANCH_DB['2호점']
-  const branchNameFull = `이청잘 ${form.branch} ${branchData.name}`
+  const branchDb = options?.branchDb || LADDER_BRANCH_DB
+  const template = options?.template || LADDER_TEMPLATE_DEFAULT
+  const branchData = branchDb[form.branch] || branchDb['2호점'] || { name: '', phone: '' }
+  const branchLabel = form.branch || '2호점'
+  const branchNameFull = `이청잘 ${branchLabel} ${branchData.name}`.trim()
   const branchPhone = branchData.phone
   const moveTimeRaw = String(form.moveTime || '').trim()
   const customerNameRaw = String(form.customerName || '').trim()
@@ -9354,8 +9457,8 @@ function buildLadderMessage(form, options = {}) {
   }
 
   const floorText = () => {
-    const startFloor = form.start.floor === '선택해주세요' ? '미정' : form.start.floor
-    const endFloor = form.end.floor === '선택해주세요' ? '미정' : form.end.floor
+    const startFloor = !form.start.floor || form.start.floor === '선택해주세요' ? '미정' : form.start.floor
+    const endFloor = !form.end.floor || form.end.floor === '선택해주세요' ? '미정' : form.end.floor
     if (!useStart && !useEnd) return LADDER_DEFAULTS.floor
     if (useStart && useEnd) return `
  * 출발지 : ${startFloor}
@@ -9365,10 +9468,10 @@ function buildLadderMessage(form, options = {}) {
 
   const startCost = calcLadderCost(useStart, form.start.method, form.start.floor)
   const endCost = calcLadderCost(useEnd, form.end.method, form.end.floor)
-  let labelCostTitle = 'ㅇ 금액 : '
+  let costTitle = 'ㅇ 금액 : '
   let txtCost = LADDER_DEFAULTS.cost
   if (useStart && useEnd) {
-    labelCostTitle = 'ㅇ 총금액 : '
+    costTitle = 'ㅇ 총금액 : '
     const total = (!startCost.negotiable && !endCost.negotiable)
       ? `${(Number(startCost.value || 0) + Number(endCost.value || 0)).toLocaleString()}`
       : '협의'
@@ -9380,27 +9483,23 @@ function buildLadderMessage(form, options = {}) {
     txtCost = finalCost.negotiable ? '협의' : Number(finalCost.value || 0).toLocaleString()
   }
 
-  const lines = [
-    `★ ${currentDateVal} ${moveTimeVal} ${customerNameVal} ★`,
-    `※ 출발지 -> 도착지 이동소요시간 : ${travelTimeVal}`,
-    '',
-    `${currentDateVal} 예상 배차 말씀드립니다`,
-    '',
-    `ㅇ 작업 : ${sectionText(form.start.work, form.end.work, LADDER_DEFAULTS.work)}`,
-    '',
-    `ㅇ 주소 : ${sectionText(form.start.addr, form.end.addr, LADDER_DEFAULTS.addr)}`,
-    '',
-    `ㅇ 층수 : ${floorText()}`,
-    '',
-    `ㅇ 작업 시간 : ${sectionText(form.start.time, form.end.time, LADDER_DEFAULTS.time)}`,
-    '',
-    `ㅇ 이름 : ${branchNameFull}`,
-    '',
-    `ㅇ 연락처 : ${branchPhone}`,
-    '',
-    `${labelCostTitle}${txtCost}`,
-  ]
-  let text = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  const values = {
+    date: currentDateVal,
+    move_time: moveTimeVal,
+    customer_name: customerNameVal,
+    travel_time: travelTimeVal,
+    work: sectionText(form.start.work, form.end.work, LADDER_DEFAULTS.work),
+    addr: sectionText(form.start.addr, form.end.addr, LADDER_DEFAULTS.addr),
+    floor: floorText(),
+    work_time: sectionText(form.start.time, form.end.time, LADDER_DEFAULTS.time),
+    branch_name: branchNameFull,
+    branch_phone: branchPhone,
+    cost_title: costTitle,
+    cost: txtCost,
+    branch: branchLabel,
+  }
+
+  let text = buildLadderTemplateOutput(template, values).replace(/\n{3,}/g, '\n\n').trim()
   if (options?.chatName === '사다리차 배차방') {
     const rawLines = text.split('\n')
     let removed = 0
@@ -9439,6 +9538,10 @@ async function writeClipboardText(text) {
 }
 
 function LadderDispatchPage() {
+  const userKey = useMemo(() => getLadderStorageUserKey(), [])
+  const datePickerRef = useRef(null)
+  const [branchDb, setBranchDb] = useState(() => readLadderBranchDb(userKey))
+  const [templateText, setTemplateText] = useState(() => readLadderTemplate(userKey))
   const [form, setForm] = useState(() => ({
     date: '',
     branch: '',
@@ -9449,8 +9552,32 @@ function LadderDispatchPage() {
     end: createLadderLocationState(),
   }))
   const [copiedTarget, setCopiedTarget] = useState('')
+  const [branchEditMenuOpen, setBranchEditMenuOpen] = useState(false)
+  const [templateEditMenuOpen, setTemplateEditMenuOpen] = useState(false)
+  const [branchEditorOpen, setBranchEditorOpen] = useState(false)
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
+  const branchNames = useMemo(() => Object.keys(branchDb), [branchDb])
+  const [branchEditorForm, setBranchEditorForm] = useState({ branch: '1호점', name: '', phone: '' })
+  const [templateDraft, setTemplateDraft] = useState(templateText)
 
-  const messagePreview = useMemo(() => buildLadderMessage(form), [form])
+  useEffect(() => {
+    saveLadderBranchDb(userKey, branchDb)
+  }, [branchDb, userKey])
+
+  useEffect(() => {
+    saveLadderTemplate(userKey, templateText)
+  }, [templateText, userKey])
+
+  useEffect(() => {
+    if (!branchNames.length) return
+    setBranchEditorForm(prev => {
+      const selected = prev.branch && branchDb[prev.branch] ? prev.branch : branchNames[0]
+      const data = branchDb[selected] || { name: '', phone: '' }
+      return { branch: selected, name: data.name || '', phone: data.phone || '' }
+    })
+  }, [branchDb, branchNames])
+
+  const messagePreview = useMemo(() => buildLadderMessage(form, { branchDb, template: templateText }), [branchDb, form, templateText])
 
   function updateTopField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -9460,8 +9587,53 @@ function LadderDispatchPage() {
     setForm(prev => ({ ...prev, [section]: { ...prev[section], [key]: value } }))
   }
 
+  function openDatePicker() {
+    const input = datePickerRef.current
+    if (!input) return
+    if (typeof input.showPicker === 'function') input.showPicker()
+    else {
+      input.focus()
+      input.click()
+    }
+  }
+
+  function openBranchEditor() {
+    const selected = form.branch || branchNames[0] || '1호점'
+    const data = branchDb[selected] || { name: '', phone: '' }
+    setBranchEditMenuOpen(false)
+    setBranchEditorForm({ branch: selected, name: data.name || '', phone: data.phone || '' })
+    setBranchEditorOpen(true)
+  }
+
+  function changeBranchEditorBranch(nextBranch) {
+    const data = branchDb[nextBranch] || { name: '', phone: '' }
+    setBranchEditorForm({ branch: nextBranch, name: data.name || '', phone: data.phone || '' })
+  }
+
+  function saveBranchEditor() {
+    setBranchDb(prev => ({
+      ...prev,
+      [branchEditorForm.branch]: {
+        name: String(branchEditorForm.name || '').trim(),
+        phone: String(branchEditorForm.phone || '').trim(),
+      },
+    }))
+    setBranchEditorOpen(false)
+  }
+
+  function openTemplateEditor() {
+    setTemplateEditMenuOpen(false)
+    setTemplateDraft(templateText)
+    setTemplateEditorOpen(true)
+  }
+
+  function saveTemplateEditor() {
+    setTemplateText(String(templateDraft || '').trim() || LADDER_TEMPLATE_DEFAULT)
+    setTemplateEditorOpen(false)
+  }
+
   async function copyMessage(chatName) {
-    const text = buildLadderMessage(form, { chatName })
+    const text = buildLadderMessage(form, { chatName, branchDb, template: templateText })
     const ok = await writeClipboardText(text)
     if (ok) {
       setCopiedTarget(chatName)
@@ -9486,24 +9658,38 @@ function LadderDispatchPage() {
         <div className="ladder-dispatch-layout">
           <div className="ladder-main-columns">
             <div className="ladder-preview-panel card inset-card">
-              <div className="form-section-title ladder-panel-title">신청 양식 내용</div>
+              <div className="between ladder-panel-header">
+                <div className="form-section-title ladder-panel-title">신청 양식 내용</div>
+                <div className="ladder-edit-wrap">
+                  <button type="button" className="small" onClick={() => setTemplateEditMenuOpen(prev => !prev)}>편집</button>
+                  {templateEditMenuOpen && (
+                    <div className="ladder-edit-menu">
+                      <button type="button" onClick={openTemplateEditor}>기본양식편집</button>
+                    </div>
+                  )}
+                </div>
+              </div>
               <textarea className="ladder-preview-textarea" value={messagePreview} readOnly />
             </div>
             <div className="ladder-form-panel">
               <section className="card inset-card ladder-form-card">
-                <div className="form-section-title ladder-panel-title">기본정보</div>
+                <div className="between ladder-panel-header">
+                  <div className="form-section-title ladder-panel-title">기본정보</div>
+                  <div className="ladder-edit-wrap">
+                    <button type="button" className="small" onClick={() => setBranchEditMenuOpen(prev => !prev)}>편집</button>
+                    {branchEditMenuOpen && (
+                      <div className="ladder-edit-menu">
+                        <button type="button" onClick={openBranchEditor}>호점정보변경</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div className="ladder-basic-grid">
-                  <select value={form.date} onChange={e => updateTopField('date', e.target.value)}>
-                    <option value="">날짜선택</option>
-                    {Array.from({ length: 31 }, (_, index) => {
-                      const now = new Date()
-                      const value = `${now.getMonth() + 1}월 ${index + 1}일`
-                      return <option key={value} value={value}>{value}</option>
-                    })}
-                  </select>
+                  <button type="button" className={`ladder-picker-button ${form.date ? 'filled' : ''}`} onClick={openDatePicker}>{form.date || '날짜선택'}</button>
+                  <input ref={datePickerRef} className="ladder-hidden-date-input" type="date" onChange={e => updateTopField('date', formatLadderDateLabelFromIso(e.target.value))} />
                   <select value={form.branch} onChange={e => updateTopField('branch', e.target.value)}>
                     <option value="">호점선택</option>
-                    {Object.keys(LADDER_BRANCH_DB).map(item => <option key={item} value={item}>{item}</option>)}
+                    {branchNames.map(item => <option key={item} value={item}>{item}</option>)}
                   </select>
                   <input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="이사시간 ex) 10:00" />
                   <input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="고객명 ex) 홍길동" />
@@ -9560,10 +9746,41 @@ function LadderDispatchPage() {
           </div>
         </div>
       </section>
+
+      {branchEditorOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setBranchEditorOpen(false)}>
+          <div className="modal-card ladder-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="between"><strong>호점정보변경</strong><button type="button" className="small" onClick={() => setBranchEditorOpen(false)}>닫기</button></div>
+            <div className="ladder-modal-grid">
+              <select value={branchEditorForm.branch} onChange={e => changeBranchEditorBranch(e.target.value)}>
+                {branchNames.map(item => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <input type="text" value={branchEditorForm.name} onChange={e => setBranchEditorForm(prev => ({ ...prev, name: e.target.value }))} placeholder="이름 입력" />
+              <input type="text" value={branchEditorForm.phone} onChange={e => setBranchEditorForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="연락처 입력" />
+            </div>
+            <div className="inline-actions end"><button type="button" className="small" onClick={saveBranchEditor}>저장</button></div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {templateEditorOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setTemplateEditorOpen(false)}>
+          <div className="modal-card ladder-modal-card ladder-template-modal" onClick={e => e.stopPropagation()}>
+            <div className="between"><strong>기본양식편집</strong><button type="button" className="small" onClick={() => setTemplateEditorOpen(false)}>닫기</button></div>
+            <div className="muted small-text ladder-token-help">사용 가능 변수: {{date}}, {{move_time}}, {{customer_name}}, {{travel_time}}, {{work}}, {{addr}}, {{floor}}, {{work_time}}, {{branch_name}}, {{branch_phone}}, {{cost_title}}, {{cost}}</div>
+            <textarea className="ladder-template-editor" value={templateDraft} onChange={e => setTemplateDraft(e.target.value)} />
+            <div className="inline-actions between wrap">
+              <button type="button" className="small" onClick={() => setTemplateDraft(LADDER_TEMPLATE_DEFAULT)}>기본값 복원</button>
+              <button type="button" className="small" onClick={saveTemplateEditor}>저장</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
-
 
 function MemoPadPage({ user }) {
   const [memoState, setMemoState] = useState(() => getMemoPadState(user?.id))
