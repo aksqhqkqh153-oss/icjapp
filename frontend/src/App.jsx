@@ -5171,50 +5171,53 @@ function MapPage() {
   }, [])
 
   const activeMarkers = useMemo(() => {
+    const customer = (departureData.customerMarkers || [])
+      .filter(item => {
+        if (item.markerKind === 'customer-start') return mapDisplayOptions.customerStart
+        if (item.markerKind === 'customer-end') return mapDisplayOptions.customerEnd
+        return false
+      })
+      .map(item => ({
+        type: item.markerKind === 'customer-end' ? 'customer-end' : 'customer-start',
+        id: item.id,
+        lat: item.point?.lat,
+        lng: item.point?.lng,
+        label: '',
+        popup: `<strong>${item.title}</strong><br/>${item.markerKind === 'customer-end' ? '도착지' : '출발지'}<br/>${item.address}`,
+      }))
+    const accounts = (departureData.accountMarkers || [])
+      .filter(item => {
+        if (item.markerKind === 'business-start') return mapDisplayOptions.businessStart
+        if (item.markerKind === 'staff-start') return mapDisplayOptions.staffStart
+        return false
+      })
+      .map(item => ({
+        type: item.markerKind === 'business-start' ? 'business-start' : 'staff-start',
+        id: item.id,
+        lat: item.point?.lat,
+        lng: item.point?.lng,
+        label: '',
+        popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
+      }))
+    const accountEnds = (departureData.accountEndMarkers || [])
+      .filter(item => {
+        if (item.markerKind === 'business-end') return mapDisplayOptions.businessEnd
+        if (item.markerKind === 'staff-end') return mapDisplayOptions.staffEnd
+        return false
+      })
+      .map(item => ({
+        type: item.markerKind === 'business-end' ? 'business-end' : 'staff-end',
+        id: item.id,
+        lat: item.point?.lat,
+        lng: item.point?.lng,
+        label: '',
+        popup: `<strong>${item.displayName || '담당자'}</strong><br/>${item.markerKind === 'business-end' ? '사업자 도착지' : '직원 도착지'}<br/>${item.title}<br/>${item.address}`,
+      }))
     if (mapFilter === 'departure') {
-      const customer = (departureData.customerMarkers || [])
-        .filter(item => {
-          if (item.markerKind === 'customer-start') return mapDisplayOptions.customerStart
-          if (item.markerKind === 'customer-end') return mapDisplayOptions.customerEnd
-          return false
-        })
-        .map(item => ({
-          type: item.markerKind === 'customer-end' ? 'customer-end' : 'customer-start',
-          id: item.id,
-          lat: item.point?.lat,
-          lng: item.point?.lng,
-          label: '',
-          popup: `<strong>${item.title}</strong><br/>${item.markerKind === 'customer-end' ? '도착지' : '출발지'}<br/>${item.address}`,
-        }))
-      const accounts = (departureData.accountMarkers || [])
-        .filter(item => {
-          if (item.markerKind === 'business-start') return mapDisplayOptions.businessStart
-          if (item.markerKind === 'staff-start') return mapDisplayOptions.staffStart
-          return true
-        })
-        .map(item => ({
-          type: item.markerKind === 'business-start' ? 'business-start' : 'staff-start',
-          id: item.id,
-          lat: item.point?.lat,
-          lng: item.point?.lng,
-          label: '',
-          popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
-        }))
-      const accountEnds = (departureData.accountEndMarkers || [])
-        .filter(item => {
-          if (item.markerKind === 'business-end') return mapDisplayOptions.businessEnd
-          if (item.markerKind === 'staff-end') return mapDisplayOptions.staffEnd
-          return true
-        })
-        .map(item => ({
-          type: item.markerKind === 'business-end' ? 'business-end' : 'staff-end',
-          id: item.id,
-          lat: item.point?.lat,
-          lng: item.point?.lng,
-          label: '',
-          popup: `<strong>${item.displayName || '담당자'}</strong><br/>${item.markerKind === 'business-end' ? '사업자 도착지' : '직원 도착지'}<br/>${item.title}<br/>${item.address}`,
-        }))
       return [...customer, ...accounts, ...accountEnds].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+    }
+    if (mapFilter === 'all') {
+      return [...accounts, ...accountEnds].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
     return (users || []).map(item => ({
       type: item.map_status?.is_moving ? 'moving' : 'stopped',
@@ -5299,6 +5302,13 @@ function MapPage() {
   const [departureExpanded, setDepartureExpanded] = useState({})
   const [displayLegendHelpOpen, setDisplayLegendHelpOpen] = useState(false)
 
+  const allMarkerSummary = useMemo(() => ({
+    businessStart: (departureData.accountMarkers || []).filter(item => item.markerKind === 'business-start' && mapDisplayOptions.businessStart).length,
+    staffStart: (departureData.accountMarkers || []).filter(item => item.markerKind === 'staff-start' && mapDisplayOptions.staffStart).length,
+    businessEnd: (departureData.accountEndMarkers || []).filter(item => item.markerKind === 'business-end' && mapDisplayOptions.businessEnd).length,
+    staffEnd: (departureData.accountEndMarkers || []).filter(item => item.markerKind === 'staff-end' && mapDisplayOptions.staffEnd).length,
+  }), [departureData, mapDisplayOptions])
+
   function formatCandidateList(items = []) {
     if (!items.length) return '계산 대기'
     return items
@@ -5325,6 +5335,7 @@ function MapPage() {
               {mapFilterOpen && (
                 <div className="map-filter-popover map-filter-popover-side">
                   <button type="button" className={mapFilter === 'live' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('live'); setMapFilterOpen(false) }}>실시간</button>
+                  <button type="button" className={mapFilter === 'all' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('all'); setMapFilterOpen(false) }}>전체</button>
                   <button type="button" className={mapFilter === 'departure' ? 'small selected-toggle' : 'small ghost'} onClick={() => { setMapFilter('departure'); setMapFilterOpen(false) }}>출발지</button>
                 </div>
               )}
