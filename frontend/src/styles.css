@@ -16407,7 +16407,7 @@ body.layout-guide-enabled .error {
   font-weight: 700;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 540px) {
   .disposal-list-grid.disposal-list-grid-customer {
     overflow-x: hidden;
   }
@@ -21290,5 +21290,158 @@ textarea,
   .friend-card-action-slot {
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+
+/* 2026-04-10 disposal list layout refinement */
+.disposal-list-date-group {
+  border: 2px solid #111111 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+}
+
+.disposal-customer-group-label {
+  border-bottom: 1px solid #9ca3af !important;
+  background: #ffffff !important;
+}
+
+.disposal-group-meta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+  display: grid !important;
+  grid-template-columns: minmax(96px, 0.9fr) minmax(84px, 0.8fr) minmax(0, 1.2fr) auto;
+  gap: 0 !important;
+  align-items: stretch;
+}
+
+.disposal-meta-link-button,
+.disposal-meta-action-inline-wrap,
+.disposal-page .disposal-meta-row.disposal-meta-row-middle {
+  min-height: 42px;
+}
+
+.disposal-meta-link-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-right: 1px solid #9ca3af;
+  background: #ffffff;
+  color: var(--text, #111111);
+  font: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.disposal-meta-customer-link {
+  overflow: hidden;
+}
+
+.disposal-meta-customer-link .disposal-meta-customer,
+.disposal-meta-location {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text, #111111) !important;
+}
+
+.disposal-meta-action-inline-wrap {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: stretch;
+}
+
+.disposal-header-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  padding: 8px 10px !important;
+  border: 0 !important;
+  border-left: 1px solid #9ca3af !important;
+  background: #ffffff !important;
+  color: var(--text, #111111) !important;
+  font-size: 13px !important;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.disposal-header-action-button.is-pending {
+  color: var(--text, #111111) !important;
+}
+
+.disposal-page .disposal-meta-row.disposal-meta-row-middle {
+  display: block;
+  border-top: 1px solid #9ca3af;
+}
+
+.disposal-meta-location-link {
+  border-right: 0;
+}
+
+.disposal-list-grid.disposal-list-grid-customer {
+  width: 100%;
+  border: 2px solid #111111 !important;
+  border-top: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  overflow-x: auto !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-row > div,
+.disposal-list-grid-customer .disposal-list-grid-row > label,
+.disposal-list-grid-button-customer > span,
+.disposal-list-grid-customer .disposal-list-grid-status-button,
+.disposal-list-grid-customer .disposal-list-grid-payment-cell {
+  border-right: 1px solid #9ca3af !important;
+  border-bottom: 1px solid #9ca3af !important;
+  color: var(--text, #111111) !important;
+  background: #ffffff !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head,
+.disposal-list-grid-customer .disposal-list-grid-summary-row {
+  background: #ffffff !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-status-button,
+.disposal-list-grid-payment-cell.disposal-list-grid-status-button {
+  background: #ffffff !important;
+}
+
+@media (min-width: 541px) {
+  .disposal-list-date-label.disposal-customer-group-label,
+  .disposal-list-grid.disposal-list-grid-customer {
+    display: block !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+    grid-template-columns: minmax(66px, 0.8fr) minmax(52px, 0.7fr) minmax(0, 1fr) auto;
+  }
+
+  .disposal-meta-link-button {
+    padding: 6px 6px;
+    font-size: 11px;
+  }
+
+  .disposal-header-action-button {
+    min-width: 76px;
+    padding: 6px 6px !important;
+    font-size: 11px !important;
   }
 }

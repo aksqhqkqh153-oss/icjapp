@@ -2146,23 +2146,22 @@ export function DisposalListPage() {
           return (
             <div key={group.key} className="disposal-list-date-group disposal-customer-group-card">
               <div className="disposal-list-date-label disposal-customer-group-label disposal-customer-group-label-mobile-card">
-                <button type="button" className="disposal-group-meta-button disposal-group-meta-button-mobile-card" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
-                  <div className="disposal-meta-row disposal-meta-row-top">
-                    <span className="disposal-meta-date">{group.disposalDate}</span>
-                    <span className="disposal-meta-platform">{group.platform || '-'}</span>
-                    <strong className="disposal-meta-customer">{group.customerName}</strong>
-                    <span className={`disposal-payment-badge ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
+                <div className="disposal-group-meta-card" aria-label={`${group.customerName} 폐기양식 정보`}>
+                  <div className="disposal-meta-row disposal-meta-row-top disposal-meta-row-top-inline-actions">
+                    <button type="button" className="disposal-meta-link-button disposal-meta-date" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>{group.disposalDate}</button>
+                    <button type="button" className="disposal-meta-link-button disposal-meta-platform" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>{group.platform || '-'}</button>
+                    <button type="button" className="disposal-meta-link-button disposal-meta-customer-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}><strong className="disposal-meta-customer">{group.customerName}</strong></button>
+                    <div className="disposal-meta-action-inline-wrap">
+                      <button type="button" className={`disposal-payment-badge disposal-header-action-button ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()} onClick={(event) => { event.stopPropagation(); moveToSettlement(group.recordId) }} aria-label={`${group.customerName} 입금완/신고완 상태 확인`}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</button>
+                      {isTransferred ? <span className="disposal-transfer-badge disposal-header-action-button">결산반영완료</span> : <span className="disposal-transfer-badge disposal-header-action-button is-pending">결산대기</span>}
+                    </div>
                   </div>
                   <div className="disposal-meta-row disposal-meta-row-middle">
-                    <span className="disposal-meta-location">{group.location}</span>
+                    <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
+                      <span className="disposal-meta-location">{group.location}</span>
+                    </button>
                   </div>
-                  <div className="disposal-meta-row disposal-meta-row-bottom">
-                    {isPaid && !isTransferred && (
-                      <button type="button" className="ghost small active disposal-inline-action-button" onClick={(event) => { event.stopPropagation(); moveToSettlement(group.recordId) }}>결산진행</button>
-                    )}
-                    {isTransferred && <span className="disposal-transfer-badge">결산반영완료</span>}
-                  </div>
-                </button>
+                </div>
               </div>
               <div className="disposal-list-grid disposal-list-grid-customer">
                 <div className="disposal-list-grid-row disposal-list-grid-head">
