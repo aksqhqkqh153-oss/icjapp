@@ -15428,6 +15428,7 @@ function MaterialsPage({ user }) {
   const [requestDeletePopupOpen, setRequestDeletePopupOpen] = useState(false)
   const [requestDeleteRows, setRequestDeleteRows] = useState([])
   const [requestDeleteSelection, setRequestDeleteSelection] = useState([])
+  const [requestDeleteDateFilter, setRequestDeleteDateFilter] = useState('')
   const [requestDeleteLoading, setRequestDeleteLoading] = useState(false)
   const [requestDeleteSubmitting, setRequestDeleteSubmitting] = useState(false)
   const resizeStateRef = useRef(null)
@@ -15640,7 +15641,14 @@ function MaterialsPage({ user }) {
   function closeRequestDeletePopup() {
     setRequestDeletePopupOpen(false)
     setRequestDeleteSelection([])
+    setRequestDeleteDateFilter('')
   }
+
+  const filteredRequestDeleteRows = requestDeleteRows.filter(request => {
+    if (!requestDeleteDateFilter) return true
+    const createdAt = String(request.created_at || '')
+    return createdAt.slice(0, 10) === requestDeleteDateFilter
+  })
 
   async function deleteSelectedRequestRows() {
     if (!requestDeleteSelection.length) {
@@ -16492,55 +16500,63 @@ function MaterialsPage({ user }) {
           <div className="modal-overlay" onClick={closeRequestDeletePopup}>
             <div className="modal-card materials-request-delete-popup" onClick={(event) => event.stopPropagation()}>
               <div className="between materials-request-delete-popup-head">
-                <div>
-                  <h3>현황기록삭제</h3>
-                  <div className="muted tiny-text">신청접수 1건 단위로 묶어서 완전 삭제합니다.</div>
-                </div>
-                <div className="inline-actions">
-                  <button type="button" className="small ghost" onClick={loadRequestDeleteRows} disabled={requestDeleteLoading || requestDeleteSubmitting}>새로고침</button>
-                  <button type="button" className="small ghost" onClick={closeRequestDeletePopup}>닫기</button>
-                </div>
+                <h3>자재신청현황기록삭제</h3>
+                <button type="button" className="small ghost" onClick={closeRequestDeletePopup}>닫기</button>
               </div>
               <div className="materials-request-delete-popup-actions">
-                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteRows.length} onClick={() => setRequestDeleteSelection(requestDeleteRows.map(item => item.id))}>전체선택</button>
-                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteSelection.length} onClick={() => setRequestDeleteSelection([])}>선택해제</button>
-                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting} onClick={deleteSelectedRequestRows}>{requestDeleteSubmitting ? '삭제 중...' : '삭제'}</button>
+                <input
+                  type="date"
+                  className="materials-request-delete-date-filter"
+                  value={requestDeleteDateFilter}
+                  onChange={(event) => setRequestDeleteDateFilter(event.target.value)}
+                  disabled={requestDeleteLoading || requestDeleteSubmitting}
+                  aria-label="날짜필터"
+                />
+                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteSelection.length} onClick={deleteSelectedRequestRows}>{requestDeleteSubmitting ? '삭제 중...' : '삭제'}</button>
               </div>
               <div className="materials-request-delete-popup-body">
-                {requestDeleteLoading ? (
-                  <div className="muted">불러오는 중...</div>
-                ) : requestDeleteRows.length ? requestDeleteRows.map(request => {
-                  const meta = parseRequesterMeta(request)
-                  const checked = requestDeleteSelection.includes(request.id)
-                  return (
-                    <label key={`materials-request-delete-${request.id}`} className="materials-request-delete-entry">
-                      <div className="materials-request-delete-entry-head">
-                        <span className="materials-request-delete-entry-check">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(event) => setRequestDeleteSelection(prev => event.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))}
-                          />
-                        </span>
-                        <span className="materials-request-delete-entry-date">{formatFullDateLabel(request.created_at)}</span>
-                        <span className="materials-request-delete-entry-name">{meta.name}</span>
-                        <span className="materials-request-delete-entry-id">{meta.uniqueId || '-'}</span>
-                      </div>
-                      <div className="materials-request-delete-entry-items">
-                        {(request.items || []).filter(item => Number(item.quantity || 0) > 0).map((item, index) => (
-                          <div key={`materials-request-delete-item-${request.id}-${item.product_id || index}`} className="materials-request-delete-entry-item">
-                            <span>- {displayMyRequestItemName(item)}</span>
-                            <span>{Number(item.quantity || 0)}개</span>
-                          </div>
+                <div className="materials-request-delete-table" role="table" aria-label="자재신청현황기록삭제 목록">
+                  <div className="materials-request-delete-table-row materials-request-delete-table-head" role="row">
+                    <div className="materials-request-delete-table-check" role="columnheader"></div>
+                    <div role="columnheader">신청접수일</div>
+                    <div role="columnheader">이름</div>
+                    <div role="columnheader">아이디</div>
+                    <div role="columnheader">품목</div>
+                    <div role="columnheader">개수</div>
+                  </div>
+                  {requestDeleteLoading ? (
+                    <div className="materials-request-delete-empty muted">불러오는 중...</div>
+                  ) : filteredRequestDeleteRows.length ? filteredRequestDeleteRows.map(request => {
+                    const meta = parseRequesterMeta(request)
+                    const checked = requestDeleteSelection.includes(request.id)
+                    const items = (request.items || []).filter(item => Number(item.quantity || 0) > 0)
+                    return (
+                      <div key={`materials-request-delete-${request.id}`} className="materials-request-delete-group">
+                        {items.map((item, index) => (
+                          <label key={`materials-request-delete-item-${request.id}-${item.product_id || index}`} className={`materials-request-delete-table-row ${checked ? 'is-selected' : ''}`.trim()} role="row">
+                            <div className="materials-request-delete-table-check" role="cell">
+                              {index === 0 ? (
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) => setRequestDeleteSelection(prev => event.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))}
+                                />
+                              ) : null}
+                            </div>
+                            <div role="cell" title={index === 0 ? formatFullDateLabel(request.created_at) : ''}>{index === 0 ? formatFullDateLabel(request.created_at) : ''}</div>
+                            <div role="cell" title={index === 0 ? meta.name : ''}>{index === 0 ? meta.name : ''}</div>
+                            <div role="cell" title={index === 0 ? (meta.uniqueId || '-') : ''}>{index === 0 ? (meta.uniqueId || '-') : ''}</div>
+                            <div role="cell" title={displayMyRequestItemName(item)}>{displayMyRequestItemName(item)}</div>
+                            <div role="cell" title={`${Number(item.quantity || 0)}개`}>{Number(item.quantity || 0)}개</div>
+                          </label>
                         ))}
                       </div>
-                    </label>
-                  )
-                }) : (
-                  <div className="muted">삭제 가능한 신청현황이 없습니다.</div>
-                )}
+                    )
+                  }) : (
+                    <div className="materials-request-delete-empty muted">삭제 가능한 신청현황이 없습니다.</div>
+                  )}
+                </div>
               </div>
-              <div className="muted tiny-text">선택한 신청접수 기록은 신청자 화면과 관리자 확인 목록에서 즉시 제거됩니다.</div>
             </div>
           </div>
         ) : null}
