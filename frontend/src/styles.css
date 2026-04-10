@@ -21586,3 +21586,40 @@ textarea,
     grid-template-columns: max-content max-content minmax(0, 1fr) max-content !important;
   }
 }
+
+/* 2026-04-10 friends list/add/request plain background cleanup */
+.friends-page .friends-shell,
+.friends-page .friends-subpanel,
+.friends-page .friends-add-panel,
+.friends-page .friends-group-list,
+.friends-page .friends-add-results,
+.friends-page .friends-group-list.grouped-stack,
+.friends-page .group-card-block,
+.friends-page .group-card-header-line,
+.friends-page .my-profile-card,
+.friends-page .friend-row-card,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card.friend-card-structured,
+.friends-page .friend-row-card.request-variant,
+.friends-page .friend-row-card.list-variant,
+.friends-page .friend-row-card.add-variant,
+.friends-page .friend-card-content,
+.friends-page .friend-card-head-row,
+.friends-page .friend-card-bottom-row {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.friends-page .friends-shell,
+.friends-page .friends-subpanel,
+.friends-page .friends-add-panel,
+.friends-page .group-card-block,
+.friends-page .my-profile-card,
+.friends-page .friend-row-card,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card.friend-card-structured,
+.friends-page .friend-row-card.request-variant,
+.friends-page .friend-row-card.list-variant,
+.friends-page .friend-row-card.add-variant {
+  border-color: transparent !important;
+}
