@@ -1329,6 +1329,32 @@ def _material_requester_display_name_from_user(user_row: dict | None) -> str:
     ).strip()
 
 
+def _notification_actor_prefix_and_name(user_row: dict | None) -> tuple[str, str]:
+    data = row_to_dict(user_row)
+    position_title = str(data.get('position_title') or '').strip()
+    branch_label = _material_branch_label_from_user(data)
+    display_name = str(
+        data.get('name')
+        or data.get('nickname')
+        or data.get('login_id')
+        or data.get('email')
+        or '회원'
+    ).strip()
+    if position_title in {'대표', '부대표', '호점대표'} and branch_label:
+        return branch_label, display_name
+    if position_title:
+        return position_title, display_name
+    fallback_grade_label = str(grade_label(data.get('grade')) or '').strip()
+    if fallback_grade_label:
+        return fallback_grade_label, display_name
+    return '직원', display_name
+
+
+def _friend_notification_body(user_row: dict | None, suffix: str) -> str:
+    prefix, display_name = _notification_actor_prefix_and_name(user_row)
+    return f'[{prefix}] [{display_name}]님이 {suffix}'
+
+
 def _material_request_detail(conn, request_row: dict) -> dict:
     items = [
         row_to_dict(row)
@@ -2735,7 +2761,11 @@ def request_friend(target_user_id: int, user=Depends(require_user)):
             "INSERT INTO friend_requests(requester_id, target_user_id, status, created_at) VALUES (?, ?, 'pending', ?)",
             (user["id"], target_user_id, utcnow()),
         )
-        insert_notification(conn, target_user_id, "friend_request", "친구 요청", f"{user['nickname']}님이 친구 요청을 보냈습니다.")
+        actor_row = conn.execute(
+            "SELECT id, login_id, email, name, nickname, grade, position_title, branch_no, branch_code FROM users WHERE id = ?",
+            (user["id"],),
+        ).fetchone()
+        insert_notification(conn, target_user_id, "friend_request", "친구 요청", _friend_notification_body(actor_row, "친구 요청을 보냈습니다."))
         return {"ok": True}
 @app.post("/api/friends/respond/{request_id}")
 def respond_friend(request_id: int, payload: FriendRespondIn, user=Depends(require_user)):
@@ -2750,7 +2780,11 @@ def respond_friend(request_id: int, payload: FriendRespondIn, user=Depends(requi
         if action == "accepted":
             conn.execute("INSERT OR IGNORE INTO friends(user_id, friend_id, created_at) VALUES (?, ?, ?)", (req["requester_id"], req["target_user_id"], utcnow()))
             conn.execute("INSERT OR IGNORE INTO friends(user_id, friend_id, created_at) VALUES (?, ?, ?)", (req["target_user_id"], req["requester_id"], utcnow()))
-            insert_notification(conn, req["requester_id"], "friend_accept", "친구 요청 수락", f"{user['nickname']}님이 친구 요청을 수락했습니다.")
+            actor_row = conn.execute(
+                "SELECT id, login_id, email, name, nickname, grade, position_title, branch_no, branch_code FROM users WHERE id = ?",
+                (user["id"],),
+            ).fetchone()
+            insert_notification(conn, req["requester_id"], "friend_accept", "친구 요청 수락", _friend_notification_body(actor_row, "친구 요청을 수락했습니다."))
         return {"ok": True, "status": action}
 @app.post("/api/direct-chat-requests/{target_user_id}")
 def direct_chat_request(target_user_id: int, user=Depends(require_user)):

@@ -21486,3 +21486,103 @@ textarea,
     font-size: 11px !important;
   }
 }
+
+
+/* 2026-04-10 disposal list responsive/header + friends plain list final */
+.friend-row-card.upgraded.friend-card-structured,
+.friend-row-card.upgraded.friend-card-structured.request-variant,
+.friend-row-card.upgraded.friend-card-structured.list-variant {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.friend-card-content,
+.friend-card-head-row,
+.friend-card-bottom-row,
+.friend-row-title,
+.friend-row-subtitle,
+.friend-primary-badge,
+.friend-card-title-button,
+.friend-card-profile-button,
+.friend-avatar-button,
+.inline-friend-menu .dropdown-item,
+.friends-group-list .friend-row-card,
+.friends-subpanel .friend-row-card {
+  color: var(--text, #111111) !important;
+  font: inherit;
+}
+
+.friends-group-list .friend-row-card {
+  margin: 0 !important;
+}
+
+.disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content !important;
+}
+
+.disposal-meta-link-button,
+.disposal-header-action-button {
+  font-size: 12px !important;
+  padding: 6px 8px !important;
+}
+
+.disposal-meta-date,
+.disposal-meta-platform,
+.disposal-meta-customer,
+.disposal-meta-location,
+.disposal-header-action-button {
+  white-space: nowrap;
+}
+
+.disposal-meta-link-button.disposal-meta-date,
+.disposal-meta-link-button.disposal-meta-platform,
+.disposal-meta-link-button.disposal-meta-customer-link {
+  width: auto;
+}
+
+.disposal-meta-action-inline-wrap {
+  grid-template-columns: max-content max-content !important;
+}
+
+.disposal-list-grid.disposal-list-grid-customer,
+.disposal-list-grid-customer .disposal-list-grid-row,
+.disposal-list-grid-button-customer,
+.disposal-list-grid-customer .disposal-list-grid-row > div,
+.disposal-list-grid-customer .disposal-list-grid-row > label,
+.disposal-list-grid-button-customer > span,
+.disposal-list-grid-customer .disposal-list-grid-status-button,
+.disposal-list-grid-customer .disposal-list-grid-payment-cell {
+  box-sizing: border-box;
+}
+
+@media (min-width: 541px) {
+  .disposal-list-date-label.disposal-customer-group-label,
+  .disposal-list-grid.disposal-list-grid-customer {
+    display: block !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+    grid-template-columns: max-content max-content minmax(0, 1fr) max-content !important;
+  }
+
+  .disposal-meta-link-button,
+  .disposal-header-action-button {
+    font-size: 11px !important;
+    padding: 5px 6px !important;
+  }
+
+  .disposal-list-grid.disposal-list-grid-customer {
+    display: block !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+    grid-template-columns: max-content max-content minmax(0, 1fr) max-content !important;
+  }
+}
