@@ -2177,8 +2177,8 @@ export function DisposalListPage() {
                   <div>신고합계</div>
                   <div>수수료</div>
                   <div>매출액</div>
-                  <div>입금여부</div>
-                  <div>신고여부</div>
+                  <div className="disposal-list-grid-head-status"><span>입금</span><span>여부</span></div>
+                  <div className="disposal-list-grid-head-status"><span>신고</span><span>여부</span></div>
                 </div>
                 {group.rows.map((row) => (
                   <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">

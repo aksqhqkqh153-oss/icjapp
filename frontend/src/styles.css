@@ -21623,3 +21623,84 @@ textarea,
 .friends-page .friend-row-card.add-variant {
   border-color: transparent !important;
 }
+
+
+/* 2026-04-10 mobile disposal list table alignment and column fix */
+.disposal-list-grid-head-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.disposal-list-grid-head-status > span {
+  display: inline;
+}
+
+@media (max-width: 540px) {
+  .disposal-list-grid.disposal-list-grid-customer {
+    overflow-x: hidden !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row {
+    width: 100%;
+    min-width: 0 !important;
+    grid-template-columns: 20px minmax(46px, 1.05fr) minmax(24px, 0.42fr) minmax(38px, 0.62fr) minmax(40px, 0.66fr) minmax(36px, 0.58fr) minmax(40px, 0.66fr) 28px 28px !important;
+  }
+
+  .disposal-list-grid-button-customer {
+    grid-column: 2 / span 6 !important;
+    display: grid !important;
+    grid-template-columns: minmax(46px, 1.05fr) minmax(24px, 0.42fr) minmax(38px, 0.62fr) minmax(40px, 0.66fr) minmax(36px, 0.58fr) minmax(40px, 0.66fr) !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row > div,
+  .disposal-list-grid-customer .disposal-list-grid-row > label,
+  .disposal-list-grid-button-customer > span,
+  .disposal-list-grid-customer .disposal-list-grid-status-button,
+  .disposal-list-grid-customer .disposal-list-grid-payment-cell {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    min-height: 26px;
+    padding: 2px 1px !important;
+    font-size: 8px !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-check-cell {
+    padding: 0 !important;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-check-cell input,
+  .disposal-list-grid-summary-row .disposal-payment-toggle input {
+    width: 10px !important;
+    height: 10px !important;
+    min-width: 10px !important;
+    min-height: 10px !important;
+    margin: 0 auto !important;
+  }
+
+  .disposal-list-grid-button-customer > span:first-child {
+    justify-content: center !important;
+    padding-left: 1px !important;
+  }
+
+  .disposal-list-grid-head-status {
+    flex-direction: column;
+    line-height: 1.0 !important;
+  }
+
+  .disposal-list-grid-head-status > span {
+    display: block;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head > div:nth-child(8),
+  .disposal-list-grid-customer .disposal-list-grid-head > div:nth-child(9) {
+    white-space: normal !important;
+  }
+}
