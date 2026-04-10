@@ -2773,6 +2773,7 @@ function FriendsPage() {
   const [groupRenamePicker, setGroupRenamePicker] = useState({ open: false, mode: 'rename' })
   const [categoryEditor, setCategoryEditor] = useState({ open: false, mode: 'rename' })
   const [groupCreateModalOpen, setGroupCreateModalOpen] = useState(false)
+  const [groupSectionMenuOpen, setGroupSectionMenuOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupCategoryId, setNewGroupCategoryId] = useState('')
   const [editingGroupName, setEditingGroupName] = useState('')
@@ -2935,7 +2936,84 @@ function FriendsPage() {
     setGroupRenamePicker({ open: true, mode })
     setSelectedGroupId(first?.id || '')
     setEditingGroupName(first?.name || '')
+    setEditingGroupCategoryId(String(first?.category_id || ''))
     setMenuOpen(false)
+    setGroupSectionMenuOpen(false)
+  }
+
+  function openCreateGroupModal() {
+    setNewGroupName('')
+    setNewGroupCategoryId('')
+    setGroupCreateModalOpen(true)
+    setMenuOpen(false)
+    setGroupSectionMenuOpen(false)
+  }
+
+  function submitCreateGroup() {
+    const name = newGroupName.trim()
+    if (!name) {
+      window.alert('그룹명을 입력해 주세요.')
+      return
+    }
+    const nextGroup = { id: `g${Date.now()}`, name, category_id: String(newGroupCategoryId || '') }
+    saveGroupState({
+      ...groupState,
+      groups: [...(groupState.groups || []), nextGroup],
+    })
+    setGroupCreateModalOpen(false)
+    setNewGroupName('')
+    setNewGroupCategoryId('')
+  }
+
+  function createCategory() {
+    const name = window.prompt('새 카테고리명을 입력하세요.')
+    if (!name || !name.trim()) return
+    const nextCategory = { id: `c${Date.now()}`, name: name.trim() }
+    saveGroupState({
+      ...groupState,
+      categories: [...(groupState.categories || []), nextCategory],
+    })
+    setMenuOpen(false)
+    setGroupSectionMenuOpen(false)
+  }
+
+  function openCategoryEditor(mode) {
+    if (!(groupState.categories || []).length) {
+      window.alert(mode === 'rename' ? '수정할 카테고리가 없습니다.' : '삭제할 카테고리가 없습니다.')
+      return
+    }
+    const first = groupState.categories[0]
+    setCategoryEditor({ open: true, mode })
+    setSelectedCategoryId(String(first?.id || ''))
+    setEditingCategoryName(first?.name || '')
+    setMenuOpen(false)
+    setGroupSectionMenuOpen(false)
+  }
+
+  function submitCategoryEditor() {
+    const target = (groupState.categories || []).find(category => String(category.id) === String(selectedCategoryId))
+    if (!target) return
+    if (categoryEditor.mode === 'rename') {
+      const nextName = editingCategoryName.trim()
+      if (!nextName) {
+        window.alert('카테고리명을 입력해 주세요.')
+        return
+      }
+      saveGroupState({
+        ...groupState,
+        categories: (groupState.categories || []).map(category => category.id === target.id ? { ...category, name: nextName } : category),
+      })
+    } else {
+      saveGroupState({
+        ...groupState,
+        categories: (groupState.categories || []).filter(category => category.id !== target.id),
+        groups: (groupState.groups || []).map(group => String(group.category_id || '') === String(target.id) ? { ...group, category_id: '' } : group),
+      })
+      if (String(selectedGroupCategoryId) === String(target.id)) setSelectedGroupCategoryId('all')
+    }
+    setCategoryEditor({ open: false, mode: 'rename' })
+    setSelectedCategoryId('')
+    setEditingCategoryName('')
   }
 
   function submitGroupEditor() {
@@ -3154,7 +3232,19 @@ function FriendsPage() {
           {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} section="favorite" />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
         </div>
 
-        <div className="friends-section-label">그룹</div>
+        <div className="friends-section-label friends-section-label-with-menu">
+          <span>그룹</span>
+          <div className="dropdown-wrap friends-group-menu">
+            <button type="button" className="ghost small" onClick={() => setGroupSectionMenuOpen(v => !v)}>메뉴</button>
+            {groupSectionMenuOpen && (
+              <div className="dropdown-menu right">
+                <button type="button" className="dropdown-item" onClick={openCreateGroupModal}>그룹추가</button>
+                <button type="button" className="dropdown-item" onClick={() => openGroupEditor('delete')}>그룹삭제</button>
+                <button type="button" className="dropdown-item" onClick={() => openGroupEditor('rename')}>그룹수정</button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="friend-group-category-filter">
           <button type="button" className={selectedGroupCategoryId === 'all' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('all')}>전체</button>
           {groupCategories.map(category => (

@@ -21158,11 +21158,19 @@ textarea,
 .friend-row-card.friend-card-structured,
 .friend-row-card.request-variant,
 .friend-row-card.list-variant,
-.group-card-block {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+.group-card-block,
+.friend-card-content,
+.friend-card-head-row,
+.friend-card-bottom-row {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.friend-row-card.friend-card-structured,
+.friend-row-card.request-variant,
+.friend-row-card.list-variant {
+  padding: 12px 0;
 }
 .friend-card-content {
   min-width: 0;
@@ -21193,6 +21201,7 @@ textarea,
   text-align: left;
   cursor: pointer;
   color: var(--text);
+  font: inherit;
 }
 .friend-primary-badge {
   display: inline-flex;
@@ -21209,6 +21218,7 @@ textarea,
 .friend-card-profile-button {
   text-align: left;
   color: var(--text);
+  font: inherit;
 }
 .friend-card-action-slot {
   display: flex;
@@ -21222,6 +21232,13 @@ textarea,
 }
 .friend-card-favorite {
   min-width: auto;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #d4a017 !important;
+  font-size: 20px;
+  line-height: 1;
 }
 .friend-row-title,
 .friend-row-subtitle,
@@ -21230,8 +21247,11 @@ textarea,
 .friend-row-card .ghost,
 .friend-row-card .dropdown-item,
 .group-card-header-line,
-.group-category-chip {
+.group-category-chip,
+.friends-group-menu .small,
+.friends-group-menu .dropdown-item {
   color: var(--text);
+  font: inherit;
 }
 .group-category-chip {
   padding: 0;
@@ -21265,6 +21285,27 @@ textarea,
 }
 .friends-request-menu-item-label {
   display: inline-block;
+  white-space: nowrap;
+}
+.friends-section-label-with-menu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.friends-group-menu {
+  position: relative;
+}
+.friends-group-menu .dropdown-menu,
+.friends-main-menu .dropdown-menu {
+  min-width: max-content;
+}
+.friends-group-menu .dropdown-item,
+.friends-main-menu .dropdown-item,
+.friends-page .sheet-panel select,
+.friends-page .sheet-panel option,
+.friends-page .sheet-title,
+.friends-page .sheet-panel .muted {
   white-space: nowrap;
 }
 .friends-request-inline-badge {
