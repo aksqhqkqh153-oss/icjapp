@@ -4998,8 +4998,6 @@ function MapPage() {
     customerEnd: false,
     businessStart: true,
     staffStart: true,
-    businessEnd: true,
-    staffEnd: true,
   })
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
   const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], accountEndMarkers: [], customerList: [] })
@@ -5199,25 +5197,11 @@ function MapPage() {
         label: '',
         popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
       }))
-    const accountEnds = (departureData.accountEndMarkers || [])
-      .filter(item => {
-        if (item.markerKind === 'business-end') return mapDisplayOptions.businessEnd
-        if (item.markerKind === 'staff-end') return mapDisplayOptions.staffEnd
-        return false
-      })
-      .map(item => ({
-        type: item.markerKind === 'business-end' ? 'business-end' : 'staff-end',
-        id: item.id,
-        lat: item.point?.lat,
-        lng: item.point?.lng,
-        label: '',
-        popup: `<strong>${item.displayName || '담당자'}</strong><br/>${item.markerKind === 'business-end' ? '사업자 도착지' : '직원 도착지'}<br/>${item.title}<br/>${item.address}`,
-      }))
     if (mapFilter === 'departure') {
-      return [...customer, ...accounts, ...accountEnds].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+      return [...customer, ...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
     if (mapFilter === 'all') {
-      return [...accounts, ...accountEnds].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+      return [...accounts].filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     }
     return (users || []).map(item => ({
       type: item.map_status?.is_moving ? 'moving' : 'stopped',
@@ -5305,8 +5289,6 @@ function MapPage() {
   const allMarkerSummary = useMemo(() => ({
     businessStart: (departureData.accountMarkers || []).filter(item => item.markerKind === 'business-start' && mapDisplayOptions.businessStart).length,
     staffStart: (departureData.accountMarkers || []).filter(item => item.markerKind === 'staff-start' && mapDisplayOptions.staffStart).length,
-    businessEnd: (departureData.accountEndMarkers || []).filter(item => item.markerKind === 'business-end' && mapDisplayOptions.businessEnd).length,
-    staffEnd: (departureData.accountEndMarkers || []).filter(item => item.markerKind === 'staff-end' && mapDisplayOptions.staffEnd).length,
   }), [departureData, mapDisplayOptions])
 
   function formatCandidateList(items = []) {
@@ -5348,8 +5330,6 @@ function MapPage() {
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerEnd: e.target.checked }))} /> <span className="marker-legend-icon customer-end" /> 고도</label>
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessStart: e.target.checked }))} /> <span className="marker-legend-icon business-start" /> 사출</label>
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffStart: e.target.checked }))} /> <span className="marker-legend-icon staff-start" /> 직출</label>
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.businessEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, businessEnd: e.target.checked }))} /> <span className="marker-legend-icon business-end" /> 사도</label>
-                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.staffEnd} onChange={e => setMapDisplayOptions(prev => ({ ...prev, staffEnd: e.target.checked }))} /> <span className="marker-legend-icon staff-end" /> 직도</label>
                   <button type="button" className="small ghost map-display-help-button" onClick={() => setDisplayLegendHelpOpen(true)}>설명</button>
                 </div>
               )}
@@ -5380,10 +5360,8 @@ function MapPage() {
               <div className="map-legend-help-list">
                 <div><span className="marker-legend-icon customer-start" /> 고출 : 고객 출발지</div>
                 <div><span className="marker-legend-icon customer-end" /> 고도 : 고객 도착지</div>
-                <div><span className="marker-legend-icon business-start" /> 사출 : 사업자 출발지</div>
-                <div><span className="marker-legend-icon staff-start" /> 직출 : 직원 출발지</div>
-                <div><span className="marker-legend-icon business-end" /> 사도 : 사업자 도착지</div>
-                <div><span className="marker-legend-icon staff-end" /> 직도 : 직원 도착지</div>
+                <div><span className="marker-legend-icon business-start" /> 사출 : 대표 / 부대표 / 호점대표 출발지</div>
+                <div><span className="marker-legend-icon staff-start" /> 직출 : 팀장 / 부팀장 / 직원 출발지</div>
               </div>
               <div className="muted">하단 출발지 목록의 거리 표시는 고객 출발지 기준 예상 거리(km)입니다.</div>
             </div>
