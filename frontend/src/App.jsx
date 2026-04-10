@@ -1383,13 +1383,24 @@ function saveQuickActionState(userId, nextState) {
 }
 
 function getFriendGroupState(userId) {
-  const fallback = { groups: [], assignments: {} }
+  const fallback = { categories: [], groups: [], assignments: {} }
   try {
     const raw = localStorage.getItem(friendGroupStorageKey(userId))
     if (!raw) return fallback
     const parsed = JSON.parse(raw)
+    const categories = Array.isArray(parsed?.categories)
+      ? parsed.categories
+        .map(item => ({ id: String(item?.id || ''), name: String(item?.name || '').trim() }))
+        .filter(item => item.id && item.name)
+      : []
+    const groups = Array.isArray(parsed?.groups)
+      ? parsed.groups
+        .map(item => ({ id: String(item?.id || ''), name: String(item?.name || '').trim(), category_id: String(item?.category_id || item?.categoryId || '') }))
+        .filter(item => item.id && item.name)
+      : []
     return {
-      groups: Array.isArray(parsed?.groups) ? parsed.groups : [],
+      categories,
+      groups,
       assignments: parsed?.assignments && typeof parsed.assignments === 'object' ? parsed.assignments : {},
     }
   } catch (_) {
@@ -1399,6 +1410,28 @@ function getFriendGroupState(userId) {
 
 function saveFriendGroupState(userId, nextState) {
   localStorage.setItem(friendGroupStorageKey(userId), JSON.stringify(nextState))
+}
+
+
+function isLeaderPosition(positionTitle) {
+  return ['대표', '부대표', '호점대표'].includes(String(positionTitle || '').trim())
+}
+
+function getFriendPrimaryBadge(item) {
+  if (!item) return ''
+  if (isLeaderPosition(item.position_title)) {
+    const branchNo = String(item.branch_no || item.branch_code || item.group_number || '').trim()
+    return branchNo ? `${branchNo}호점` : '호점'
+  }
+  return String(item.position_title || item.grade_label || item.role || '직원').trim()
+}
+
+function getFriendDisplayName(item) {
+  return String(item?.name || item?.nickname || item?.login_id || '회원').trim() || '회원'
+}
+
+function getFriendIntro(item, fallback = '한줄소개가 없습니다.') {
+  return item?.one_liner || item?.bio || item?.region || fallback
 }
 
 function chatPinnedOrderStorageKey(userId) {
@@ -2734,11 +2767,19 @@ function FriendsPage() {
   const [toast, setToast] = useState('')
   const currentUser = getStoredUser()
   const [groupState, setGroupState] = useState(() => getFriendGroupState(currentUser?.id))
+  const [selectedGroupCategoryId, setSelectedGroupCategoryId] = useState('all')
   const [openFriendMenuId, setOpenFriendMenuId] = useState(null)
   const [groupPicker, setGroupPicker] = useState({ open: false, friend: null })
   const [groupRenamePicker, setGroupRenamePicker] = useState({ open: false, mode: 'rename' })
+  const [categoryEditor, setCategoryEditor] = useState({ open: false, mode: 'rename' })
+  const [groupCreateModalOpen, setGroupCreateModalOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupCategoryId, setNewGroupCategoryId] = useState('')
   const [editingGroupName, setEditingGroupName] = useState('')
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [editingGroupCategoryId, setEditingGroupCategoryId] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [profilePreview, setProfilePreview] = useState({ mode: '', friend: null, section: '' })
   const [profileEditForm, setProfileEditForm] = useState(null)
   const [myCoverUrl, setMyCoverUrl] = useState(() => loadProfileCover(getStoredUser()?.id))
@@ -2768,6 +2809,7 @@ function FriendsPage() {
   }, [toast])
   useEffect(() => {
     setGroupState(getFriendGroupState(currentUser?.id))
+    setSelectedGroupCategoryId('all')
   }, [currentUser?.id])
 
   async function doAction(fn, successText = '처리되었습니다.') {
@@ -2803,7 +2845,18 @@ function FriendsPage() {
   }, [users, data.friends, currentUser?.id, normalizedAddQuery, addSearchMode])
   const receivedProfiles = useMemo(() => data.received_requests.map(req => ({ ...req, profile: users.find(item => item.id === req.requester_id) || {} })), [data.received_requests, users])
   const sentRequestIds = useMemo(() => new Set((data.sent_requests || []).filter(req => req.status === 'pending').map(req => req.target_user_id)), [data.sent_requests])
-  const groupedFriends = useMemo(() => (groupState.groups || []).map(group => ({ ...group, items: data.friends.filter(friend => String(groupState.assignments?.[friend.id] || '') === String(group.id)) })), [groupState, data.friends])
+  const groupCategories = useMemo(() => (groupState.categories || []).map(category => ({ ...category, id: String(category.id) })), [groupState.categories])
+  const groupedFriends = useMemo(() => (groupState.groups || []).map(group => ({
+    ...group,
+    id: String(group.id),
+    category_id: String(group.category_id || ''),
+    items: data.friends.filter(friend => String(groupState.assignments?.[friend.id] || '') === String(group.id)),
+  })), [groupState, data.friends])
+  const groupedFriendsFiltered = useMemo(() => {
+    if (selectedGroupCategoryId === 'all') return groupedFriends
+    if (selectedGroupCategoryId === 'uncategorized') return groupedFriends.filter(group => !String(group.category_id || '').trim())
+    return groupedFriends.filter(group => String(group.category_id || '') === String(selectedGroupCategoryId))
+  }, [groupedFriends, selectedGroupCategoryId])
 
   useEffect(() => {
     function closeMenus(event) {
@@ -3001,28 +3054,51 @@ function FriendsPage() {
     }
   }
 
-  function FriendRow({ item, actions = null, section = 'friends' }) {
+  function FriendRow({ item, actions = null, section = 'friends', variant = 'friend' }) {
     const isFavorite = followedIds.has(item.id)
+    const primaryBadge = getFriendPrimaryBadge(item)
+    const displayName = getFriendDisplayName(item)
+    const intro = getFriendIntro(item, variant === 'request' ? '친구 요청을 보냈습니다.' : '한줄소개가 없습니다.')
+    const menuId = friendMenuKey(section, item.id)
+    const defaultActions = variant === 'request'
+      ? actions
+      : (
+        <button
+          type="button"
+          className={isFavorite ? 'small ghost active-icon favorite-friend-button friend-card-favorite' : 'small ghost favorite-friend-button friend-card-favorite'}
+          onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}
+        >
+          {isFavorite ? '🌟' : '✨'}
+        </button>
+      )
     return (
-      <div className="friend-row-card upgraded">
+      <div className={`friend-row-card upgraded friend-card-structured ${variant === 'request' ? 'request-variant' : 'list-variant'}`}>
         <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item, section })}>
-          <AvatarCircle src={item.photo_url} label={item.nickname} className="friend-avatar" />
+          <AvatarCircle src={item.photo_url} label={displayName} className="friend-avatar" />
         </button>
-        <button type="button" className="friend-row-body clickable-profile" onClick={() => setProfilePreview({ mode: 'card', friend: item, section })}>
-          <div className="friend-row-title">{item.nickname || '회원'}</div>
-          <div className="friend-row-subtitle">{item.one_liner || item.bio || item.region || '한줄소개가 없습니다.'}</div>
-        </button>
-        <div className="friend-row-actions vertical-edge">
-          <div className="dropdown-wrap friend-inline-wrap top-menu">
-            <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === friendMenuKey(section, item.id) ? null : friendMenuKey(section, item.id))}>메뉴</button>
-            <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === friendMenuKey(section, item.id) ? 'open-inline-menu' : ''}`}>
-              <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>
-              <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>
-              <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>친구차단</button>
+        <div className="friend-card-content">
+          <div className="friend-card-head-row">
+            <button type="button" className="friend-card-title-button" onClick={() => setProfilePreview({ mode: 'card', friend: item, section })}>
+              <span className="friend-primary-badge">{primaryBadge}</span>
+              <span className="friend-row-title">{displayName}</span>
+            </button>
+            <div className="dropdown-wrap friend-inline-wrap top-menu">
+              <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === menuId ? null : menuId)}>메뉴</button>
+              <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === menuId ? 'open-inline-menu' : ''}`}>
+                {variant !== 'request' && <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>}
+                {variant !== 'request' && <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>}
+                <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>{variant === 'request' ? '차단' : '친구차단'}</button>
+              </div>
             </div>
           </div>
-          <button type="button" className={isFavorite ? 'small ghost active-icon favorite-friend-button bottom-favorite' : 'small ghost favorite-friend-button bottom-favorite'} onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '🌟' : '✨'}</button>
-          {actions}
+          <div className="friend-card-bottom-row">
+            <button type="button" className="friend-row-body clickable-profile friend-card-profile-button" onClick={() => setProfilePreview({ mode: 'card', friend: item, section })}>
+              <div className="friend-row-subtitle">{intro}</div>
+            </button>
+            <div className={`friend-card-action-slot ${variant === 'request' ? 'request-actions' : 'favorite-actions'}`}>
+              {defaultActions}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -3044,9 +3120,12 @@ function FriendsPage() {
                 <div className="dropdown-menu right">
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록 {data.received_requests.length > 0 ? `(${data.received_requests.length})` : ''}</button>
-                  <button type="button" className="dropdown-item" onClick={() => { createGroup(); setMenuOpen(false) }}>그룹추가</button>
-                  <button type="button" className="dropdown-item" onClick={() => openGroupEditor('rename')}>그룹명편집</button>
+                  <button type="button" className="dropdown-item" onClick={() => { openCreateGroupModal(); setMenuOpen(false) }}>그룹추가</button>
+                  <button type="button" className="dropdown-item" onClick={() => openGroupEditor('rename')}>그룹편집</button>
                   <button type="button" className="dropdown-item" onClick={() => openGroupEditor('delete')}>그룹삭제</button>
+                  <button type="button" className="dropdown-item" onClick={() => { createCategory(); setMenuOpen(false) }}>카테고리추가</button>
+                  <button type="button" className="dropdown-item" onClick={() => openCategoryEditor('rename')}>카테고리편집</button>
+                  <button type="button" className="dropdown-item" onClick={() => openCategoryEditor('delete')}>카테고리삭제</button>
                 </div>
               )}
             </div>
@@ -3071,15 +3150,25 @@ function FriendsPage() {
         </div>
 
         <div className="friends-section-label">그룹</div>
+        <div className="friend-group-category-filter">
+          <button type="button" className={selectedGroupCategoryId === 'all' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('all')}>전체</button>
+          {groupCategories.map(category => (
+            <button key={category.id} type="button" className={selectedGroupCategoryId === category.id ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId(category.id)}>{category.name}</button>
+          ))}
+          <button type="button" className={selectedGroupCategoryId === 'uncategorized' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('uncategorized')}>미분류</button>
+        </div>
         <div className="friends-group-list grouped-stack">
-          {groupedFriends.length > 0 ? groupedFriends.map(group => (
+          {groupedFriendsFiltered.length > 0 ? groupedFriendsFiltered.map(group => (
             <div key={group.id} className="group-card-block">
-              <strong>{group.name}</strong>
+              <div className="group-card-header-line">
+                <strong>{group.name}</strong>
+                <span className="group-category-chip">{groupCategories.find(category => String(category.id) === String(group.category_id || ''))?.name || '미분류'}</span>
+              </div>
               <div className="friends-group-list inner">
                 {group.items.length > 0 ? group.items.map(item => <FriendRow key={`group-${group.id}-${item.id}`} item={item} section={`group-${group.id}`} />) : <div className="muted">배정된 친구가 없습니다.</div>}
               </div>
             </div>
-          )) : <div className="muted">등록된 그룹이 없습니다.</div>}
+          )) : <div className="muted">표시할 그룹이 없습니다.</div>}
         </div>
 
         <div className="friends-section-label">전체친구</div>
@@ -3150,6 +3239,7 @@ function FriendsPage() {
                   key={`req-${req.id}`}
                   item={{ ...req.profile, nickname: req.profile.nickname || req.requester_nickname, one_liner: req.profile.one_liner || req.profile.region || '친구 요청을 보냈습니다.' }}
                   section="requests"
+                  variant="request"
                   actions={
                     <div className="inline-actions wrap">
                       <button className="small" onClick={() => doAction(() => api(`/api/friends/respond/${req.id}`, { method: 'POST', body: JSON.stringify({ action: 'accepted' }) }), '친구 요청을 수락했습니다.')}>수락</button>
@@ -3167,6 +3257,25 @@ function FriendsPage() {
         {toast && <div className="mention-toast action-toast">{toast}</div>}
       </section>
 
+      {groupCreateModalOpen && (
+        <div className="sheet-backdrop" onClick={() => setGroupCreateModalOpen(false)}>
+          <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">그룹추가</div>
+            <div className="stack">
+              <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="그룹명" />
+              <select value={newGroupCategoryId} onChange={e => setNewGroupCategoryId(e.target.value)}>
+                <option value="">미분류</option>
+                {groupCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+              <div className="inline-actions wrap end">
+                <button type="button" className="ghost" onClick={() => setGroupCreateModalOpen(false)}>닫기</button>
+                <button type="button" onClick={submitCreateGroup}>저장</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {groupPicker.open && (
         <div className="sheet-backdrop" onClick={() => setGroupPicker({ open: false, friend: null })}>
           <div className="sheet-panel" onClick={e => e.stopPropagation()}>
@@ -3175,7 +3284,7 @@ function FriendsPage() {
               <div className="muted">{groupPicker.friend?.nickname} 님을 배정할 그룹을 선택하세요.</div>
               <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)}>
                 <option value="">그룹 해제</option>
-                {(groupState.groups || []).map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
+                {(groupState.groups || []).map(group => <option key={group.id} value={group.id}>{group.name}{group.category_id ? ` · ${groupCategories.find(category => String(category.id) === String(group.category_id))?.name || ''}` : ''}</option>)}
               </select>
               <div className="inline-actions wrap end">
                 <button type="button" className="ghost" onClick={() => setGroupPicker({ open: false, friend: null })}>닫기</button>
@@ -3195,14 +3304,46 @@ function FriendsPage() {
                 const group = (groupState.groups || []).find(item => String(item.id) === e.target.value)
                 setSelectedGroupId(e.target.value)
                 setEditingGroupName(group?.name || '')
+                setEditingGroupCategoryId(String(group?.category_id || ''))
               }}>
                 {(groupState.groups || []).map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
-              {groupRenamePicker.mode === 'rename' && <input value={editingGroupName} onChange={e => setEditingGroupName(e.target.value)} placeholder="새 그룹명" />}
+              {groupRenamePicker.mode === 'rename' && (
+                <>
+                  <input value={editingGroupName} onChange={e => setEditingGroupName(e.target.value)} placeholder="새 그룹명" />
+                  <select value={editingGroupCategoryId} onChange={e => setEditingGroupCategoryId(e.target.value)}>
+                    <option value="">미분류</option>
+                    {groupCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
+                </>
+              )}
               {groupRenamePicker.mode === 'delete' && <div className="muted">선택한 그룹을 삭제하면 해당 그룹 배정만 해제되고 전체 친구 목록은 유지됩니다.</div>}
               <div className="inline-actions wrap end">
                 <button type="button" className="ghost" onClick={() => setGroupRenamePicker({ open: false, mode: 'rename' })}>닫기</button>
                 <button type="button" className={groupRenamePicker.mode === 'delete' ? 'danger-text' : ''} onClick={submitGroupEditor}>{groupRenamePicker.mode === 'rename' ? '저장' : '삭제'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {categoryEditor.open && (
+        <div className="sheet-backdrop" onClick={() => setCategoryEditor({ open: false, mode: 'rename' })}>
+          <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+            <div className="sheet-title">{categoryEditor.mode === 'rename' ? '카테고리편집' : '카테고리삭제'}</div>
+            <div className="stack">
+              <select value={selectedCategoryId} onChange={e => {
+                const category = (groupState.categories || []).find(item => String(item.id) === e.target.value)
+                setSelectedCategoryId(e.target.value)
+                setEditingCategoryName(category?.name || '')
+              }}>
+                {(groupState.categories || []).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+              {categoryEditor.mode === 'rename' && <input value={editingCategoryName} onChange={e => setEditingCategoryName(e.target.value)} placeholder="새 카테고리명" />}
+              {categoryEditor.mode === 'delete' && <div className="muted">삭제된 카테고리에 속한 그룹은 미분류로 유지됩니다.</div>}
+              <div className="inline-actions wrap end">
+                <button type="button" className="ghost" onClick={() => setCategoryEditor({ open: false, mode: 'rename' })}>닫기</button>
+                <button type="button" className={categoryEditor.mode === 'delete' ? 'danger-text' : ''} onClick={submitCategoryEditor}>{categoryEditor.mode === 'rename' ? '저장' : '삭제'}</button>
               </div>
             </div>
           </div>

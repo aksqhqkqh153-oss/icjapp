@@ -21121,3 +21121,111 @@ textarea,
     font-size: 17px;
   }
 }
+
+
+.friend-card-structured {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+.friend-card-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+.friend-card-head-row,
+.friend-card-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.friend-card-title-button,
+.friend-card-profile-button {
+  min-width: 0;
+  flex: 1;
+}
+.friend-card-title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.friend-primary-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+.friend-card-profile-button {
+  text-align: left;
+}
+.friend-card-action-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.friend-card-action-slot.request-actions {
+  flex-wrap: wrap;
+}
+.friend-card-favorite {
+  min-width: 44px;
+}
+.friend-row-card.request-variant .friend-row-subtitle,
+.friend-row-card.list-variant .friend-row-subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.friend-group-category-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.group-card-header-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.group-category-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.95);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .friend-card-head-row,
+  .friend-card-bottom-row {
+    align-items: flex-start;
+  }
+  .friend-card-bottom-row {
+    flex-direction: column;
+  }
+  .friend-card-action-slot {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
