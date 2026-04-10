@@ -2446,10 +2446,12 @@ function buildSettlementMonthlyRows(monthlyRecords) {
     })
     records.forEach((record, index) => {
       const metrics = getRecordSettlementMetrics(record)
+      const detailToggleKey = `detail-items-${record.id}`
       rows.push({
         key: `detail-${record.id}-${index}`,
         kind: 'detail',
         parentKey: dateKey,
+        toggleKey: detailToggleKey,
         recordId: record.id,
         cells: [
           dateKey,
@@ -2461,8 +2463,37 @@ function buildSettlementMonthlyRows(monthlyRecords) {
           `${formatNumber(metrics.feeAmount)}원`,
           `${formatNumber(metrics.cancelAmount)}원`,
           `${formatNumber(metrics.minimumFee)}원`,
-          record?.location || '-',
+          '품목보기',
         ],
+      })
+      getFilledRecordItems(record).forEach((item, itemIndex) => {
+        const quantity = safeNumber(item?.quantity)
+        const unitCost = safeNumber(item?.unitCost)
+        const reportAmount = quantity * unitCost
+        const feeAmount = Math.round(reportAmount * 0.3)
+        const finalAmount = reportAmount + feeAmount
+        const noteText = String(item?.note || '').trim()
+        const reportNoText = String(item?.reportNo || '').trim()
+        const itemNote = [reportNoText ? `번호 ${reportNoText}` : '', noteText].filter(Boolean).join(' · ') || '-'
+        rows.push({
+          key: `detail-item-${record.id}-${itemIndex}`,
+          kind: 'item',
+          parentKey: dateKey,
+          detailParentKey: detailToggleKey,
+          recordId: record.id,
+          cells: [
+            '',
+            `${index + 1}-${itemIndex + 1}`,
+            '품목',
+            `└ ${String(item?.itemName || '').trim() || '-'} `,
+            `${formatNumber(quantity)}개`,
+            `${formatNumber(reportAmount)}원`,
+            `${formatNumber(feeAmount)}원`,
+            '0원',
+            `${formatNumber(finalAmount)}원`,
+            itemNote,
+          ],
+        })
       })
     })
   })
@@ -2526,7 +2557,12 @@ export function DisposalSettlementsPage() {
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
   const settlementRows = useMemo(() => buildSettlementMonthlyRows(monthlyRecords), [monthlyRecords])
-  const visibleRows = useMemo(() => settlementRows.filter(row => row.kind === 'summary' || expandedKeys[row.parentKey]), [settlementRows, expandedKeys])
+  const visibleRows = useMemo(() => settlementRows.filter((row) => {
+    if (row.kind === 'summary') return true
+    if (row.kind === 'detail') return !!expandedKeys[row.parentKey]
+    if (row.kind === 'item') return !!expandedKeys[row.parentKey] && !!expandedKeys[row.detailParentKey]
+    return false
+  }), [settlementRows, expandedKeys])
 
   function toggleRow(key) {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))
@@ -2599,14 +2635,22 @@ export function DisposalSettlementsPage() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-detail">
+            ) : row.kind === 'detail' ? (
+              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-detail" onClick={() => toggleRow(row.toggleKey)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(row.toggleKey) } }}>
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`}>
+                  <div key={`${row.key}-${index}`} className={index === 9 ? 'toggle-cell' : ''}>
                     {index === 3 ? (
-                      <button type="button" className="disposal-month-settlement-link-button" onClick={() => navigate(`/disposal/forms/${row.recordId}`)}>{cell}</button>
+                      <button type="button" className="disposal-month-settlement-link-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{cell}</button>
+                    ) : index === 9 ? (
+                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '품목접기' : '품목펼치기'}</button>
                     ) : cell}
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-item">
+                {row.cells.map((cell, index) => (
+                  <div key={`${row.key}-${index}`}>{cell}</div>
                 ))}
               </div>
             ))}
