@@ -4628,16 +4628,30 @@ function findTaggedUsersForSchedule(scheduleItem, users = []) {
 }
 
 function getUserBaseAddress(user = {}) {
-  return String(user?.resident_address || '').trim()
+  return String(user?.resident_address || user?.business_address || user?.region || '').trim()
 }
 
 function normalizeMarkerPositionTitle(value) {
-  return String(value || '').replace(/\s+/g, '')
+  return String(value || '')
+    .replace(/님/g, '')
+    .replace(/[()\[\]{}]/g, ' ')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function isExecutivePositionTitle(value) {
+  const title = normalizeMarkerPositionTitle(value)
+  return ['대표', '부대표', '호점대표'].some(keyword => title.includes(keyword))
+}
+
+function isStaffPositionTitle(value) {
+  const title = normalizeMarkerPositionTitle(value)
+  return ['팀장', '부팀장', '직원', '현장직원', '본사직원'].some(keyword => title.includes(keyword))
 }
 
 function resolveStaffMarkerTone(user = {}) {
   const title = normalizeMarkerPositionTitle(user.position_title || user.position || user.grade_name || '')
-  if (['대표', '부대표', '호점대표'].includes(title)) return 'executive'
+  if (isExecutivePositionTitle(title)) return 'executive'
   return 'staff'
 }
 
@@ -4671,6 +4685,23 @@ function buildAddressSimilarityScore(source, target) {
 }
 
 const KOREA_ADDRESS_FALLBACK_CENTERS = {
+  '서울': { lat: 37.5665, lng: 126.9780 },
+  '경기': { lat: 37.2636, lng: 127.0286 },
+  '인천': { lat: 37.4563, lng: 126.7052 },
+  '부산': { lat: 35.1796, lng: 129.0756 },
+  '대구': { lat: 35.8714, lng: 128.6014 },
+  '광주': { lat: 35.1595, lng: 126.8526 },
+  '대전': { lat: 36.3504, lng: 127.3845 },
+  '울산': { lat: 35.5384, lng: 129.3114 },
+  '세종': { lat: 36.4800, lng: 127.2890 },
+  '강원': { lat: 37.8228, lng: 128.1555 },
+  '충북': { lat: 36.6357, lng: 127.4917 },
+  '충남': { lat: 36.6588, lng: 126.6728 },
+  '전북': { lat: 35.8202, lng: 127.1089 },
+  '전남': { lat: 34.8161, lng: 126.4629 },
+  '경북': { lat: 36.5760, lng: 128.5056 },
+  '경남': { lat: 35.2383, lng: 128.6926 },
+  '제주': { lat: 33.4996, lng: 126.5312 },
   '서울 강서구': { lat: 37.5509, lng: 126.8495 },
   '서울 양천구': { lat: 37.5169, lng: 126.8666 },
   '서울 구로구': { lat: 37.4954, lng: 126.8874 },
@@ -4764,6 +4795,28 @@ function deriveFallbackPointFromAddress(address) {
     if (KOREA_ADDRESS_FALLBACK_CENTERS[key3]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key3], label: normalized, approximate: true }
   }
   const compact = normalized.replace(/\s+/g, ' ').trim()
+  const provinceOnlyMap = {
+    '서울': '서울 종로구',
+    '경기': '경기 수원시',
+    '인천': '인천 미추홀구',
+    '부산': '부산',
+    '대구': '대구',
+    '광주': '광주',
+    '대전': '대전',
+    '울산': '울산',
+    '세종': '세종',
+    '강원': '강원',
+    '충북': '충북',
+    '충남': '충남',
+    '전북': '전북',
+    '전남': '전남',
+    '경북': '경북',
+    '경남': '경남',
+    '제주': '제주',
+  }
+  if (provinceOnlyMap[compact] && KOREA_ADDRESS_FALLBACK_CENTERS[provinceOnlyMap[compact]]) {
+    return { ...KOREA_ADDRESS_FALLBACK_CENTERS[provinceOnlyMap[compact]], label: normalized, approximate: true }
+  }
   const bareToken = tokens[0] || ''
   const matchedKey = keys.find(key => key.endsWith(` ${compact}`))
     || keys.find(key => key.endsWith(` ${bareToken}`))
@@ -4843,7 +4896,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
 
   const eligibleUsers = (users || []).filter(user => {
     const title = normalizeMarkerPositionTitle(user?.position_title || user?.position || user?.grade_name || '')
-    return ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원'].includes(title)
+    return isExecutivePositionTitle(title) || isStaffPositionTitle(title)
   })
 
   const accountCandidates = []
@@ -5078,7 +5131,7 @@ function MapPage() {
   useEffect(() => {
     let ignore = false
     async function updateDeparture() {
-      if (mapFilter !== 'departure') return
+      if (mapFilter === 'live') return
       const resolved = await resolveMapDepartureData(scheduleItems, accountUsers)
       if (!ignore) setDepartureData(resolved)
     }
