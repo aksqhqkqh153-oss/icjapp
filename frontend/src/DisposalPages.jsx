@@ -1297,11 +1297,19 @@ function DisposalItemsEditor({
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
             <div className="disposal-settings-inline disposal-item-settings-inline">
               <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
+              <button
+                type="button"
+                className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline"
+                onClick={onSaveEstimate}
+                aria-label="폐기목록 저장"
+                title="현재 입력한 내용을 폐기목록에 저장"
+              >
+                저장
+              </button>
               {itemSettingsOpen ? (
                 <div className="disposal-settings-popover disposal-item-settings-popover">
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); setItemSettingsOpen(false) }}>폐기견적서 전체 미리보기</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
-                  <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onSaveEstimate(); setItemSettingsOpen(false) }}>견적저장</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>
                 </div>
               ) : null}
@@ -1888,7 +1896,7 @@ useEffect(() => {
     const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
     saveRecords(next)
     setSavedAt(nextRecord.savedAt)
-    window.alert(recordId ? '폐기양식이 수정 저장되었습니다.' : '폐기결산 저장과 함께 폐기목록에 등록되었습니다.')
+    window.alert(recordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
     navigate('/disposal/list')
   }
 
