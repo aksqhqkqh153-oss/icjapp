@@ -1010,9 +1010,6 @@ label { font-size: 14px; color: #4f6f8c; }
   gap: 12px;
   align-items: center;
   padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,0.96);
 }
 .my-profile-card { grid-template-columns: 56px minmax(0,1fr); }
 .friend-avatar.large { width: 56px; height: 56px; }
@@ -2695,8 +2692,26 @@ label { font-size: 14px; color: #4f6f8c; }
   margin-top: 8px;
 }
 .favorite-friend-button {
-  min-width: 40px;
+  min-width: auto;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #d4a017;
+  font-size: 22px;
+  line-height: 1;
 }
+.favorite-friend-button:hover,
+.favorite-friend-button:focus-visible,
+.favorite-friend-button.is-active {
+  color: #d4a017;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
 @media (max-width: 768px) {
   .quick-check-grid,
   .quick-check-grid-desktop-6 {
@@ -21140,6 +21155,15 @@ textarea,
   gap: 12px;
   align-items: stretch;
 }
+.friend-row-card.friend-card-structured,
+.friend-row-card.request-variant,
+.friend-row-card.list-variant,
+.group-card-block {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .friend-card-content {
   min-width: 0;
   display: flex;
@@ -21168,21 +21192,23 @@ textarea,
   padding: 0;
   text-align: left;
   cursor: pointer;
+  color: var(--text);
 }
 .friend-primary-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
   font-size: 12px;
   font-weight: 800;
   flex: 0 0 auto;
 }
 .friend-card-profile-button {
   text-align: left;
+  color: var(--text);
 }
 .friend-card-action-slot {
   display: flex;
@@ -21195,7 +21221,24 @@ textarea,
   flex-wrap: wrap;
 }
 .friend-card-favorite {
-  min-width: 44px;
+  min-width: auto;
+}
+.friend-row-title,
+.friend-row-subtitle,
+.friend-row-body,
+.friend-row-card .small,
+.friend-row-card .ghost,
+.friend-row-card .dropdown-item,
+.group-card-header-line,
+.group-category-chip {
+  color: var(--text);
+}
+.group-category-chip {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
 }
 .friend-row-card.request-variant .friend-row-subtitle,
 .friend-row-card.list-variant .friend-row-subtitle {
@@ -21216,16 +21259,25 @@ textarea,
   gap: 10px;
   margin-bottom: 8px;
 }
-.group-category-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: rgba(226, 232, 240, 0.95);
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
+.friends-request-menu-item {
+  position: relative;
+  white-space: nowrap;
+}
+.friends-request-menu-item-label {
+  display: inline-block;
+  white-space: nowrap;
+}
+.friends-request-inline-badge {
+  top: -6px;
+  right: -8px;
+  box-shadow: 0 0 0 2px var(--card-bg, #fff);
+}
+.friends-main-menu .dropdown-item,
+.friends-page .sheet-panel select,
+.friends-page .sheet-panel option,
+.friends-page .sheet-title,
+.friends-page .sheet-panel .muted {
+  white-space: nowrap;
 }
 @media (max-width: 768px) {
   .friend-card-head-row,

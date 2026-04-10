@@ -3065,10 +3065,12 @@ function FriendsPage() {
       : (
         <button
           type="button"
-          className={isFavorite ? 'small ghost active-icon favorite-friend-button friend-card-favorite' : 'small ghost favorite-friend-button friend-card-favorite'}
+          className={isFavorite ? 'favorite-friend-button friend-card-favorite is-active' : 'favorite-friend-button friend-card-favorite'}
           onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}
+          aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+          title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
         >
-          {isFavorite ? '🌟' : '✨'}
+          {isFavorite ? '★' : '☆'}
         </button>
       )
     return (
@@ -3119,7 +3121,10 @@ function FriendsPage() {
               {menuOpen && (
                 <div className="dropdown-menu right">
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
-                  <button type="button" className="dropdown-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>친구요청목록 {data.received_requests.length > 0 ? `(${data.received_requests.length})` : ''}</button>
+                  <button type="button" className="dropdown-item friends-request-menu-item" onClick={() => { setPanel('requests'); setMenuOpen(false); setSearchParams({ panel: 'requests' }) }}>
+                    <span className="friends-request-menu-item-label">친구요청목록</span>
+                    {data.received_requests.length > 0 ? <span className="notification-badge friends-request-inline-badge">{data.received_requests.length}</span> : null}
+                  </button>
                   <button type="button" className="dropdown-item" onClick={() => { openCreateGroupModal(); setMenuOpen(false) }}>그룹추가</button>
                   <button type="button" className="dropdown-item" onClick={() => openGroupEditor('rename')}>그룹편집</button>
                   <button type="button" className="dropdown-item" onClick={() => openGroupEditor('delete')}>그룹삭제</button>

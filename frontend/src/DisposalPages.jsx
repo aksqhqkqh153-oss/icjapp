@@ -1890,6 +1890,10 @@ useEffect(() => {
   }
 
   function saveSettlementRecord() {
+    if (!String(draft?.customerName || '').trim()) {
+      window.alert('고객명을 입력한 후 저장해주세요.')
+      return
+    }
     const current = loadRecords()
     const matchedRecord = recordId ? null : findMatchingRecord(current, draft)
     const nextRecord = makeRecordFromDraft(draft, rendered.totals, recordId || matchedRecord?.id || '')
