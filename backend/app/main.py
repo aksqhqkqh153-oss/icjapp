@@ -1581,8 +1581,17 @@ def _pending_material_settlement_info(conn, user: dict) -> dict:
     return {'count': count, 'body': label, 'latest_date': date_text}
 
 def _material_notification_lines(request_detail: dict) -> tuple[str, str]:
-    requester_branch = str(request_detail.get('requester_branch_label') or request_detail.get('requester_branch_no') or request_detail.get('requester_branch_no_text') or '').strip()
-    requester_name = str(request_detail.get('requester_display_name') or request_detail.get('requester_user_name') or request_detail.get('requester_nickname') or request_detail.get('requester_name') or '').strip()
+    actor_like_row = {
+        'position_title': request_detail.get('requester_position_title'),
+        'grade': request_detail.get('grade') or request_detail.get('requester_grade'),
+        'branch_no': request_detail.get('requester_branch_no'),
+        'branch_code': request_detail.get('requester_branch_code'),
+        'name': request_detail.get('requester_user_name') or request_detail.get('requester_display_name') or request_detail.get('requester_name'),
+        'nickname': request_detail.get('requester_nickname'),
+        'login_id': request_detail.get('requester_login_id'),
+        'email': request_detail.get('requester_email') or request_detail.get('requester_google_email'),
+    }
+    requester_prefix, requester_name = _notification_actor_prefix_and_name(actor_like_row)
     title = '자재구매 신청 접수'
     item_chunks: list[str] = []
     for item in request_detail.get('items', []) or []:
@@ -1593,8 +1602,8 @@ def _material_notification_lines(request_detail: dict) -> tuple[str, str]:
         item_chunks.append(f'[{item_name} / {qty}개]')
     total_amount = int(request_detail.get('total_amount') or 0)
     body_parts = []
-    if requester_branch:
-        body_parts.append(f'[{requester_branch}]')
+    if requester_prefix:
+        body_parts.append(f'[{requester_prefix}]')
     if requester_name:
         body_parts.append(f'[{requester_name}]')
     body_parts.extend(item_chunks[:6])
