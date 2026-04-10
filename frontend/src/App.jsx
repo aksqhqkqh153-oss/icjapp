@@ -8333,6 +8333,7 @@ function ScheduleDetailPage() {
   const [item, setItem] = useState(null)
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -8345,6 +8346,22 @@ function ScheduleDetailPage() {
     }
     load()
   }, [eventId])
+
+  async function handleDeleteSchedule() {
+    if (!item?.id || deleting || !canEditCurrentSchedule) return
+    const scheduleTitle = item.title || '선택한'
+    const confirmed = window.confirm(`[${scheduleTitle}] 일정을 삭제하시겠습니까?`)
+    if (!confirmed) return
+    setDeleting(true)
+    setError('')
+    try {
+      await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' })
+      navigate(`/schedule?date=${item.event_date || ''}`)
+    } catch (err) {
+      setError(err.message || '일정 삭제 중 오류가 발생했습니다.')
+      setDeleting(false)
+    }
+  }
 
   if (error) return <div className="card error">{error}</div>
   if (!item) return <div className="card">불러오는 중...</div>
@@ -8359,9 +8376,15 @@ function ScheduleDetailPage() {
             {menuOpen && (
               <div className="dropdown-menu right">
                 {canEditCurrentSchedule ? (
-                  <button type="button" className="dropdown-item" onClick={() => navigate(`/schedule/${item.id}/edit`)}>일정수정</button>
+                  <>
+                    <button type="button" className="dropdown-item" onClick={() => navigate(`/schedule/${item.id}/edit`)}>일정수정</button>
+                    <button type="button" className="dropdown-item danger" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button>
+                  </>
                 ) : (
-                  <div className="dropdown-item disabled">일정수정 권한 없음</div>
+                  <>
+                    <div className="dropdown-item disabled">일정수정 권한 없음</div>
+                    <div className="dropdown-item disabled">일정삭제 권한 없음</div>
+                  </>
                 )}
               </div>
             )}
