@@ -21762,22 +21762,53 @@ textarea,
   gap: 8px;
 }
 
+.materials-request-delete-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.materials-request-delete-filter-select,
 .materials-request-delete-date-filter {
-  min-width: 164px;
+  width: auto;
   height: 34px;
   border: 1px solid #d4d7dd;
   border-radius: 10px;
   padding: 0 10px;
   font-size: 13px;
+  background: #fff;
+}
+
+.materials-request-delete-filter-select {
+  min-width: 98px;
+  max-width: 120px;
+  flex: 0 0 auto;
+}
+
+.materials-request-delete-date-filter {
+  min-width: 142px;
+  max-width: 150px;
+  flex: 0 0 auto;
+}
+
+.materials-request-delete-action-button {
+  width: 68px;
+  min-width: 68px;
+  height: 34px;
+  padding: 0 10px;
+  justify-content: center;
 }
 
 .materials-request-delete-popup-body {
-  overflow: auto;
-  padding-right: 2px;
+  overflow: hidden;
+  padding-right: 0;
 }
 
 .materials-request-delete-table {
-  min-width: 920px;
+  width: 100%;
+  min-width: 0;
   border: 1px solid #dbe2ea;
   border-radius: 12px;
   overflow: hidden;
@@ -21790,16 +21821,16 @@ textarea,
 
 .materials-request-delete-table-row {
   display: grid;
-  grid-template-columns: 42px minmax(156px, 1.2fr) minmax(88px, 0.9fr) minmax(108px, 1fr) minmax(180px, 1.4fr) 72px;
+  grid-template-columns: 34px minmax(112px, 1.35fr) minmax(52px, 0.7fr) minmax(70px, 0.95fr) minmax(96px, 1.2fr) minmax(40px, 0.5fr);
   align-items: center;
   gap: 0;
-  min-height: 38px;
-  font-size: 13px;
+  min-height: 36px;
+  font-size: 12px;
 }
 
 .materials-request-delete-table-row > div {
   min-width: 0;
-  padding: 8px 10px;
+  padding: 7px 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -21861,25 +21892,50 @@ textarea,
     gap: 6px;
   }
 
-  .materials-request-delete-date-filter {
-    min-width: 132px;
+  .materials-request-delete-filter-wrap {
+    gap: 4px;
+  }
+
+  .materials-request-delete-filter-select,
+  .materials-request-delete-date-filter,
+  .materials-request-delete-action-button {
     height: 30px;
-    padding: 0 8px;
-    font-size: 12px;
-  }
-
-  .materials-request-delete-table {
-    min-width: 760px;
-  }
-
-  .materials-request-delete-table-row {
-    grid-template-columns: 34px minmax(128px, 1.15fr) minmax(72px, 0.8fr) minmax(92px, 0.95fr) minmax(130px, 1.2fr) 56px;
-    min-height: 32px;
+    border-radius: 8px;
     font-size: 11px;
   }
 
+  .materials-request-delete-filter-select {
+    min-width: 74px;
+    max-width: 82px;
+    padding: 0 4px;
+  }
+
+  .materials-request-delete-date-filter {
+    min-width: 108px;
+    max-width: 116px;
+    padding: 0 4px;
+  }
+
+  .materials-request-delete-action-button {
+    width: 58px;
+    min-width: 58px;
+    padding: 0 4px;
+  }
+
+  .materials-request-delete-table {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .materials-request-delete-table-row {
+    grid-template-columns: 24px minmax(78px, 1.2fr) minmax(34px, 0.56fr) minmax(48px, 0.82fr) minmax(64px, 1fr) minmax(24px, 0.38fr);
+    min-height: 28px;
+    font-size: 9px;
+    letter-spacing: -0.04em;
+  }
+
   .materials-request-delete-table-row > div {
-    padding: 6px 6px;
+    padding: 4px 2px;
   }
 
   .materials-request-delete-empty {

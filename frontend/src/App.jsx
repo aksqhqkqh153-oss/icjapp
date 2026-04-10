@@ -15429,6 +15429,7 @@ function MaterialsPage({ user }) {
   const [requestDeleteRows, setRequestDeleteRows] = useState([])
   const [requestDeleteSelection, setRequestDeleteSelection] = useState([])
   const [requestDeleteDateFilter, setRequestDeleteDateFilter] = useState('')
+  const requestDeleteDateOptions = Array.from(new Set(requestDeleteRows.map(request => String(request.created_at || '').slice(0, 10)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
   const [requestDeleteLoading, setRequestDeleteLoading] = useState(false)
   const [requestDeleteSubmitting, setRequestDeleteSubmitting] = useState(false)
   const resizeStateRef = useRef(null)
@@ -16501,7 +16502,7 @@ function MaterialsPage({ user }) {
             <div className="modal-card materials-request-delete-popup" onClick={(event) => event.stopPropagation()}>
               <div className="between materials-request-delete-popup-head">
                 <h3>자재신청현황기록삭제</h3>
-                <button type="button" className="small ghost" onClick={closeRequestDeletePopup}>닫기</button>
+                <button type="button" className="small ghost materials-request-delete-action-button" onClick={closeRequestDeletePopup}>닫기</button>
               </div>
               <div className="materials-request-delete-popup-actions">
                 <input
