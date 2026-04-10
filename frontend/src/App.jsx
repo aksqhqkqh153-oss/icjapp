@@ -15424,6 +15424,12 @@ function MaterialsPage({ user }) {
   const [myRequestStatusFilter, setMyRequestStatusFilter] = useState('all')
   const [tableScaleSettings, setTableScaleSettings] = useState({ sales: 100, confirm: 100, myRequests: 100, incoming: 100, inventory: 100, requesters: 100, history: 100, settlements: 100 })
   const [tableColumnSettings, setTableColumnSettings] = useState(() => Object.fromEntries(Object.keys(MATERIALS_TABLE_WIDTH_DEFAULTS).map(key => [key, normalizeMaterialsColumnWidths(key, MATERIALS_TABLE_WIDTH_DEFAULTS[key], isMobile)])))
+  const [requestDeleteMenuOpen, setRequestDeleteMenuOpen] = useState(false)
+  const [requestDeletePopupOpen, setRequestDeletePopupOpen] = useState(false)
+  const [requestDeleteRows, setRequestDeleteRows] = useState([])
+  const [requestDeleteSelection, setRequestDeleteSelection] = useState([])
+  const [requestDeleteLoading, setRequestDeleteLoading] = useState(false)
+  const [requestDeleteSubmitting, setRequestDeleteSubmitting] = useState(false)
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
@@ -15610,6 +15616,65 @@ function MaterialsPage({ user }) {
       setSaving(false)
     }
   }
+
+  async function loadRequestDeleteRows() {
+    if (!isMaterialsAdminUser(user)) return
+    setRequestDeleteLoading(true)
+    try {
+      const result = await api('/api/admin/materials/purchase-requests')
+      setRequestDeleteRows(Array.isArray(result?.requests) ? result.requests : [])
+      setRequestDeleteSelection([])
+    } catch (error) {
+      window.alert(error.message || '현황기록삭제 목록을 불러오지 못했습니다.')
+    } finally {
+      setRequestDeleteLoading(false)
+    }
+  }
+
+  async function openRequestDeletePopup() {
+    setRequestDeleteMenuOpen(false)
+    setRequestDeletePopupOpen(true)
+    await loadRequestDeleteRows()
+  }
+
+  function closeRequestDeletePopup() {
+    setRequestDeletePopupOpen(false)
+    setRequestDeleteSelection([])
+  }
+
+  async function deleteSelectedRequestRows() {
+    if (!requestDeleteSelection.length) {
+      window.alert('삭제할 신청현황을 선택해 주세요.')
+      return
+    }
+    if (!window.confirm('선택한 신청접수 묶음 기록을 완전히 삭제하시겠습니까?')) return
+    setRequestDeleteSubmitting(true)
+    try {
+      await api('/api/admin/materials/purchase-requests/delete', {
+        method: 'POST',
+        body: JSON.stringify({ request_ids: requestDeleteSelection }),
+      })
+      setNotice('선택한 신청접수 기록이 완전히 삭제되었습니다.')
+      await loadRequestDeleteRows()
+      await loadOverview('myRequests')
+    } catch (error) {
+      window.alert(error.message || '현황기록삭제 처리 중 오류가 발생했습니다.')
+    } finally {
+      setRequestDeleteSubmitting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!requestDeletePopupOpen) return
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setRequestDeletePopupOpen(false)
+        setRequestDeleteSelection([])
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [requestDeletePopupOpen])
 
   async function settleSelectedRequests() {
     if (selectedRequestIds.length === 0) {
@@ -16345,7 +16410,19 @@ function MaterialsPage({ user }) {
         </div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
-          <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
+          <div className="materials-myrequest-head-actions">
+            {isMaterialsAdminUser(user) ? (
+              <div className="materials-request-settings">
+                <button type="button" className="ghost materials-bottom-button" onClick={() => setRequestDeleteMenuOpen(prev => !prev)}>설정</button>
+                {requestDeleteMenuOpen ? (
+                  <div className="materials-request-settings-menu">
+                    <button type="button" className="ghost materials-request-settings-item" onClick={openRequestDeletePopup}>현황기록삭제</button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
+          </div>
         </div>
         <div className="materials-myrequest-filter-bar materials-myrequest-filter-bar-mobile-compact">
           {renderCompactDateFilter('시작기간', myRequestStartDate, setMyRequestStartDate, myRequestStartDateInputRef)}
@@ -16411,6 +16488,62 @@ function MaterialsPage({ user }) {
         <div className="materials-myrequest-actions-bottom">
           <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
         </div>
+        {requestDeletePopupOpen ? (
+          <div className="modal-overlay" onClick={closeRequestDeletePopup}>
+            <div className="modal-card materials-request-delete-popup" onClick={(event) => event.stopPropagation()}>
+              <div className="between materials-request-delete-popup-head">
+                <div>
+                  <h3>현황기록삭제</h3>
+                  <div className="muted tiny-text">신청접수 1건 단위로 묶어서 완전 삭제합니다.</div>
+                </div>
+                <div className="inline-actions">
+                  <button type="button" className="small ghost" onClick={loadRequestDeleteRows} disabled={requestDeleteLoading || requestDeleteSubmitting}>새로고침</button>
+                  <button type="button" className="small ghost" onClick={closeRequestDeletePopup}>닫기</button>
+                </div>
+              </div>
+              <div className="materials-request-delete-popup-actions">
+                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteRows.length} onClick={() => setRequestDeleteSelection(requestDeleteRows.map(item => item.id))}>전체선택</button>
+                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteSelection.length} onClick={() => setRequestDeleteSelection([])}>선택해제</button>
+                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting} onClick={deleteSelectedRequestRows}>{requestDeleteSubmitting ? '삭제 중...' : '삭제'}</button>
+              </div>
+              <div className="materials-request-delete-popup-body">
+                {requestDeleteLoading ? (
+                  <div className="muted">불러오는 중...</div>
+                ) : requestDeleteRows.length ? requestDeleteRows.map(request => {
+                  const meta = parseRequesterMeta(request)
+                  const checked = requestDeleteSelection.includes(request.id)
+                  return (
+                    <label key={`materials-request-delete-${request.id}`} className="materials-request-delete-entry">
+                      <div className="materials-request-delete-entry-head">
+                        <span className="materials-request-delete-entry-check">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => setRequestDeleteSelection(prev => event.target.checked ? [...new Set([...prev, request.id])] : prev.filter(id => id !== request.id))}
+                          />
+                        </span>
+                        <span className="materials-request-delete-entry-date">{formatFullDateLabel(request.created_at)}</span>
+                        <span className="materials-request-delete-entry-name">{meta.name}</span>
+                        <span className="materials-request-delete-entry-id">{meta.uniqueId || '-'}</span>
+                      </div>
+                      <div className="materials-request-delete-entry-items">
+                        {(request.items || []).filter(item => Number(item.quantity || 0) > 0).map((item, index) => (
+                          <div key={`materials-request-delete-item-${request.id}-${item.product_id || index}`} className="materials-request-delete-entry-item">
+                            <span>- {displayMyRequestItemName(item)}</span>
+                            <span>{Number(item.quantity || 0)}개</span>
+                          </div>
+                        ))}
+                      </div>
+                    </label>
+                  )
+                }) : (
+                  <div className="muted">삭제 가능한 신청현황이 없습니다.</div>
+                )}
+              </div>
+              <div className="muted tiny-text">선택한 신청접수 기록은 신청자 화면과 관리자 확인 목록에서 즉시 제거됩니다.</div>
+            </div>
+          </div>
+        ) : null}
       </section>
     )
   }

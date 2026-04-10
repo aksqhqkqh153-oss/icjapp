@@ -21704,3 +21704,148 @@ textarea,
     white-space: normal !important;
   }
 }
+
+
+.materials-myrequest-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.materials-request-settings {
+  position: relative;
+}
+
+.materials-request-settings-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 140px;
+  background: #fff;
+  border: 1px solid #d4d7dd;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 30;
+}
+
+.materials-request-settings-item {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.materials-request-delete-popup {
+  width: min(840px, calc(100vw - 24px));
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.materials-request-delete-popup-head {
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.materials-request-delete-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.materials-request-delete-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.materials-request-delete-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #dbe2ea;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.materials-request-delete-entry-head {
+  display: grid;
+  grid-template-columns: 34px minmax(132px, 1.1fr) minmax(96px, 1fr) minmax(96px, 1fr);
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.materials-request-delete-entry-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.materials-request-delete-entry-date,
+.materials-request-delete-entry-name,
+.materials-request-delete-entry-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.materials-request-delete-entry-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 44px;
+}
+
+.materials-request-delete-entry-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .materials-myrequest-head-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .materials-request-settings-menu {
+    right: auto;
+    left: 0;
+  }
+
+  .materials-request-delete-popup {
+    width: min(100vw - 18px, 100%);
+    padding: 14px;
+  }
+
+  .materials-request-delete-entry-head {
+    grid-template-columns: 28px 1fr;
+  }
+
+  .materials-request-delete-entry-date {
+    grid-column: 2 / 3;
+  }
+
+  .materials-request-delete-entry-name,
+  .materials-request-delete-entry-id {
+    grid-column: 2 / 3;
+    white-space: normal;
+  }
+
+  .materials-request-delete-entry-items {
+    padding-left: 0;
+  }
+
+  .materials-request-delete-entry-item {
+    font-size: 13px;
+  }
+}
