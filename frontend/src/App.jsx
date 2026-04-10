@@ -3136,11 +3136,13 @@ function FriendsPage() {
     const isFavorite = followedIds.has(item.id)
     const primaryBadge = getFriendPrimaryBadge(item)
     const displayName = getFriendDisplayName(item)
-    const intro = getFriendIntro(item, variant === 'request' ? '친구 요청을 보냈습니다.' : '한줄소개가 없습니다.')
+    const intro = getFriendIntro(item, variant === 'request' ? '친구 요청을 보냈습니다.' : variant === 'add' ? '친구추가 가능한 계정입니다.' : '한줄소개가 없습니다.')
     const menuId = friendMenuKey(section, item.id)
     const defaultActions = variant === 'request'
       ? actions
-      : (
+      : variant === 'add'
+        ? actions
+        : (
         <button
           type="button"
           className={isFavorite ? 'favorite-friend-button friend-card-favorite is-active' : 'favorite-friend-button friend-card-favorite'}
@@ -3152,7 +3154,7 @@ function FriendsPage() {
         </button>
       )
     return (
-      <div className={`friend-row-card upgraded friend-card-structured ${variant === 'request' ? 'request-variant' : 'list-variant'}`}>
+      <div className={`friend-row-card upgraded friend-card-structured ${variant === 'request' ? 'request-variant' : variant === 'add' ? 'add-variant' : 'list-variant'}`}>
         <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item, section })}>
           <AvatarCircle src={item.photo_url} label={displayName} className="friend-avatar" />
         </button>
@@ -3165,9 +3167,9 @@ function FriendsPage() {
             <div className="dropdown-wrap friend-inline-wrap top-menu">
               <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === menuId ? null : menuId)}>메뉴</button>
               <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === menuId ? 'open-inline-menu' : ''}`}>
-                {variant !== 'request' && <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>}
-                {variant !== 'request' && <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>}
-                <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>{variant === 'request' ? '차단' : '친구차단'}</button>
+                {variant === 'friend' && <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>}
+                {variant === 'friend' && <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>}
+                <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>{variant === 'request' ? '차단' : variant === 'add' ? '계정차단' : '친구차단'}</button>
               </div>
             </div>
           </div>
@@ -3293,31 +3295,32 @@ function FriendsPage() {
               {candidateUsers.map(item => {
                 const displayName = item.name || item.full_name || item.real_name || item.username || '이름 미등록'
                 const oneLiner = item.one_liner || item.bio || item.region || '친구추가 가능한 계정입니다.'
+                const normalizedItem = {
+                  ...item,
+                  name: displayName,
+                  one_liner: oneLiner,
+                }
                 return (
-                  <div key={`candidate-${item.id}`} className="friend-add-card">
-                    <div className="friend-add-avatar-col">
-                      <AvatarCircle src={item.photo_url} label={item.nickname || displayName} className="friend-avatar large" size={60} />
-                    </div>
-                    <div className="friend-add-info-col">
-                      <div className="friend-add-card-row top">
-                        <strong>{item.nickname || '닉네임 미등록'}</strong>
-                      </div>
-                      <div className="friend-add-card-row middle">
-                        <span className="friend-add-realname">{displayName}</span>
-                        {sentRequestIds.has(item.id) ? (
-                          <button className="small ghost" disabled>요청완료</button>
-                        ) : (
-                          <button className="small" onClick={() => doAction(async () => {
+                  <FriendRow
+                    key={`candidate-${item.id}`}
+                    item={normalizedItem}
+                    section="add"
+                    variant="add"
+                    actions={sentRequestIds.has(item.id)
+                      ? <button type="button" className="small ghost" disabled>요청완료</button>
+                      : (
+                        <button
+                          type="button"
+                          className="small"
+                          onClick={() => doAction(async () => {
                             await api(`/api/friends/request/${item.id}`, { method: 'POST' })
                             setToast(`${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)
-                          }, `${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)}>요청</button>
-                        )}
-                      </div>
-                      <div className="friend-add-card-row bottom">
-                        <span className="friend-add-one-liner">{oneLiner}</span>
-                      </div>
-                    </div>
-                  </div>
+                          }, `${item.nickname || item.name || '회원'}님에게 친구요청을 신청했습니다.`)}
+                        >
+                          요청
+                        </button>
+                      )}
+                  />
                 )
               })}
               {candidateUsers.length === 0 && <div className="muted">검색 조건에 맞는 계정이 없습니다.</div>}
