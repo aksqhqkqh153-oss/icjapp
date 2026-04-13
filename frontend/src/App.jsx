@@ -8259,7 +8259,7 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-main-info-row">
-            <div className="stack compact-gap schedule-compact-field">
+            <div className="stack compact-gap schedule-compact-field schedule-type-field">
               <label>일정구분</label>
               <select value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
                 <option value="선택">일정구분</option>
@@ -8329,7 +8329,7 @@ function ScheduleFormPage({ mode }) {
               </div>
             </div>
           )}
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-visit-row">
             <div className="stack compact-gap schedule-compact-field">
               <label>방문시각</label>
               <div className="inline-actions visit-time-actions">
@@ -8406,7 +8406,7 @@ function ScheduleFormPage({ mode }) {
                 )}
               </div>
             </div>
-            <div className="stack compact-gap schedule-compact-field">
+            <div className="stack compact-gap schedule-compact-field schedule-department-field">
               <label>부서/인원</label>
               <select aria-label="부서/인원" value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
                 {departmentOptions.map(option => <option key={option} value={option}>{option}</option>)}
@@ -8438,7 +8438,7 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleEndDateStartTimeBlur}
                 />
-                <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
+                <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-time-field">
@@ -8453,7 +8453,7 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleEndDateEndTimeBlur}
                 />
-                <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
+                <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
               </div>
             </div>
           </div>
@@ -8474,7 +8474,7 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleStartTimeBlur}
                 />
-                <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
+                <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-time-field">
@@ -8489,7 +8489,7 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleEndTimeBlur}
                 />
-                <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
+                <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
               </div>
             </div>
           </div>

@@ -23201,35 +23201,76 @@ textarea,
 /* 2026-04-13 schedule visit/start sync mobile width tuning */
 @media (max-width: 768px) {
   .schedule-editor-main-info-row {
-    grid-template-columns: minmax(0, 1.05fr) minmax(56px, 0.5fr) minmax(0, 1.45fr) !important;
+    grid-template-columns: minmax(0, 0.66fr) minmax(0, 2.1fr) 42px !important;
+  }
+
+  .schedule-editor-visit-row {
+    grid-template-columns: minmax(0, 0.92fr) minmax(52px, 0.48fr) minmax(0, 1.6fr) !important;
   }
 
   .schedule-editor-amount-row {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(72px, 0.66fr) !important;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.9fr) minmax(64px, 0.45fr) !important;
   }
 
-  .schedule-editor-main-info-row .platform-select-field,
-  .schedule-editor-main-info-row .schedule-customer-field,
-  .schedule-editor-amount-row .schedule-amount-field,
-  .schedule-editor-amount-row .schedule-deposit-amount-field {
+  .schedule-media-row {
+    grid-template-columns: 44px minmax(0, 1.65fr) 52px !important;
+    align-items: end;
+  }
+
+  .schedule-type-field,
+  .schedule-title-field,
+  .schedule-title-action-field,
+  .schedule-editor-visit-row .schedule-compact-field,
+  .schedule-editor-amount-row .schedule-compact-field,
+  .schedule-media-row .schedule-compact-field {
     min-width: 0;
   }
 
-  .schedule-editor-main-info-row .platform-select-field select,
-  .schedule-editor-main-info-row .schedule-customer-field input,
+  .schedule-title-field input,
+  .schedule-editor-visit-row .platform-select-field select,
+  .schedule-editor-visit-row .schedule-customer-field input,
   .schedule-editor-amount-row .schedule-amount-field input,
-  .schedule-editor-amount-row .schedule-deposit-amount-field select {
+  .schedule-editor-amount-row .schedule-deposit-amount-field select,
+  .schedule-media-row .schedule-department-field select {
     width: 100%;
     min-width: 0;
+  }
+
+  .schedule-title-action-field .schedule-title-toggle-button {
+    min-width: 42px;
+    width: 42px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .schedule-photo-field .compact-schedule-upload-row {
+    width: 44px;
+    justify-content: center;
+  }
+
+  .schedule-media-row .schedule-department-field select {
+    font-size: 12px;
   }
 
   .mobile-visit-undecided {
     min-width: 30px !important;
     width: 30px !important;
+    height: 32px;
     padding-left: 0 !important;
     padding-right: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
     font-size: 0 !important;
     letter-spacing: 0 !important;
+  }
+
+  .mobile-visit-undecided.active-icon,
+  .mobile-time-undecided.active-icon {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #166534 !important;
   }
 
   .mobile-visit-undecided::after {
@@ -23237,5 +23278,6 @@ textarea,
     font-size: 12px;
     font-weight: 700;
     line-height: 1;
+    display: block;
   }
 }
