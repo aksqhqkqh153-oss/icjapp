@@ -8101,8 +8101,8 @@ function ScheduleFormPage({ mode }) {
   }
 
   async function handleImageChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) {
       setPreview('')
       setForm(prev => ({ ...prev, image_data: '' }))
       return
@@ -8110,9 +8110,14 @@ function ScheduleFormPage({ mode }) {
     setUploadingImage(true)
     setError('')
     try {
-      const uploaded = await uploadFile(file, 'schedule')
-      setPreview(uploaded.url)
-      setForm(prev => ({ ...prev, image_data: uploaded.url }))
+      const uploadedUrls = []
+      for (const file of files) {
+        const uploaded = await uploadFile(file, 'schedule')
+        if (uploaded?.url) uploadedUrls.push(uploaded.url)
+      }
+      const merged = [...eventImageList(form.image_data), ...uploadedUrls].join('\n')
+      setPreview(merged)
+      setForm(prev => ({ ...prev, image_data: merged }))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -8403,14 +8408,16 @@ function ScheduleFormPage({ mode }) {
               <label>사진첨부</label>
               <div className="schedule-upload-row compact-upload-row compact-schedule-upload-row">
                 <label className={`icon-upload-trigger compact-upload-trigger${uploadingImage ? ' disabled' : ''}`}>
-                  <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploadingImage} className="visually-hidden" />
+                  <input type="file" accept="image/*" multiple onChange={handleImageChange} disabled={uploadingImage} className="visually-hidden" />
                   <span className="icon-upload-symbol" aria-hidden="true">📎</span>
                   <span className="sr-only">사진첨부</span>
                 </label>
                 {uploadingImage && <div className="muted upload-status-text">업로드 중...</div>}
                 {preview && (
-                  <div className="image-preview-wrap compact-image-preview">
-                    <img src={preview} alt="일정 첨부 미리보기" className="image-preview" />
+                  <div className="image-preview-wrap compact-image-preview schedule-upload-preview-grid">
+                    {eventImageList(preview).slice(0, 4).map((src, index) => (
+                      <img key={`${src}-${index}`} src={src} alt={`일정 첨부 미리보기 ${index + 1}`} className="image-preview schedule-upload-preview-image" />
+                    ))}
                   </div>
                 )}
               </div>
@@ -8537,6 +8544,7 @@ function ScheduleDetailPage() {
   const [commentSubmitting, setCommentSubmitting] = useState(false)
   const [commentForm, setCommentForm] = useState({ content: '', image_data: '' })
   const departmentColorMap = useMemo(() => getStoredDepartmentColorMap(), [])
+  const detailImages = useMemo(() => eventImageList(item?.image_list?.length ? item.image_list : item?.image_data).slice(0, 5), [item])
 
   const load = useCallback(async () => {
     try {
@@ -8601,11 +8609,18 @@ function ScheduleDetailPage() {
   }
 
   async function handleCommentImageUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
     try {
-      const uploaded = await uploadFile(file)
-      setCommentForm(prev => ({ ...prev, image_data: uploaded.url || '' }))
+      const uploadedList = []
+      for (const file of files) {
+        const uploaded = await uploadFile(file)
+        if (uploaded?.url) uploadedList.push(uploaded.url)
+      }
+      setCommentForm(prev => {
+        const current = eventImageList(prev.image_data)
+        return { ...prev, image_data: [...current, ...uploadedList].join('\n') }
+      })
     } catch (err) {
       window.alert(err.message || '댓글 파일 업로드에 실패했습니다.')
     } finally {
@@ -8652,7 +8667,6 @@ function ScheduleDetailPage() {
     depositBefore ? '입금전' : [item?.deposit_method, item?.deposit_amount].filter(Boolean).join(' '),
   ].filter(Boolean)
   const headerTitle = headerMeta.join(' · ')
-  const imageList = eventImageList(item?.image_list?.length ? item.image_list : item?.image_data).slice(0, 4)
   const reps = [item?.representative1, item?.representative2, item?.representative3].filter(Boolean)
   const staffs = [item?.staff1, item?.staff2, item?.staff3].filter(Boolean)
   const departmentColor = departmentColorMap[item?.department_info] || item?.color || '#2563eb'
@@ -8693,8 +8707,8 @@ function ScheduleDetailPage() {
         </div>
 
         <div className="schedule-detail-content-body">
-          <div className={`schedule-detail-image-grid count-${Math.min(Math.max(imageList.length || 1, 1), 4)}`}>
-            {imageList.length ? imageList.slice(0, 5).map((src, index) => (
+          <div className={`schedule-detail-image-grid count-${Math.min(Math.max(detailImages.length || 1, 1), 4)}`}>
+            {detailImages.length ? detailImages.slice(0, 5).map((src, index) => (
               <div key={`${src}-${index}`} className="schedule-detail-image-tile"><img src={src} alt={`첨부파일 ${index + 1}`} className="schedule-detail-image" /></div>
             )) : <div className="schedule-detail-empty-box">첨부파일이 없습니다.</div>}
           </div>
@@ -8726,7 +8740,7 @@ function ScheduleDetailPage() {
       <form className="schedule-detail-comment-composer" onSubmit={handleCommentSubmit}>
         <label className="schedule-comment-attach-button">
           ＋
-          <input type="file" accept="image/*" hidden onChange={handleCommentImageUpload} />
+          <input type="file" accept="image/*" multiple hidden onChange={handleCommentImageUpload} />
         </label>
         <input
           className="schedule-detail-comment-input"
@@ -8734,6 +8748,7 @@ function ScheduleDetailPage() {
           onChange={e => setCommentForm(prev => ({ ...prev, content: e.target.value }))}
           placeholder={commentForm.image_data ? '사진과 함께 댓글 입력' : '댓글 입력칸'}
         />
+        {commentForm.image_data ? <div className="schedule-comment-upload-hint">사진 {eventImageList(commentForm.image_data).length}개 첨부됨</div> : null}
         <button type="submit" className="primary small" disabled={commentSubmitting}>{commentSubmitting ? '등록중' : '입력'}</button>
       </form>
 
@@ -8745,6 +8760,11 @@ function ScheduleDetailPage() {
               <button type="button" className="ghost small" onClick={() => setLogsOpen(false)}>닫기</button>
             </div>
             <div className="schedule-log-list">
+              <div className="schedule-log-head">
+                <div>수정일자</div>
+                <div>계정이름</div>
+                <div>수정내용</div>
+              </div>
               {editLogs.length ? editLogs.map(log => (
                 <div key={log.id} className="schedule-log-row">
                   <div>{formatLogDate(log.created_at)}</div>
