@@ -23,6 +23,12 @@ const FILTER_OPTIONS = [
   { value: 'status', label: '최종현황순' },
 ]
 
+const SETTLEMENT_FILTER_OPTIONS = [
+  { value: 'all', label: '전체' },
+  { value: 'completed', label: '결산반영완료' },
+  { value: 'pending', label: '결산대기' },
+]
+
 const FINAL_STATUS_OPTIONS = ['입금전 / 신고전', '입금완 / 신고전', '입금완 / 신고완']
 const DEFAULT_CUSTOMER_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
 const DEFAULT_COMPANY_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
@@ -834,6 +840,13 @@ function getRecordSettlementEligibility(record) {
   }
 }
 
+
+function matchesSettlementFilter(record, settlementFilter = 'all') {
+  if (settlementFilter === 'completed') return !!record?.settlementTransferredAt
+  if (settlementFilter === 'pending') return !record?.settlementTransferredAt
+  return true
+}
+
 function composeFinalStatus(isPaid, isReported) {
   return `${isPaid ? '입금완' : '입금전'} / ${isReported ? '신고완' : '신고전'}`
 }
@@ -847,7 +860,7 @@ function getFinalStatusFromFlags(isPaid, isReported) {
   return composeFinalStatus(!!isPaid, !!isReported)
 }
 
-function buildDisposalListGroups(records, sortKey, searchQuery = '') {
+function buildDisposalListGroups(records, sortKey, searchQuery = '', settlementFilter = 'all') {
   const grouped = new Map()
   const sorted = sortRecords(records, sortKey)
   const normalizedQuery = normalizeSearchText(searchQuery)
@@ -855,6 +868,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
     const customerGroupKey = makeCustomerLocationKey(record?.customerName, record?.location) || String(record?.id || '')
     const searchable = normalizeSearchText([record?.platform, record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
     if (normalizedQuery && !searchable.includes(normalizedQuery)) return
+    if (!matchesSettlementFilter(record, settlementFilter)) return
     if (!grouped.has(customerGroupKey)) {
       grouped.set(customerGroupKey, {
         key: customerGroupKey,
@@ -1197,24 +1211,32 @@ function DisposalItemsEditor({
   const customerSettingsRef = useRef(null)
   const companySettingsRef = useRef(null)
 
-  const customerExportRows = useMemo(() => visibleRows.map((row, index) => {
+  const customerExportRows = useMemo(() => visibleRows.reduce((acc, row, index) => {
+    const hasContent = String(row?.itemName || '').trim() || safeNumber(row?.quantity) || safeNumber(row?.unitCost) || String(row?.reportNo || '').trim()
+    if (!hasContent) return acc
     const item = rendered.reportRows[index] || { finalAmount: 0, isFree: false, customerDisplayCost: '' }
-    return {
-      index: index + 1,
+    acc.push({
+      index: acc.length + 1,
       itemName: row?.itemName || '',
       quantity: row?.quantity || '',
       finalAmount: item.finalAmount || 0,
       isFree: !!item.isFree,
       customerDisplayCost: item.customerDisplayCost || '',
-    }
-  }), [visibleRows, rendered.reportRows])
+    })
+    return acc
+  }, []), [visibleRows, rendered.reportRows])
 
-  const companyExportRows = useMemo(() => visibleRows.map((row, index) => ({
-    index: index + 1,
-    itemName: row?.itemName || '',
-    quantity: row?.quantity || '',
-    reportNo: row?.reportNo || '',
-  })), [visibleRows])
+  const companyExportRows = useMemo(() => visibleRows.reduce((acc, row) => {
+    const hasContent = String(row?.itemName || '').trim() || safeNumber(row?.quantity) || safeNumber(row?.unitCost) || String(row?.reportNo || '').trim()
+    if (!hasContent) return acc
+    acc.push({
+      index: acc.length + 1,
+      itemName: row?.itemName || '',
+      quantity: row?.quantity || '',
+      reportNo: row?.reportNo || '',
+    })
+    return acc
+  }, []), [visibleRows])
 
   useEffect(() => {
     if (!customerSettingsOpen && !companySettingsOpen) return undefined
@@ -2405,6 +2427,7 @@ export function DisposalListPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [settlementFilter, setSettlementFilter] = useState('all')
   const [pendingSettlementMessages, setPendingSettlementMessages] = useState([])
   const [pendingNavigationPath, setPendingNavigationPath] = useState('')
   const [bulkPaymentModal, setBulkPaymentModal] = useState({ open: false, recordId: '', group: null, rows: [] })
@@ -2414,7 +2437,7 @@ export function DisposalListPage() {
     setRecords(loadRecords())
   }, [])
 
-  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, searchQuery), [records, sortKey, searchQuery])
+  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, searchQuery, settlementFilter), [records, sortKey, searchQuery, settlementFilter])
   const visibleRowKeys = useMemo(() => groupedRows.flatMap(group => group.rows.map(row => row.key)), [groupedRows])
   const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys])
   const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
@@ -2610,6 +2633,9 @@ export function DisposalListPage() {
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact">
             <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
               {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <select value={settlementFilter} onChange={e => setSettlementFilter(e.target.value)}>
+              {SETTLEMENT_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
