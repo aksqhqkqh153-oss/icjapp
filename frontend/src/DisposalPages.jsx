@@ -2712,8 +2712,26 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.feeAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
-                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 입금일시 전환`}>{formatPaymentCellDisplay(row)}</button>
-                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => toggleReportStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 신고여부 전환`}>{statusMark(row.reportDone)}</button>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="disposal-list-grid-payment-cell disposal-list-grid-cell-action"
+                      onClick={() => openBulkPaymentModal(group.recordId)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBulkPaymentModal(group.recordId) } }}
+                      aria-label={`${group.customerName} ${row.itemName} 입금결산 열기`}
+                    >
+                      {formatPaymentCellDisplay(row)}
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="disposal-list-grid-payment-cell disposal-list-grid-cell-action"
+                      onClick={() => toggleReportStatus(group.recordId, row.key)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleReportStatus(group.recordId, row.key) } }}
+                      aria-label={`${group.customerName} ${row.itemName} 신고여부 전환`}
+                    >
+                      {statusMark(row.reportDone)}
+                    </div>
                   </div>
                 ))}
                 <div className="disposal-list-grid-row disposal-list-grid-summary-row">
@@ -2950,6 +2968,30 @@ function getSettlementPaymentDateDisplay(record) {
   return dates.join(', ')
 }
 
+function compareSettlementFieldValue(record, field) {
+  if (field === 'paymentDate') {
+    return getSettlementPaymentDateDisplay(record)
+  }
+  if (field === 'customerName') {
+    return String(record?.customerName || '').trim() || '-'
+  }
+  return String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '')
+}
+
+function normalizeSettlementSearchValue(record, field) {
+  const raw = compareSettlementFieldValue(record, field)
+  return String(raw || '').replace(/\s+/g, '').toLowerCase()
+}
+
+function sortSettlementRecords(records, field = 'disposalDate', direction = 'desc') {
+  const sorted = [...records].sort((a, b) => {
+    const aValue = compareSettlementFieldValue(a, field)
+    const bValue = compareSettlementFieldValue(b, field)
+    return String(aValue).localeCompare(String(bValue), 'ko')
+  })
+  return direction === 'desc' ? sorted.reverse() : sorted
+}
+
 function buildSettlementMonthlyRows(monthlyRecords) {
   const byDate = new Map()
   sortRecords(monthlyRecords, 'date').forEach(record => {
@@ -3099,6 +3141,10 @@ export function DisposalSettlementsPage() {
   const [records, setRecords] = useState([])
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
   const [expandedKeys, setExpandedKeys] = useState({})
+  const [settlementFilterField, setSettlementFilterField] = useState('disposalDate')
+  const [settlementSortDirection, setSettlementSortDirection] = useState('desc')
+  const [settlementSearchInput, setSettlementSearchInput] = useState('')
+  const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
 
   useEffect(() => {
     const loaded = loadRecords().filter(record => !!record?.settlementTransferredAt && getSettlementEligibleItems(record).length > 0)
@@ -3109,9 +3155,16 @@ export function DisposalSettlementsPage() {
   }, [])
 
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
+  const filteredMonthlyRecords = useMemo(() => {
+    const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
+    const filtered = normalizedQuery
+      ? monthlyRecords.filter(record => normalizeSettlementSearchValue(record, settlementFilterField).includes(normalizedQuery))
+      : monthlyRecords
+    return sortSettlementRecords(filtered, settlementFilterField, settlementSortDirection)
+  }, [monthlyRecords, settlementFilterField, settlementSortDirection, settlementSearchQuery])
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
-  const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
-  const settlementRows = useMemo(() => buildSettlementMonthlyRows(monthlyRecords), [monthlyRecords])
+  const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, filteredMonthlyRecords), [monthLabel, filteredMonthlyRecords])
+  const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredMonthlyRecords), [filteredMonthlyRecords])
   const visibleRows = useMemo(() => settlementRows.filter((row) => {
     if (row.kind === 'summary') return true
     if (row.kind === 'detail') return !!expandedKeys[row.parentKey]
@@ -3121,6 +3174,10 @@ export function DisposalSettlementsPage() {
 
   function toggleRow(key) {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function applySettlementSearch() {
+    setSettlementSearchQuery(settlementSearchInput.trim())
   }
 
   return (
@@ -3164,6 +3221,24 @@ export function DisposalSettlementsPage() {
 
       <section className="card disposal-monthly-sheet-card">
         <div className="disposal-sheet-title">월 결산표</div>
+        <div className="disposal-settlement-inline-controls">
+          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact">
+            <button type="button" className="ghost disposal-action-button disposal-filter-label-button" tabIndex={-1}>필터</button>
+            <select value={settlementFilterField} onChange={e => setSettlementFilterField(e.target.value)} aria-label="월 결산표 필터 항목">
+              <option value="disposalDate">폐기일자</option>
+              <option value="paymentDate">입금일자</option>
+              <option value="customerName">고객명</option>
+            </select>
+            <select value={settlementSortDirection} onChange={e => setSettlementSortDirection(e.target.value)} aria-label="월 결산표 정렬 방향">
+              <option value="asc">오름차순</option>
+              <option value="desc">내림차순</option>
+            </select>
+          </div>
+          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
+            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="검색" aria-label="월 결산표 검색" />
+            <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
+          </div>
+        </div>
         {settlementRows.length === 0 ? (
           <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
         ) : (

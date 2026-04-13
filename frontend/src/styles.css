@@ -22505,3 +22505,143 @@ textarea,
     font-size: 14px;
   }
 }
+
+
+/* 2026-04-13 disposal settlement filter + list plain status cells */
+.disposal-settlement-inline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 12px;
+  flex-wrap: wrap;
+}
+
+.disposal-filter-label-button {
+  pointer-events: none;
+  min-width: 56px;
+}
+
+.disposal-monthly-sheet-card .disposal-filter-inline-group select,
+.disposal-monthly-sheet-card .disposal-filter-inline-group input {
+  min-height: 36px;
+}
+
+.disposal-list-grid-cell-action {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 4px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.disposal-list-grid-cell-action:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-data-row,
+.disposal-list-grid-customer .disposal-list-grid-summary-row,
+.disposal-list-grid-customer .disposal-list-grid-head {
+  display: grid !important;
+  grid-template-columns: var(--disposal-list-grid-template) !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+}
+
+.disposal-list-grid-button-customer,
+.disposal-list-grid-button-customer > span,
+.disposal-list-grid-customer .disposal-list-grid-check-cell,
+.disposal-list-grid-customer .disposal-list-grid-payment-cell,
+.disposal-list-grid-customer .disposal-list-grid-row > div,
+.disposal-list-grid-customer .disposal-list-grid-row > label {
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-payment-cell {
+  padding: 0 !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head-status {
+  line-height: 1.05;
+}
+
+.disposal-bulk-payment-table {
+  width: 100%;
+  min-width: 0;
+}
+
+.disposal-bulk-payment-row {
+  grid-template-columns: minmax(0, 1.2fr) 56px minmax(76px, 0.85fr) minmax(146px, 1fr) 48px 48px;
+}
+
+.disposal-bulk-payment-row > div {
+  min-width: 0;
+  font-size: 11px;
+  padding: 4px 4px;
+}
+
+.disposal-bulk-payment-date-control {
+  gap: 4px;
+}
+
+.disposal-bulk-payment-date-control select {
+  width: 64px;
+  min-width: 64px;
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+.disposal-bulk-payment-date-control input {
+  min-width: 0;
+  width: 100%;
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+@media (max-width: 768px) {
+  .disposal-settlement-inline-controls {
+    gap: 6px;
+  }
+
+  .disposal-settlement-inline-controls .disposal-filter-inline-group {
+    width: 100%;
+  }
+
+  .disposal-bulk-payment-card {
+    width: min(100vw, calc(100vw - 8px));
+    padding: 10px;
+  }
+
+  .disposal-bulk-payment-row {
+    grid-template-columns: minmax(0, 1fr) 42px minmax(62px, 0.8fr) minmax(118px, 0.95fr) 36px 36px;
+  }
+
+  .disposal-bulk-payment-row > div {
+    font-size: 10px;
+    padding: 3px 2px;
+  }
+
+  .disposal-bulk-payment-date-control select {
+    width: 56px;
+    min-width: 56px;
+    font-size: 10px;
+  }
+
+  .disposal-bulk-payment-date-control input {
+    font-size: 10px;
+  }
+}
