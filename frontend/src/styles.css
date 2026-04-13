@@ -22280,3 +22280,168 @@ textarea,
     border-right: 0;
   }
 }
+
+
+.disposal-bulk-payment-overlay {
+  align-items: center;
+}
+
+.disposal-bulk-payment-card {
+  width: min(880px, 100%);
+  max-height: min(86vh, 920px);
+  overflow: auto;
+  padding: 18px;
+  gap: 16px;
+}
+
+.disposal-bulk-payment-header {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.disposal-bulk-payment-back {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid #111827;
+  background: #ffffff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.disposal-bulk-payment-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.disposal-bulk-payment-header-spacer {
+  width: 40px;
+  height: 40px;
+}
+
+.disposal-bulk-payment-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.disposal-bulk-payment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.disposal-bulk-payment-meta-grid > span,
+.disposal-bulk-payment-location {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #111827;
+  background: #ffffff;
+}
+
+.disposal-bulk-payment-location {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.disposal-bulk-payment-table-wrap {
+  overflow-x: auto;
+}
+
+.disposal-bulk-payment-table {
+  min-width: 680px;
+  border: 1px solid #111827;
+  background: #ffffff;
+}
+
+.disposal-bulk-payment-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(80px, 0.6fr) minmax(120px, 0.9fr) minmax(150px, 1fr);
+  align-items: center;
+}
+
+.disposal-bulk-payment-row > div {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-right: 1px solid #111827;
+  border-bottom: 1px solid #111827;
+  font-size: 13px;
+  color: #111827;
+  background: #ffffff;
+}
+
+.disposal-bulk-payment-row > div:last-child {
+  border-right: 0;
+}
+
+.disposal-bulk-payment-row:last-child > div {
+  border-bottom: 0;
+}
+
+.disposal-bulk-payment-row-head > div {
+  background: #f3f4f6;
+  font-weight: 800;
+}
+
+.disposal-bulk-payment-row input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cfd6e4;
+  background: #ffffff;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.disposal-bulk-payment-question {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+@media (max-width: 768px) {
+  .disposal-bulk-payment-card {
+    width: min(100%, 100%);
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 14px;
+  }
+
+  .disposal-bulk-payment-title {
+    font-size: 18px;
+  }
+
+  .disposal-bulk-payment-meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    font-size: 12px;
+  }
+
+  .disposal-bulk-payment-meta-grid > span,
+  .disposal-bulk-payment-location {
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  .disposal-bulk-payment-table {
+    min-width: 620px;
+  }
+
+  .disposal-bulk-payment-row > div {
+    min-height: 42px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .disposal-bulk-payment-question {
+    font-size: 14px;
+  }
+}

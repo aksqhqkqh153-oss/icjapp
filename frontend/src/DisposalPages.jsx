@@ -106,7 +106,7 @@ function setDefaultVisibleItemRowsStorage(value) {
 }
 
 function createEmptyItem() {
-  return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '', paymentDone: false, reportDone: false }
+  return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '', paymentDone: false, reportDone: false, paymentSettledAt: '' }
 }
 
 function createInitialDraft() {
@@ -146,6 +146,36 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString('ko-KR')
 }
 
+function formatShortDate(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{2}\.\d{2}\.\d{2}$/.test(raw)) return raw
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return raw
+  return `${String(date.getFullYear()).slice(-2)}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
+}
+
+function formatDateInputValue(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  if (/^\d{2}\.\d{2}\.\d{2}$/.test(raw)) {
+    return `20${raw.slice(0, 2)}-${raw.slice(3, 5)}-${raw.slice(6, 8)}`
+  }
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
+
+function getTodayDateInputValue() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function normalizeSearchText(value) {
   return String(value || '').replace(/\s+/g, '').trim().toLowerCase()
 }
@@ -176,6 +206,7 @@ function normalizeRecordShape(record) {
       ...sourceItem,
       paymentDone: typeof sourceItem?.paymentDone === 'boolean' ? sourceItem.paymentDone : defaultPaid,
       reportDone: typeof sourceItem?.reportDone === 'boolean' ? sourceItem.reportDone : defaultReported,
+      paymentSettledAt: String(sourceItem?.paymentSettledAt || ''),
     }
   })
   return {
@@ -776,6 +807,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '') {
         finalAmount,
         paymentDone: !!item?.paymentDone,
         reportDone: !!item?.reportDone,
+        paymentSettledAt: String(item?.paymentSettledAt || ''),
       })
       group.totals.quantity += quantity
       group.totals.unitCost += unitCost
@@ -2097,6 +2129,66 @@ export function DisposalPreviewPage() {
   )
 }
 
+export 
+function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, onChangeDate, onConfirm, onClose }) {
+  if (!open || !group) return null
+  return (
+    <div className="disposal-confirm-overlay disposal-bulk-payment-overlay" role="dialog" aria-modal="true">
+      <div className="disposal-confirm-card disposal-bulk-payment-card">
+        <div className="disposal-bulk-payment-header">
+          <button type="button" className="disposal-bulk-payment-back" onClick={onClose} aria-label="뒤로가기">
+            ←
+          </button>
+          <div className="disposal-bulk-payment-title">입금결산</div>
+          <div className="disposal-bulk-payment-header-spacer" />
+        </div>
+
+        <div className="disposal-bulk-payment-meta">
+          <div className="disposal-bulk-payment-meta-grid">
+            <span>{group.disposalDate || '-'}</span>
+            <span>{group.platform || '-'}</span>
+            <span>{group.customerName || '-'}</span>
+          </div>
+          <div className="disposal-bulk-payment-location">{group.location || '-'}</div>
+        </div>
+
+        <div className="disposal-bulk-payment-table-wrap">
+          <div className="disposal-bulk-payment-table">
+            <div className="disposal-bulk-payment-row disposal-bulk-payment-row-head">
+              <div>품목</div>
+              <div>수량</div>
+              <div>매출액</div>
+              <div>입금일시</div>
+            </div>
+            {rows.map(row => (
+              <div key={`bulk-payment-${row.key}`} className="disposal-bulk-payment-row">
+                <div>{row.itemName || '-'}</div>
+                <div>{formatNumber(row.quantity)}개</div>
+                <div>{formatCurrency(row.finalAmount)}</div>
+                <div>
+                  <input
+                    type="date"
+                    value={paymentDates[row.key] || ''}
+                    onChange={e => onChangeDate?.(row.key, e.target.value)}
+                    aria-label={`${row.itemName} 입금일시`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="disposal-bulk-payment-question">폐기 신고금액 입금일자가 정확합니까?</div>
+
+        <div className="disposal-confirm-actions">
+          <button type="button" className="ghost" onClick={onClose}>아니오</button>
+          <button type="button" onClick={onConfirm}>네</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DisposalListPage() {
   const navigate = useNavigate()
   const [records, setRecords] = useState([])
@@ -2106,6 +2198,8 @@ export function DisposalListPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [pendingSettlementMessages, setPendingSettlementMessages] = useState([])
   const [pendingNavigationPath, setPendingNavigationPath] = useState('')
+  const [bulkPaymentModal, setBulkPaymentModal] = useState({ open: false, recordId: '', group: null, rows: [] })
+  const [bulkPaymentDates, setBulkPaymentDates] = useState({})
 
   useEffect(() => {
     setRecords(loadRecords())
@@ -2151,7 +2245,13 @@ export function DisposalListPage() {
   }
 
   function updatePaymentStatus(recordId, rowKey, isChecked) {
-    updateRecordStatuses(recordId, (_item, index) => ({ paymentDone: String(rowKey || '').endsWith(`-${index}`) ? !!isChecked : _item.paymentDone }))
+    updateRecordStatuses(recordId, (_item, index) => {
+      if (!String(rowKey || '').endsWith(`-${index}`)) return { paymentDone: _item.paymentDone, paymentSettledAt: _item.paymentSettledAt || '' }
+      return {
+        paymentDone: !!isChecked,
+        paymentSettledAt: isChecked ? (_item.paymentSettledAt || getTodayDateInputValue()) : '',
+      }
+    })
   }
 
   function updateReportStatus(recordId, rowKey, isChecked) {
@@ -2160,6 +2260,48 @@ export function DisposalListPage() {
 
   function updateAllPaymentStatuses(recordId, isChecked) {
     updateRecordStatuses(recordId, () => ({ paymentDone: !!isChecked }))
+  }
+
+  function openBulkPaymentModal(recordId) {
+    const targetGroup = groupedRows.find(group => group.recordId === recordId)
+    if (!targetGroup) return
+    const defaults = {}
+    targetGroup.rows.forEach(row => {
+      defaults[row.key] = formatDateInputValue(row.paymentSettledAt) || getTodayDateInputValue()
+    })
+    setBulkPaymentDates(defaults)
+    setBulkPaymentModal({
+      open: true,
+      recordId,
+      group: targetGroup,
+      rows: targetGroup.rows,
+    })
+  }
+
+  function closeBulkPaymentModal() {
+    setBulkPaymentModal({ open: false, recordId: '', group: null, rows: [] })
+    setBulkPaymentDates({})
+  }
+
+  function confirmBulkPaymentDates() {
+    const { recordId, rows } = bulkPaymentModal || {}
+    if (!recordId || !Array.isArray(rows) || !rows.length) {
+      closeBulkPaymentModal()
+      return
+    }
+    const missing = rows.find(row => !String(bulkPaymentDates[row.key] || '').trim())
+    if (missing) {
+      window.alert('모든 품목의 입금일시를 입력해주세요.')
+      return
+    }
+    updateRecordStatuses(recordId, (_item, index) => {
+      const rowKey = `${recordId}-${index}`
+      return {
+        paymentDone: true,
+        paymentSettledAt: String(bulkPaymentDates[rowKey] || ''),
+      }
+    })
+    closeBulkPaymentModal()
   }
 
   function updateAllReportStatuses(recordId, isChecked) {
@@ -2181,6 +2323,10 @@ export function DisposalListPage() {
   }
 
   function confirmBulkStatusChange(recordId, field, checked) {
+    if (field === 'payment' && checked) {
+      openBulkPaymentModal(recordId)
+      return
+    }
     const label = field === 'payment' ? '입금여부' : '신고여부'
     const nextValue = checked ? 'O' : 'X'
     const confirmed = window.confirm(`체크박스를 체크하면 모든 품목의 ${label}가 ${nextValue}로 전환됩니다.`)
@@ -2366,6 +2512,16 @@ export function DisposalListPage() {
         })}
       </section>
 
+
+      <DisposalBulkPaymentModal
+        open={!!bulkPaymentModal?.open}
+        group={bulkPaymentModal?.group}
+        rows={bulkPaymentModal?.rows}
+        paymentDates={bulkPaymentDates}
+        onChangeDate={(rowKey, value) => setBulkPaymentDates(prev => ({ ...prev, [rowKey]: value }))}
+        onConfirm={confirmBulkPaymentDates}
+        onClose={closeBulkPaymentModal}
+      />
 
       <DisposalConfirmModal
         open={!!pendingNavigationPath && pendingSettlementMessages.length > 0}
