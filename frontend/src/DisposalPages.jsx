@@ -1871,6 +1871,7 @@ function DisposalSettingsPopover({ open, onClose, onMoveRegistry, onOpenPreview,
 
 export function DisposalJurisdictionRegistryPage() {
   const navigate = useNavigate()
+  const navigateWithDraftGuard = (target) => navigate(target)
   const currentUser = getStoredUser() || {}
   const canEdit = Number(currentUser?.grade || 9) <= 2
   const [rows, setRows] = useState([])
