@@ -2166,6 +2166,7 @@ export function DisposalPreviewPage() {
 export 
 function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, onChangeDate, onConfirm, onClose }) {
   if (!open || !group) return null
+  const totalFinalAmount = rows.reduce((sum, row) => sum + safeNumber(row?.finalAmount), 0)
   return (
     <div className="disposal-confirm-overlay disposal-bulk-payment-overlay" role="dialog" aria-modal="true">
       <div className="disposal-confirm-card disposal-bulk-payment-card">
@@ -2193,22 +2194,37 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
               <div>수량</div>
               <div>매출액</div>
               <div>입금일시</div>
+              <div>입금</div>
+              <div>신고</div>
             </div>
-            {rows.map(row => (
-              <div key={`bulk-payment-${row.key}`} className="disposal-bulk-payment-row">
-                <div>{row.itemName || '-'}</div>
-                <div>{formatNumber(row.quantity)}개</div>
-                <div>{formatCurrency(row.finalAmount)}</div>
-                <div>
-                  <input
-                    type="date"
-                    value={paymentDates[row.key] || ''}
-                    onChange={e => onChangeDate?.(row.key, e.target.value)}
-                    aria-label={`${row.itemName} 입금일시`}
-                  />
+            {rows.map(row => {
+              const nextDate = String(paymentDates[row.key] || '').trim()
+              return (
+                <div key={`bulk-payment-${row.key}`} className="disposal-bulk-payment-row">
+                  <div>{row.itemName || '-'}</div>
+                  <div>{formatNumber(row.quantity)}개</div>
+                  <div>{formatCurrency(row.finalAmount)}</div>
+                  <div>
+                    <input
+                      type="date"
+                      value={paymentDates[row.key] || ''}
+                      onChange={e => onChangeDate?.(row.key, e.target.value)}
+                      aria-label={`${row.itemName} 입금일시`}
+                    />
+                  </div>
+                  <div>{nextDate ? 'O' : 'X'}</div>
+                  <div>{row.reportDone ? 'O' : 'X'}</div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
+            <div className="disposal-bulk-payment-row disposal-bulk-payment-row-total">
+              <div>합계</div>
+              <div />
+              <div>{formatCurrency(totalFinalAmount)}</div>
+              <div />
+              <div />
+              <div />
+            </div>
           </div>
         </div>
 

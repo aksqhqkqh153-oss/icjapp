@@ -9674,10 +9674,15 @@ a:focus-visible {
   background: #ffffff;
 }
 
-.disposal-payment-badge.is-paid,
-.disposal-transfer-badge {
+.disposal-payment-badge.is-paid {
   background: #111827;
   color: #ffffff;
+}
+
+.disposal-transfer-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
 }
 
 .disposal-payment-badge.is-unpaid {
@@ -21546,6 +21551,18 @@ textarea,
   color: var(--text, #111111) !important;
 }
 
+.disposal-header-action-button.disposal-transfer-badge:not(.is-pending) {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #93c5fd !important;
+}
+
+.disposal-header-action-button.disposal-transfer-badge.is-pending {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #9ca3af !important;
+}
+
 .disposal-page .disposal-meta-row.disposal-meta-row-middle {
   display: block;
   border-top: 1px solid #9ca3af;
@@ -22357,14 +22374,14 @@ textarea,
 }
 
 .disposal-bulk-payment-table {
-  min-width: 680px;
+  min-width: 900px;
   border: 1px solid #111827;
   background: #ffffff;
 }
 
 .disposal-bulk-payment-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(80px, 0.6fr) minmax(120px, 0.9fr) minmax(150px, 1fr);
+  grid-template-columns: minmax(140px, 1.35fr) minmax(80px, 0.55fr) minmax(120px, 0.95fr) minmax(150px, 1fr) minmax(72px, 0.45fr) minmax(72px, 0.45fr);
   align-items: center;
 }
 
@@ -22393,6 +22410,11 @@ textarea,
   font-weight: 800;
 }
 
+.disposal-bulk-payment-row-total > div {
+  background: #eff6ff;
+  font-weight: 800;
+}
+
 .disposal-bulk-payment-row input {
   width: 100%;
   min-height: 34px;
@@ -22400,6 +22422,13 @@ textarea,
   background: #ffffff;
   padding: 6px 8px;
   font-size: 13px;
+}
+
+.disposal-bulk-payment-row-total > div:nth-child(2),
+.disposal-bulk-payment-row-total > div:nth-child(4),
+.disposal-bulk-payment-row-total > div:nth-child(5),
+.disposal-bulk-payment-row-total > div:nth-child(6) {
+  justify-content: center;
 }
 
 .disposal-bulk-payment-question {
@@ -22432,7 +22461,7 @@ textarea,
   }
 
   .disposal-bulk-payment-table {
-    min-width: 620px;
+    min-width: 900px;
   }
 
   .disposal-bulk-payment-row > div {
