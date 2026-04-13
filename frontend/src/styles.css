@@ -1941,6 +1941,19 @@ label { font-size: 14px; color: #4f6f8c; }
   display: none;
 }
 
+.platform-select-field select,
+.schedule-color-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important;
+  padding-right: 10px !important;
+}
+
+.schedule-color-select option {
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .schedule-editor-card {
     padding: 14px;

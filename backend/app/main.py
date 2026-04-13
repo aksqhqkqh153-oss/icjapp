@@ -370,6 +370,8 @@ class CalendarEventIn(BaseModel):
     staff3: str = ""
     image_data: str = ""
     deposit_datetime: str = ""
+    reservation_name: str = ""
+    reservation_phone: str = ""
 
 class CalendarEventCommentIn(BaseModel):
     content: str = ""
@@ -3571,7 +3573,7 @@ def _calendar_edit_log_summaries(before: dict[str, Any], after: dict[str, Any]) 
         ('title', '제목'), ('content', '메모'), ('event_date', '일정일자'), ('start_time', '시작시각'), ('end_time', '종료시각'),
         ('visit_time', '방문시각'), ('move_start_date', '시작일'), ('move_end_date', '종료일'), ('start_address', '출발지'), ('end_address', '도착지'),
         ('platform', '플랫폼'), ('customer_name', '고객명'), ('department_info', '부서/인원'), ('amount1', '이사금액'), ('deposit_method', '계약방법'),
-        ('deposit_amount', '계약금액'), ('deposit_datetime', '예약금 입금일시'), ('representative1', '담당대표1'), ('representative2', '담당대표2'), ('representative3', '담당대표3'),
+        ('deposit_amount', '계약금액'), ('deposit_datetime', '예약금 입금일시'), ('reservation_name', '예약자명'), ('reservation_phone', '연락처'), ('representative1', '담당대표1'), ('representative2', '담당대표2'), ('representative3', '담당대표3'),
         ('staff1', '담당직원1'), ('staff2', '담당직원2'), ('staff3', '담당직원3'), ('image_data', '첨부파일')
     ]
     changes: list[str] = []
@@ -3712,16 +3714,16 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             """
             INSERT INTO calendar_events(
                 user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address,
-                platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount, deposit_datetime,
+                platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount, deposit_datetime, reservation_name, reservation_phone,
                 representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
                 payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
                 payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
-                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime,
+                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime, payload.reservation_name, payload.reservation_phone,
                 payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
             ),
         )
@@ -3754,7 +3756,7 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             """
             UPDATE calendar_events
             SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?,
-                platform = ?, customer_name = ?, department_info = ?, schedule_type = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, deposit_datetime = ?,
+                platform = ?, customer_name = ?, department_info = ?, schedule_type = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, deposit_datetime = ?, reservation_name = ?, reservation_phone = ?,
                 representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?
             WHERE id = ?
             """,
@@ -3762,7 +3764,7 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
                 payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time, payload.location,
                 payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
                 payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
-                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime,
+                payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime, payload.reservation_name, payload.reservation_phone,
                 payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id
             ),
         )

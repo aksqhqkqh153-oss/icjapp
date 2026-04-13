@@ -5858,6 +5858,46 @@ function getReadableTextColor(hexColor) {
   return luminance >= 160 ? '#111827' : '#ffffff'
 }
 
+function parseScheduleAddressBundle(raw) {
+  const text = String(raw || '').replace(/\r/g, '').trim()
+  if (!text) return null
+  const lines = text.split(/\n+/).map(line => line.trim()).filter(Boolean)
+  if (!lines.length) return null
+  let startAddress = ''
+  let endAddress = ''
+  let reservationName = ''
+  let reservationPhone = ''
+
+  for (const line of lines) {
+    const normalized = line.replace(/\s+/g, ' ').trim()
+    if (!normalized) continue
+    if (/^출발지\s*[:：]/.test(normalized)) {
+      const value = normalized.replace(/^출발지\s*[:：]\s*/, '').trim()
+      if (!startAddress) startAddress = value
+      else if (!endAddress) endAddress = value
+      continue
+    }
+    if (/^도착지\s*[:：]/.test(normalized)) {
+      const value = normalized.replace(/^도착지\s*[:：]\s*/, '').trim()
+      if (!endAddress) endAddress = value
+      continue
+    }
+    if (/^(성함\s*\/\s*연락처|예약자명\s*\/\s*연락처|예약자명|성함)\s*[:：]/.test(normalized)) {
+      const value = normalized.replace(/^(성함\s*\/\s*연락처|예약자명\s*\/\s*연락처|예약자명|성함)\s*[:：]\s*/, '').trim()
+      const phoneMatch = value.match(/(01[016789][-\s]?\d{3,4}[-\s]?\d{4})/)
+      if (phoneMatch) {
+        reservationPhone = phoneMatch[1].replace(/\s+/g, '')
+        reservationName = value.replace(phoneMatch[1], '').replace(/[()]/g, ' ').trim()
+      } else {
+        reservationName = value
+      }
+    }
+  }
+
+  if (!startAddress && !endAddress && !reservationName && !reservationPhone) return null
+  return { startAddress, endAddress, reservationName, reservationPhone }
+}
+
 function buildCostSummary(form) {
   const rangeAmount = formatRangeAmount(form.amount1)
   if (rangeAmount) return `금액미정 / ${rangeAmount}`
@@ -7988,6 +8028,8 @@ function ScheduleFormPage({ mode }) {
     staff3: '',
     image_data: '',
     deposit_datetime: '',
+    reservation_name: '',
+    reservation_phone: '',
   })
 
   useEffect(() => {
@@ -8050,6 +8092,8 @@ function ScheduleFormPage({ mode }) {
           staff3: data.staff3 || '',
           image_data: data.image_data || '',
           deposit_datetime: data.deposit_datetime || '',
+          reservation_name: data.reservation_name || '',
+          reservation_phone: data.reservation_phone || '',
         })
         setPreview(data.image_data || '')
         setVisitTimeText(data.visit_time && data.visit_time !== '미정' ? data.visit_time : '')
@@ -8274,6 +8318,26 @@ function ScheduleFormPage({ mode }) {
     commitGenericTimeInput('move_end_end_time', endDateEndTimeText, form.move_end_end_time, setEndDateEndTimeText)
   }
 
+  function handleStartAddressChange(rawValue) {
+    const nextValue = String(rawValue || '')
+    const parsed = parseScheduleAddressBundle(nextValue)
+    setForm(prev => {
+      const next = {
+        ...prev,
+        start_address: nextValue,
+        location: nextValue,
+      }
+      if (parsed?.startAddress) {
+        next.start_address = parsed.startAddress
+        next.location = parsed.startAddress
+      }
+      if (parsed?.endAddress) next.end_address = parsed.endAddress
+      if (parsed?.reservationName) next.reservation_name = parsed.reservationName
+      if (parsed?.reservationPhone) next.reservation_phone = parsed.reservationPhone
+      return next
+    })
+  }
+
   async function handleImageChange(e) {
     const files = Array.from(e.target.files || [])
     if (!files.length) {
@@ -8434,6 +8498,8 @@ function ScheduleFormPage({ mode }) {
       location: form.start_address || '',
       amount2: '',
       amount_item: '',
+      reservation_name: form.reservation_name || '',
+      reservation_phone: form.reservation_phone || '',
     }
     try {
       if (mode === 'edit') {
@@ -8587,6 +8653,7 @@ function ScheduleFormPage({ mode }) {
             <div className="stack compact-gap schedule-compact-field platform-select-field">
               <label>플랫폼</label>
               <select
+                className="schedule-select-no-arrow"
                 aria-label="플랫폼"
                 ref={desktopPlatformSelectRef}
                 value={form.platform}
@@ -8603,7 +8670,7 @@ function ScheduleFormPage({ mode }) {
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-customer-field">
               <label>고객명</label>
-              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객명" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
+              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객명" onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
           </div>
           <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-amount-row">
@@ -8645,8 +8712,11 @@ function ScheduleFormPage({ mode }) {
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-department-field">
               <label>부서/인원</label>
-              <select aria-label="부서/인원" value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
-                {departmentOptions.map(option => <option key={option} value={option}>{option}</option>)}
+              <select className="schedule-color-select" aria-label="부서/인원" value={form.department_info} style={{ backgroundColor: departmentColorMap[form.department_info] || form.color || '#2563eb', color: getReadableTextColor(departmentColorMap[form.department_info] || form.color || '#2563eb') }} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
+                {departmentOptions.map(option => {
+                  const optionColor = departmentColorMap[option] || '#2563eb'
+                  return <option key={option} value={option} style={{ backgroundColor: optionColor, color: getReadableTextColor(optionColor) }}>{option}</option>
+                })}
               </select>
             </div>
           </div>
@@ -8736,11 +8806,21 @@ function ScheduleFormPage({ mode }) {
           </div>
           <div className="stack compact-gap schedule-compact-field">
             <label>출발지 상세주소</label>
-            <input value={form.start_address} placeholder="출발지 상세주소" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
+            <input value={form.start_address} placeholder="출발지 상세주소" onChange={e => handleStartAddressChange(e.target.value)} />
           </div>
           <div className="stack compact-gap schedule-compact-field">
             <label>도착지 상세주소</label>
             <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
+          </div>
+          <div className="schedule-form-grid-2 schedule-editor-compact-grid">
+            <div className="stack compact-gap schedule-compact-field">
+              <label>예약자명</label>
+              <input value={form.reservation_name || ''} placeholder="예약자명" onChange={e => setForm({ ...form, reservation_name: e.target.value })} />
+            </div>
+            <div className="stack compact-gap schedule-compact-field">
+              <label>연락처</label>
+              <input value={form.reservation_phone || ''} placeholder="연락처" onChange={e => setForm({ ...form, reservation_phone: e.target.value })} />
+            </div>
           </div>
           <div className="stack compact-gap schedule-compact-field">
             <label>예약금 입금일시</label>
