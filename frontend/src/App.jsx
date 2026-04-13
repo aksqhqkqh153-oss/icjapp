@@ -57,6 +57,97 @@ const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
 const TEXT_EDIT_BODY_CLASS = 'text-edit-enabled'
 const SETTLEMENT_OVERRIDE_STORAGE_KEY = 'icj_settlement_overrides_v20260408'
 
+function eventImageList(raw) {
+  if (Array.isArray(raw) && raw.length) return raw.filter(Boolean)
+  const text = String(raw || '').trim()
+  if (!text) return []
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+    } catch (_) {}
+  }
+  if (text.includes('\n')) return text.split(/\r?\n/).map(v => v.trim()).filter(Boolean)
+  if (text.includes(',') && !text.startsWith('data:')) {
+    const parts = text.split(',').map(v => v.trim()).filter(Boolean)
+    if (parts.length > 1) return parts
+  }
+  return [text]
+}
+
+function escapePopupHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function openScheduleEditLogPopup(logs = []) {
+  const popup = window.open('', 'schedule-edit-logs', 'width=820,height=640,scrollbars=yes,resizable=yes')
+  if (!popup) {
+    window.alert('팝업이 차단되어 수정기록 창을 열 수 없습니다. 브라우저 팝업 차단을 해제해 주세요.')
+    return
+  }
+  const rows = Array.isArray(logs) && logs.length
+    ? logs.map(log => `
+      <tr>
+        <td>${escapePopupHtml(log?.created_label || '-')}</td>
+        <td>${escapePopupHtml(log?.account_name || '알 수 없음')}</td>
+        <td>${escapePopupHtml(log?.change_summary || '-')}</td>
+      </tr>
+    `).join('')
+    : '<tr><td colspan="3" class="empty">수정기록이 없습니다.</td></tr>'
+
+  popup.document.open()
+  popup.document.write(`<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>수정기록</title>
+  <style>
+    body { font-family: Arial, 'Malgun Gothic', sans-serif; margin: 0; background: #f8fafc; color: #111827; }
+    .wrap { padding: 18px; }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    h1 { margin: 0; font-size: 18px; }
+    button { border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+    .table-box { border: 1px solid #e5e7eb; background: #fff; border-radius: 14px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 13px; vertical-align: top; word-break: break-word; }
+    th { background: #f8fafc; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    .empty { text-align: center; color: #64748b; padding: 26px 12px; }
+    .col-date { width: 170px; }
+    .col-name { width: 140px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <h1>수정기록</h1>
+      <button type="button" onclick="window.close()">닫기</button>
+    </div>
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-date">수정일자</th>
+            <th class="col-name">계정이름</th>
+            <th>수정내용</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>`)
+  popup.document.close()
+  popup.focus()
+}
+
 function normalizeAppTheme(theme) {
   return theme === 'dark' ? 'dark' : 'light'
 }
@@ -8539,7 +8630,6 @@ function ScheduleDetailPage() {
   const [editLogs, setEditLogs] = useState([])
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [logsOpen, setLogsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [commentSubmitting, setCommentSubmitting] = useState(false)
   const [commentForm, setCommentForm] = useState({ content: '', image_data: '' })
@@ -8644,24 +8734,6 @@ function ScheduleDetailPage() {
     }
   }
 
-  function eventImageList(raw) {
-    if (Array.isArray(raw) && raw.length) return raw.filter(Boolean)
-    const text = String(raw || '').trim()
-    if (!text) return []
-    if (text.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(text)
-        if (Array.isArray(parsed)) return parsed.filter(Boolean)
-      } catch (_) {}
-    }
-    if (text.includes('\n')) return text.split(/\r?\n/).map(v => v.trim()).filter(Boolean)
-    if (text.includes(',') && !text.startsWith('data:')) {
-      const parts = text.split(',').map(v => v.trim()).filter(Boolean)
-      if (parts.length > 1) return parts
-    }
-    return [text]
-  }
-
   const depositBefore = String(item?.deposit_method || '').trim() === '계약금입금전'
   const amountText = formatRangeAmount(item?.amount1) || formatMoneyDisplay(item?.amount1) || '금액미정'
   const depositAmountText = formatMoneyDisplay(item?.deposit_amount) || String(item?.deposit_amount || '').trim()
@@ -8694,7 +8766,7 @@ function ScheduleDetailPage() {
                 <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
                 {menuOpen && (
                   <div className="dropdown-menu right schedule-detail-setting-menu">
-                    <button type="button" className="dropdown-item" onClick={() => { setLogsOpen(true); setMenuOpen(false) }}>수정기록</button>
+                    <button type="button" className="dropdown-item" onClick={() => { openScheduleEditLogPopup(editLogs.map(log => ({ ...log, created_label: formatLogDate(log.created_at) }))); setMenuOpen(false) }}>수정기록</button>
                     {canEditCurrentSchedule ? (
                       <button type="button" className="dropdown-item danger" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button>
                     ) : null}
@@ -8759,31 +8831,6 @@ function ScheduleDetailPage() {
         <button type="submit" className="primary small" disabled={commentSubmitting}>{commentSubmitting ? '등록중' : '입력'}</button>
       </form>
 
-      {logsOpen && createPortal(
-        <div className="modal-backdrop" onClick={() => setLogsOpen(false)}>
-          <div className="modal-card schedule-log-modal" onClick={e => e.stopPropagation()}>
-            <div className="between align-center">
-              <h3>수정기록</h3>
-              <button type="button" className="ghost small" onClick={() => setLogsOpen(false)}>닫기</button>
-            </div>
-            <div className="schedule-log-list">
-              <div className="schedule-log-head">
-                <div>수정일자</div>
-                <div>계정이름</div>
-                <div>수정내용</div>
-              </div>
-              {editLogs.length ? editLogs.map(log => (
-                <div key={log.id} className="schedule-log-row">
-                  <div>{formatLogDate(log.created_at)}</div>
-                  <div>{log.account_name || '알 수 없음'}</div>
-                  <div>{log.change_summary || '-'}</div>
-                </div>
-              )) : <div className="muted">수정기록이 없습니다.</div>}
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
     </div>
   )
 }

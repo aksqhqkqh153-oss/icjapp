@@ -23299,6 +23299,7 @@ textarea,
 .schedule-detail-page-v2 { padding-bottom: 110px; }
 .schedule-detail-card-v2 { position: relative; padding-top: 0; overflow: visible; }
 .schedule-detail-sticky-stack { position: sticky; top: 56px; z-index: 60; background: var(--card, #fff); padding: 10px 0 8px; display: grid; gap: 8px; border-bottom: 1px solid rgba(15, 23, 42, 0.08); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); }
+.schedule-detail-author-bar, .schedule-detail-summary-bar, .schedule-detail-assignment-bar { background: var(--card, #fff); }
 .schedule-detail-author-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; }
 .schedule-detail-author-text { font-weight: 700; min-width: 0; }
 .schedule-detail-author-actions { display: flex; gap: 6px; align-items: center; }
@@ -23309,14 +23310,14 @@ textarea,
 .schedule-detail-assignment-bar-singleline { flex-wrap: nowrap; align-items: stretch; }
 .schedule-detail-chip-department { flex: 0 0 auto; font-weight: 700; }
 .schedule-detail-assignee-chip { min-width: 0; flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.schedule-detail-content-body { display: grid; gap: 12px; padding-top: 14px; }
+.schedule-detail-content-body { display: grid; gap: 12px; padding-top: 18px; }
 .schedule-detail-image-grid, .schedule-comment-image-grid { display: grid; gap: 8px; }
 .schedule-detail-image-grid.count-1, .schedule-comment-image-grid.count-1 { grid-template-columns: 1fr; }
 .schedule-detail-image-grid.count-2, .schedule-comment-image-grid.count-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .schedule-detail-image-grid.count-3, .schedule-comment-image-grid.count-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 .schedule-detail-image-grid.count-4, .schedule-comment-image-grid.count-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .schedule-detail-image-tile, .schedule-comment-image-tile { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; min-height: 102px; display: flex; align-items: center; justify-content: center; }
-.schedule-detail-image { width: 56%; height: auto; max-height: 240px; object-fit: contain; display: block; margin: 0 auto; }
+.schedule-detail-image { width: 42%; height: auto; max-height: 240px; object-fit: contain; display: block; margin: 0 auto; }
 .schedule-comment-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .schedule-comment-upload-hint { font-size: 12px; color: #64748b; white-space: nowrap; }
 .schedule-upload-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-width: 128px; padding: 6px; }
@@ -23348,7 +23349,7 @@ textarea,
   .schedule-detail-chip-department { max-width: 34%; }
   .schedule-detail-assignee-chip { flex-basis: 33%; }
   .schedule-detail-image-tile, .schedule-comment-image-tile, .schedule-detail-empty-box { min-height: 84px; }
-  .schedule-detail-image { width: 56%; max-height: 168px; }
+  .schedule-detail-image { width: 42%; max-height: 168px; }
   .schedule-detail-comment-composer { width: 100%; padding: 8px 10px; grid-template-columns: 40px minmax(0,1fr) auto 56px; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
   .schedule-log-head { grid-template-columns: 1fr; }
   .schedule-comment-upload-hint { font-size: 11px; }
