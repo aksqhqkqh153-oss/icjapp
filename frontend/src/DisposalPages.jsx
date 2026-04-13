@@ -407,6 +407,56 @@ function upsertRecordByCustomerLocation(records, nextRecord) {
   return [normalizedNext, ...(records || []).filter(record => record.id !== nextId)].slice(0, 300)
 }
 
+function normalizeDraftForCompare(draft) {
+  const source = draft || createInitialDraft()
+  return {
+    disposalDate: String(source.disposalDate || '').trim(),
+    location: String(source.location || '').trim(),
+    district: String(source.district || '').trim(),
+    finalStatus: String(source.finalStatus || '').trim(),
+    platform: String(source.platform || '').trim(),
+    customerName: String(source.customerName || '').trim(),
+    items: Array.from({ length: ITEM_ROW_COUNT }, (_, index) => {
+      const item = (source.items || [])[index] || {}
+      return {
+        itemName: String(item.itemName || '').trim(),
+        quantity: String(item.quantity || '').trim(),
+        unitCost: String(item.unitCost || '').trim(),
+        reportNo: String(item.reportNo || '').trim(),
+        note: String(item.note || '').trim(),
+      }
+    }),
+  }
+}
+
+function buildDraftChangeSummary(initialDraft, currentDraft) {
+  const initial = normalizeDraftForCompare(initialDraft)
+  const current = normalizeDraftForCompare(currentDraft)
+  const changed = []
+
+  if (initial.customerName != current.customerName) changed.push('고객명')
+  if (initial.disposalDate != current.disposalDate) changed.push('폐기일자')
+  if (initial.platform != current.platform) changed.push('플랫폼')
+  if (initial.location != current.location) changed.push('폐기장소')
+  if (initial.district != current.district) changed.push('관할구역')
+  if (initial.finalStatus != current.finalStatus) changed.push('최종현황')
+
+  const changedItemRows = []
+  for (let index = 0; index < ITEM_ROW_COUNT; index += 1) {
+    const before = initial.items[index] || {}
+    const after = current.items[index] || {}
+    const beforeSerialized = JSON.stringify(before)
+    const afterSerialized = JSON.stringify(after)
+    if (beforeSerialized !== afterSerialized) changedItemRows.push(index + 1)
+  }
+  if (changedItemRows.length) {
+    const previewRows = changedItemRows.slice(0, 8).join(', ')
+    changed.push(`폐기품목입력 (${previewRows}${changedItemRows.length > 8 ? ' 외' : ''}번)`)
+  }
+
+  return changed
+}
+
 function sortRecords(records, sortKey) {
   const list = [...records]
   if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
@@ -1252,7 +1302,7 @@ function DisposalItemsEditor({
   }
 
   async function saveBlobWithPicker(blob, suggestedName) {
-    if (!window.showSaveFilePicker) return false
+    if (!window.showSaveFilePicker) return { supported: false, saved: false, cancelled: false }
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName,
@@ -1261,9 +1311,9 @@ function DisposalItemsEditor({
       const writable = await handle.createWritable()
       await writable.write(blob)
       await writable.close()
-      return true
+      return { supported: true, saved: true, cancelled: false }
     } catch (error) {
-      if (error?.name === 'AbortError') return false
+      if (error?.name === 'AbortError') return { supported: true, saved: false, cancelled: true }
       throw error
     }
   }
@@ -1302,8 +1352,12 @@ function DisposalItemsEditor({
         return
       }
 
-      if (await saveBlobWithPicker(blob, filename)) {
+      const pickerResult = await saveBlobWithPicker(blob, filename)
+      if (pickerResult.saved) {
         onAutoSaveRecord?.(autoSavedRecord)
+        return
+      }
+      if (pickerResult.supported && pickerResult.cancelled) {
         return
       }
 
@@ -1355,8 +1409,12 @@ function DisposalItemsEditor({
         return
       }
 
-      if (await saveBlobWithPicker(blob, filename)) {
+      const pickerResult = await saveBlobWithPicker(blob, filename)
+      if (pickerResult.saved) {
         window.alert('회사용 견적서가 저장되었습니다.')
+        return
+      }
+      if (pickerResult.supported && pickerResult.cancelled) {
         return
       }
 
@@ -1822,7 +1880,7 @@ export function DisposalJurisdictionRegistryPage() {
 
   return (
     <div className="stack-page disposal-page disposal-form-page">
-      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
+      <DisposalCategoryTabs current="forms" onNavigate={navigateWithDraftGuard} />
       <section className="card disposal-hero">
         <div>
           <h2>관할구역등록</h2>
@@ -1916,12 +1974,14 @@ export function DisposalFormsPage() {
   const [selectedItemRows, setSelectedItemRows] = useState([])
   const [itemSettingsOpen, setItemSettingsOpen] = useState(false)
   const [defaultVisibleRows, setDefaultVisibleRows] = useState(() => getDefaultVisibleItemRows())
+  const [savedDraftBaseline, setSavedDraftBaseline] = useState(() => normalizeDraftForCompare(createInitialDraft()))
   const settingsRef = useRef(null)
   const itemSettingsRef = useRef(null)
 
   useEffect(() => {
     if (!recordId) {
       setLoadedRecordId('')
+      setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
       return
     }
     const found = loadRecords().find(record => record.id === recordId)
@@ -1937,9 +1997,19 @@ export function DisposalFormsPage() {
         items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
       })
       setSavedAt(found.savedAt || '')
+      setSavedDraftBaseline(normalizeDraftForCompare({
+        platform: found.platform || '',
+        customerName: found.customerName || '',
+        disposalDate: found.disposalDate || '',
+        location: found.location || '',
+        district: found.district || '',
+        finalStatus: found.finalStatus || '',
+        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+      }))
       return
     }
     setLoadedRecordId(recordId)
+    setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
   }, [recordId])
 
 
@@ -1978,6 +2048,19 @@ useEffect(() => {
 }, [draft.location])
 
   const rendered = useMemo(() => buildRenderedTemplate(draft), [draft])
+  const changedFields = useMemo(() => buildDraftChangeSummary(savedDraftBaseline, draft), [savedDraftBaseline, draft])
+  const hasUnsavedChanges = changedFields.length > 0
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined
+    function handleBeforeUnload(event) {
+      event.preventDefault()
+      event.returnValue = ''
+      return ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   useEffect(() => {
     setSelectedItemRows(prev => prev.filter(index => index < (draft.items || []).length))
@@ -2051,21 +2134,11 @@ useEffect(() => {
     window.alert(`기본품목칸 수가 ${nextValue}칸으로 변경되었습니다.`)
   }
 
-  function openPreviewPage() {
-    persistPreviewDraft(draft)
-    navigate('/disposal/forms/preview')
-  }
-
-  function resetDraft() {
-    setDraft(createInitialDraft())
-    setLoadedRecordId('')
-    setSavedAt('')
-  }
-
-  function saveSettlementRecord() {
+  function saveCurrentDraftRecord(options = {}) {
+    const { silent = false } = options
     if (!String(draft?.customerName || '').trim()) {
-      window.alert('고객명을 입력한 후 저장해주세요.')
-      return
+      if (!silent) window.alert('고객명을 입력한 후 저장해주세요.')
+      return false
     }
     const current = loadRecords()
     const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
@@ -2075,13 +2148,48 @@ useEffect(() => {
     saveRecords(next)
     setLoadedRecordId(nextRecord.id)
     setSavedAt(nextRecord.savedAt)
-    window.alert(effectiveRecordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
+    setSavedDraftBaseline(normalizeDraftForCompare(draft))
+    if (!silent) {
+      window.alert(effectiveRecordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
+    }
+    return true
+  }
+
+  function navigateWithDraftGuard(target) {
+    if (!hasUnsavedChanges) {
+      navigate(target)
+      return
+    }
+    const message = ['변동된 데이터가 있습니다.', '', ...changedFields.map(label => `- ${label}`), '', '화면이동 전 저장하시겠습니까?'].join('\n')
+    const shouldSave = window.confirm(message)
+    if (!shouldSave) return
+    const saved = saveCurrentDraftRecord({ silent: true })
+    if (!saved) return
+    navigate(target)
+  }
+
+  function openPreviewPage() {
+    persistPreviewDraft(draft)
+    navigateWithDraftGuard('/disposal/forms/preview')
+  }
+
+  function resetDraft() {
+    const initialDraft = createInitialDraft()
+    setDraft(initialDraft)
+    setLoadedRecordId('')
+    setSavedAt('')
+    setSavedDraftBaseline(normalizeDraftForCompare(initialDraft))
+  }
+
+  function saveSettlementRecord() {
+    const saved = saveCurrentDraftRecord()
+    if (!saved) return
     navigate('/disposal/list')
   }
 
   return (
     <div className="stack-page disposal-page">
-      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
+      <DisposalCategoryTabs current="forms" onNavigate={navigateWithDraftGuard} />
       <div className="disposal-form-inline-tools" ref={settingsRef}>
         <DisposalMetaInputs
           draft={draft}
@@ -2109,7 +2217,7 @@ useEffect(() => {
             itemSettingsRef={itemSettingsRef}
             existingRecordId={String(recordId || loadedRecordId || '').trim()}
             onOpenPreview={openPreviewPage}
-            onOpenRegistry={() => navigate('/disposal/jurisdictions')}
+            onOpenRegistry={() => navigateWithDraftGuard('/disposal/jurisdictions')}
             onSaveEstimate={saveSettlementRecord}
             onAutoSaveRecord={nextRecord => {
               const currentRecords = loadRecords()
@@ -2120,11 +2228,13 @@ useEffect(() => {
                 saveRecords(nextRecords)
                 setLoadedRecordId(effectiveRecordId)
                 setSavedAt(normalizedNextRecord?.savedAt || '')
+                setSavedDraftBaseline(normalizeDraftForCompare(draft))
                 return
               }
               const nextRecords = upsertRecordByCustomerLocation(currentRecords, nextRecord)
               saveRecords(nextRecords)
               setSavedAt(nextRecords[0]?.savedAt || '')
+              setSavedDraftBaseline(normalizeDraftForCompare(draft))
             }}
           />
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
@@ -2146,7 +2256,7 @@ export function DisposalPreviewPage() {
 
   return (
     <div className="stack-page disposal-page">
-      <DisposalCategoryTabs current="forms" onNavigate={(path) => navigate(path)} />
+      <DisposalCategoryTabs current="forms" onNavigate={navigateWithDraftGuard} />
       <section className="card disposal-hero">
         <div>
           <h2>폐기견적서 전체 미리보기</h2>
