@@ -1097,6 +1097,7 @@ function DisposalItemsEditor({
   configureDefaultVisibleRows,
   itemSettingsRef,
   onAutoSaveRecord,
+  existingRecordId,
   onOpenPreview,
   onOpenRegistry,
   onSaveEstimate,
@@ -1269,7 +1270,7 @@ function DisposalItemsEditor({
 
   async function saveCustomerEstimateAsJpg() {
     try {
-      const autoSavedRecord = makeRecordFromDraft(draft, rendered.totals)
+      const autoSavedRecord = makeRecordFromDraft(draft, rendered.totals, existingRecordId || '')
       const canvas = await buildCustomerQuoteCanvas({
         rows: customerExportRows,
         totalFinal: rendered.totals.totalFinal || 0,
@@ -1907,6 +1908,7 @@ export function DisposalFormsPage() {
   const handleCategoryNavigate = (path) => navigate(path)
   const { recordId } = useParams()
   const [draft, setDraft] = useState(createInitialDraft())
+  const [loadedRecordId, setLoadedRecordId] = useState('')
   const [savedAt, setSavedAt] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [districtResolved, setDistrictResolved] = useState({ matched: false, district_name: '', report_link: '', place_prefix: '' })
@@ -1918,9 +1920,13 @@ export function DisposalFormsPage() {
   const itemSettingsRef = useRef(null)
 
   useEffect(() => {
-    if (!recordId) return
+    if (!recordId) {
+      setLoadedRecordId('')
+      return
+    }
     const found = loadRecords().find(record => record.id === recordId)
     if (found) {
+      setLoadedRecordId(found.id || recordId)
       setDraft({
         platform: found.platform || '',
         customerName: found.customerName || '',
@@ -1931,7 +1937,9 @@ export function DisposalFormsPage() {
         items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
       })
       setSavedAt(found.savedAt || '')
+      return
     }
+    setLoadedRecordId(recordId)
   }, [recordId])
 
 
@@ -2050,6 +2058,7 @@ useEffect(() => {
 
   function resetDraft() {
     setDraft(createInitialDraft())
+    setLoadedRecordId('')
     setSavedAt('')
   }
 
@@ -2059,12 +2068,14 @@ useEffect(() => {
       return
     }
     const current = loadRecords()
-    const matchedRecord = recordId ? null : findMatchingRecord(current, draft)
-    const nextRecord = makeRecordFromDraft(draft, rendered.totals, recordId || matchedRecord?.id || '')
+    const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
+    const matchedRecord = effectiveRecordId ? null : findMatchingRecord(current, draft)
+    const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '')
     const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
     saveRecords(next)
+    setLoadedRecordId(nextRecord.id)
     setSavedAt(nextRecord.savedAt)
-    window.alert(recordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
+    window.alert(effectiveRecordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
     navigate('/disposal/list')
   }
 
@@ -2096,12 +2107,24 @@ useEffect(() => {
             defaultVisibleRows={defaultVisibleRows}
             configureDefaultVisibleRows={configureDefaultVisibleRows}
             itemSettingsRef={itemSettingsRef}
+            existingRecordId={String(recordId || loadedRecordId || '').trim()}
             onOpenPreview={openPreviewPage}
             onOpenRegistry={() => navigate('/disposal/jurisdictions')}
             onSaveEstimate={saveSettlementRecord}
             onAutoSaveRecord={nextRecord => {
-              const nextRecords = upsertRecordByCustomerLocation(loadRecords(), nextRecord)
+              const currentRecords = loadRecords()
+              const effectiveRecordId = String(recordId || loadedRecordId || nextRecord?.id || '').trim()
+              if (effectiveRecordId) {
+                const normalizedNextRecord = normalizeRecordShape({ ...nextRecord, id: effectiveRecordId, savedAt: new Date().toISOString() })
+                const nextRecords = [normalizedNextRecord, ...currentRecords.filter(record => record.id !== effectiveRecordId)].slice(0, 300)
+                saveRecords(nextRecords)
+                setLoadedRecordId(effectiveRecordId)
+                setSavedAt(normalizedNextRecord?.savedAt || '')
+                return
+              }
+              const nextRecords = upsertRecordByCustomerLocation(currentRecords, nextRecord)
               saveRecords(nextRecords)
+              setSavedAt(nextRecords[0]?.savedAt || '')
             }}
           />
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
