@@ -23383,3 +23383,72 @@ textarea,
   .schedule-detail-comment-input { min-height: 40px; }
   .schedule-log-row { grid-template-columns: 1fr; }
 }
+
+
+/* 2026-04-13 schedule popup detail + department delete + mobile detail height */
+.schedule-settings-modal-header-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+}
+.schedule-color-edit-row{
+  grid-template-columns:24px minmax(0,1fr) 68px;
+}
+.schedule-color-edit-check{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.schedule-color-edit-check input{
+  width:16px;
+  height:16px;
+}
+.schedule-detail-popup-card{
+  width:min(980px, calc(100vw - 24px));
+  max-height:calc(100vh - 32px);
+  overflow:auto;
+  padding:0;
+}
+.embedded-schedule-detail-page{
+  padding-bottom:88px;
+}
+.schedule-detail-card-v2.embedded{
+  border:none;
+  box-shadow:none;
+  min-height:auto;
+}
+.schedule-detail-comment-composer.embedded{
+  width:min(980px, calc(100vw - 24px));
+  bottom:0;
+  border-radius:0 0 16px 16px;
+}
+.schedule-page.mobile .mobile-schedule-detail-panel.collapsed .schedule-popup-list.embedded{
+  max-height:calc(100vh - 340px);
+  overflow:auto;
+}
+.work-schedule-line-item.calendar-linked{
+  cursor:pointer;
+}
+@media (max-width: 768px) {
+  .schedule-color-edit-row{
+    grid-template-columns:22px minmax(0,1fr) 64px;
+  }
+  .schedule-settings-modal-header-actions{
+    width:100%;
+  }
+  .schedule-detail-popup-card{
+    width:100vw;
+    max-width:100vw;
+    max-height:100vh;
+    border-radius:0;
+  }
+  .schedule-detail-comment-composer.embedded{
+    width:100vw;
+    border-radius:0;
+  }
+  .schedule-page.mobile .mobile-schedule-detail-panel.collapsed{
+    max-height:calc(100vh - 96px);
+    overflow:hidden;
+  }
+}

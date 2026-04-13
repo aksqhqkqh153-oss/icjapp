@@ -5749,6 +5749,7 @@ function isSameMonthDate(left, right) {
 }
 
 const DEFAULT_DEPARTMENT_OPTIONS = [
+  '미정',
   '본사업무',
   '당일이사 2인 업무',
   '당일이사 3인 이상업무',
@@ -5771,6 +5772,7 @@ const DEPARTMENT_AUTO_ASSIGN_OPTIONS = [
 ]
 
 const DEFAULT_DEPARTMENT_COLOR_MAP = {
+  '미정': '#000000',
   '본사업무': '#2563eb',
   '당일이사 1인 업무': '#2563eb',
   '당일이사 2인 업무': '#1d4ed8',
@@ -5792,11 +5794,9 @@ function getStoredDepartmentOptions() {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return [...DEFAULT_DEPARTMENT_OPTIONS]
     const cleaned = parsed.map(item => String(item || '').trim()).filter(Boolean)
-    const merged = [...cleaned]
-    DEFAULT_DEPARTMENT_OPTIONS.forEach(option => {
-      if (!merged.includes(option)) merged.push(option)
-    })
-    return merged.length ? merged : [...DEFAULT_DEPARTMENT_OPTIONS]
+    const unique = Array.from(new Set(cleaned))
+    if (!unique.includes('미정')) unique.unshift('미정')
+    return unique.length ? unique : [...DEFAULT_DEPARTMENT_OPTIONS]
   } catch {
     return [...DEFAULT_DEPARTMENT_OPTIONS]
   }
@@ -6647,6 +6647,14 @@ function CalendarPage() {
         </div>
       )}
 
+      {detailPopupEventId && (
+        <div className="schedule-popup-backdrop schedule-detail-popup-backdrop" onClick={() => closeScheduleDetailPopup(false)}>
+          <section className="schedule-popup-card schedule-detail-popup-card" onClick={event => event.stopPropagation()}>
+            <ScheduleDetailContent eventId={detailPopupEventId} embedded onClose={closeScheduleDetailPopup} />
+          </section>
+        </div>
+      )}
+
       {overflowPopup.items.length > 0 && (
         <div className="schedule-inline-overlay" onClick={closeOverflowPopup}>
           <section className="schedule-inline-popup-card" style={{ left: overflowPopup.x, top: overflowPopup.y }} onClick={event => event.stopPropagation()}>
@@ -7256,6 +7264,7 @@ function WorkSchedulePage() {
   const [statusForm, setStatusForm] = useState(buildDayStatusForm(null))
   const [assignableUsers, setAssignableUsers] = useState([])
   const [businessExclusionOptions, setBusinessExclusionOptions] = useState([])
+  const [detailPopupEventId, setDetailPopupEventId] = useState(null)
 
   const businessAssigneePredicate = useCallback(user => resolveScheduleAssigneeRole(user) === 'business', [])
   const staffAssigneePredicate = useCallback(user => resolveScheduleAssigneeRole(user) === 'staff', [])
@@ -7426,6 +7435,17 @@ function WorkSchedulePage() {
     setMessage('열외자 목록이 저장되었습니다.')
     closeNotes()
     await load()
+  }
+
+  function openScheduleDetailPopup(item) {
+    const linkedId = Number(item?.event_id || item?.id || 0)
+    if (String(item?.entry_type || '') !== 'calendar' || linkedId <= 0) return
+    setDetailPopupEventId(linkedId)
+  }
+
+  function closeScheduleDetailPopup(shouldReload = false) {
+    setDetailPopupEventId(null)
+    if (shouldReload) load().catch(() => {})
   }
 
   function rowKey(dayDate, item) {
@@ -7706,7 +7726,7 @@ function WorkSchedulePage() {
                   .join(' / ') || String(item.staff_names || '').trim() || '-'
                 const addressText = String(item.start_address || item.location || item.origin_address || '-').trim() || '-'
                 return (
-                  <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}${isMobile ? ' mobile-four-col' : ''}`}>
+                  <div key={key} className={`work-schedule-line-item${item.entry_type === 'calendar' ? ' calendar-linked' : ' manual-linked'}${isMobile ? ' mobile-four-col' : ''}`} onClick={() => openScheduleDetailPopup(item)}>
                     <div className="work-schedule-line-head no-row-edit-button">
                       <div className="work-schedule-line-body">
                         {isMobile ? (
@@ -7727,7 +7747,7 @@ function WorkSchedulePage() {
                       </div>
                     </div>
                     {!isMobile && isEditing && !readOnly && (
-                      <form onSubmit={submitRowEdit} className="work-schedule-inline-editor">
+                      <form onSubmit={submitRowEdit} className="work-schedule-inline-editor" onClick={e => e.stopPropagation()}>
                         <div className="work-schedule-inline-grid work-schedule-assignee-grid one-line">
                           <input value={editingForm.schedule_time} placeholder="시간" onChange={e => setEditingForm({ ...editingForm, schedule_time: normalizeScheduleTimeInput(e.target.value, e.target.value) })} />
                           <input value={editingForm.customer_name} placeholder="고객명" onChange={e => setEditingForm({ ...editingForm, customer_name: e.target.value })} />
@@ -7745,7 +7765,7 @@ function WorkSchedulePage() {
               })}
 
               {day.entries.length > 0 && isBulkEdit && (
-                <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor">
+                <form onSubmit={e => { e.preventDefault(); submitBulkEdit(day.date) }} className="work-schedule-bulk-editor" onClick={e => e.stopPropagation()}>
                   <div className="work-schedule-table header compact-single-line with-check-column">
                     <div><input type="checkbox" checked={isBulkDeleteAllChecked(day.date)} onChange={e => toggleBulkDeleteAll(day.date, e.target.checked)} aria-label="전체선택" /></div><div>시간</div><div>고객명</div><div>사업자</div><div>직원</div><div>주소</div>
                   </div>
@@ -7915,6 +7935,7 @@ function ScheduleFormPage({ mode }) {
   const [departmentOptions, setDepartmentOptions] = useState(() => getStoredDepartmentOptions())
   const [departmentColorMap, setDepartmentColorMap] = useState(() => getStoredDepartmentColorMap())
   const [editingDepartmentOption, setEditingDepartmentOption] = useState('')
+  const [departmentDeleteChecks, setDepartmentDeleteChecks] = useState([])
   const settingsMenuRef = useRef(null)
 
   function handleScheduleEditorKeyDown(e) {
@@ -8308,6 +8329,38 @@ function ScheduleFormPage({ mode }) {
     setForm(prev => ({ ...prev, staff1: first || '', staff2: second || '', staff3: third || '' }))
   }
 
+  function toggleDepartmentDeleteCheck(option) {
+    setDepartmentDeleteChecks(prev => prev.includes(option) ? prev.filter(item => item !== option) : [...prev, option])
+  }
+
+  async function handleDeleteDepartmentOptions() {
+    const targets = departmentDeleteChecks.filter(option => option && option !== '미정')
+    if (!targets.length) {
+      window.alert('삭제할 항목을 선택해 주세요.')
+      return
+    }
+    const confirmed = window.confirm(`선택한 ${targets.length}개 항목을 삭제하시겠습니까?\n기존 일정에 반영된 항목은 '미정'으로 변경됩니다.`)
+    if (!confirmed) return
+    try {
+      await api('/api/calendar/events/department-replace', { method: 'POST', body: JSON.stringify({ from_values: targets, to_value: '미정', to_color: '#000000' }) })
+      setDepartmentOptions(prev => {
+        const filtered = prev.filter(option => !targets.includes(option))
+        return filtered.includes('미정') ? filtered : ['미정', ...filtered]
+      })
+      setDepartmentColorMap(prev => {
+        const next = { ...prev, ['미정']: '#000000' }
+        targets.forEach(option => { delete next[option] })
+        return next
+      })
+      setForm(prev => targets.includes(prev.department_info) ? { ...prev, department_info: '미정', color: '#000000' } : prev)
+      setDepartmentDeleteChecks([])
+      setEditingDepartmentOption('')
+      window.alert('선택한 부서/인원 항목을 삭제했습니다.')
+    } catch (err) {
+      window.alert(err.message || '부서/인원 항목 삭제에 실패했습니다.')
+    }
+  }
+
   function handleAddDepartmentOption() {
     const baseLabel = '새 항목'
     let candidate = baseLabel
@@ -8466,16 +8519,22 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           {departmentColorConfigOpen && (
-            <div className="schedule-settings-modal-backdrop" onClick={() => { setEditingDepartmentOption(''); setDepartmentColorConfigOpen(false) }}>
+            <div className="schedule-settings-modal-backdrop" onClick={() => { setEditingDepartmentOption(''); setDepartmentDeleteChecks([]); setDepartmentColorConfigOpen(false) }}>
               <div className="schedule-settings-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="부서/인원 색상편집">
                 <div className="schedule-settings-modal-header schedule-settings-modal-header-editor">
-                  <button type="button" className="ghost small icon-only schedule-settings-back-button" aria-label="뒤로가기" onClick={() => { setEditingDepartmentOption(''); setDepartmentColorConfigOpen(false) }}>←</button>
+                  <button type="button" className="ghost small icon-only schedule-settings-back-button" aria-label="뒤로가기" onClick={() => { setEditingDepartmentOption(''); setDepartmentDeleteChecks([]); setDepartmentColorConfigOpen(false) }}>←</button>
                   <strong>부서/인원 색상편집</strong>
-                  <button type="button" className="small schedule-settings-add-button" onClick={handleAddDepartmentOption}>추가</button>
+                  <div className="schedule-settings-modal-header-actions">
+                    <button type="button" className="small ghost" onClick={handleDeleteDepartmentOptions}>삭제</button>
+                    <button type="button" className="small schedule-settings-add-button" onClick={handleAddDepartmentOption}>추가</button>
+                  </div>
                 </div>
                 <div className="schedule-settings-grid compact-color-grid">
                   {departmentOptions.map(option => (
                     <div key={`dept-color-${option}`} className="schedule-color-edit-row">
+                      <label className="check center-check schedule-color-edit-check">
+                        <input type="checkbox" checked={departmentDeleteChecks.includes(option)} onChange={() => toggleDepartmentDeleteCheck(option)} disabled={option === '미정'} />
+                      </label>
                       {editingDepartmentOption === option ? (
                         <input
                           className="schedule-color-edit-name-input"
@@ -8699,9 +8758,8 @@ function ScheduleFormPage({ mode }) {
   )
 }
 
-function ScheduleDetailPage() {
+function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
   const navigate = useNavigate()
-  const { eventId } = useParams()
   const currentUser = getStoredUser()
   const canEditCurrentSchedule = canEditCalendarSchedule(currentUser)
   const [item, setItem] = useState(null)
@@ -8725,8 +8783,9 @@ function ScheduleDetailPage() {
       setItem(eventData)
       setComments(Array.isArray(commentData) ? commentData : [])
       setEditLogs(Array.isArray(logData) ? logData : [])
+      setError('')
     } catch (err) {
-      setError(err.message)
+      setError(err.message || '일정상세를 불러오지 못했습니다.')
     }
   }, [eventId])
 
@@ -8735,36 +8794,40 @@ function ScheduleDetailPage() {
   }, [load])
 
   useEffect(() => {
-    function handleClickOutside() {
+    function handleWindowClick() {
       setMenuOpen(false)
     }
-    if (!menuOpen) return undefined
-    window.addEventListener('click', handleClickOutside)
-    return () => window.removeEventListener('click', handleClickOutside)
-  }, [menuOpen])
+    window.addEventListener('click', handleWindowClick)
+    return () => window.removeEventListener('click', handleWindowClick)
+  }, [])
 
   async function handleDeleteSchedule() {
-    if (!item?.id || deleting || !canEditCurrentSchedule) return
-    const scheduleTitle = item.title || '선택한'
-    const confirmed = window.confirm(`[${scheduleTitle}] 일정을 삭제하시겠습니까?`)
+    if (!item?.id || deleting) return
+    const confirmed = window.confirm('현재 일정을 삭제하시겠습니까?')
     if (!confirmed) return
     setDeleting(true)
-    setError('')
     try {
       await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' })
-      navigate(`/schedule?date=${item.event_date || ''}`)
+      if (embedded) {
+        if (typeof onClose === 'function') onClose(true)
+        return
+      }
+      navigate('/schedule')
     } catch (err) {
-      setError(err.message || '일정 삭제 중 오류가 발생했습니다.')
+      window.alert(err.message || '일정 삭제에 실패했습니다.')
+    } finally {
       setDeleting(false)
     }
   }
 
   async function handleCommentSubmit(e) {
     e.preventDefault()
-    if (commentSubmitting) return
     const content = String(commentForm.content || '').trim()
     const image_data = String(commentForm.image_data || '').trim()
-    if (!content && !image_data) return
+    if (!content && !image_data) {
+      window.alert('댓글 또는 사진을 입력해 주세요.')
+      return
+    }
     setCommentSubmitting(true)
     try {
       await api(`/api/calendar/events/${eventId}/comments`, { method: 'POST', body: JSON.stringify({ content, image_data }) })
@@ -8783,7 +8846,7 @@ function ScheduleDetailPage() {
     try {
       const uploadedList = []
       for (const file of files) {
-        const uploaded = await uploadFile(file)
+        const uploaded = await uploadFile(file, 'schedule')
         if (uploaded?.url) uploadedList.push(uploaded.url)
       }
       setCommentForm(prev => {
@@ -8813,11 +8876,11 @@ function ScheduleDetailPage() {
     }
   }
 
+  const amountText = item?.amount1 || item?.amount2 || item?.amount_item || ''
+  const depositAmountText = item?.deposit_amount || ''
   const depositBefore = String(item?.deposit_method || '').trim() === '계약금입금전'
-  const amountText = formatRangeAmount(item?.amount1) || formatMoneyDisplay(item?.amount1) || '금액미정'
-  const depositAmountText = formatMoneyDisplay(item?.deposit_amount) || String(item?.deposit_amount || '').trim()
   const headerMeta = [
-    item?.visit_time || item?.start_time || '시간미정',
+    item?.start_time || item?.visit_time || '시간미정',
     item?.schedule_type || '일반',
     item?.platform || '플랫폼미정',
     item?.customer_name || '고객명미정',
@@ -8834,8 +8897,8 @@ function ScheduleDetailPage() {
   if (!item) return <div className="card">불러오는 중...</div>
 
   return (
-    <div className="stack-page schedule-detail-page-v2">
-      <section className="card schedule-detail-card-v2">
+    <div className={`stack-page schedule-detail-page-v2${embedded ? ' embedded-schedule-detail-page' : ''}`}>
+      <section className={`card schedule-detail-card-v2${embedded ? ' embedded' : ''}`}>
         <div className="schedule-detail-sticky-stack">
           <div className="schedule-detail-author-bar">
             <div className="schedule-detail-author-text">글 작성자명 : {item.created_by_nickname || '계정 이름'}</div>
@@ -8852,6 +8915,7 @@ function ScheduleDetailPage() {
                   </div>
                 )}
               </div>
+              {embedded && onClose ? <button type="button" className="ghost small" onClick={() => onClose(false)}>닫기</button> : null}
             </div>
           </div>
           <div className="schedule-detail-summary-bar">
@@ -8895,7 +8959,7 @@ function ScheduleDetailPage() {
         </div>
       </section>
 
-      <form className="schedule-detail-comment-composer" onSubmit={handleCommentSubmit}>
+      <form className={`schedule-detail-comment-composer${embedded ? ' embedded' : ''}`} onSubmit={handleCommentSubmit}>
         <label className="schedule-comment-attach-button">
           ＋
           <input type="file" accept="image/*" multiple hidden onChange={handleCommentImageUpload} />
@@ -8909,9 +8973,13 @@ function ScheduleDetailPage() {
         {commentForm.image_data ? <div className="schedule-comment-upload-hint">사진 {eventImageList(commentForm.image_data).length}개 첨부됨</div> : null}
         <button type="submit" className="primary small" disabled={commentSubmitting}>{commentSubmitting ? '등록중' : '입력'}</button>
       </form>
-
     </div>
   )
+}
+
+function ScheduleDetailPage() {
+  const { eventId } = useParams()
+  return <ScheduleDetailContent eventId={eventId} />
 }
 
 function NotificationsPage({ user }) {

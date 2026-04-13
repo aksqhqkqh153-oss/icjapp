@@ -375,6 +375,11 @@ class CalendarEventCommentIn(BaseModel):
     content: str = ""
     image_data: str = ""
 
+class CalendarDepartmentReplaceIn(BaseModel):
+    from_values: list[str] = []
+    to_value: str = '미정'
+    to_color: str = '#000000'
+
 class WorkScheduleEntryIn(BaseModel):
     schedule_date: str
     schedule_time: str = ""
@@ -3786,6 +3791,41 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             )
             _notify_calendar_event_changes(conn, user, previous_data, next_data)
         return {"ok": True}
+@app.post("/api/calendar/events/department-replace")
+def replace_calendar_event_department(payload: CalendarDepartmentReplaceIn, user=Depends(require_user)):
+    _require_write_access(user, 'schedule')
+    if not _can_edit_calendar_event(user):
+        raise HTTPException(status_code=403, detail="해당 직급만 부서/인원 값을 변경할 수 있습니다.")
+    from_values = [str(value or '').strip() for value in (payload.from_values or []) if str(value or '').strip()]
+    if not from_values:
+        return {"ok": True, "updated": 0}
+    to_value = str(payload.to_value or '미정').strip() or '미정'
+    to_color = str(payload.to_color or '#000000').strip() or '#000000'
+    placeholders = ','.join('?' for _ in from_values)
+    with get_conn() as conn:
+        rows = conn.execute(f"SELECT * FROM calendar_events WHERE department_info IN ({placeholders})", tuple(from_values)).fetchall()
+        if not rows:
+            return {"ok": True, "updated": 0}
+        now_value = utcnow()
+        updated_count = 0
+        touched_dates = set()
+        for row in rows:
+            row_data = row_to_dict(row)
+            touched_dates.add(str(row_data.get('event_date') or ''))
+            conn.execute(
+                "UPDATE calendar_events SET department_info = ?, color = ? WHERE id = ?",
+                (to_value, to_color, row['id']),
+            )
+            conn.execute(
+                "INSERT INTO calendar_event_edit_logs(event_id, user_id, change_summary, created_at) VALUES (?, ?, ?, ?)",
+                (row['id'], user['id'], f"부서/인원 → {to_value}", now_value),
+            )
+            updated_count += 1
+        for event_date in touched_dates:
+            if event_date:
+                _sync_work_schedule_day_note_counts(conn, user.get('id'), event_date)
+        return {"ok": True, "updated": updated_count}
+
 @app.delete("/api/calendar/events/{event_id}")
 def delete_calendar_event(event_id: int, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
