@@ -7939,12 +7939,38 @@ a:focus-visible {
   padding: 4px 0;
 }
 
+
 .materials-myrequest-filter-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   margin: 10px 0 12px;
+}
+
+.materials-myrequest-filter-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.materials-myrequest-head-actions-inline {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.materials-myrequest-status-select {
+  width: 142px !important;
+  min-width: 142px !important;
+  max-width: 142px !important;
+}
+
+.materials-myrequest-inline-action-button {
+  min-width: 72px;
+  justify-content: center;
+}
+
+.materials-myrequest-inline-settings-button {
+  min-width: 58px;
 }
 
 .materials-filter-range-separator {
@@ -8065,9 +8091,9 @@ a:focus-visible {
 @media (max-width: 768px) {
   .materials-myrequest-filter-bar-mobile-compact {
     flex-wrap: nowrap;
-    gap: 4px;
+    gap: 3px;
     align-items: flex-end;
-    overflow-x: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -8079,17 +8105,18 @@ a:focus-visible {
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label span {
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1.05;
     text-align: center;
     width: 100%;
+    letter-spacing: -0.03em;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label select {
-    min-height: 32px;
-    height: 32px;
-    padding: 4px 6px;
-    font-size: 11px;
+    min-height: 30px;
+    height: 30px;
+    padding: 4px 5px;
+    font-size: 10px;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label-mobile-top {
@@ -8097,38 +8124,62 @@ a:focus-visible {
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-compact-date-button {
-    width: 76px;
-    min-width: 76px;
-    max-width: 76px;
-    min-height: 32px;
-    height: 32px;
-    padding: 4px 4px;
-    font-size: 11px;
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    min-height: 30px;
+    height: 30px;
+    padding: 4px 3px;
+    font-size: 10px;
   }
 
-  .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label-compact select.materials-filter-select-compact {
-    width: 74px;
-    min-width: 74px;
-    max-width: 74px;
+  .materials-myrequest-filter-bar-mobile-compact .materials-date-inline-label-compact select.materials-filter-select-compact,
+  .materials-myrequest-filter-bar-mobile-compact .materials-myrequest-status-select {
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-filter-range-separator {
-    line-height: 32px;
-    padding: 0 1px;
-    font-size: 11px;
+    line-height: 30px;
+    padding: 0;
+    font-size: 10px;
     flex: 0 0 auto;
   }
 
   .materials-myrequest-filter-bar-mobile-compact .materials-filter-reset-button {
-    min-width: 52px;
-    width: 52px;
-    height: 32px;
-    min-height: 32px;
-    padding: 4px 4px;
+    min-width: 42px;
+    width: 42px;
+    height: 30px;
+    min-height: 30px;
+    padding: 3px 2px;
     flex-direction: column;
-    line-height: 1.05;
-    font-size: 10px;
+    line-height: 1.02;
+    font-size: 8px;
     white-space: normal;
+    letter-spacing: -0.04em;
+  }
+
+  .materials-myrequest-filter-bar-mobile-compact .materials-myrequest-filter-spacer {
+    display: none;
+  }
+
+  .materials-myrequest-filter-bar-mobile-compact .materials-myrequest-head-actions-inline {
+    margin-left: 0;
+    gap: 3px;
+  }
+
+  .materials-myrequest-filter-bar-mobile-compact .materials-myrequest-inline-action-button {
+    min-width: 42px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 4px;
+    font-size: 10px;
+    letter-spacing: -0.04em;
+  }
+
+  .materials-myrequest-filter-bar-mobile-compact .materials-myrequest-inline-settings-button {
+    min-width: 42px;
   }
 }
 
@@ -21753,14 +21804,42 @@ textarea,
 }
 
 .materials-request-delete-popup-head {
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
   align-items: center;
+  gap: 8px;
 }
 
 .materials-request-delete-popup-head h3 {
   margin: 0;
   font-size: 18px;
   white-space: nowrap;
+  text-align: center;
+}
+
+.materials-request-delete-close-button,
+.materials-request-delete-submit-button {
+  height: 34px;
+  min-height: 34px;
+  justify-content: center;
+}
+
+.materials-request-delete-close-button {
+  width: 56px;
+  min-width: 56px;
+  padding: 0 8px;
+  justify-self: start;
+}
+
+.materials-request-delete-close-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.materials-request-delete-head-spacer {
+  width: 56px;
+  min-width: 56px;
+  height: 34px;
 }
 
 .materials-request-delete-popup-actions {
@@ -21779,7 +21858,8 @@ textarea,
 }
 
 .materials-request-delete-filter-select,
-.materials-request-delete-date-filter {
+.materials-request-delete-date-filter,
+.materials-request-delete-submit-button {
   width: auto;
   height: 34px;
   border: 1px solid #d4d7dd;
@@ -21801,6 +21881,12 @@ textarea,
   flex: 0 0 auto;
 }
 
+.materials-request-delete-submit-button {
+  width: 68px;
+  min-width: 68px;
+  justify-content: center;
+}
+
 .materials-request-delete-action-button {
   width: 68px;
   min-width: 68px;
@@ -21810,13 +21896,14 @@ textarea,
 }
 
 .materials-request-delete-popup-body {
-  overflow: hidden;
+  overflow: auto;
   padding-right: 0;
 }
 
 .materials-request-delete-table {
-  width: 100%;
-  min-width: 0;
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
   border: 1px solid #dbe2ea;
   border-radius: 12px;
   overflow: hidden;
@@ -21892,8 +21979,27 @@ textarea,
     gap: 6px;
   }
 
+  .materials-request-delete-popup-head {
+    grid-template-columns: 42px 1fr 42px;
+    gap: 6px;
+  }
+
   .materials-request-delete-popup-head h3 {
     font-size: 15px;
+  }
+
+  .materials-request-delete-close-button,
+  .materials-request-delete-head-spacer,
+  .materials-request-delete-submit-button {
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .materials-request-delete-close-button,
+  .materials-request-delete-head-spacer {
+    width: 42px;
+    min-width: 42px;
+    padding: 0 4px;
   }
 
   .materials-request-delete-popup-actions {
@@ -21906,7 +22012,8 @@ textarea,
 
   .materials-request-delete-filter-select,
   .materials-request-delete-date-filter,
-  .materials-request-delete-action-button {
+  .materials-request-delete-action-button,
+  .materials-request-delete-submit-button {
     height: 30px;
     border-radius: 8px;
     font-size: 11px;
@@ -21922,28 +22029,30 @@ textarea,
     min-width: 108px;
     max-width: 116px;
     padding: 0 4px;
+    flex: 1 1 auto;
   }
 
-  .materials-request-delete-action-button {
-    width: 58px;
-    min-width: 58px;
+  .materials-request-delete-action-button,
+  .materials-request-delete-submit-button {
+    width: 52px;
+    min-width: 52px;
     padding: 0 4px;
   }
 
   .materials-request-delete-table {
-    width: 100%;
-    min-width: 0;
+    width: max-content;
+    min-width: max-content;
   }
 
   .materials-request-delete-table-row {
-    grid-template-columns: 24px minmax(78px, 1.2fr) minmax(34px, 0.56fr) minmax(48px, 0.82fr) minmax(64px, 1fr) minmax(24px, 0.38fr);
+    grid-template-columns: 28px 84px 56px 72px 84px 44px;
     min-height: 28px;
     font-size: 9px;
     letter-spacing: -0.04em;
   }
 
   .materials-request-delete-table-row > div {
-    padding: 4px 2px;
+    padding: 4px 3px;
   }
 
   .materials-request-delete-empty {

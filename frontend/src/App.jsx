@@ -16419,19 +16419,6 @@ function MaterialsPage({ user }) {
         </div>
         <div className="materials-myrequest-head">
           <div className="notice-text materials-myrequest-guide">자재구매 신청한 내역입니다.<br />신청수량 변경 및 신청취소 희망시 '수정/취소' 버튼을 누르고, 각 품목별 '구매수량'을 수정하여 저장해주세요.<br />- 절차 : '수정/취소' 버튼 클릭 → '신청날짜' 선택 → '구매수량' 수정 → '저장' 버튼 클릭<br />* 구매수량이 0일 경우 취소 접수가 되며, 1개 이상의 수량일 경우 수량 수정 반영됩니다.<br /><span className="materials-myrequest-warning">※ 주의 : 자재비용 입금 후 본사 결산처리까지 완료된 경우는 '수정/취소'가 불가능합니다.</span></div>
-          <div className="materials-myrequest-head-actions">
-            {isMaterialsAdminUser(user) ? (
-              <div className="materials-request-settings">
-                <button type="button" className="ghost materials-bottom-button" onClick={() => setRequestDeleteMenuOpen(prev => !prev)}>설정</button>
-                {requestDeleteMenuOpen ? (
-                  <div className="materials-request-settings-menu">
-                    <button type="button" className="ghost materials-request-settings-item" onClick={openRequestDeletePopup}>현황기록삭제</button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <button type="button" className={`ghost active materials-bottom-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
-          </div>
         </div>
         <div className="materials-myrequest-filter-bar materials-myrequest-filter-bar-mobile-compact">
           {renderCompactDateFilter('시작기간', myRequestStartDate, setMyRequestStartDate, myRequestStartDateInputRef)}
@@ -16439,7 +16426,7 @@ function MaterialsPage({ user }) {
           {renderCompactDateFilter('종료기간', myRequestEndDate, setMyRequestEndDate, myRequestEndDateInputRef)}
           <label className="materials-date-inline-label materials-date-inline-label-left materials-date-inline-label-compact materials-date-inline-label-mobile-top">
             <span>상태</span>
-            <select className="materials-filter-select-compact" value={myRequestStatusFilter} onChange={(e) => setMyRequestStatusFilter(e.target.value)}>
+            <select className="materials-filter-select-compact materials-myrequest-status-select" value={myRequestStatusFilter} onChange={(e) => setMyRequestStatusFilter(e.target.value)}>
               <option value="all">전체</option>
               <option value="pending">신청접수</option>
               <option value="rejected">반려됨</option>
@@ -16448,6 +16435,20 @@ function MaterialsPage({ user }) {
             </select>
           </label>
           <button type="button" className="ghost materials-bottom-button materials-filter-reset-button" onClick={() => { setMyRequestStartDate(''); setMyRequestEndDate(''); setMyRequestStatusFilter('all') }}><span>필터</span><span>초기화</span></button>
+          <div className="materials-myrequest-filter-spacer" />
+          <div className="materials-myrequest-head-actions materials-myrequest-head-actions-inline">
+            {isMaterialsAdminUser(user) ? (
+              <div className="materials-request-settings">
+                <button type="button" className="ghost materials-bottom-button materials-myrequest-inline-action-button materials-myrequest-inline-settings-button" onClick={() => setRequestDeleteMenuOpen(prev => !prev)}>설정</button>
+                {requestDeleteMenuOpen ? (
+                  <div className="materials-request-settings-menu">
+                    <button type="button" className="ghost materials-request-settings-item" onClick={openRequestDeletePopup}>현황기록삭제</button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <button type="button" className={`ghost active materials-bottom-button materials-myrequest-inline-action-button ${myPulseSaveCue ? 'materials-soft-pulse' : ''}`.trim()} disabled={saving} onClick={() => myEditing ? saveMyRequestEdits() : startMyRequestEditing()}>{myEditing ? '저장' : '수정/취소'}</button>
+          </div>
         </div>
         <div className="materials-request-history-list">
           {grouped.length === 0 ? <div className="card muted">신청 내역이 없습니다.</div> : grouped.map(request => {
@@ -16500,9 +16501,12 @@ function MaterialsPage({ user }) {
         {requestDeletePopupOpen ? (
           <div className="modal-overlay" onClick={closeRequestDeletePopup}>
             <div className="modal-card materials-request-delete-popup" onClick={(event) => event.stopPropagation()}>
-              <div className="between materials-request-delete-popup-head">
+              <div className="materials-request-delete-popup-head">
+                <button type="button" className="small ghost materials-request-delete-close-button" onClick={closeRequestDeletePopup} aria-label="닫기">
+                  <span className="materials-request-delete-close-icon" aria-hidden="true">←</span>
+                </button>
                 <h3>자재신청현황기록삭제</h3>
-                <button type="button" className="small ghost materials-request-delete-action-button" onClick={closeRequestDeletePopup}>닫기</button>
+                <div className="materials-request-delete-head-spacer" aria-hidden="true"></div>
               </div>
               <div className="materials-request-delete-popup-actions">
                 <input
@@ -16513,7 +16517,7 @@ function MaterialsPage({ user }) {
                   disabled={requestDeleteLoading || requestDeleteSubmitting}
                   aria-label="날짜필터"
                 />
-                <button type="button" className="small ghost" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteSelection.length} onClick={deleteSelectedRequestRows}>{requestDeleteSubmitting ? '삭제 중...' : '삭제'}</button>
+                <button type="button" className="small ghost materials-request-delete-submit-button" disabled={requestDeleteLoading || requestDeleteSubmitting || !requestDeleteSelection.length} onClick={deleteSelectedRequestRows}>{requestDeleteSubmitting ? '삭제 중...' : '삭제'}</button>
               </div>
               <div className="materials-request-delete-popup-body">
                 <div className="materials-request-delete-table" role="table" aria-label="자재신청현황기록삭제 목록">
