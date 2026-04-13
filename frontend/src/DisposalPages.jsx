@@ -88,6 +88,20 @@ function statusMark(value) {
   return value ? 'O' : 'X'
 }
 
+const UNPAID_PAYMENT_VALUE = '__UNPAID__'
+
+function formatPaymentCellDisplay(row = {}) {
+  const settled = formatShortDate(row?.paymentSettledAt)
+  if (settled) return settled
+  return '미입금'
+}
+
+function getBulkPaymentInputValue(row = {}) {
+  const settled = formatDateInputValue(row?.paymentSettledAt)
+  if (settled) return settled
+  return row?.paymentDone ? getTodayDateInputValue() : UNPAID_PAYMENT_VALUE
+}
+
 
 function getDefaultVisibleItemRows() {
   try {
@@ -2308,21 +2322,41 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
               <div>신고</div>
             </div>
             {rows.map(row => {
-              const nextDate = String(paymentDates[row.key] || '').trim()
+              const nextValue = String(paymentDates[row.key] || '').trim()
+              const isPaid = !!nextValue && nextValue !== UNPAID_PAYMENT_VALUE
               return (
                 <div key={`bulk-payment-${row.key}`} className="disposal-bulk-payment-row">
                   <div>{row.itemName || '-'}</div>
                   <div>{formatNumber(row.quantity)}개</div>
                   <div>{formatCurrency(row.finalAmount)}</div>
                   <div>
-                    <input
-                      type="date"
-                      value={paymentDates[row.key] || ''}
-                      onChange={e => onChangeDate?.(row.key, e.target.value)}
-                      aria-label={`${row.itemName} 입금일시`}
-                    />
+                    <div className="disposal-bulk-payment-date-control">
+                      <select
+                        value={isPaid ? 'date' : 'unpaid'}
+                        onChange={e => {
+                          const nextMode = e.target.value
+                          if (nextMode === 'unpaid') {
+                            onChangeDate?.(row.key, UNPAID_PAYMENT_VALUE)
+                            return
+                          }
+                          const fallbackDate = formatDateInputValue(row.paymentSettledAt) || getTodayDateInputValue()
+                          onChangeDate?.(row.key, isPaid ? nextValue : fallbackDate)
+                        }}
+                        aria-label={`${row.itemName} 입금상태 선택`}
+                      >
+                        <option value="date">날짜입력</option>
+                        <option value="unpaid">미입금</option>
+                      </select>
+                      <input
+                        type="date"
+                        value={isPaid ? nextValue : ''}
+                        onChange={e => onChangeDate?.(row.key, e.target.value || UNPAID_PAYMENT_VALUE)}
+                        aria-label={`${row.itemName} 입금일시`}
+                        disabled={!isPaid}
+                      />
+                    </div>
                   </div>
-                  <div>{nextDate ? 'O' : 'X'}</div>
+                  <div>{isPaid ? 'O' : 'X'}</div>
                   <div>{row.reportDone ? 'O' : 'X'}</div>
                 </div>
               )
@@ -2428,7 +2462,7 @@ export function DisposalListPage() {
     if (!targetGroup) return
     const defaults = {}
     targetGroup.rows.forEach(row => {
-      defaults[row.key] = formatDateInputValue(row.paymentSettledAt) || getTodayDateInputValue()
+      defaults[row.key] = getBulkPaymentInputValue(row)
     })
     setBulkPaymentDates(defaults)
     setBulkPaymentModal({
@@ -2453,9 +2487,10 @@ export function DisposalListPage() {
     updateRecordStatuses(recordId, (_item, index) => {
       const rowKey = `${recordId}-${index}`
       const nextDate = String(bulkPaymentDates[rowKey] || '').trim()
+      const isUnpaid = !nextDate || nextDate === UNPAID_PAYMENT_VALUE
       return {
-        paymentDone: !!nextDate,
-        paymentSettledAt: nextDate,
+        paymentDone: !isUnpaid,
+        paymentSettledAt: isUnpaid ? '' : nextDate,
       }
     })
     closeBulkPaymentModal()
@@ -2484,7 +2519,7 @@ export function DisposalListPage() {
       openBulkPaymentModal(recordId)
       return
     }
-    const label = field === 'payment' ? '입금여부' : '신고여부'
+    const label = field === 'payment' ? '입금일시' : '신고여부'
     const nextValue = checked ? 'O' : 'X'
     const confirmed = window.confirm(`체크박스를 체크하면 모든 품목의 ${label}가 ${nextValue}로 전환됩니다.`)
     if (!confirmed) return
@@ -2619,7 +2654,7 @@ export function DisposalListPage() {
                   <div>신고합계</div>
                   <div>수수료</div>
                   <div>매출액</div>
-                  <div className="disposal-list-grid-head-status"><span>입금</span><span>여부</span></div>
+                  <div className="disposal-list-grid-head-status"><span>입금</span><span>일시</span></div>
                   <div className="disposal-list-grid-head-status"><span>신고</span><span>여부</span></div>
                 </div>
                 {group.rows.map((row) => (
@@ -2635,7 +2670,7 @@ export function DisposalListPage() {
                       <span>{formatCurrency(row.feeAmount)}</span>
                       <span>{formatCurrency(row.finalAmount)}</span>
                     </button>
-                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 입금여부 전환`}>{statusMark(row.paymentDone)}</button>
+                    <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => togglePaymentStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 입금일시 전환`}>{formatPaymentCellDisplay(row)}</button>
                     <button type="button" className="disposal-list-grid-payment-cell disposal-list-grid-status-button" onClick={() => toggleReportStatus(group.recordId, row.key)} aria-label={`${group.customerName} ${row.itemName} 신고여부 전환`}>{statusMark(row.reportDone)}</button>
                   </div>
                 ))}
@@ -2648,7 +2683,7 @@ export function DisposalListPage() {
                   <div>{formatCurrency(group.totals.feeAmount)}</div>
                   <div>{formatCurrency(group.totals.finalAmount)}</div>
                   <div className="disposal-list-grid-payment-cell">
-                    <label className="disposal-payment-toggle" aria-label="입금 여부 전체 전환">
+                    <label className="disposal-payment-toggle" aria-label="입금일시 전체 전환">
                       <input type="checkbox" checked={isPaid} onChange={e => confirmBulkStatusChange(group.recordId, 'payment', e.target.checked)} />
                     </label>
                   </div>
