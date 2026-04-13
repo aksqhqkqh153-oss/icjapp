@@ -6164,6 +6164,7 @@ function CalendarPage() {
   const [exceptionItems, setExceptionItems] = useState([])
   const [editingExceptionId, setEditingExceptionId] = useState(null)
   const [mobileCalendarCollapsed, setMobileCalendarCollapsed] = useState(false)
+  const [detailPopupEventId, setDetailPopupEventId] = useState(null)
   const days = useMemo(() => buildMonthDays(monthCursor), [monthCursor])
 
   async function load() {
@@ -6246,6 +6247,17 @@ function CalendarPage() {
 
   function closeOverflowPopup() {
     setOverflowPopup({ dateKey: '', items: [], title: '', x: 0, y: 0 })
+  }
+
+  function openScheduleDetailPopup(item) {
+    const linkedId = Number(item?.event_id || item?.id || 0)
+    if (String(item?.entry_type || 'calendar') !== 'calendar' || linkedId <= 0) return
+    setDetailPopupEventId(linkedId)
+  }
+
+  function closeScheduleDetailPopup(shouldReload = false) {
+    setDetailPopupEventId(null)
+    if (shouldReload) load().catch(() => {})
   }
 
   function openCalendarStatus(daySummary) {
@@ -6559,7 +6571,7 @@ function CalendarPage() {
                   type="button"
                   className="detail-schedule-item popup-item colorized"
                   style={{ background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') }}
-                  onClick={() => navigate(`/schedule/${item.id}`)}
+                  onClick={() => openScheduleDetailPopup(item)}
                 >
                   <ScheduleCardLine item={item} colorized={false} />
                 </button>
@@ -6760,7 +6772,7 @@ function CalendarPage() {
                   style={{ background: applyAlphaToHex(item.color || '#334155', '24'), borderColor: applyAlphaToHex(item.color || '#334155', '88') }}
                   onClick={() => {
                     closeOverflowPopup()
-                    if (!isWorkEntry && item.event_id) navigate(`/schedule/${item.event_id}`)
+                    if (!isWorkEntry && item.event_id) openScheduleDetailPopup(item)
                   }}
                 >
                   {isWorkEntry ? <ScheduleCardLine item={item} colorized={false} /> : <ScheduleCardLine item={item} colorized={false} />}
