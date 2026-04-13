@@ -455,31 +455,32 @@ function buildDraftChangeSummary(initialDraft, currentDraft) {
   const changed = []
   const valueLabel = value => String(value || '').trim() || '-'
 
-  if (initial.customerName != current.customerName) changed.push('고객명')
-  if (initial.disposalDate != current.disposalDate) changed.push('폐기일자')
-  if (initial.platform != current.platform) changed.push('플랫폼')
-  if (initial.location != current.location) changed.push('폐기장소')
-  if (initial.district != current.district) changed.push('관할구역')
-  if (initial.finalStatus != current.finalStatus) changed.push('최종현황')
+  if (initial.customerName != current.customerName) changed.push('- 고객명')
+  if (initial.disposalDate != current.disposalDate) changed.push('- 폐기일자')
+  if (initial.platform != current.platform) changed.push('- 플랫폼')
+  if (initial.location != current.location) changed.push('- 폐기장소')
+  if (initial.district != current.district) changed.push('- 관할구역')
+  if (initial.finalStatus != current.finalStatus) changed.push('- 최종현황')
 
   const changedItemDetails = []
   for (let index = 0; index < ITEM_ROW_COUNT; index += 1) {
     const before = initial.items[index] || {}
     const after = current.items[index] || {}
-    const rowChanges = []
 
-    if (before.itemName !== after.itemName) {
-      rowChanges.push(`품목 [${valueLabel(before.itemName)}] → [${valueLabel(after.itemName)}]`)
-    }
-    if (before.quantity !== after.quantity) {
-      rowChanges.push(`개수 [${valueLabel(before.quantity)}] → [${valueLabel(after.quantity)}]`)
-    }
-    if (before.unitCost !== after.unitCost) {
-      rowChanges.push(`개당신고비용 [${valueLabel(before.unitCost)}] → [${valueLabel(after.unitCost)}]`)
-    }
+    const hasItemChange = (
+      before.itemName !== after.itemName
+      || before.quantity !== after.quantity
+      || before.unitCost !== after.unitCost
+    )
 
-    if (rowChanges.length) {
-      changedItemDetails.push(`폐기품목입력 ${index + 1}번: ${rowChanges.join(', ')}`)
+    if (hasItemChange) {
+      changedItemDetails.push(
+        [
+          `폐기품목입력 ${index + 1}번`,
+          `- 기존 : [${valueLabel(before.itemName)}] [${valueLabel(before.quantity)}] [${valueLabel(before.unitCost)}]`,
+          `- 변경 : [${valueLabel(after.itemName)}] [${valueLabel(after.quantity)}] [${valueLabel(after.unitCost)}]`,
+        ].join('\n')
+      )
     }
   }
   if (changedItemDetails.length) {
@@ -829,7 +830,7 @@ function getAggregateItemStatus(record, field) {
 }
 
 function getSettlementEligibleItems(record) {
-  return getFilledRecordItems(record).filter(item => !!item?.paymentDone && !!item?.reportDone && String(item?.paymentSettledAt || '').trim())
+  return getFilledRecordItems(record).filter(item => !!item?.paymentDone && String(item?.paymentSettledAt || '').trim())
 }
 
 function getRecordSettlementEligibility(record) {
@@ -2211,7 +2212,7 @@ useEffect(() => {
       navigate(target)
       return
     }
-    const message = ['변동된 데이터가 있습니다.', '', ...changedFields.map(label => `- ${label}`), '', '화면이동 전 저장하시겠습니까?'].join('\n')
+    const message = ['변동된 데이터가 있습니다.', '', ...changedFields, '', '화면이동 전 저장하시겠습니까?'].join('\n')
     const shouldSave = window.confirm(message)
     if (!shouldSave) return
     const saved = saveCurrentDraftRecord({ silent: true })
@@ -2462,7 +2463,7 @@ export function DisposalListPage() {
       const nextItems = currentItems.map((item, index) => ({ ...item, ...(updater(item, index, currentItems) || {}) }))
       const nextPaid = nextItems.every(item => !!item.paymentDone)
       const nextReported = nextItems.every(item => !!item.reportDone)
-      const hasEligibleSettlementItems = nextItems.some(item => !!item.paymentDone && !!item.reportDone && String(item?.paymentSettledAt || '').trim())
+      const hasEligibleSettlementItems = nextItems.some(item => !!item.paymentDone && String(item?.paymentSettledAt || '').trim())
       nextTarget = normalizeRecordShape({
         ...record,
         items: nextItems,
@@ -2542,7 +2543,7 @@ export function DisposalListPage() {
     const targetGroup = groupedRows.find(group => group.recordId === recordId)
     const targetRow = targetGroup?.rows?.find(row => row.key === rowKey)
     if (!targetRow) return
-    updatePaymentStatus(recordId, rowKey, !targetRow.paymentDone)
+    openBulkPaymentModal(recordId)
   }
 
   function toggleReportStatus(recordId, rowKey) {
@@ -2594,7 +2595,7 @@ export function DisposalListPage() {
     if (!target) return
     const { hasEligibleItems } = getRecordSettlementEligibility(target)
     if (!hasEligibleItems) {
-      window.alert('입금일시가 입력되고 신고여부가 O인 품목만 폐기결산에 반영할 수 있습니다.')
+      window.alert('입금일시가 입력된 품목만 폐기결산에 반영할 수 있습니다.')
       return
     }
     const alreadyTransferred = !!target?.settlementTransferredAt
