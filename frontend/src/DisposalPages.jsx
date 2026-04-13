@@ -1270,7 +1270,6 @@ function DisposalItemsEditor({
   async function saveCustomerEstimateAsJpg() {
     try {
       const autoSavedRecord = makeRecordFromDraft(draft, rendered.totals)
-      onAutoSaveRecord?.(autoSavedRecord)
       const canvas = await buildCustomerQuoteCanvas({
         rows: customerExportRows,
         totalFinal: rendered.totals.totalFinal || 0,
@@ -1303,6 +1302,7 @@ function DisposalItemsEditor({
       }
 
       if (await saveBlobWithPicker(blob, filename)) {
+        onAutoSaveRecord?.(autoSavedRecord)
         return
       }
 
@@ -1313,6 +1313,7 @@ function DisposalItemsEditor({
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      onAutoSaveRecord?.(autoSavedRecord)
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
     } catch (error) {
       window.alert(error?.message || '고객용 견적서를 저장하지 못했습니다.')
