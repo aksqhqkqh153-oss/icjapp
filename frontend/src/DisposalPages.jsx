@@ -2327,13 +2327,58 @@ export function DisposalPreviewPage() {
 
 export 
 function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, onChangeDate, onConfirm, onClose }) {
+  const initialPaymentDatesRef = useRef({})
+
+  useEffect(() => {
+    if (!open) {
+      initialPaymentDatesRef.current = {}
+      return
+    }
+    initialPaymentDatesRef.current = Object.fromEntries(
+      rows.map(row => [row.key, String(paymentDates?.[row.key] || '')])
+    )
+  }, [open, group?.recordId])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      const initialDates = initialPaymentDatesRef.current || {}
+      const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || ''))
+      if (!hasChanges) {
+        onClose?.()
+        return
+      }
+      const confirmed = window.confirm('입금결산 변동사항이 있습니다. 저장 후 창을 닫으시겠습니까?')
+      if (!confirmed) return
+      onConfirm?.()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, rows, paymentDates, onConfirm, onClose])
+
   if (!open || !group) return null
   const totalFinalAmount = rows.reduce((sum, row) => sum + safeNumber(row?.finalAmount), 0)
+  const handleRequestClose = () => {
+    const initialDates = initialPaymentDatesRef.current || {}
+    const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || ''))
+    if (!hasChanges) {
+      onClose?.()
+      return
+    }
+    const confirmed = window.confirm('입금결산 변동사항이 있습니다. 저장 후 창을 닫으시겠습니까?')
+    if (!confirmed) return
+    onConfirm?.()
+  }
   return (
-    <div className="disposal-confirm-overlay disposal-bulk-payment-overlay" role="dialog" aria-modal="true">
+    <div className="disposal-confirm-overlay disposal-bulk-payment-overlay" role="dialog" aria-modal="true" onMouseDown={(event) => {
+      if (event.target !== event.currentTarget) return
+      handleRequestClose()
+    }}>
       <div className="disposal-confirm-card disposal-bulk-payment-card">
         <div className="disposal-bulk-payment-header">
-          <button type="button" className="disposal-bulk-payment-back" onClick={onClose} aria-label="뒤로가기">
+          <button type="button" className="disposal-bulk-payment-back" onClick={handleRequestClose} aria-label="뒤로가기">
             ←
           </button>
           <div className="disposal-bulk-payment-title">입금결산</div>
@@ -2413,7 +2458,7 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
         <div className="disposal-bulk-payment-question">폐기 신고금액 입금일자가 정확합니까?</div>
 
         <div className="disposal-confirm-actions">
-          <button type="button" className="ghost" onClick={onClose}>아니오</button>
+          <button type="button" className="ghost" onClick={handleRequestClose}>아니오</button>
           <button type="button" onClick={onConfirm}>네</button>
         </div>
       </div>
