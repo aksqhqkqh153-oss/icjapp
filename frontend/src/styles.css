@@ -3324,9 +3324,10 @@ label { font-size: 14px; color: #4f6f8c; }
 @media (max-width: 768px) {
   .chat-action-reaction-bar{grid-template-columns:repeat(5,minmax(44px,1fr));gap:6px}
   .chat-action-emoji-button{font-size:20px;padding:9px 0}
-  .schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:48px;padding:2px 2px 4px;gap:2px;align-items:center}
-  .schedule-page.mobile .calendar-mobile-summary-stack{align-items:center;gap:2px}
-  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell{min-height:58px;padding:2px 2px 4px}
+  .schedule-page.mobile .calendar-day-summary-button.redesigned{min-height:22px;padding:0;gap:0;align-items:center}
+  .schedule-page.mobile .calendar-day-summary-button.redesigned.mobile-compact{margin-top:0;justify-content:center}
+  .schedule-page.mobile .calendar-mobile-summary-stack{align-items:center;gap:0}
+  .schedule-page.mobile .calendar-cell.schedule-cell.detail-cell{min-height:44px;padding:2px}
   .schedule-page.mobile .calendar-date{font-size:12px}
   .schedule-page.mobile .calendar-handless-pill.mobile-compact{font-size:9px;padding:1px 3px}
 }
@@ -3510,6 +3511,12 @@ label { font-size: 14px; color: #4f6f8c; }
     white-space: nowrap;
     justify-content: center;
     min-width: 0;
+    margin: 0;
+  }
+
+  .schedule-page.mobile .calendar-day-summary-button.redesigned.mobile-compact {
+    height: 22px;
+    min-height: 22px;
   }
 
   .schedule-page.mobile .calendar-cell.outside-month-cell .calendar-mobile-summary-stack {
