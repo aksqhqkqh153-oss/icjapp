@@ -8633,7 +8633,12 @@ function ScheduleDetailPage() {
     try {
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return value
-      return date.toLocaleString('ko-KR', { hour12: false })
+      const year = String(date.getFullYear()).slice(-2)
+      const month = date.getMonth() + 1
+      const day = date.getDate()
+      const hour = String(date.getHours()).padStart(2, '0')
+      const minute = String(date.getMinutes()).padStart(2, '0')
+      return `${year}. ${month}. ${day}. ${hour}:${minute}`
     } catch (_) {
       return value
     }
@@ -8658,15 +8663,17 @@ function ScheduleDetailPage() {
   }
 
   const depositBefore = String(item?.deposit_method || '').trim() === '계약금입금전'
+  const amountText = formatRangeAmount(item?.amount1) || formatMoneyDisplay(item?.amount1) || '금액미정'
+  const depositAmountText = formatMoneyDisplay(item?.deposit_amount) || String(item?.deposit_amount || '').trim()
   const headerMeta = [
     item?.visit_time || item?.start_time || '시간미정',
     item?.schedule_type || '일반',
     item?.platform || '플랫폼미정',
     item?.customer_name || '고객명미정',
-    formatMoneyDisplay(item?.amount1) || '금액미정',
-    depositBefore ? '입금전' : [item?.deposit_method, item?.deposit_amount].filter(Boolean).join(' '),
+    amountText ? `(${amountText})` : '(금액미정)',
+    depositBefore ? '입금전' : [item?.deposit_method, depositAmountText].filter(Boolean).join(' '),
   ].filter(Boolean)
-  const headerTitle = headerMeta.join(' · ')
+  const headerTitle = headerMeta.join(' ')
   const reps = [item?.representative1, item?.representative2, item?.representative3].filter(Boolean)
   const staffs = [item?.staff1, item?.staff2, item?.staff3].filter(Boolean)
   const departmentColor = departmentColorMap[item?.department_info] || item?.color || '#2563eb'
