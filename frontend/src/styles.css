@@ -23303,7 +23303,12 @@ textarea,
 .schedule-detail-author-text { font-weight: 700; min-width: 0; }
 .schedule-detail-author-actions { display: flex; gap: 6px; align-items: center; }
 .schedule-detail-summary-bar, .schedule-detail-assignment-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.schedule-detail-summary-bar { display: block; }
+.schedule-detail-title-line { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f8fafc; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-detail-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid #e5e7eb; font-size: 13px; }
+.schedule-detail-assignment-bar-singleline { flex-wrap: nowrap; align-items: stretch; }
+.schedule-detail-chip-department { flex: 0 0 auto; font-weight: 700; }
+.schedule-detail-assignee-chip { min-width: 0; flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-detail-content-body { display: grid; gap: 12px; padding-top: 14px; }
 .schedule-detail-image-grid, .schedule-comment-image-grid { display: grid; gap: 8px; }
 .schedule-detail-image-grid.count-1, .schedule-comment-image-grid.count-1 { grid-template-columns: 1fr; }
@@ -23332,7 +23337,11 @@ textarea,
   .schedule-detail-sticky-stack { top: 52px; }
   .schedule-detail-author-bar { grid-template-columns: minmax(0,1fr) auto; }
   .schedule-detail-author-text { font-size: 13px; }
+  .schedule-detail-title-line { font-size: 12px; padding: 7px 8px; }
   .schedule-detail-chip { font-size: 12px; padding: 5px 8px; min-height: 28px; }
+  .schedule-detail-assignment-bar-singleline { gap: 4px; }
+  .schedule-detail-chip-department { max-width: 34%; }
+  .schedule-detail-assignee-chip { flex-basis: 33%; }
   .schedule-detail-image-tile, .schedule-comment-image-tile, .schedule-detail-empty-box { min-height: 110px; }
   .schedule-detail-comment-composer { width: 100%; padding: 8px 10px; grid-template-columns: 40px minmax(0,1fr) 56px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .schedule-comment-attach-button { width: 40px; height: 40px; }

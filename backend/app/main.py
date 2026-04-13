@@ -3651,6 +3651,7 @@ def get_calendar_event(event_id: int, user=Depends(require_user)):
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
         return _calendar_event_out(conn, item)
 @app.get("/api/calendar/events/{event_id}/edit-logs")
+@app.get("/api/calendar/events/{event_id}/edit-logs/")
 def get_calendar_event_edit_logs(event_id: int, user=Depends(require_user)):
     with get_conn() as conn:
         item = _calendar_event_accessible(conn, event_id, user)
@@ -3665,6 +3666,7 @@ def get_calendar_event_edit_logs(event_id: int, user=Depends(require_user)):
         return output
 
 @app.get("/api/calendar/events/{event_id}/comments")
+@app.get("/api/calendar/events/{event_id}/comments/")
 def get_calendar_event_comments(event_id: int, user=Depends(require_user)):
     with get_conn() as conn:
         item = _calendar_event_accessible(conn, event_id, user)
@@ -3679,6 +3681,7 @@ def get_calendar_event_comments(event_id: int, user=Depends(require_user)):
         return output
 
 @app.post("/api/calendar/events/{event_id}/comments")
+@app.post("/api/calendar/events/{event_id}/comments/")
 def create_calendar_event_comment(event_id: int, payload: CalendarEventCommentIn, user=Depends(require_user)):
     with get_conn() as conn:
         item = _calendar_event_accessible(conn, event_id, user)

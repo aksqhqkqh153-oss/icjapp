@@ -5757,6 +5757,16 @@ function formatRangeAmount(value) {
   return `${formatNumericAmount(match[1])} ~ ${formatNumericAmount(match[2])}`
 }
 
+function getReadableTextColor(hexColor) {
+  const hex = String(hexColor || '').trim().replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const luminance = (0.299 * r) + (0.587 * g) + (0.114 * b)
+  return luminance >= 160 ? '#111827' : '#ffffff'
+}
+
 function buildCostSummary(form) {
   const rangeAmount = formatRangeAmount(form.amount1)
   if (rangeAmount) return `금액미정 / ${rangeAmount}`
@@ -8526,6 +8536,7 @@ function ScheduleDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [commentSubmitting, setCommentSubmitting] = useState(false)
   const [commentForm, setCommentForm] = useState({ content: '', image_data: '' })
+  const departmentColorMap = useMemo(() => getStoredDepartmentColorMap(), [])
 
   const load = useCallback(async () => {
     try {
@@ -8631,17 +8642,21 @@ function ScheduleDetailPage() {
     return [text]
   }
 
+  const depositBefore = String(item?.deposit_method || '').trim() === '계약금입금전'
   const headerMeta = [
     item?.visit_time || item?.start_time || '시간미정',
     item?.schedule_type || '일반',
     item?.platform || '플랫폼미정',
     item?.customer_name || '고객명미정',
     formatMoneyDisplay(item?.amount1) || '금액미정',
-    [item?.deposit_method, item?.deposit_amount].filter(Boolean).join(' ') || '계약금액미정',
+    depositBefore ? '입금전' : [item?.deposit_method, item?.deposit_amount].filter(Boolean).join(' '),
   ].filter(Boolean)
-  const imageList = eventImageList(item?.image_list?.length ? item.image_list : item?.image_data)
+  const headerTitle = headerMeta.join(' · ')
+  const imageList = eventImageList(item?.image_list?.length ? item.image_list : item?.image_data).slice(0, 4)
   const reps = [item?.representative1, item?.representative2, item?.representative3].filter(Boolean)
   const staffs = [item?.staff1, item?.staff2, item?.staff3].filter(Boolean)
+  const departmentColor = departmentColorMap[item?.department_info] || item?.color || '#2563eb'
+  const departmentTextColor = getReadableTextColor(departmentColor)
 
   if (error) return <div className="card error">{error}</div>
   if (!item) return <div className="card">불러오는 중...</div>
@@ -8667,11 +8682,13 @@ function ScheduleDetailPage() {
               </div>
             </div>
           </div>
-          <div className="schedule-detail-summary-bar">{headerMeta.map((value, index) => <span key={`${value}-${index}`} className="schedule-detail-chip">{value}</span>)}</div>
-          <div className="schedule-detail-assignment-bar">
-            <span className="schedule-detail-chip">{item.department_info || '부서/인원 미지정'}</span>
-            <span className="schedule-detail-chip">담당대표 : {reps.length ? reps.join(', ') : '-'}</span>
-            <span className="schedule-detail-chip">담당직원 : {staffs.length ? staffs.join(', ') : '-'}</span>
+          <div className="schedule-detail-summary-bar">
+            <div className="schedule-detail-title-line" title={headerTitle}>{headerTitle}</div>
+          </div>
+          <div className="schedule-detail-assignment-bar schedule-detail-assignment-bar-singleline">
+            <span className="schedule-detail-chip schedule-detail-chip-department" style={{ backgroundColor: departmentColor, color: departmentTextColor, borderColor: departmentColor }}>{item.department_info || '부서/인원 미지정'}</span>
+            <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당대표 : ${reps.length ? reps.join(', ') : '-'}`}>담당대표 : {reps.length ? reps.join(', ') : '-'}</span>
+            <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당직원 : ${staffs.length ? staffs.join(', ') : '-'}`}>담당직원 : {staffs.length ? staffs.join(', ') : '-'}</span>
           </div>
         </div>
 
