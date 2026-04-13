@@ -1050,24 +1050,34 @@ function DisposalCategoryTabs({ current = 'forms', onNavigate }) {
   )
 }
 
-function DisposalConfirmModal({ open, message, onConfirm, onCancel }) {
+function DisposalConfirmModal({
+  open,
+  message,
+  title = '확인',
+  cancelLabel = '취소',
+  confirmLabel = '네',
+  extraActionLabel = '',
+  onConfirm,
+  onCancel,
+  onExtraAction,
+}) {
   if (!open) return null
   return (
     <div className="disposal-confirm-overlay" role="dialog" aria-modal="true">
       <div className="disposal-confirm-card">
-        <div className="disposal-confirm-title">확인</div>
+        <div className="disposal-confirm-title">{title}</div>
         <div className="disposal-confirm-message">
           {String(message || '').split('\n').map((line, index) => <p key={`confirm-line-${index}`}>{line}</p>)}
         </div>
         <div className="disposal-confirm-actions">
-          <button type="button" className="ghost" onClick={onCancel}>취소</button>
-          <button type="button" className="ghost active" onClick={onConfirm}>네</button>
+          <button type="button" className="ghost" onClick={onCancel}>{cancelLabel}</button>
+          {extraActionLabel ? <button type="button" className="ghost" onClick={onExtraAction}>{extraActionLabel}</button> : null}
+          <button type="button" className="ghost active" onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>
   )
 }
-
 function DisposalTemplateTable({ title, rendered }) {
   const mergeInfo = useMemo(() => buildMergeMap(DISPOSAL_TEMPLATE.merges), [])
   const columnStyle = useMemo(() => ({
@@ -2114,6 +2124,7 @@ export function DisposalFormsPage() {
   const [itemSettingsOpen, setItemSettingsOpen] = useState(false)
   const [defaultVisibleRows, setDefaultVisibleRows] = useState(() => getDefaultVisibleItemRows())
   const [savedDraftBaseline, setSavedDraftBaseline] = useState(() => normalizeDraftForCompare(createInitialDraft()))
+  const [pendingDraftNavigation, setPendingDraftNavigation] = useState('')
   const settingsRef = useRef(null)
   const itemSettingsRef = useRef(null)
 
@@ -2294,19 +2305,34 @@ useEffect(() => {
     return true
   }
 
+  function closeDraftNavigationModal() {
+    setPendingDraftNavigation('')
+  }
+
   function navigateWithDraftGuard(target) {
+    if (!target) return
     if (!hasUnsavedChanges) {
       navigate(target)
       return
     }
-    const message = ['변동된 데이터가 있습니다.', '', ...changedFields, '', '화면이동 전 저장하시겠습니까?'].join('\n')
-    const shouldSave = window.confirm(message)
-    if (!shouldSave) return
+    setPendingDraftNavigation(target)
+  }
+
+  function confirmDraftNavigationSave() {
+    const target = String(pendingDraftNavigation || '').trim()
+    if (!target) return
     const saved = saveCurrentDraftRecord({ silent: true })
     if (!saved) return
+    setPendingDraftNavigation('')
     navigate(target)
   }
 
+  function ignoreDraftAndNavigate() {
+    const target = String(pendingDraftNavigation || '').trim()
+    if (!target) return
+    setPendingDraftNavigation('')
+    navigate(target)
+  }
   function openPreviewPage() {
     persistPreviewDraft(draft)
     navigateWithDraftGuard('/disposal/forms/preview')
@@ -2379,6 +2405,18 @@ useEffect(() => {
           <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>
       </section>
+
+      <DisposalConfirmModal
+        open={!!pendingDraftNavigation}
+        title="저장되지 않은 변경사항"
+        message={['변동된 데이터가 있습니다.', '', ...changedFields, '', '화면 이동 전 저장하시겠습니까?'].join('\n')}
+        cancelLabel="되돌아가기"
+        extraActionLabel="무시하고 이동"
+        confirmLabel="저장 후 이동"
+        onCancel={closeDraftNavigationModal}
+        onExtraAction={ignoreDraftAndNavigate}
+        onConfirm={confirmDraftNavigationSave}
+      />
     </div>
   )
 }
@@ -2386,6 +2424,7 @@ useEffect(() => {
 export function DisposalPreviewPage() {
   const navigate = useNavigate()
   const [draft, setDraft] = useState(() => loadPreviewDraft())
+  const navigateWithDraftGuard = (target) => navigate(target)
 
   useEffect(() => {
     setDraft(loadPreviewDraft())
