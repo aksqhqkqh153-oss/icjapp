@@ -23156,3 +23156,46 @@ textarea,
     min-width:64px;
   }
 }
+
+
+/* 2026-04-13 schedule visit/start sync mobile width tuning */
+@media (max-width: 768px) {
+  .schedule-editor-main-info-row {
+    grid-template-columns: minmax(0, 1.05fr) minmax(56px, 0.5fr) minmax(0, 1.45fr) !important;
+  }
+
+  .schedule-editor-amount-row {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(72px, 0.66fr) !important;
+  }
+
+  .schedule-editor-main-info-row .platform-select-field,
+  .schedule-editor-main-info-row .schedule-customer-field,
+  .schedule-editor-amount-row .schedule-amount-field,
+  .schedule-editor-amount-row .schedule-deposit-amount-field {
+    min-width: 0;
+  }
+
+  .schedule-editor-main-info-row .platform-select-field select,
+  .schedule-editor-main-info-row .schedule-customer-field input,
+  .schedule-editor-amount-row .schedule-amount-field input,
+  .schedule-editor-amount-row .schedule-deposit-amount-field select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mobile-visit-undecided {
+    min-width: 30px !important;
+    width: 30px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    font-size: 0 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .mobile-visit-undecided::after {
+    content: '미';
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+  }
+}

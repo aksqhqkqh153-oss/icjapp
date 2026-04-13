@@ -7966,38 +7966,61 @@ function ScheduleFormPage({ mode }) {
     setEndDateEndTimeText(form.move_end_end_time || '')
   }, [form.move_end_end_time])
 
+  function getSyncedScheduleTimePatch(field, value) {
+    if (field === 'visit_time' || field === 'start_time') {
+      return {
+        visit_time: value,
+        start_time: value,
+      }
+    }
+    return { [field]: value }
+  }
+
   function commitVisitTimeInput(rawValue) {
     const normalized = normalizeScheduleTimeInput(rawValue, form.visit_time === '미정' ? '' : form.visit_time)
     if (normalized === '미정') {
-      setForm(prev => ({ ...prev, visit_time: '미정' }))
+      setForm(prev => ({ ...prev, ...getSyncedScheduleTimePatch('visit_time', '미정') }))
       setVisitTimeText('')
+      setStartTimeText('')
       return normalized
     }
     if (!normalized) {
-      setForm(prev => ({ ...prev, visit_time: '미정' }))
+      setForm(prev => ({ ...prev, ...getSyncedScheduleTimePatch('visit_time', '미정') }))
       setVisitTimeText('')
+      setStartTimeText('')
       return ''
     }
-    setForm(prev => ({ ...prev, visit_time: normalized }))
+    setForm(prev => ({ ...prev, ...getSyncedScheduleTimePatch('visit_time', normalized) }))
     setVisitTimeText(normalized)
+    setStartTimeText(normalized)
     return normalized
   }
 
 
   function commitGenericTimeInput(field, rawValue, currentValue, setText) {
     const normalized = normalizeScheduleTimeInput(rawValue, currentValue === '미정' ? '' : currentValue)
+    const syncedFields = getSyncedScheduleTimePatch(field, normalized || '미정')
     if (normalized === '미정') {
-      setForm(prev => ({ ...prev, [field]: '미정' }))
+      setForm(prev => ({ ...prev, ...syncedFields }))
       setText('')
+      if (field === 'start_time') {
+        setVisitTimeText('')
+      }
       return normalized
     }
     if (!normalized) {
-      setForm(prev => ({ ...prev, [field]: '미정' }))
+      setForm(prev => ({ ...prev, ...syncedFields }))
       setText('')
+      if (field === 'start_time') {
+        setVisitTimeText('')
+      }
       return ''
     }
-    setForm(prev => ({ ...prev, [field]: normalized }))
+    setForm(prev => ({ ...prev, ...syncedFields }))
     setText(normalized)
+    if (field === 'start_time') {
+      setVisitTimeText(normalized)
+    }
     return normalized
   }
 
@@ -8059,7 +8082,12 @@ function ScheduleFormPage({ mode }) {
 
   function changeTimeField(field, value) {
     const normalized = normalizeScheduleTimeInput(value, value)
-    setForm(prev => ({ ...prev, [field]: normalized }))
+    setForm(prev => ({ ...prev, ...getSyncedScheduleTimePatch(field, normalized) }))
+    if (field === 'visit_time' || field === 'start_time') {
+      const nextText = normalized === '미정' ? '' : normalized
+      setVisitTimeText(nextText)
+      setStartTimeText(nextText)
+    }
   }
 
   function updateRepresentativeNames(value) {
@@ -8156,7 +8184,7 @@ function ScheduleFormPage({ mode }) {
               <button type="submit" className="small schedule-save-button top-save-button">수정</button>
             </div>
           </div>
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-main-info-row">
             <div className="stack compact-gap schedule-compact-field">
               <label>일정구분</label>
               <select value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
@@ -8245,13 +8273,13 @@ function ScheduleFormPage({ mode }) {
                 {PLATFORM_OPTIONS.map(platform => <option key={platform} value={platform}>{platform}</option>)}
               </select>
             </div>
-            <div className="stack compact-gap schedule-compact-field">
+            <div className="stack compact-gap schedule-compact-field schedule-customer-field">
               <label>고객명</label>
               <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객명" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
           </div>
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
-            <div className="stack compact-gap schedule-compact-field">
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-amount-row">
+            <div className="stack compact-gap schedule-compact-field schedule-amount-field">
               <label>이사금액</label>
               <input ref={amountInputRef} inputMode="numeric" value={form.amount1} placeholder="이사금액" onChange={e => setForm({ ...form, amount1: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositMethodSelectRef) } }} />
             </div>
@@ -8261,7 +8289,7 @@ function ScheduleFormPage({ mode }) {
                 {DEPOSIT_METHOD_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            <div className="stack compact-gap schedule-compact-field">
+            <div className="stack compact-gap schedule-compact-field schedule-deposit-amount-field">
               <label>계약금액</label>
               <select ref={depositAmountSelectRef} aria-label="계약금액" value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
                 {DEPOSIT_AMOUNT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
