@@ -1986,6 +1986,28 @@ def init_db() -> None:
     schema_sql = _sqlite_schema_to_postgres(SCHEMA_SQL) if DB_ENGINE == 'postgresql' else SCHEMA_SQL
     with get_conn() as conn:
         conn.executescript(schema_sql)
+        conn.executescript("""
+CREATE TABLE IF NOT EXISTS calendar_event_edit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER,
+    change_summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS calendar_event_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    image_data TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+""")
         _ensure_columns(conn, 'calendar_events', {
             'visit_time': "TEXT DEFAULT ''",
             'move_start_date': "TEXT DEFAULT ''",

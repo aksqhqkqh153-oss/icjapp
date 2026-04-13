@@ -8519,21 +8519,42 @@ function ScheduleDetailPage() {
   const currentUser = getStoredUser()
   const canEditCurrentSchedule = canEditCalendarSchedule(currentUser)
   const [item, setItem] = useState(null)
+  const [comments, setComments] = useState([])
+  const [editLogs, setEditLogs] = useState([])
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [logsOpen, setLogsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [commentSubmitting, setCommentSubmitting] = useState(false)
+  const [commentForm, setCommentForm] = useState({ content: '', image_data: '' })
+
+  const load = useCallback(async () => {
+    try {
+      const [eventData, commentData, logData] = await Promise.all([
+        api(`/api/calendar/events/${eventId}`),
+        api(`/api/calendar/events/${eventId}/comments`).catch(() => []),
+        api(`/api/calendar/events/${eventId}/edit-logs`).catch(() => []),
+      ])
+      setItem(eventData)
+      setComments(Array.isArray(commentData) ? commentData : [])
+      setEditLogs(Array.isArray(logData) ? logData : [])
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [eventId])
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await api(`/api/calendar/events/${eventId}`)
-        setItem(data)
-      } catch (err) {
-        setError(err.message)
-      }
-    }
     load()
-  }, [eventId])
+  }, [load])
+
+  useEffect(() => {
+    function handleClickOutside() {
+      setMenuOpen(false)
+    }
+    if (!menuOpen) return undefined
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
+  }, [menuOpen])
 
   async function handleDeleteSchedule() {
     if (!item?.id || deleting || !canEditCurrentSchedule) return
@@ -8551,77 +8572,175 @@ function ScheduleDetailPage() {
     }
   }
 
+  async function handleCommentSubmit(e) {
+    e.preventDefault()
+    if (commentSubmitting) return
+    const content = String(commentForm.content || '').trim()
+    const image_data = String(commentForm.image_data || '').trim()
+    if (!content && !image_data) return
+    setCommentSubmitting(true)
+    try {
+      await api(`/api/calendar/events/${eventId}/comments`, { method: 'POST', body: JSON.stringify({ content, image_data }) })
+      setCommentForm({ content: '', image_data: '' })
+      await load()
+    } catch (err) {
+      window.alert(err.message || '댓글 등록에 실패했습니다.')
+    } finally {
+      setCommentSubmitting(false)
+    }
+  }
+
+  async function handleCommentImageUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const uploaded = await uploadFile(file)
+      setCommentForm(prev => ({ ...prev, image_data: uploaded.url || '' }))
+    } catch (err) {
+      window.alert(err.message || '댓글 파일 업로드에 실패했습니다.')
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  function formatLogDate(value) {
+    if (!value) return '-'
+    try {
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return value
+      return date.toLocaleString('ko-KR', { hour12: false })
+    } catch (_) {
+      return value
+    }
+  }
+
+  function eventImageList(raw) {
+    if (Array.isArray(raw) && raw.length) return raw.filter(Boolean)
+    const text = String(raw || '').trim()
+    if (!text) return []
+    if (text.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text)
+        if (Array.isArray(parsed)) return parsed.filter(Boolean)
+      } catch (_) {}
+    }
+    if (text.includes('\n')) return text.split(/\r?\n/).map(v => v.trim()).filter(Boolean)
+    if (text.includes(',') && !text.startsWith('data:')) {
+      const parts = text.split(',').map(v => v.trim()).filter(Boolean)
+      if (parts.length > 1) return parts
+    }
+    return [text]
+  }
+
+  const headerMeta = [
+    item?.visit_time || item?.start_time || '시간미정',
+    item?.schedule_type || '일반',
+    item?.platform || '플랫폼미정',
+    item?.customer_name || '고객명미정',
+    formatMoneyDisplay(item?.amount1) || '금액미정',
+    [item?.deposit_method, item?.deposit_amount].filter(Boolean).join(' ') || '계약금액미정',
+  ].filter(Boolean)
+  const imageList = eventImageList(item?.image_list?.length ? item.image_list : item?.image_data)
+  const reps = [item?.representative1, item?.representative2, item?.representative3].filter(Boolean)
+  const staffs = [item?.staff1, item?.staff2, item?.staff3].filter(Boolean)
+
   if (error) return <div className="card error">{error}</div>
   if (!item) return <div className="card">불러오는 중...</div>
 
   return (
-    <div className="stack-page">
-      <section className="card">
-        <div className="between schedule-detail-topbar">
-          <button type="button" className="ghost small" onClick={() => navigate(`/schedule?date=${item.event_date}`)}>일정으로 돌아가기</button>
-          <div className="dropdown-wrap">
-            <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
-            {menuOpen && (
-              <div className="dropdown-menu right">
-                {canEditCurrentSchedule ? (
-                  <>
-                    <button type="button" className="dropdown-item" onClick={() => navigate(`/schedule/${item.id}/edit`)}>일정수정</button>
-                    <button type="button" className="dropdown-item danger" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button>
-                  </>
-                ) : (
-                  <>
-                    <div className="dropdown-item disabled">일정수정 권한 없음</div>
-                    <div className="dropdown-item disabled">일정삭제 권한 없음</div>
-                  </>
+    <div className="stack-page schedule-detail-page-v2">
+      <section className="card schedule-detail-card-v2">
+        <div className="schedule-detail-sticky-stack">
+          <div className="schedule-detail-author-bar">
+            <div className="schedule-detail-author-text">글 작성자명 : {item.created_by_nickname || '계정 이름'}</div>
+            <div className="schedule-detail-author-actions">
+              {canEditCurrentSchedule && <button type="button" className="ghost small" onClick={() => navigate(`/schedule/${item.id}/edit`)}>수정</button>}
+              <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
+                <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
+                {menuOpen && (
+                  <div className="dropdown-menu right schedule-detail-setting-menu">
+                    <button type="button" className="dropdown-item" onClick={() => { setLogsOpen(true); setMenuOpen(false) }}>수정기록</button>
+                    {canEditCurrentSchedule ? (
+                      <button type="button" className="dropdown-item danger" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button>
+                    ) : null}
+                  </div>
                 )}
               </div>
-            )}
+            </div>
+          </div>
+          <div className="schedule-detail-summary-bar">{headerMeta.map((value, index) => <span key={`${value}-${index}`} className="schedule-detail-chip">{value}</span>)}</div>
+          <div className="schedule-detail-assignment-bar">
+            <span className="schedule-detail-chip">{item.department_info || '부서/인원 미지정'}</span>
+            <span className="schedule-detail-chip">담당대표 : {reps.length ? reps.join(', ') : '-'}</span>
+            <span className="schedule-detail-chip">담당직원 : {staffs.length ? staffs.join(', ') : '-'}</span>
           </div>
         </div>
-        <div className="stack">
-          <div className="stack compact-gap">
-            <h2>{item.title}</h2>
-            <div className="muted">[{item.department_info || '미지정'}] / [{item.created_by_nickname || '작성자'}]</div>
+
+        <div className="schedule-detail-content-body">
+          <div className={`schedule-detail-image-grid count-${Math.min(Math.max(imageList.length || 1, 1), 4)}`}>
+            {imageList.length ? imageList.slice(0, 5).map((src, index) => (
+              <div key={`${src}-${index}`} className="schedule-detail-image-tile"><img src={src} alt={`첨부파일 ${index + 1}`} className="schedule-detail-image" /></div>
+            )) : <div className="schedule-detail-empty-box">첨부파일이 없습니다.</div>}
           </div>
-          <div className="detail-meta-grid">
-            <div className="stat"><span>플랫폼</span><strong>{item.platform || '-'}</strong></div>
-            <div className="stat"><span>고객성함</span><strong>{item.customer_name || '-'}</strong></div>
-            <div className="stat"><span>출발지 이사방문시각</span><strong>{item.visit_time || '-'}</strong></div>
-            <div className="stat"><span>이사시간</span><strong>{eventTimeLine(item)}</strong></div>
+          <div className="schedule-detail-memo-box">{item.content || '메모가 없습니다.'}</div>
+        </div>
+
+        <div className="schedule-detail-comments-section">
+          <div className="schedule-detail-comments-title">댓글창</div>
+          <div className="schedule-detail-comments-list">
+            {comments.length ? comments.map(comment => {
+              const commentImages = eventImageList(comment.image_list?.length ? comment.image_list : comment.image_data)
+              return (
+                <div key={comment.id} className="schedule-comment-card">
+                  <div className="schedule-comment-meta">[{formatLogDate(comment.created_at)}] [{comment.user?.nickname || comment.user?.name || '프로필명'}]</div>
+                  {commentImages.length ? (
+                    <div className={`schedule-comment-image-grid count-${Math.min(Math.max(commentImages.length, 1), 4)}`}>
+                      {commentImages.slice(0, 4).map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}
+                    </div>
+                  ) : null}
+                  {comment.content ? <div className="schedule-comment-content">{comment.content}</div> : null}
+                  <div className="schedule-comment-actions">🙂 💬</div>
+                </div>
+              )
+            }) : <div className="muted">등록된 댓글이 없습니다.</div>}
           </div>
-          <div className="list-item block">
-            <div><strong>이사시작일 상세주소</strong></div>
-            <div>{item.start_address || item.location || '-'}</div>
-          </div>
-          <div className="list-item block">
-            <div><strong>이사종료일 상세주소</strong></div>
-            <div>{item.end_address || '-'}</div>
-          </div>
-          <div className="detail-meta-grid">
-            <div className="stat"><span>이사 시작일</span><strong>{item.move_start_date || '-'}</strong></div>
-            <div className="stat"><span>이사 종료일</span><strong>{item.move_end_date || '-'}</strong></div>
-            <div className="stat"><span>이사금액</span><strong>{formatMoneyDisplay(item.amount1) || '-'}</strong></div>
-            <div className="stat"><span>계약입금</span><strong>{[item.deposit_method, item.deposit_amount].filter(Boolean).join(' / ') || '-'}</strong></div>
-          </div>
-          <div className="list-item block">
-            <div><strong>메모</strong></div>
-            <div>{item.content || '등록된 메모가 없습니다.'}</div>
-          </div>
-          <div className="detail-meta-grid">
-            <div className="stat"><span>담당대표1</span><strong>{item.representative1 || '-'}</strong></div>
-            <div className="stat"><span>담당대표2</span><strong>{item.representative2 || '-'}</strong></div>
-            <div className="stat"><span>담당대표3</span><strong>{item.representative3 || '-'}</strong></div>
-            <div className="stat"><span>담당직원1</span><strong>{item.staff1 || '-'}</strong></div>
-            <div className="stat"><span>담당직원2</span><strong>{item.staff2 || '-'}</strong></div>
-            <div className="stat"><span>담당직원3</span><strong>{item.staff3 || '-'}</strong></div>
-          </div>
-          {item.image_data && (
-            <div className="image-preview-wrap">
-              <img src={item.image_data} alt="일정 첨부" className="image-preview" />
-            </div>
-          )}
         </div>
       </section>
+
+      <form className="schedule-detail-comment-composer" onSubmit={handleCommentSubmit}>
+        <label className="schedule-comment-attach-button">
+          ＋
+          <input type="file" accept="image/*" hidden onChange={handleCommentImageUpload} />
+        </label>
+        <input
+          className="schedule-detail-comment-input"
+          value={commentForm.content}
+          onChange={e => setCommentForm(prev => ({ ...prev, content: e.target.value }))}
+          placeholder={commentForm.image_data ? '사진과 함께 댓글 입력' : '댓글 입력칸'}
+        />
+        <button type="submit" className="primary small" disabled={commentSubmitting}>{commentSubmitting ? '등록중' : '입력'}</button>
+      </form>
+
+      {logsOpen && createPortal(
+        <div className="modal-backdrop" onClick={() => setLogsOpen(false)}>
+          <div className="modal-card schedule-log-modal" onClick={e => e.stopPropagation()}>
+            <div className="between align-center">
+              <h3>수정기록</h3>
+              <button type="button" className="ghost small" onClick={() => setLogsOpen(false)}>닫기</button>
+            </div>
+            <div className="schedule-log-list">
+              {editLogs.length ? editLogs.map(log => (
+                <div key={log.id} className="schedule-log-row">
+                  <div>{formatLogDate(log.created_at)}</div>
+                  <div>{log.account_name || '알 수 없음'}</div>
+                  <div>{log.change_summary || '-'}</div>
+                </div>
+              )) : <div className="muted">수정기록이 없습니다.</div>}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

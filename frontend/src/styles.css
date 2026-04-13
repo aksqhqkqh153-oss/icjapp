@@ -23281,3 +23281,48 @@ textarea,
     display: block;
   }
 }
+
+/* schedule detail v2 */
+.schedule-detail-page-v2 { padding-bottom: 110px; }
+.schedule-detail-card-v2 { position: relative; padding-top: 0; overflow: visible; }
+.schedule-detail-sticky-stack { position: sticky; top: 56px; z-index: 20; background: var(--card, #fff); padding: 10px 0 8px; display: grid; gap: 8px; border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
+.schedule-detail-author-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; }
+.schedule-detail-author-text { font-weight: 700; min-width: 0; }
+.schedule-detail-author-actions { display: flex; gap: 6px; align-items: center; }
+.schedule-detail-summary-bar, .schedule-detail-assignment-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.schedule-detail-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid #e5e7eb; font-size: 13px; }
+.schedule-detail-content-body { display: grid; gap: 12px; padding-top: 14px; }
+.schedule-detail-image-grid, .schedule-comment-image-grid { display: grid; gap: 8px; }
+.schedule-detail-image-grid.count-1, .schedule-comment-image-grid.count-1 { grid-template-columns: 1fr; }
+.schedule-detail-image-grid.count-2, .schedule-comment-image-grid.count-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.schedule-detail-image-grid.count-3, .schedule-comment-image-grid.count-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.schedule-detail-image-grid.count-4, .schedule-comment-image-grid.count-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.schedule-detail-image-tile, .schedule-comment-image-tile { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; min-height: 136px; display: flex; align-items: center; justify-content: center; }
+.schedule-detail-image, .schedule-comment-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.schedule-detail-empty-box { min-height: 136px; display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 12px; color: #64748b; }
+.schedule-detail-memo-box { min-height: 6.4em; white-space: pre-wrap; line-height: 1.6; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; display: flex; align-items: flex-start; justify-content: flex-start; }
+.schedule-detail-comments-section { margin-top: 18px; padding-bottom: 72px; }
+.schedule-detail-comments-title { font-weight: 700; margin-bottom: 10px; text-align: center; }
+.schedule-detail-comments-list { display: grid; gap: 10px; }
+.schedule-comment-card { border-top: 1px solid rgba(15,23,42,0.08); padding-top: 10px; display: grid; gap: 8px; }
+.schedule-comment-meta { font-size: 12px; color: #64748b; }
+.schedule-comment-content { white-space: pre-wrap; line-height: 1.6; }
+.schedule-comment-actions { color: #64748b; font-size: 14px; }
+.schedule-detail-comment-composer { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); width: min(100%, 860px); display: grid; grid-template-columns: 44px minmax(0,1fr) 64px; gap: 8px; align-items: center; padding: 10px 16px; background: rgba(255,255,255,0.96); backdrop-filter: blur(10px); border-top: 1px solid rgba(15,23,42,0.08); z-index: 40; }
+.schedule-comment-attach-button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid #d1d5db; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #fff; font-size: 20px; }
+.schedule-detail-comment-input { width: 100%; min-height: 44px; border-radius: 12px; border: 1px solid #d1d5db; padding: 0 12px; }
+.schedule-detail-setting-menu { min-width: 148px; }
+.schedule-log-modal { width: min(92vw, 720px); }
+.schedule-log-list { display: grid; gap: 8px; margin-top: 12px; }
+.schedule-log-row { display: grid; grid-template-columns: 160px 120px minmax(0,1fr); gap: 8px; padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+@media (max-width: 768px) {
+  .schedule-detail-sticky-stack { top: 52px; }
+  .schedule-detail-author-bar { grid-template-columns: minmax(0,1fr) auto; }
+  .schedule-detail-author-text { font-size: 13px; }
+  .schedule-detail-chip { font-size: 12px; padding: 5px 8px; min-height: 28px; }
+  .schedule-detail-image-tile, .schedule-comment-image-tile, .schedule-detail-empty-box { min-height: 110px; }
+  .schedule-detail-comment-composer { width: 100%; padding: 8px 10px; grid-template-columns: 40px minmax(0,1fr) 56px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .schedule-comment-attach-button { width: 40px; height: 40px; }
+  .schedule-detail-comment-input { min-height: 40px; }
+  .schedule-log-row { grid-template-columns: 1fr; }
+}

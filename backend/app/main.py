@@ -369,6 +369,11 @@ class CalendarEventIn(BaseModel):
     staff2: str = ""
     staff3: str = ""
     image_data: str = ""
+
+class CalendarEventCommentIn(BaseModel):
+    content: str = ""
+    image_data: str = ""
+
 class WorkScheduleEntryIn(BaseModel):
     schedule_date: str
     schedule_time: str = ""
@@ -3514,6 +3519,7 @@ def _calendar_event_out(conn, row):
     item["status_a_count"] = int(item.get("status_a_count") or 0)
     item["status_b_count"] = int(item.get("status_b_count") or 0)
     item["status_c_count"] = int(item.get("status_c_count") or 0)
+    item["image_list"] = _calendar_event_image_list(item.get('image_data'))
     return item
 def _can_access_shared_schedule(user: dict | None) -> bool:
     try:
@@ -3553,6 +3559,45 @@ def _shared_schedule_user_ids(conn) -> list[int]:
             output.append(value)
     return output
 
+
+def _calendar_edit_log_summaries(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    fields = [
+        ('title', '제목'), ('content', '메모'), ('event_date', '일정일자'), ('start_time', '시작시각'), ('end_time', '종료시각'),
+        ('visit_time', '방문시각'), ('move_start_date', '시작일'), ('move_end_date', '종료일'), ('start_address', '출발지'), ('end_address', '도착지'),
+        ('platform', '플랫폼'), ('customer_name', '고객명'), ('department_info', '부서/인원'), ('amount1', '이사금액'), ('deposit_method', '계약방법'),
+        ('deposit_amount', '계약금액'), ('representative1', '담당대표1'), ('representative2', '담당대표2'), ('representative3', '담당대표3'),
+        ('staff1', '담당직원1'), ('staff2', '담당직원2'), ('staff3', '담당직원3'), ('image_data', '첨부파일')
+    ]
+    changes: list[str] = []
+    for key, label in fields:
+        before_value = str(before.get(key) or '').strip()
+        after_value = str(after.get(key) or '').strip()
+        if before_value != after_value:
+            changes.append(label)
+    return changes
+
+
+def _calendar_event_image_list(value: Any) -> list[str]:
+    raw = value
+    if isinstance(raw, list):
+        return [str(item).strip() for item in raw if str(item).strip()]
+    text = str(raw or '').strip()
+    if not text:
+        return []
+    if text.startswith('['):
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return [str(item).strip() for item in data if str(item).strip()]
+        except Exception:
+            pass
+    if '\n' in text:
+        return [part.strip() for part in text.splitlines() if part.strip()]
+    if ',' in text and 'data:' not in text:
+        parts = [part.strip() for part in text.split(',') if part.strip()]
+        if len(parts) > 1:
+            return parts
+    return [text]
 
 def _calendar_event_accessible(conn, event_id: int, user: dict) -> dict[str, Any] | None:
     row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
@@ -3605,6 +3650,51 @@ def get_calendar_event(event_id: int, user=Depends(require_user)):
         if not item:
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
         return _calendar_event_out(conn, item)
+@app.get("/api/calendar/events/{event_id}/edit-logs")
+def get_calendar_event_edit_logs(event_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        rows = conn.execute("SELECT * FROM calendar_event_edit_logs WHERE event_id = ? ORDER BY id DESC", (event_id,)).fetchall()
+        output = []
+        for row in rows:
+            data = row_to_dict(row)
+            actor = user_basic(conn, row['user_id']) if row['user_id'] else {'nickname': '시스템'}
+            output.append({**data, 'account_name': actor.get('nickname') or actor.get('name') or '알 수 없음'})
+        return output
+
+@app.get("/api/calendar/events/{event_id}/comments")
+def get_calendar_event_comments(event_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        rows = conn.execute("SELECT * FROM calendar_event_comments WHERE event_id = ? ORDER BY id DESC", (event_id,)).fetchall()
+        output = []
+        for row in rows:
+            data = row_to_dict(row)
+            author = user_basic(conn, row['user_id'])
+            output.append({**data, 'user': author, 'image_list': _calendar_event_image_list(data.get('image_data'))})
+        return output
+
+@app.post("/api/calendar/events/{event_id}/comments")
+def create_calendar_event_comment(event_id: int, payload: CalendarEventCommentIn, user=Depends(require_user)):
+    with get_conn() as conn:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        content = str(payload.content or '').strip()
+        image_data = str(payload.image_data or '').strip()
+        if not content and not image_data:
+            raise HTTPException(status_code=400, detail='댓글 내용을 입력해 주세요.')
+        now_value = utcnow()
+        conn.execute(
+            "INSERT INTO calendar_event_comments(event_id, user_id, content, image_data, created_at) VALUES (?, ?, ?, ?, ?)",
+            (event_id, user['id'], content, image_data, now_value),
+        )
+        return {'ok': True}
+
 @app.post("/api/calendar/events")
 def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
@@ -3668,6 +3758,12 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             ),
         )
         previous_data = row_to_dict(row)
+        change_labels = _calendar_edit_log_summaries(previous_data, payload.model_dump())
+        if change_labels:
+            conn.execute(
+                "INSERT INTO calendar_event_edit_logs(event_id, user_id, change_summary, created_at) VALUES (?, ?, ?, ?)",
+                (event_id, user['id'], ', '.join(change_labels), utcnow()),
+            )
         _sync_work_schedule_day_note_counts(conn, user["id"], previous_event_date)
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
         next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
