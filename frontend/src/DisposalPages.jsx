@@ -2752,6 +2752,17 @@ function buildSettlementMonthlySalesTable(monthLabel, monthlyRecords) {
   ]
 }
 
+function getSettlementPaymentDateDisplay(record) {
+  const dates = Array.from(new Set(
+    getSettlementEligibleItems(record)
+      .map(item => formatShortDate(item?.paymentSettledAt))
+      .filter(Boolean)
+  ))
+  if (!dates.length) return '-'
+  if (dates.length === 1) return dates[0]
+  return dates.join(', ')
+}
+
 function buildSettlementMonthlyRows(monthlyRecords) {
   const byDate = new Map()
   sortRecords(monthlyRecords, 'date').forEach(record => {
@@ -2778,6 +2789,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
       toggleKey: dateKey,
       cells: [
         dateKey,
+        Array.from(new Set(records.map(getSettlementPaymentDateDisplay).filter(value => value && value !== '-'))).join(' / ') || '-',
         `${formatNumber(summary.customerCount)}건`,
         '합계',
         `[${formatMonthDayLabel(dateKey)} 합계]`,
@@ -2800,6 +2812,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
         recordId: record.id,
         cells: [
           dateKey,
+          getSettlementPaymentDateDisplay(record),
           String(index + 1),
           record?.platform || '-',
           record?.customerName || '-',
@@ -2828,6 +2841,7 @@ function buildSettlementMonthlyRows(monthlyRecords) {
           recordId: record.id,
           cells: [
             '',
+            formatShortDate(item?.paymentSettledAt) || '-',
             `${index + 1}-${itemIndex + 1}`,
             '품목',
             `└ ${String(item?.itemName || '').trim() || '-'} `,
@@ -2969,6 +2983,7 @@ export function DisposalSettlementsPage() {
           <div className="disposal-month-settlement-table simple-sheet">
             <div className="disposal-month-settlement-row disposal-month-settlement-head">
               <div>폐기일자</div>
+              <div>입금일자</div>
               <div>건수</div>
               <div>구분</div>
               <div>고객명</div>
@@ -2982,8 +2997,8 @@ export function DisposalSettlementsPage() {
             {visibleRows.map(row => row.kind === 'summary' ? (
               <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-summary" onClick={() => toggleRow(row.toggleKey)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(row.toggleKey) } }}>
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`} className={index === 9 ? 'toggle-cell' : ''}>
-                    {index === 9 ? (
+                  <div key={`${row.key}-${index}`} className={index === 10 ? 'toggle-cell' : ''}>
+                    {index === 10 ? (
                       <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
                     ) : cell}
                   </div>
@@ -2992,10 +3007,10 @@ export function DisposalSettlementsPage() {
             ) : row.kind === 'detail' ? (
               <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-detail" onClick={() => toggleRow(row.toggleKey)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(row.toggleKey) } }}>
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`} className={index === 9 ? 'toggle-cell' : ''}>
-                    {index === 3 ? (
+                  <div key={`${row.key}-${index}`} className={index === 10 ? 'toggle-cell' : ''}>
+                    {index === 4 ? (
                       <button type="button" className="disposal-month-settlement-link-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{cell}</button>
-                    ) : index === 9 ? (
+                    ) : index === 10 ? (
                       <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '품목접기' : '품목펼치기'}</button>
                     ) : cell}
                   </div>

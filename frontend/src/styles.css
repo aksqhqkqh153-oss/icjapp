@@ -14389,7 +14389,7 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:first-child,
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(2),
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(3),
-.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(9) {
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(10) {
   font-weight: 700;
 }
 
