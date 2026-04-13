@@ -22121,3 +22121,130 @@ textarea,
     padding: 6px 6px !important;
   }
 }
+
+/* 2026-04-13 disposal list responsive column alignment fix */
+:root {
+  --disposal-list-col-check: 34px;
+  --disposal-list-col-item: minmax(120px, 1.3fr);
+  --disposal-list-col-qty: minmax(56px, 0.5fr);
+  --disposal-list-col-unit: minmax(74px, 0.72fr);
+  --disposal-list-col-report: minmax(78px, 0.78fr);
+  --disposal-list-col-fee: minmax(72px, 0.72fr);
+  --disposal-list-col-sales: minmax(84px, 0.84fr);
+  --disposal-list-col-payment: 52px;
+  --disposal-list-col-report-status: 52px;
+  --disposal-list-grid-template: var(--disposal-list-col-check) var(--disposal-list-col-item) var(--disposal-list-col-qty) var(--disposal-list-col-unit) var(--disposal-list-col-report) var(--disposal-list-col-fee) var(--disposal-list-col-sales) var(--disposal-list-col-payment) var(--disposal-list-col-report-status);
+  --disposal-list-button-template: var(--disposal-list-col-item) var(--disposal-list-col-qty) var(--disposal-list-col-unit) var(--disposal-list-col-report) var(--disposal-list-col-fee) var(--disposal-list-col-sales);
+}
+
+.disposal-list-grid.disposal-list-grid-customer {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-row {
+  grid-template-columns: var(--disposal-list-grid-template) !important;
+}
+
+.disposal-list-grid-button-customer {
+  grid-column: 2 / span 6;
+  grid-template-columns: var(--disposal-list-button-template) !important;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head,
+.disposal-list-grid-customer .disposal-list-grid-data-row,
+.disposal-list-grid-customer .disposal-list-grid-summary-row {
+  min-width: 700px;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head > div,
+.disposal-list-grid-customer .disposal-list-grid-summary-row > div,
+.disposal-list-grid-customer .disposal-list-grid-check-cell,
+.disposal-list-grid-button-customer > span,
+.disposal-list-grid-customer .disposal-list-grid-payment-cell,
+.disposal-list-grid-customer .disposal-list-grid-status-button {
+  box-sizing: border-box;
+}
+
+@media (max-width: 1200px) {
+  .disposal-list-grid.disposal-list-grid-customer {
+    width: 100%;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head,
+  .disposal-list-grid-customer .disposal-list-grid-data-row,
+  .disposal-list-grid-customer .disposal-list-grid-summary-row {
+    min-width: 700px;
+  }
+}
+
+@media (max-width: 768px) {
+  .disposal-list-grid.disposal-list-grid-customer {
+    border: 1px solid #d8e0ec;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head {
+    display: grid !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-data-row,
+  .disposal-list-grid-customer .disposal-list-grid-summary-row,
+  .disposal-list-grid-customer .disposal-list-grid-head {
+    grid-template-columns: var(--disposal-list-grid-template) !important;
+    min-width: 700px;
+    gap: 0 !important;
+    padding: 0 !important;
+    align-items: stretch;
+  }
+
+  .disposal-list-grid-button-customer {
+    grid-column: 2 / span 6;
+    display: grid !important;
+    grid-template-columns: var(--disposal-list-button-template) !important;
+    gap: 0 !important;
+  }
+
+  .disposal-list-grid-button-customer > span,
+  .disposal-list-grid-customer .disposal-list-grid-payment-cell,
+  .disposal-list-grid-customer .disposal-list-grid-status-button,
+  .disposal-list-grid-customer .disposal-list-grid-row > div,
+  .disposal-list-grid-customer .disposal-list-grid-row > label {
+    min-height: 32px;
+    padding: 4px 4px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-right: 1px solid #d8e0ec;
+    border-bottom: 1px solid #d8e0ec;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-check-cell,
+  .disposal-list-grid-customer .disposal-list-grid-payment-cell,
+  .disposal-list-grid-customer .disposal-list-grid-status-button {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-head-status {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .disposal-list-grid-customer .disposal-list-grid-row > div:last-child,
+  .disposal-list-grid-customer .disposal-list-grid-row > label:last-child,
+  .disposal-list-grid-button-customer > span:last-child,
+  .disposal-list-grid-customer .disposal-list-grid-status-button:last-child {
+    border-right: 0;
+  }
+}
