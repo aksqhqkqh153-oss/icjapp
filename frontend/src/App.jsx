@@ -8906,6 +8906,8 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [commentMenuId, setCommentMenuId] = useState(null)
+  const [commentActionLoadingId, setCommentActionLoadingId] = useState(null)
   const [commentSubmitting, setCommentSubmitting] = useState(false)
   const [commentForm, setCommentForm] = useState({ content: '', image_data: '' })
   const departmentColorMap = useMemo(() => getStoredDepartmentColorMap(), [])
