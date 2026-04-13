@@ -138,7 +138,6 @@ function formatCustomerItemCostDisplay(item = {}) {
 }
 
 function formatCustomerTotalCostDisplay(items = [], totalFinal = 0) {
-  if ((items || []).some(item => item?.isFree)) return '무료 포함'
   return formatCurrency(totalFinal || 0)
 }
 
