@@ -1270,6 +1270,22 @@ function DisposalItemsEditor({
   function handleItemGridKeyDown(event, rowIndex, colIndex) {
     const key = event.key
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) return
+
+    const activeElement = event.currentTarget
+    const isTextInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement
+    if (isTextInput && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+      const value = String(activeElement.value || '')
+      const selectionStart = typeof activeElement.selectionStart === 'number' ? activeElement.selectionStart : value.length
+      const selectionEnd = typeof activeElement.selectionEnd === 'number' ? activeElement.selectionEnd : value.length
+      const hasRangeSelection = selectionStart !== selectionEnd
+      const atLeftEdge = selectionStart === 0 && selectionEnd === 0
+      const atRightEdge = selectionStart === value.length && selectionEnd === value.length
+
+      if (hasRangeSelection) return
+      if (key === 'ArrowLeft' && !atLeftEdge) return
+      if (key === 'ArrowRight' && !atRightEdge) return
+    }
+
     event.preventDefault()
     const maxRowIndex = visibleRows.length
     let nextRow = rowIndex
@@ -1278,9 +1294,24 @@ function DisposalItemsEditor({
     if (key === 'ArrowRight') nextCol += 1
     if (key === 'ArrowUp') nextRow -= 1
     if (key === 'ArrowDown') nextRow += 1
+
+    nextRow = Math.max(0, Math.min(maxRowIndex, nextRow))
+    nextCol = Math.max(0, Math.min(7, nextCol))
+
     const selector = `[data-grid-row="${nextRow}"][data-grid-col="${nextCol}"]`
     const nextEl = document.querySelector(selector)
-    if (nextEl && typeof nextEl.focus === 'function') nextEl.focus()
+    if (nextEl && typeof nextEl.focus === 'function') {
+      nextEl.focus()
+      if ((key === 'ArrowLeft' || key === 'ArrowRight') && (nextEl instanceof HTMLInputElement || nextEl instanceof HTMLTextAreaElement)) {
+        const nextValue = String(nextEl.value || '')
+        const caretPosition = key === 'ArrowLeft' ? nextValue.length : 0
+        try {
+          nextEl.setSelectionRange(caretPosition, caretPosition)
+        } catch (error) {
+          // ignore selection range errors for unsupported input types
+        }
+      }
+    }
   }
 
 
