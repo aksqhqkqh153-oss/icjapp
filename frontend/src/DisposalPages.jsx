@@ -127,6 +127,21 @@ function safeNumber(value) {
   return Number.isFinite(num) ? num : 0
 }
 
+function isFreeUnitCostValue(value) {
+  const raw = String(value ?? '').trim()
+  return raw === '무료'
+}
+
+function formatCustomerItemCostDisplay(item = {}) {
+  if (item?.isFree) return '무료'
+  return item?.finalAmount ? formatCurrency(item.finalAmount) : ''
+}
+
+function formatCustomerTotalCostDisplay(items = [], totalFinal = 0) {
+  if ((items || []).some(item => item?.isFree)) return '무료 포함'
+  return formatCurrency(totalFinal || 0)
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('ko-KR')
 }
@@ -260,22 +275,30 @@ function buildRenderedTemplate(draft) {
     ...createEmptyItem(),
     ...((draft?.items || [])[index] || {}),
   }))
-  const items = sourceItems.slice(0, ITEM_ROW_COUNT).map(item => ({
-    itemName: String(item?.itemName || ''),
-    quantity: safeNumber(item?.quantity),
-    unitCost: safeNumber(item?.unitCost),
-    reportNo: String(item?.reportNo || ''),
-    note: String(item?.note || ''),
-  }))
+  const items = sourceItems.slice(0, ITEM_ROW_COUNT).map(item => {
+    const unitCostRaw = String(item?.unitCost || '').trim()
+    const isFree = isFreeUnitCostValue(unitCostRaw)
+    return {
+      itemName: String(item?.itemName || ''),
+      quantity: safeNumber(item?.quantity),
+      unitCost: isFree ? 0 : safeNumber(item?.unitCost),
+      unitCostRaw,
+      isFree,
+      reportNo: String(item?.reportNo || ''),
+      note: String(item?.note || ''),
+    }
+  })
   const reportRows = items.map(item => {
-    const reportAmount = item.quantity * item.unitCost
-    const feeAmount = Math.round(reportAmount * 0.3)
-    const finalAmount = reportAmount + feeAmount
+    const reportAmount = item.isFree ? 0 : item.quantity * item.unitCost
+    const feeAmount = item.isFree ? 0 : Math.round(reportAmount * 0.3)
+    const finalAmount = item.isFree ? 0 : reportAmount + feeAmount
+    const customerDisplayCost = item.isFree ? '무료' : ''
     return {
       ...item,
       reportAmount,
       feeAmount,
       finalAmount,
+      customerDisplayCost,
     }
   })
   const totalQty = reportRows.reduce((sum, item) => sum + item.quantity, 0)
@@ -296,7 +319,7 @@ function buildRenderedTemplate(draft) {
     const sourceRow = 5 + index
     nextRows[sourceRow][1] = item.itemName
     nextRows[sourceRow][2] = item.quantity ? String(item.quantity) : ''
-    nextRows[sourceRow][3] = item.unitCost ? String(item.unitCost) : ''
+    nextRows[sourceRow][3] = item.isFree ? '무료' : (item.unitCost ? String(item.unitCost) : '')
     nextRows[sourceRow][4] = item.reportAmount ? String(item.reportAmount) : '0'
     nextRows[sourceRow][5] = item.finalAmount ? String(item.finalAmount) : '0'
     nextRows[sourceRow][6] = item.reportNo
@@ -305,7 +328,7 @@ function buildRenderedTemplate(draft) {
     const summaryRow = 29 + index
     nextRows[summaryRow][1] = item.itemName
     nextRows[summaryRow][2] = item.quantity ? String(item.quantity) : ''
-    nextRows[summaryRow][3] = item.finalAmount ? String(item.finalAmount) : ''
+    nextRows[summaryRow][3] = item.isFree ? '무료' : (item.finalAmount ? String(item.finalAmount) : '')
 
     const reportNoRow = 54 + index
     nextRows[reportNoRow][1] = item.itemName
@@ -591,7 +614,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
       ctx.lineWidth = 3
       ctx.strokeRect(colX, rowY, col.width, rowHeight)
       const rawValue = row[col.key] ?? ''
-      const value = col.key === 'finalAmount' && rawValue ? formatCurrency(rawValue) : String(rawValue || '')
+      const value = col.key === 'finalAmount' ? formatCustomerItemCostDisplay(row) : String(rawValue || '')
       ctx.fillStyle = '#111827'
       ctx.font = '500 20px sans-serif'
       if (col.align === 'right') {
@@ -622,7 +645,7 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
     ctx.textAlign = 'left'
     ctx.fillText('폐기 대리신고 합계비용', totalX + 18, totalY + totalHeight / 2)
     ctx.textAlign = 'right'
-    ctx.fillText(formatCurrency(totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
+    ctx.fillText(formatCustomerTotalCostDisplay(rows, totalFinal || 0), totalX + totalWidth - 18, totalY + totalHeight / 2)
   }
 
   return canvas
@@ -1045,17 +1068,20 @@ function DisposalItemsEditor({
   const [companySaveDirectoryLabel, setCompanySaveDirectoryLabel] = useState('기본 다운로드 폴더')
   const [showItemsHelp, setShowItemsHelp] = useState(false)
   const [activeNoteInfo, setActiveNoteInfo] = useState(null)
+  const [previewModalKind, setPreviewModalKind] = useState('')
   const [exportSettings, setExportSettings] = useState(() => loadDisposalExportSettings())
   const customerSettingsRef = useRef(null)
   const companySettingsRef = useRef(null)
 
   const customerExportRows = useMemo(() => visibleRows.map((row, index) => {
-    const item = rendered.reportRows[index] || { finalAmount: 0 }
+    const item = rendered.reportRows[index] || { finalAmount: 0, isFree: false, customerDisplayCost: '' }
     return {
       index: index + 1,
       itemName: row?.itemName || '',
       quantity: row?.quantity || '',
       finalAmount: item.finalAmount || 0,
+      isFree: !!item.isFree,
+      customerDisplayCost: item.customerDisplayCost || '',
     }
   }), [visibleRows, rendered.reportRows])
 
@@ -1079,6 +1105,14 @@ function DisposalItemsEditor({
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [customerSettingsOpen, companySettingsOpen])
+
+  function openEstimatePreviewModal(kind) {
+    setPreviewModalKind(kind === 'company' ? 'company' : 'customer')
+  }
+
+  function closeEstimatePreviewModal() {
+    setPreviewModalKind('')
+  }
 
   function updateExportTemplate(kind) {
     const currentTemplate = kind === 'customer' ? exportSettings.customerTemplate : exportSettings.companyTemplate
@@ -1414,6 +1448,7 @@ function DisposalItemsEditor({
         <div className="disposal-linked-preview-card-head">
           <div className="disposal-linked-preview-title customer-title">고객용</div>
           <div className="disposal-linked-preview-actions" ref={customerSettingsRef}>
+            <button type="button" className="ghost disposal-preview-preview-button" onClick={() => openEstimatePreviewModal('customer')}>미리보기</button>
             <button type="button" className="ghost disposal-preview-save-button" onClick={saveCustomerEstimateAsJpg}>견적저장</button>
             <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCustomerSettingsOpen(prev => !prev)} aria-label="고객용 설정">⚙</button>
             {customerSettingsOpen ? (
@@ -1447,7 +1482,7 @@ function DisposalItemsEditor({
         </div>
         <div className="disposal-linked-preview-total wide emphasize-blue">
           <span>폐기 대리신고 합계비용</span>
-          <strong>{formatCurrency(rendered.totals.totalFinal || 0)}</strong>
+          <strong>{formatCustomerTotalCostDisplay(customerExportRows, rendered.totals.totalFinal || 0)}</strong>
         </div>
       </div>
 
@@ -1455,6 +1490,7 @@ function DisposalItemsEditor({
         <div className="disposal-linked-preview-card-head">
           <div className="disposal-linked-preview-title customer-title">회사용</div>
           <div className="disposal-linked-preview-actions" ref={companySettingsRef}>
+            <button type="button" className="ghost disposal-preview-preview-button" onClick={() => openEstimatePreviewModal('company')}>미리보기</button>
             <button type="button" className="ghost disposal-preview-save-button" onClick={saveCompanyEstimateAsJpg}>견적저장</button>
             <button type="button" className="ghost disposal-preview-settings-button" onClick={() => setCompanySettingsOpen(prev => !prev)} aria-label="회사용 설정">⚙</button>
             {companySettingsOpen ? (
@@ -1487,6 +1523,81 @@ function DisposalItemsEditor({
           ))}
         </div>
       </div>
+
+      {previewModalKind ? (
+        <div className="disposal-inline-popup-backdrop" onClick={closeEstimatePreviewModal}>
+          <div className="disposal-inline-popup disposal-estimate-preview-popup" onClick={e => e.stopPropagation()}>
+            <div className="disposal-inline-popup-title">{previewModalKind === 'company' ? '회사용 견적 미리보기' : '고객용 견적 미리보기'}</div>
+            <div className="disposal-inline-popup-subtitle">실제 저장 전 현재 입력값 기준 예시 화면입니다.</div>
+            <div className="disposal-estimate-preview-frame">
+              {previewModalKind === 'company' ? (
+                <div className="disposal-linked-preview-card disposal-estimate-preview-card-inner">
+                  <div className="disposal-linked-preview-card-head">
+                    <div className="disposal-linked-preview-title customer-title">회사용</div>
+                  </div>
+                  <div className="disposal-linked-preview-meta customer-large-text">
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
+                  </div>
+                  <div className="disposal-linked-preview-table customer company customer-large-text">
+                    <div className="disposal-linked-preview-row head">
+                      <div>번호</div>
+                      <div>품목</div>
+                      <div>개수</div>
+                      <div>신고번호</div>
+                    </div>
+                    {companyExportRows.map(row => (
+                      <div key={`company-preview-modal-${row.index}`} className="disposal-linked-preview-row">
+                        <div>{row.index}</div>
+                        <div>{row.itemName || ''}</div>
+                        <div>{row.quantity || ''}</div>
+                        <div>{row.reportNo || ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="disposal-linked-preview-card disposal-estimate-preview-card-inner">
+                  <div className="disposal-linked-preview-card-head">
+                    <div className="disposal-linked-preview-title customer-title">고객용</div>
+                  </div>
+                  <div className="disposal-linked-preview-meta customer-large-text">
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
+                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
+                  </div>
+                  <div className="disposal-linked-preview-table customer customer-large-text">
+                    <div className="disposal-linked-preview-row head">
+                      <div>번호</div>
+                      <div>품목</div>
+                      <div>개수</div>
+                      <div>개별품목비용</div>
+                    </div>
+                    {customerExportRows.map(row => (
+                      <div key={`customer-preview-modal-${row.index}`} className="disposal-linked-preview-row">
+                        <div>{row.index}</div>
+                        <div>{row.itemName || ''}</div>
+                        <div>{row.quantity || ''}</div>
+                        <div>{formatCustomerItemCostDisplay(row)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="disposal-linked-preview-total wide emphasize-blue">
+                    <span>폐기 대리신고 합계비용</span>
+                    <strong>{formatCustomerTotalCostDisplay(customerExportRows, rendered.totals.totalFinal || 0)}</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="disposal-inline-popup-actions">
+              <button type="button" className="ghost" onClick={closeEstimatePreviewModal}>닫기</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showItemsHelp ? (
         <div className="disposal-inline-popup-backdrop" onClick={() => setShowItemsHelp(false)}>

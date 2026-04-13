@@ -11567,6 +11567,7 @@ button.disposal-items-number-cell.has-note {
   justify-content: flex-end;
 }
 
+.disposal-preview-preview-button,
 .disposal-preview-save-button,
 .disposal-preview-settings-button {
   min-height: 30px;
@@ -11579,6 +11580,22 @@ button.disposal-items-number-cell.has-note {
   padding: 4px 8px;
   font-size: 16px;
   line-height: 1;
+}
+
+.disposal-estimate-preview-popup {
+  width: min(96vw, 960px);
+}
+
+.disposal-estimate-preview-frame {
+  border: 1px solid #d8e0ec;
+  background: #f8fafc;
+  padding: 10px;
+  overflow: auto;
+  max-height: min(68vh, 760px);
+}
+
+.disposal-estimate-preview-card-inner {
+  min-width: 720px;
 }
 
 .disposal-customer-settings-popover {
@@ -12002,6 +12019,7 @@ button.disposal-items-number-cell.has-note {
     flex-wrap: nowrap;
   }
 
+  .disposal-preview-preview-button,
   .disposal-preview-save-button,
   .disposal-preview-settings-button {
     min-height: 28px;
@@ -12092,6 +12110,19 @@ button.disposal-items-number-cell.has-note {
     min-width: 28px;
     padding: 2px 4px !important;
     font-size: 18px;
+  }
+
+  .disposal-estimate-preview-popup {
+    width: min(100%, 96vw);
+    padding: 12px;
+  }
+
+  .disposal-estimate-preview-frame {
+    padding: 6px;
+  }
+
+  .disposal-estimate-preview-card-inner {
+    min-width: 560px;
   }
 }
 
