@@ -1,8 +1,9 @@
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
@@ -34,12 +35,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend /app/backend
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt \
-    && python -m playwright install chromium
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install -r /app/backend/requirements.txt
 
-WORKDIR /app/backend
+ARG INSTALL_PLAYWRIGHT_BROWSER=0
+RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "1" ]; then python -m playwright install chromium; fi
+
+COPY backend /app/backend
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+
+WORKDIR /app/backend
 EXPOSE 8000
 CMD ["/app/docker-entrypoint.sh"]
