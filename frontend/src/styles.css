@@ -11598,6 +11598,33 @@ button.disposal-items-number-cell.has-note {
   min-width: 720px;
 }
 
+.disposal-estimate-preview-image-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disposal-estimate-preview-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.disposal-estimate-preview-loading {
+  width: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #475569;
+  font-size: 14px;
+}
+
 .disposal-customer-settings-popover {
   top: calc(100% + 6px);
   right: 0;
@@ -12123,6 +12150,11 @@ button.disposal-items-number-cell.has-note {
 
   .disposal-estimate-preview-card-inner {
     min-width: 560px;
+  }
+
+  .disposal-estimate-preview-loading {
+    min-height: 120px;
+    font-size: 12px;
   }
 }
 

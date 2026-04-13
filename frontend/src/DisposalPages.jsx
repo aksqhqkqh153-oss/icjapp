@@ -1069,6 +1069,8 @@ function DisposalItemsEditor({
   const [showItemsHelp, setShowItemsHelp] = useState(false)
   const [activeNoteInfo, setActiveNoteInfo] = useState(null)
   const [previewModalKind, setPreviewModalKind] = useState('')
+  const [previewImageSrc, setPreviewImageSrc] = useState('')
+  const [previewImageLoading, setPreviewImageLoading] = useState(false)
   const [exportSettings, setExportSettings] = useState(() => loadDisposalExportSettings())
   const customerSettingsRef = useRef(null)
   const companySettingsRef = useRef(null)
@@ -1106,12 +1108,39 @@ function DisposalItemsEditor({
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [customerSettingsOpen, companySettingsOpen])
 
-  function openEstimatePreviewModal(kind) {
-    setPreviewModalKind(kind === 'company' ? 'company' : 'customer')
+  async function openEstimatePreviewModal(kind) {
+    const nextKind = kind === 'company' ? 'company' : 'customer'
+    setPreviewModalKind(nextKind)
+    setPreviewImageSrc('')
+    setPreviewImageLoading(true)
+    try {
+      const canvas = nextKind === 'company'
+        ? await buildCompanyQuoteCanvas({
+            rows: companyExportRows,
+            customerName: draft.customerName,
+            disposalDate: draft.disposalDate,
+            location: draft.location,
+          })
+        : await buildCustomerQuoteCanvas({
+            rows: customerExportRows,
+            totalFinal: rendered.totals.totalFinal || 0,
+            customerName: draft.customerName,
+            disposalDate: draft.disposalDate,
+            location: draft.location,
+          })
+      setPreviewImageSrc(canvas.toDataURL('image/jpeg', 0.95))
+    } catch (error) {
+      window.alert(error?.message || '미리보기를 생성하지 못했습니다.')
+      setPreviewModalKind('')
+    } finally {
+      setPreviewImageLoading(false)
+    }
   }
 
   function closeEstimatePreviewModal() {
     setPreviewModalKind('')
+    setPreviewImageSrc('')
+    setPreviewImageLoading(false)
   }
 
   function updateExportTemplate(kind) {
@@ -1476,7 +1505,7 @@ function DisposalItemsEditor({
               <div>{row.index}</div>
               <div>{row.itemName || ''}</div>
               <div>{row.quantity || ''}</div>
-              <div>{row.finalAmount ? formatCurrency(row.finalAmount) : ''}</div>
+              <div>{formatCustomerItemCostDisplay(row)}</div>
             </div>
           ))}
         </div>
@@ -1527,69 +1556,19 @@ function DisposalItemsEditor({
       {previewModalKind ? (
         <div className="disposal-inline-popup-backdrop" onClick={closeEstimatePreviewModal}>
           <div className="disposal-inline-popup disposal-estimate-preview-popup" onClick={e => e.stopPropagation()}>
-            <div className="disposal-inline-popup-title">{previewModalKind === 'company' ? '회사용 견적 미리보기' : '고객용 견적 미리보기'}</div>
-            <div className="disposal-inline-popup-subtitle">실제 저장 전 현재 입력값 기준 예시 화면입니다.</div>
-            <div className="disposal-estimate-preview-frame">
-              {previewModalKind === 'company' ? (
-                <div className="disposal-linked-preview-card disposal-estimate-preview-card-inner">
-                  <div className="disposal-linked-preview-card-head">
-                    <div className="disposal-linked-preview-title customer-title">회사용</div>
-                  </div>
-                  <div className="disposal-linked-preview-meta customer-large-text">
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
-                  </div>
-                  <div className="disposal-linked-preview-table customer company customer-large-text">
-                    <div className="disposal-linked-preview-row head">
-                      <div>번호</div>
-                      <div>품목</div>
-                      <div>개수</div>
-                      <div>신고번호</div>
-                    </div>
-                    {companyExportRows.map(row => (
-                      <div key={`company-preview-modal-${row.index}`} className="disposal-linked-preview-row">
-                        <div>{row.index}</div>
-                        <div>{row.itemName || ''}</div>
-                        <div>{row.quantity || ''}</div>
-                        <div>{row.reportNo || ''}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="disposal-inline-popup-title">{previewModalKind === 'company' ? '회사용 저장 이미지 미리보기' : '고객용 저장 이미지 미리보기'}</div>
+            <div className="disposal-inline-popup-subtitle">견적저장 버튼으로 저장될 JPG 결과를 저장 전에 미리 보여줍니다.</div>
+            <div className="disposal-estimate-preview-frame disposal-estimate-preview-image-frame">
+              {previewImageLoading ? (
+                <div className="disposal-estimate-preview-loading">저장 이미지 미리보기를 생성하는 중입니다.</div>
+              ) : previewImageSrc ? (
+                <img
+                  src={previewImageSrc}
+                  alt={previewModalKind === 'company' ? '회사용 저장 이미지 미리보기' : '고객용 저장 이미지 미리보기'}
+                  className="disposal-estimate-preview-image"
+                />
               ) : (
-                <div className="disposal-linked-preview-card disposal-estimate-preview-card-inner">
-                  <div className="disposal-linked-preview-card-head">
-                    <div className="disposal-linked-preview-title customer-title">고객용</div>
-                  </div>
-                  <div className="disposal-linked-preview-meta customer-large-text">
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-platform">{draft.platform || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-name">{formatExportCustomerLabel(draft.customerName) || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-date">{formatExportDateLabel(draft.disposalDate) || '-'}</div>
-                    <div className="disposal-linked-preview-meta-chip disposal-linked-preview-meta-chip-location">{formatExportLocationLabel(draft.location) || '-'}</div>
-                  </div>
-                  <div className="disposal-linked-preview-table customer customer-large-text">
-                    <div className="disposal-linked-preview-row head">
-                      <div>번호</div>
-                      <div>품목</div>
-                      <div>개수</div>
-                      <div>개별품목비용</div>
-                    </div>
-                    {customerExportRows.map(row => (
-                      <div key={`customer-preview-modal-${row.index}`} className="disposal-linked-preview-row">
-                        <div>{row.index}</div>
-                        <div>{row.itemName || ''}</div>
-                        <div>{row.quantity || ''}</div>
-                        <div>{formatCustomerItemCostDisplay(row)}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="disposal-linked-preview-total wide emphasize-blue">
-                    <span>폐기 대리신고 합계비용</span>
-                    <strong>{formatCustomerTotalCostDisplay(customerExportRows, rendered.totals.totalFinal || 0)}</strong>
-                  </div>
-                </div>
+                <div className="disposal-estimate-preview-loading">미리보기 이미지를 불러오지 못했습니다.</div>
               )}
             </div>
             <div className="disposal-inline-popup-actions">
