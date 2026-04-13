@@ -7777,8 +7777,10 @@ function ScheduleFormPage({ mode }) {
   const depositAmountSelectRef = useRef(null)
   const scheduleEditorFormRef = useRef(null)
   const [titleLocked, setTitleLocked] = useState(true)
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [departmentColorConfigOpen, setDepartmentColorConfigOpen] = useState(false)
   const [departmentColorMap, setDepartmentColorMap] = useState(() => getStoredDepartmentColorMap())
+  const settingsMenuRef = useRef(null)
 
   function handleScheduleEditorKeyDown(e) {
     if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
@@ -8134,7 +8136,23 @@ function ScheduleFormPage({ mode }) {
             </button>
             <div className="inline-actions end schedule-topbar-actions">
               <button type="button" className="ghost small" onClick={() => window.alert('연동 기능은 준비만 완료된 상태이며, 추후 견적 목록 연동 시 활성화됩니다.')}>연동</button>
-              <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(v => !v)}>설정</button>
+              <div className="schedule-settings-anchor" ref={settingsMenuRef}>
+                <button type="button" className={settingsMenuOpen ? 'ghost small active-icon' : 'ghost small'} onClick={() => setSettingsMenuOpen(v => !v)}>설정</button>
+                {settingsMenuOpen && (
+                  <div className="schedule-settings-mini-menu">
+                    <button
+                      type="button"
+                      className="schedule-settings-mini-item"
+                      onClick={() => {
+                        setSettingsMenuOpen(false)
+                        setDepartmentColorConfigOpen(true)
+                      }}
+                    >
+                      부서/인원 색상편집
+                    </button>
+                  </div>
+                )}
+              </div>
               <button type="submit" className="small schedule-save-button top-save-button">수정</button>
             </div>
           </div>
@@ -8169,17 +8187,25 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           {departmentColorConfigOpen && (
-            <div className="schedule-settings-panel">
-              <div className="between">
-                <strong>담당부서/인원 표시색상 설정</strong>
-                <button type="button" className="ghost small" onClick={() => setDepartmentColorMap({ ...DEFAULT_DEPARTMENT_COLOR_MAP })}>기본값</button>
+            <div className="schedule-settings-modal-backdrop" onClick={() => setDepartmentColorConfigOpen(false)}>
+              <div className="schedule-settings-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="부서/인원 색상편집">
+                <div className="schedule-settings-modal-header">
+                  <strong>부서/인원 색상편집</strong>
+                  <div className="inline-actions end">
+                    <button type="button" className="ghost small" onClick={() => setDepartmentColorMap({ ...DEFAULT_DEPARTMENT_COLOR_MAP })}>기본값</button>
+                    <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(false)}>닫기</button>
+                  </div>
+                </div>
+                <div className="schedule-settings-grid compact-color-grid">
+                  {DEFAULT_DEPARTMENT_OPTIONS.map(option => (
+                    <label key={`dept-color-${option}`} className="schedule-color-edit-row">
+                      <span className="schedule-color-edit-label" title={option}>{option}</span>
+                      <input type="color" aria-label={`${option} 색상`} value={departmentColorMap[option] || '#2563eb'} onChange={e => setDepartmentColorMap(prev => ({ ...prev, [option]: e.target.value }))} />
+                    </label>
+                  ))}
+                </div>
+                <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
               </div>
-              <div className="schedule-settings-grid">
-                {DEFAULT_DEPARTMENT_OPTIONS.map(option => (
-                  <label key={`dept-color-${option}`}>{option}<input type="color" value={departmentColorMap[option] || '#2563eb'} onChange={e => setDepartmentColorMap(prev => ({ ...prev, [option]: e.target.value }))} /></label>
-                ))}
-              </div>
-              <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
             </div>
           )}
           <div className="schedule-form-grid-3 schedule-editor-compact-grid">
