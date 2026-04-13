@@ -22752,7 +22752,28 @@ textarea,
 }
 
 .schedule-media-row {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.schedule-form-grid-4 {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.1fr) repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.schedule-date-badge-input {
+  text-align: center;
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.schedule-date-short-field input {
+  letter-spacing: 0.02em;
+}
+
+.schedule-memo-box.auto-grow {
+  overflow-y: hidden;
+  resize: none;
 }
 
 .compact-schedule-upload-row {
@@ -22801,8 +22822,13 @@ textarea,
   }
 
   .schedule-editor-compact-grid,
-  .schedule-date-time-compact-row {
+  .schedule-date-time-compact-row,
+  .schedule-form-grid-4 {
     gap: 8px;
+  }
+
+  .schedule-form-grid-4 {
+    grid-template-columns: 44px minmax(0, 1fr) repeat(2, minmax(0, 1fr));
   }
 
   .schedule-editor-form .schedule-compact-field input,

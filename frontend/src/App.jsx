@@ -5924,6 +5924,20 @@ function displayShortDate(value) {
   return toIsoDateInputValue(value) || normalizeShortDateInput(value)
 }
 
+function formatShortDateForInput(value) {
+  const iso = toIsoDateInputValue(value)
+  if (!iso) return normalizeShortDateInput(value)
+  return iso.slice(2)
+}
+
+function normalizeScheduleDateInput(rawValue, fallbackValue = '') {
+  const raw = String(rawValue || '').trim()
+  if (!raw) return toIsoDateInputValue(fallbackValue) || ''
+  const short = normalizeShortDateInput(raw)
+  const iso = toIsoDateInputValue(short)
+  return iso || toIsoDateInputValue(fallbackValue) || ''
+}
+
 function formatSelectedDateLabel(value) {
   if (!value) return '날짜를 선택해 주세요.'
   const date = new Date(`${value}T00:00:00`)
@@ -7915,6 +7929,9 @@ function ScheduleFormPage({ mode }) {
   const [endDateStartTimeText, setEndDateStartTimeText] = useState('')
   const [endDateEndTimeText, setEndDateEndTimeText] = useState('')
   const [assignableUsers, setAssignableUsers] = useState([])
+  const memoTextareaRef = useRef(null)
+  const [startDateText, setStartDateText] = useState(() => formatShortDateForInput(presetDate))
+  const [endDateText, setEndDateText] = useState(() => formatShortDateForInput(presetDate))
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -7932,7 +7949,7 @@ function ScheduleFormPage({ mode }) {
     end_address: '',
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
-    department_info: departmentOptions[0] || DEFAULT_DEPARTMENT_OPTIONS[0],
+    department_info: '당일이사 2인 업무',
     schedule_type: '선택',
     status_a_count: 0,
     status_b_count: 0,
@@ -7949,6 +7966,7 @@ function ScheduleFormPage({ mode }) {
     staff2: '',
     staff3: '',
     image_data: '',
+    deposit_datetime: '',
   })
 
   useEffect(() => {
@@ -7958,7 +7976,11 @@ function ScheduleFormPage({ mode }) {
         event_date: presetDate,
         move_start_date: prev.move_start_date || presetDate,
         move_end_date: prev.move_end_date || presetDate,
+        department_info: prev.department_info || '당일이사 2인 업무',
+        color: departmentColorMap[prev.department_info || '당일이사 2인 업무'] || prev.color,
       }))
+      setStartDateText(formatShortDateForInput(presetDate))
+      setEndDateText(formatShortDateForInput(presetDate))
       setVisitTimeText(prev => prev || '')
       api('/api/users').then(users => setAssignableUsers(users || [])).catch(() => {})
       return
@@ -7989,7 +8011,7 @@ function ScheduleFormPage({ mode }) {
           end_address: data.end_address || '',
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
-          department_info: data.department_info || departmentOptions[0] || DEFAULT_DEPARTMENT_OPTIONS[0],
+          department_info: data.department_info || '당일이사 2인 업무',
           schedule_type: data.schedule_type || (Number(data.status_b_count || 0) > 0 ? 'B' : Number(data.status_c_count || 0) > 0 ? 'C' : Number(data.status_a_count || 0) > 0 ? 'A' : '선택'),
           status_a_count: Number(data.status_a_count || 0),
           status_b_count: Number(data.status_b_count || 0),
@@ -8006,6 +8028,7 @@ function ScheduleFormPage({ mode }) {
           staff2: data.staff2 || '',
           staff3: data.staff3 || '',
           image_data: data.image_data || '',
+          deposit_datetime: data.deposit_datetime || '',
         })
         setPreview(data.image_data || '')
         setVisitTimeText(data.visit_time && data.visit_time !== '미정' ? data.visit_time : '')
@@ -8013,6 +8036,8 @@ function ScheduleFormPage({ mode }) {
         setEndTimeText(data.end_time && data.end_time !== '미정' ? data.end_time : '')
         setEndDateStartTimeText(data.move_end_start_time && data.move_end_start_time !== '미정' ? data.move_end_start_time : '')
         setEndDateEndTimeText(data.move_end_end_time && data.move_end_end_time !== '미정' ? data.move_end_end_time : '')
+        setStartDateText(formatShortDateForInput(data.move_start_date || data.event_date || presetDate))
+        setEndDateText(formatShortDateForInput(data.move_end_date || data.event_date || presetDate))
         setTitleLocked(!(data.title || '').trim() || (data.title || '').trim() === buildScheduleTitle({ ...data, amount1: data.amount1 || '' }).trim())
       } catch (err) {
         setError(err.message)
@@ -8097,6 +8122,43 @@ function ScheduleFormPage({ mode }) {
     }
     setEndDateEndTimeText(form.move_end_end_time || '')
   }, [form.move_end_end_time])
+
+  useEffect(() => {
+    setStartDateText(formatShortDateForInput(form.move_start_date || presetDate))
+  }, [form.move_start_date, presetDate])
+
+  useEffect(() => {
+    setEndDateText(formatShortDateForInput(form.move_end_date || form.move_start_date || presetDate))
+  }, [form.move_end_date, form.move_start_date, presetDate])
+
+  useEffect(() => {
+    const el = memoTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(el.scrollHeight, 156)}px`
+  }, [form.content])
+
+  function commitDateField(field, rawValue, fallbackValue) {
+    const normalized = normalizeScheduleDateInput(rawValue, fallbackValue)
+    const baseValue = normalized || toIsoDateInputValue(fallbackValue) || presetDate
+    const safeValue = field === 'move_end_date' && form.move_start_date && baseValue < form.move_start_date ? form.move_start_date : baseValue
+    setForm(prev => {
+      const next = { ...prev, [field]: safeValue }
+      if (field === 'move_start_date') {
+        next.event_date = safeValue
+        if (!prev.move_end_date || prev.move_end_date < safeValue) next.move_end_date = safeValue
+      }
+      return next
+    })
+    if (field === 'move_start_date') {
+      setStartDateText(formatShortDateForInput(safeValue))
+      if (!form.move_end_date || form.move_end_date < safeValue) setEndDateText(formatShortDateForInput(safeValue))
+    }
+    if (field === 'move_end_date') {
+      setEndDateText(formatShortDateForInput(safeValue))
+    }
+    return safeValue
+  }
 
   function getSyncedScheduleTimePatch(field, value) {
     if (field === 'visit_time' || field === 'start_time') {
@@ -8224,6 +8286,15 @@ function ScheduleFormPage({ mode }) {
       const nextText = normalized === '미정' ? '' : normalized
       setVisitTimeText(nextText)
       setStartTimeText(nextText)
+    }
+    if (field === 'move_end_start_time') {
+      setEndDateStartTimeText(normalized === '미정' ? '' : normalized)
+    }
+    if (field === 'move_end_end_time') {
+      setEndDateEndTimeText(normalized === '미정' ? '' : normalized)
+    }
+    if (field === 'end_time') {
+      setEndTimeText(normalized === '미정' ? '' : normalized)
     }
   }
 
@@ -8494,7 +8565,7 @@ function ScheduleFormPage({ mode }) {
               </select>
             </div>
           </div>
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-media-row">
+          <div className="schedule-form-grid-2 schedule-editor-compact-grid schedule-media-row">
             <div className="stack compact-gap schedule-compact-field schedule-photo-field">
               <label>사진첨부</label>
               <div className="schedule-upload-row compact-upload-row compact-schedule-upload-row">
@@ -8519,55 +8590,19 @@ function ScheduleFormPage({ mode }) {
                 {departmentOptions.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            <div className="stack compact-gap schedule-compact-field form-field-inline color-control-field">
-              <label>일정색상</label>
-              <input type="color" aria-label="일정색상" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
-            </div>
           </div>
           <div className="stack compact-gap schedule-compact-field schedule-memo-field">
             <label>메모</label>
-            <textarea value={form.content} placeholder="메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box" />
+            <textarea ref={memoTextareaRef} value={form.content} placeholder="메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box auto-grow" rows={6} />
           </div>
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-date-time-compact-row">
-            <div className="stack compact-gap schedule-compact-field schedule-date-field">
+          <div className="schedule-form-grid-4 schedule-editor-compact-grid schedule-date-time-compact-row schedule-date-time-short-row">
+            <div className="stack compact-gap schedule-compact-field schedule-date-badge-field">
+              <label>구분</label>
+              <input type="text" value="시" readOnly className="schedule-date-badge-input" aria-label="시작일 구분" />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-date-field schedule-date-short-field">
               <label>시작일</label>
-              <input type="date" aria-label="시작일" value={form.move_start_date} onChange={e => setForm({ ...form, move_start_date: e.target.value, event_date: e.target.value })} />
-            </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>시작시각</label>
-              <div className="inline-actions schedule-time-actions">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="시작시각"
-                  value={endDateStartTimeText}
-                  onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                  onBlur={handleEndDateStartTimeBlur}
-                />
-                <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
-              </div>
-            </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>종료예상시각</label>
-              <div className="inline-actions schedule-time-actions">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="종료예상시각"
-                  value={endDateEndTimeText}
-                  onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                  onBlur={handleEndDateEndTimeBlur}
-                />
-                <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
-              </div>
-            </div>
-          </div>
-          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-date-time-compact-row">
-            <div className="stack compact-gap schedule-compact-field schedule-date-field">
-              <label>종료일</label>
-              <input type="date" aria-label="종료일" value={form.move_end_date} onChange={e => setForm({ ...form, move_end_date: e.target.value })} />
+              <input type="text" inputMode="numeric" aria-label="시작일" placeholder="26-04-13" value={startDateText} onChange={e => setStartDateText(e.target.value.replace(/[^\d-]/g, '').slice(0, 8))} onBlur={() => commitDateField('move_start_date', startDateText, form.move_start_date || presetDate)} />
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-time-field">
               <label>시작시각</label>
@@ -8600,6 +8635,46 @@ function ScheduleFormPage({ mode }) {
               </div>
             </div>
           </div>
+          <div className="schedule-form-grid-4 schedule-editor-compact-grid schedule-date-time-compact-row schedule-date-time-short-row">
+            <div className="stack compact-gap schedule-compact-field schedule-date-badge-field">
+              <label>구분</label>
+              <input type="text" value="종" readOnly className="schedule-date-badge-input" aria-label="종료일 구분" />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-date-field schedule-date-short-field">
+              <label>종료일</label>
+              <input type="text" inputMode="numeric" aria-label="종료일" placeholder="26-04-13" value={endDateText} onChange={e => setEndDateText(e.target.value.replace(/[^\d-]/g, '').slice(0, 8))} onBlur={() => commitDateField('move_end_date', endDateText, form.move_end_date || form.move_start_date || presetDate)} />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>시작시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="시작시각"
+                  value={endDateStartTimeText}
+                  onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleEndDateStartTimeBlur}
+                />
+                <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
+              </div>
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>종료예상시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="종료예상시각"
+                  value={endDateEndTimeText}
+                  onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleEndDateEndTimeBlur}
+                />
+                <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
+              </div>
+            </div>
+          </div>
           <div className="stack compact-gap schedule-compact-field">
             <label>출발지 상세주소</label>
             <input value={form.start_address} placeholder="출발지 상세주소" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
@@ -8607,6 +8682,10 @@ function ScheduleFormPage({ mode }) {
           <div className="stack compact-gap schedule-compact-field">
             <label>도착지 상세주소</label>
             <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
+          </div>
+          <div className="stack compact-gap schedule-compact-field">
+            <label>예약금 입금일시</label>
+            <input value={form.deposit_datetime || ''} placeholder="예약금 입금일시" onChange={e => setForm({ ...form, deposit_datetime: e.target.value })} />
           </div>
           <div className="schedule-form-grid-2 schedule-assignee-grid schedule-editor-assignee-grid">
             <AssigneeInput label="담당대표" users={assignableUsers} value={[form.representative1, form.representative2, form.representative3].filter(Boolean).join(' / ')} onChange={updateRepresentativeNames} placeholder="담당대표" />

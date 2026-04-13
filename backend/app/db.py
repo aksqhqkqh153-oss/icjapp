@@ -2034,6 +2034,7 @@ CREATE TABLE IF NOT EXISTS calendar_event_comments (
             'amount_item': "TEXT DEFAULT ''",
             'deposit_method': "TEXT DEFAULT ''",
             'deposit_amount': "TEXT DEFAULT ''",
+            'deposit_datetime': "TEXT DEFAULT ''",
             'representative1': "TEXT DEFAULT ''",
             'representative2': "TEXT DEFAULT ''",
             'representative3': "TEXT DEFAULT ''",
