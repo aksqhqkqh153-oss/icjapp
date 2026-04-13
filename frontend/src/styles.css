@@ -22091,3 +22091,33 @@ textarea,
     font-size: 12px;
   }
 }
+
+
+.disposal-meta-row-middle-with-action {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.disposal-meta-row-end-actions {
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.disposal-settlement-action-button {
+  min-width: 112px;
+  border-left: 1px solid #9ca3af !important;
+}
+
+.disposal-meta-row-end-actions .disposal-transfer-badge.disposal-settlement-action-button {
+  display: inline-flex;
+}
+
+@media (max-width: 540px) {
+  .disposal-settlement-action-button {
+    min-width: 76px;
+    font-size: 11px !important;
+    padding: 6px 6px !important;
+  }
+}

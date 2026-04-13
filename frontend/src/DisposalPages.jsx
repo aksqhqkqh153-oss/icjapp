@@ -2237,9 +2237,18 @@ export function DisposalListPage() {
   function moveToSettlement(recordId) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
-    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, settlementTransferredAt: new Date().toISOString() }) : record)
+    const isPaid = getAggregateItemStatus(target, 'payment') === '완료'
+    const isReported = getAggregateItemStatus(target, 'report') === '완료'
+    if (!isPaid || !isReported) {
+      window.alert('입금여부와 신고여부가 모두 O인 경우에만 결산처리할 수 있습니다.')
+      return
+    }
+    const alreadyTransferred = !!target?.settlementTransferredAt
+    const nextTransferredAt = alreadyTransferred ? target.settlementTransferredAt : new Date().toISOString()
+    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, settlementTransferredAt: nextTransferredAt }) : record)
     saveRecords(nextRecords)
     setRecords(nextRecords)
+    window.alert(alreadyTransferred ? '이미 결산처리된 항목입니다. 폐기결산 화면으로 이동합니다.' : '결산처리가 완료되어 폐기결산에 저장되었습니다.')
     navigate('/disposal/settlements')
   }
 
@@ -2294,14 +2303,28 @@ export function DisposalListPage() {
                     <button type="button" className="disposal-meta-link-button disposal-meta-platform" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>{group.platform || '-'}</button>
                     <button type="button" className="disposal-meta-link-button disposal-meta-customer-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}><strong className="disposal-meta-customer">{group.customerName}</strong></button>
                     <div className="disposal-meta-action-inline-wrap">
-                      <button type="button" className={`disposal-payment-badge disposal-header-action-button ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()} onClick={(event) => { event.stopPropagation(); moveToSettlement(group.recordId) }} aria-label={`${group.customerName} 입금완/신고완 상태 확인`}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</button>
+                      <span className={`disposal-payment-badge disposal-header-action-button ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()} aria-label={`${group.customerName} 입금완/신고완 상태`}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
                       {isTransferred ? <span className="disposal-transfer-badge disposal-header-action-button">결산반영완료</span> : <span className="disposal-transfer-badge disposal-header-action-button is-pending">결산대기</span>}
                     </div>
                   </div>
-                  <div className="disposal-meta-row disposal-meta-row-middle">
+                  <div className="disposal-meta-row disposal-meta-row-middle disposal-meta-row-middle-with-action">
                     <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
                       <span className="disposal-meta-location">{group.location}</span>
                     </button>
+                    <div className="disposal-meta-row-end-actions">
+                      {isTransferred ? (
+                        <span className="disposal-transfer-badge disposal-header-action-button disposal-settlement-action-button">결산반영완료</span>
+                      ) : (isPaid && isReported ? (
+                        <button
+                          type="button"
+                          className="ghost disposal-header-action-button disposal-settlement-action-button"
+                          onClick={() => moveToSettlement(group.recordId)}
+                          aria-label={`${group.customerName} 결산처리`}
+                        >
+                          결산처리
+                        </button>
+                      ) : null)}
+                    </div>
                   </div>
                 </div>
               </div>
