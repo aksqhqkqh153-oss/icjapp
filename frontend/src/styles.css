@@ -23067,6 +23067,7 @@ textarea,
   border:1px solid #dbeafe;
   border-radius:10px;
   background:#eff6ff;
+  color:#111827;
   text-align:left;
   font-size:13px;
   font-weight:700;
@@ -23099,6 +23100,20 @@ textarea,
   justify-content:space-between;
   gap:10px;
 }
+.schedule-settings-modal-header-editor{
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr) 64px;
+  align-items:center;
+}
+.schedule-settings-modal-header-editor strong{
+  text-align:center;
+}
+.schedule-settings-back-button{
+  justify-self:start;
+}
+.schedule-settings-add-button{
+  justify-self:end;
+}
 .schedule-settings-grid.compact-color-grid{
   grid-template-columns:1fr;
   gap:8px;
@@ -23113,13 +23128,33 @@ textarea,
   border:1px solid #dbeafe;
   border-radius:10px;
 }
-.schedule-color-edit-label{
+.schedule-color-edit-label,
+.schedule-color-edit-name-input{
   min-width:0;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
   font-weight:700;
   line-height:1.3;
+}
+.schedule-color-edit-label-button{
+  min-width:0;
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  background:transparent;
+  text-align:left;
+  color:#111827;
+}
+.schedule-color-edit-name-input{
+  width:100%;
+  height:36px;
+  padding:8px 10px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#111827;
 }
 .schedule-color-edit-row input[type='color']{
   width:68px;
@@ -23147,6 +23182,11 @@ textarea,
   .schedule-settings-modal-header{
     align-items:flex-start;
     flex-direction:column;
+  }
+  .schedule-settings-modal-header-editor{
+    width:100%;
+    grid-template-columns:36px minmax(0,1fr) 56px;
+    align-items:center;
   }
   .schedule-color-edit-row{
     grid-template-columns:minmax(0,1fr) 64px;

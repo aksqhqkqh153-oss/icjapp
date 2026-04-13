@@ -5693,6 +5693,24 @@ const DEFAULT_DEPARTMENT_COLOR_MAP = {
   '이청잘 휴가': '#f59e0b',
 }
 
+function getStoredDepartmentOptions() {
+  if (typeof window === 'undefined') return [...DEFAULT_DEPARTMENT_OPTIONS]
+  try {
+    const raw = window.localStorage.getItem('icj_department_options')
+    if (!raw) return [...DEFAULT_DEPARTMENT_OPTIONS]
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return [...DEFAULT_DEPARTMENT_OPTIONS]
+    const cleaned = parsed.map(item => String(item || '').trim()).filter(Boolean)
+    const merged = [...cleaned]
+    DEFAULT_DEPARTMENT_OPTIONS.forEach(option => {
+      if (!merged.includes(option)) merged.push(option)
+    })
+    return merged.length ? merged : [...DEFAULT_DEPARTMENT_OPTIONS]
+  } catch {
+    return [...DEFAULT_DEPARTMENT_OPTIONS]
+  }
+}
+
 function getStoredDepartmentColorMap() {
   if (typeof window === 'undefined') return { ...DEFAULT_DEPARTMENT_COLOR_MAP }
   try {
@@ -7779,7 +7797,9 @@ function ScheduleFormPage({ mode }) {
   const [titleLocked, setTitleLocked] = useState(true)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [departmentColorConfigOpen, setDepartmentColorConfigOpen] = useState(false)
+  const [departmentOptions, setDepartmentOptions] = useState(() => getStoredDepartmentOptions())
   const [departmentColorMap, setDepartmentColorMap] = useState(() => getStoredDepartmentColorMap())
+  const [editingDepartmentOption, setEditingDepartmentOption] = useState('')
   const settingsMenuRef = useRef(null)
 
   function handleScheduleEditorKeyDown(e) {
@@ -7811,7 +7831,7 @@ function ScheduleFormPage({ mode }) {
     end_address: '',
     platform: PLATFORM_OPTIONS[0],
     customer_name: '',
-    department_info: DEFAULT_DEPARTMENT_OPTIONS[0],
+    department_info: departmentOptions[0] || DEFAULT_DEPARTMENT_OPTIONS[0],
     schedule_type: '선택',
     status_a_count: 0,
     status_b_count: 0,
@@ -7868,7 +7888,7 @@ function ScheduleFormPage({ mode }) {
           end_address: data.end_address || '',
           platform: data.platform || PLATFORM_OPTIONS[0],
           customer_name: data.customer_name || '',
-          department_info: data.department_info || DEFAULT_DEPARTMENT_OPTIONS[0],
+          department_info: data.department_info || departmentOptions[0] || DEFAULT_DEPARTMENT_OPTIONS[0],
           schedule_type: data.schedule_type || (Number(data.status_b_count || 0) > 0 ? 'B' : Number(data.status_c_count || 0) > 0 ? 'C' : Number(data.status_a_count || 0) > 0 ? 'A' : '선택'),
           status_a_count: Number(data.status_a_count || 0),
           status_b_count: Number(data.status_b_count || 0),
@@ -7915,8 +7935,19 @@ function ScheduleFormPage({ mode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    window.localStorage.setItem('icj_department_options', JSON.stringify(departmentOptions))
+  }, [departmentOptions])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
     window.localStorage.setItem('icj_department_color_map', JSON.stringify(departmentColorMap))
   }, [departmentColorMap])
+
+  useEffect(() => {
+    if (!form.department_info) return
+    if (departmentOptions.includes(form.department_info)) return
+    setDepartmentOptions(prev => [form.department_info, ...prev])
+  }, [form.department_info, departmentOptions])
 
   useEffect(() => {
     if (form.visit_time === '미정') {
@@ -8100,6 +8131,49 @@ function ScheduleFormPage({ mode }) {
     setForm(prev => ({ ...prev, staff1: first || '', staff2: second || '', staff3: third || '' }))
   }
 
+  function handleAddDepartmentOption() {
+    const baseLabel = '새 항목'
+    let candidate = baseLabel
+    let index = 2
+    while (departmentOptions.includes(candidate)) {
+      candidate = `${baseLabel} ${index}`
+      index += 1
+    }
+    setDepartmentOptions(prev => [candidate, ...prev])
+    setDepartmentColorMap(prev => ({ ...prev, [candidate]: prev[candidate] || '#2563eb' }))
+    setEditingDepartmentOption(candidate)
+  }
+
+  function renameDepartmentOption(previousName, nextNameRaw) {
+    const previous = String(previousName || '').trim()
+    const nextName = String(nextNameRaw || '').trim()
+    if (!previous) {
+      setEditingDepartmentOption('')
+      return
+    }
+    if (!nextName || previous === nextName) {
+      setEditingDepartmentOption('')
+      return
+    }
+    if (departmentOptions.includes(nextName)) {
+      setEditingDepartmentOption('')
+      return
+    }
+    setDepartmentOptions(prev => prev.map(option => (option === previous ? nextName : option)))
+    setDepartmentColorMap(prev => {
+      const updated = { ...prev }
+      updated[nextName] = prev[previous] || '#2563eb'
+      delete updated[previous]
+      return updated
+    })
+    setForm(prev => ({
+      ...prev,
+      department_info: prev.department_info === previous ? nextName : prev.department_info,
+      color: prev.department_info === previous ? (departmentColorMap[previous] || prev.color) : prev.color,
+    }))
+    setEditingDepartmentOption('')
+  }
+
   async function handleDeleteCurrentSchedule() {
     if (mode !== 'edit' || !eventId) return
     const confirmed = window.confirm('현재 일정을 삭제하시겠습니까?')
@@ -8215,24 +8289,43 @@ function ScheduleFormPage({ mode }) {
             </div>
           </div>
           {departmentColorConfigOpen && (
-            <div className="schedule-settings-modal-backdrop" onClick={() => setDepartmentColorConfigOpen(false)}>
+            <div className="schedule-settings-modal-backdrop" onClick={() => { setEditingDepartmentOption(''); setDepartmentColorConfigOpen(false) }}>
               <div className="schedule-settings-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="부서/인원 색상편집">
-                <div className="schedule-settings-modal-header">
+                <div className="schedule-settings-modal-header schedule-settings-modal-header-editor">
+                  <button type="button" className="ghost small icon-only schedule-settings-back-button" aria-label="뒤로가기" onClick={() => { setEditingDepartmentOption(''); setDepartmentColorConfigOpen(false) }}>←</button>
                   <strong>부서/인원 색상편집</strong>
-                  <div className="inline-actions end">
-                    <button type="button" className="ghost small" onClick={() => setDepartmentColorMap({ ...DEFAULT_DEPARTMENT_COLOR_MAP })}>기본값</button>
-                    <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(false)}>닫기</button>
-                  </div>
+                  <button type="button" className="small schedule-settings-add-button" onClick={handleAddDepartmentOption}>추가</button>
                 </div>
                 <div className="schedule-settings-grid compact-color-grid">
-                  {DEFAULT_DEPARTMENT_OPTIONS.map(option => (
-                    <label key={`dept-color-${option}`} className="schedule-color-edit-row">
-                      <span className="schedule-color-edit-label" title={option}>{option}</span>
+                  {departmentOptions.map(option => (
+                    <div key={`dept-color-${option}`} className="schedule-color-edit-row">
+                      {editingDepartmentOption === option ? (
+                        <input
+                          className="schedule-color-edit-name-input"
+                          autoFocus
+                          defaultValue={option}
+                          maxLength={40}
+                          onBlur={e => renameDepartmentOption(option, e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              renameDepartmentOption(option, e.currentTarget.value)
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              setEditingDepartmentOption('')
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button type="button" className="schedule-color-edit-label-button" title={option} onClick={() => setEditingDepartmentOption(option)}>
+                          <span className="schedule-color-edit-label">{option}</span>
+                        </button>
+                      )}
                       <input type="color" aria-label={`${option} 색상`} value={departmentColorMap[option] || '#2563eb'} onChange={e => setDepartmentColorMap(prev => ({ ...prev, [option]: e.target.value }))} />
-                    </label>
+                    </div>
                   ))}
                 </div>
-                <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
               </div>
             </div>
           )}
@@ -8316,7 +8409,7 @@ function ScheduleFormPage({ mode }) {
             <div className="stack compact-gap schedule-compact-field">
               <label>부서/인원</label>
               <select aria-label="부서/인원" value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
-                {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                {departmentOptions.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div className="stack compact-gap schedule-compact-field form-field-inline color-control-field">
