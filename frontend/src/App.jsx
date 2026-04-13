@@ -8261,7 +8261,7 @@ function ScheduleFormPage({ mode }) {
           <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-editor-main-info-row">
             <div className="stack compact-gap schedule-compact-field schedule-type-field">
               <label>일정구분</label>
-              <select value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
+              <select className="schedule-select-no-arrow" value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
                 <option value="선택">일정구분</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
@@ -8343,10 +8343,9 @@ function ScheduleFormPage({ mode }) {
                   onChange={e => setVisitTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleVisitTimeBlur}
                   onKeyDown={handleVisitTimeKeyDown}
-                  readOnly={mode === 'edit'}
-                  disabled={mode === 'edit'}
+
                 />
-                <button type="button" tabIndex={-1} disabled={mode === 'edit'} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
+                <button type="button" tabIndex={-1} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
             <div className="stack compact-gap schedule-compact-field platform-select-field">
@@ -8378,13 +8377,13 @@ function ScheduleFormPage({ mode }) {
             </div>
             <div className="stack compact-gap schedule-compact-field">
               <label>계약방법</label>
-              <select ref={depositMethodSelectRef} aria-label="계약방법" value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositAmountSelectRef) } }}>
+              <select className="schedule-select-no-arrow" ref={depositMethodSelectRef} aria-label="계약방법" value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositAmountSelectRef) } }}>
                 {DEPOSIT_METHOD_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-deposit-amount-field">
               <label>계약금액</label>
-              <select ref={depositAmountSelectRef} aria-label="계약금액" value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
+              <select className="schedule-select-no-arrow" ref={depositAmountSelectRef} aria-label="계약금액" value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
                 {DEPOSIT_AMOUNT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>

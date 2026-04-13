@@ -1928,6 +1928,19 @@ label { font-size: 14px; color: #4f6f8c; }
   width: 100%;
 }
 
+
+.schedule-select-no-arrow {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important;
+  padding-right: 10px !important;
+  text-overflow: ellipsis;
+}
+.schedule-select-no-arrow::-ms-expand {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .schedule-editor-card {
     padding: 14px;
