@@ -17,34 +17,34 @@ const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const DATE_FILTER_OPTIONS = [
-  { value: 'all', label: '날짜필터: 전체기간' },
-  { value: 'today', label: '날짜필터: 오늘' },
-  { value: '7days', label: '날짜필터: 최근7일' },
-  { value: 'thisMonth', label: '날짜필터: 이번달' },
-  { value: 'lastMonth', label: '날짜필터: 지난달' },
-  { value: 'custom', label: '날짜필터: 직접입력' },
+  { value: 'all', label: '날짜' },
+  { value: 'today', label: '오늘' },
+  { value: '7days', label: '7일' },
+  { value: 'thisMonth', label: '이번달' },
+  { value: 'lastMonth', label: '지난달' },
+  { value: 'custom', label: '직접입력' },
 ]
 
 const FILTER_OPTIONS = [
-  { value: 'latest', label: '1차필터: 최신저장순' },
-  { value: 'date', label: '1차필터: 폐기일자순' },
-  { value: 'customer', label: '1차필터: 고객명순' },
-  { value: 'status', label: '1차필터: 최종현황순' },
+  { value: 'latest', label: '1차' },
+  { value: 'date', label: '폐기일자순' },
+  { value: 'customer', label: '고객명순' },
+  { value: 'status', label: '최종현황순' },
 ]
 
 const SORT_DIRECTION_OPTIONS = [
-  { value: 'desc', label: '2차필터: 내림차순' },
-  { value: 'asc', label: '2차필터: 오름차순' },
+  { value: 'desc', label: '2차' },
+  { value: 'asc', label: '오름차순' },
 ]
 
 const SETTLEMENT_PRIMARY_FILTER_OPTIONS = [
-  { value: 'disposalDate', label: '1차필터: 폐기일자' },
-  { value: 'paymentDate', label: '1차필터: 입금일자' },
+  { value: 'disposalDate', label: '폐기일자' },
+  { value: 'paymentDate', label: '입금일자' },
 ]
 
 const SETTLEMENT_SORT_DIRECTION_OPTIONS = [
-  { value: 'desc', label: '2차필터: 내림차순' },
-  { value: 'asc', label: '2차필터: 오름차순' },
+  { value: 'desc', label: '2차' },
+  { value: 'asc', label: '오름차순' },
 ]
 
 const FINAL_STATUS_OPTIONS = ['입금전 / 신고전', '입금완 / 신고전', '입금완 / 신고완']
@@ -2831,7 +2831,7 @@ export function DisposalListPage() {
             ) : null}
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="검색" />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="검색창" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySearch}>검색</button>
             <button type="button" className="ghost disposal-action-button disposal-delete-button" onClick={removeSelectedRecords}>삭제</button>
           </div>
@@ -3442,7 +3442,7 @@ export function DisposalSettlementsPage() {
             ) : null}
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
-            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="검색" aria-label="월 결산표 검색" />
+            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="검색창" aria-label="월 결산표 검색" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
           </div>
         </div>

@@ -6087,6 +6087,50 @@ function formatBusinessExceptionDetailLine(item = {}) {
   return `* [${branchLabel} ${businessName}] : ${reason}`
 }
 
+function copyTextToClipboard(value) {
+  const text = String(value || '').trim()
+  if (!text) return Promise.reject(new Error('복사할 내용이 없습니다.'))
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text)
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      if (!ok) throw new Error('copy failed')
+      resolve()
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+function highlightTaggedNames(value, currentUser) {
+  const raw = String(value || '').trim()
+  if (!raw) return '-'
+  const keys = [currentUser?.nickname, currentUser?.name, currentUser?.username, currentUser?.email]
+    .map(v => String(v || '').trim().toLowerCase())
+    .filter(Boolean)
+  const parts = raw.split(/\s*\/\s*/)
+  return parts.map((part, index) => {
+    const normalized = String(part || '').trim()
+    const match = normalized && keys.some(key => normalized.toLowerCase().includes(key))
+    return (
+      <React.Fragment key={`${normalized}-${index}`}>
+        <span className={match ? 'schedule-tagged-name is-me' : 'schedule-tagged-name'}>{normalized || '-'}</span>
+        {index < parts.length - 1 ? <span className="schedule-tagged-separator"> / </span> : null}
+      </React.Fragment>
+    )
+  })
+}
+
 function CalendarPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -7746,11 +7790,12 @@ function WorkSchedulePage() {
 
             <div className="work-schedule-list unified-list">
               {isMobile && day.entries.length > 0 && !isBulkEdit && (
-                <div className="work-schedule-mobile-four-col header">
+                <div className="work-schedule-mobile-five-col header">
                   <span className="work-schedule-mobile-cell time">시간</span>
                   <span className="work-schedule-mobile-cell customer">고객명</span>
-                  <span className="work-schedule-mobile-cell business">사업자1 / 2 / 3</span>
-                  <span className="work-schedule-mobile-cell staff">직원1 / 2 / 3</span>
+                  <span className="work-schedule-mobile-cell business">사업자</span>
+                  <span className="work-schedule-mobile-cell staff">직원</span>
+                  <span className="work-schedule-mobile-cell copy">출주소</span>
                 </div>
               )}
               {day.entries.length > 0 && !isBulkEdit && day.entries.map(item => {
@@ -7770,18 +7815,19 @@ function WorkSchedulePage() {
                     <div className="work-schedule-line-head no-row-edit-button">
                       <div className="work-schedule-line-body">
                         {isMobile ? (
-                          <div className="work-schedule-mobile-four-col" title={`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${businessNames} ${staffNames}`}>
+                          <div className="work-schedule-mobile-five-col" title={`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${businessNames} ${staffNames}`}>
                             <span className="work-schedule-mobile-cell time">{item.schedule_time || '미정'}</span>
                             <span className="work-schedule-mobile-cell customer">{item.customer_name || '고객명'}</span>
-                            <span className="work-schedule-mobile-cell business">{businessNames}</span>
-                            <span className="work-schedule-mobile-cell staff">{staffNames}</span>
+                            <span className="work-schedule-mobile-cell business">{highlightTaggedNames(businessNames, currentUser)}</span>
+                            <span className="work-schedule-mobile-cell staff">{highlightTaggedNames(staffNames, currentUser)}</span>
+                            <button type="button" className="ghost mini-copy-button work-schedule-mobile-copy-button" onClick={e => { e.stopPropagation(); handleCopyAddress('출발지', addressText) }}>복사</button>
                           </div>
                         ) : (
-                          <div className="work-schedule-line-summary" title={`${item.schedule_time || '미정'} | ${item.customer_name || '고객명'} | ${item.platform || '플랫폼미정'} | ${businessNames} | ${staffNames} | ${addressText}`}>
+                          <div className="work-schedule-line-summary work-schedule-line-summary-with-copy" title={`${item.schedule_time || '미정'} | ${item.customer_name || '고객명'} | ${item.platform || '플랫폼미정'} | ${businessNames} | ${staffNames} | ${addressText}`}>
                             <span className="work-schedule-line-summary-text primary">{`${item.schedule_time || '미정'} ${item.customer_name || '고객명'} ${item.platform || '플랫폼미정'}`}</span>
-                            <span className="work-schedule-line-summary-text business">{businessNames}</span>
-                            <span className="work-schedule-line-summary-text staff">{staffNames}</span>
-                            <span className="work-schedule-line-summary-text address">{addressText}</span>
+                            <span className="work-schedule-line-summary-text business">{highlightTaggedNames(businessNames, currentUser)}</span>
+                            <span className="work-schedule-line-summary-text staff">{highlightTaggedNames(staffNames, currentUser)}</span>
+                            <button type="button" className="ghost mini-copy-button work-schedule-copy-button" onClick={e => { e.stopPropagation(); handleCopyAddress('출발지', addressText) }}>복사</button>
                           </div>
                         )}
                       </div>
@@ -8876,6 +8922,7 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
   useEffect(() => {
     function handleWindowClick() {
       setMenuOpen(false)
+      setCommentMenuId(null)
     }
     window.addEventListener('click', handleWindowClick)
     return () => window.removeEventListener('click', handleWindowClick)
@@ -8937,6 +8984,44 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
       window.alert(err.message || '댓글 파일 업로드에 실패했습니다.')
     } finally {
       e.target.value = ''
+    }
+  }
+
+  async function handleCopyAddress(label, value) {
+    try {
+      await copyTextToClipboard(value)
+      window.alert(`${label} 주소를 복사했습니다.`)
+    } catch (err) {
+      window.alert(err.message || '주소 복사에 실패했습니다.')
+    }
+  }
+
+  async function handleCommentEdit(comment) {
+    const nextContent = window.prompt('댓글 수정', String(comment?.content || ''))
+    setCommentMenuId(null)
+    if (nextContent === null) return
+    setCommentActionLoadingId(comment.id)
+    try {
+      await api(`/api/calendar/events/${eventId}/comments/${comment.id}`, { method: 'PUT', body: JSON.stringify({ content: nextContent, image_data: comment?.image_data || '' }) })
+      await load()
+    } catch (err) {
+      window.alert(err.message || '댓글 수정에 실패했습니다.')
+    } finally {
+      setCommentActionLoadingId(null)
+    }
+  }
+
+  async function handleCommentDelete(comment) {
+    if (!window.confirm('현재 댓글을 삭제하시겠습니까?')) return
+    setCommentMenuId(null)
+    setCommentActionLoadingId(comment.id)
+    try {
+      await api(`/api/calendar/events/${eventId}/comments/${comment.id}`, { method: 'DELETE' })
+      await load()
+    } catch (err) {
+      window.alert(err.message || '댓글 삭제에 실패했습니다.')
+    } finally {
+      setCommentActionLoadingId(null)
     }
   }
 
@@ -9006,6 +9091,10 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
             <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당대표 : ${reps.length ? reps.join(', ') : '-'}`}>담당대표 : {reps.length ? reps.join(', ') : '-'}</span>
             <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당직원 : ${staffs.length ? staffs.join(', ') : '-'}`}>담당직원 : {staffs.length ? staffs.join(', ') : '-'}</span>
           </div>
+          <div className="schedule-detail-copy-bar">
+            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('출발지', item.start_address)}>출발지 복사</button>
+            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('도착지', item.end_address)}>도착지 복사</button>
+          </div>
         </div>
 
         <div className="schedule-detail-content-body">
@@ -9024,7 +9113,18 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
               const commentImages = eventImageList(comment.image_list?.length ? comment.image_list : comment.image_data)
               return (
                 <div key={comment.id} className="schedule-comment-card">
-                  <div className="schedule-comment-meta">[{formatLogDate(comment.created_at)}] [{comment.user?.nickname || comment.user?.name || '프로필명'}]</div>
+                  <div className="schedule-comment-meta-row">
+                    <div className="schedule-comment-meta">[{formatLogDate(comment.created_at)}] [{comment.user?.nickname || comment.user?.name || '프로필명'}]</div>
+                    <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
+                      <button type="button" className="ghost small schedule-comment-settings-button" onClick={() => setCommentMenuId(prev => prev === comment.id ? null : comment.id)}>설정</button>
+                      {commentMenuId === comment.id ? (
+                        <div className="dropdown-menu right schedule-comment-setting-menu">
+                          <button type="button" className="dropdown-item" onClick={() => handleCommentEdit(comment)} disabled={commentActionLoadingId === comment.id}>수정</button>
+                          <button type="button" className="dropdown-item danger" onClick={() => handleCommentDelete(comment)} disabled={commentActionLoadingId === comment.id}>삭제</button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                   {commentImages.length ? (
                     <div className={`schedule-comment-image-grid count-${Math.min(Math.max(commentImages.length, 1), 4)}`}>
                       {commentImages.slice(0, 4).map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}

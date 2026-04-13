@@ -3706,6 +3706,40 @@ def create_calendar_event_comment(event_id: int, payload: CalendarEventCommentIn
         )
         return {'ok': True}
 
+@app.put("/api/calendar/events/{event_id}/comments/{comment_id}")
+@app.put("/api/calendar/events/{event_id}/comments/{comment_id}/")
+def update_calendar_event_comment(event_id: int, comment_id: int, payload: CalendarEventCommentUpdateIn, user=Depends(require_user)):
+    with get_conn() as conn:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        row = conn.execute("SELECT * FROM calendar_event_comments WHERE id = ? AND event_id = ?", (comment_id, event_id)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+        if int(row['user_id'] or 0) != int(user['id']) and int(user.get('grade', 9) or 9) > 1:
+            raise HTTPException(status_code=403, detail="댓글 수정 권한이 없습니다.")
+        content = str(payload.content or '').strip()
+        image_data = str(payload.image_data or '').strip()
+        if not content and not image_data:
+            raise HTTPException(status_code=400, detail='댓글 내용을 입력해 주세요.')
+        conn.execute("UPDATE calendar_event_comments SET content = ?, image_data = ? WHERE id = ? AND event_id = ?", (content, image_data, comment_id, event_id))
+        return {'ok': True}
+
+@app.delete("/api/calendar/events/{event_id}/comments/{comment_id}")
+@app.delete("/api/calendar/events/{event_id}/comments/{comment_id}/")
+def delete_calendar_event_comment(event_id: int, comment_id: int, user=Depends(require_user)):
+    with get_conn() as conn:
+        item = _calendar_event_accessible(conn, event_id, user)
+        if not item:
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        row = conn.execute("SELECT * FROM calendar_event_comments WHERE id = ? AND event_id = ?", (comment_id, event_id)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+        if int(row['user_id'] or 0) != int(user['id']) and int(user.get('grade', 9) or 9) > 1:
+            raise HTTPException(status_code=403, detail="댓글 삭제 권한이 없습니다.")
+        conn.execute("DELETE FROM calendar_event_comments WHERE id = ? AND event_id = ?", (comment_id, event_id))
+        return {'ok': True}
+
 @app.post("/api/calendar/events")
 def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
     _require_write_access(user, 'schedule')

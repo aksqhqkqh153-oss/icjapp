@@ -23465,3 +23465,118 @@ textarea,
     overflow:hidden;
   }
 }
+
+
+/* 2026-04-13 disposal single row + schedule copy/comment controls */
+.disposal-list-top-controls-single-row,
+.disposal-settlement-inline-controls {
+  display:grid;
+  grid-template-columns: 96px 96px 96px minmax(0,1fr) 64px 64px;
+  gap:8px;
+  align-items:center;
+}
+.disposal-settlement-inline-controls {
+  grid-template-columns: 96px 96px 96px minmax(0,1fr) 64px;
+}
+.disposal-list-top-controls-single-row .disposal-filter-inline-group-compact,
+.disposal-list-top-controls-single-row .disposal-filter-search-group-compact,
+.disposal-settlement-inline-controls .disposal-filter-inline-group-compact,
+.disposal-settlement-inline-controls .disposal-filter-search-group-compact {
+  display: contents;
+}
+.disposal-list-top-controls-single-row select,
+.disposal-list-top-controls-single-row input,
+.disposal-list-top-controls-single-row button,
+.disposal-settlement-inline-controls select,
+.disposal-settlement-inline-controls input,
+.disposal-settlement-inline-controls button {
+  min-width:0;
+  width:100%;
+}
+@media (max-width: 768px) {
+  .disposal-list-top-controls-single-row,
+  .disposal-settlement-inline-controls {
+    grid-template-columns: 48px 48px 48px minmax(0,1fr) 42px 42px;
+    gap:4px;
+  }
+  .disposal-settlement-inline-controls {
+    grid-template-columns: 48px 48px 48px minmax(0,1fr) 42px;
+  }
+  .disposal-list-top-controls-single-row select,
+  .disposal-list-top-controls-single-row input,
+  .disposal-list-top-controls-single-row button,
+  .disposal-settlement-inline-controls select,
+  .disposal-settlement-inline-controls input,
+  .disposal-settlement-inline-controls button {
+    height:32px;
+    padding:0 4px;
+    font-size:11px;
+    letter-spacing:-0.2px;
+  }
+}
+.schedule-tagged-name.is-me {
+  color:#2563eb;
+  font-weight:800;
+}
+.work-schedule-line-summary-with-copy {
+  display:grid;
+  grid-template-columns: minmax(120px,1.2fr) minmax(100px,1fr) minmax(100px,1fr) 52px;
+  gap:8px;
+  align-items:center;
+}
+.work-schedule-copy-button,
+.work-schedule-mobile-copy-button {
+  min-width:0;
+  width:100%;
+  padding:4px 6px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.work-schedule-mobile-five-col {
+  display:grid;
+  grid-template-columns: 54px minmax(0,1fr) minmax(0,0.9fr) minmax(0,0.9fr) 48px;
+  gap:4px;
+  align-items:center;
+}
+.work-schedule-mobile-cell.copy {
+  text-align:center;
+}
+.schedule-detail-copy-bar {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.schedule-detail-copy-button {
+  min-width:96px;
+}
+.schedule-detail-memo-box {
+  overflow:visible;
+  max-height:none;
+  height:auto;
+}
+.schedule-comment-meta-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.schedule-comment-setting-menu {
+  min-width:108px;
+}
+@media (max-width: 768px) {
+  .work-schedule-mobile-five-col {
+    grid-template-columns: 42px minmax(0,1fr) minmax(0,0.85fr) minmax(0,0.85fr) 42px;
+  }
+  .work-schedule-mobile-five-col .work-schedule-mobile-cell,
+  .work-schedule-mobile-five-col .work-schedule-mobile-copy-button {
+    min-width:0;
+    font-size:10px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .work-schedule-line-summary-with-copy {
+    grid-template-columns: minmax(84px,1.1fr) minmax(76px,1fr) minmax(76px,1fr) 46px;
+    gap:6px;
+  }
+}
