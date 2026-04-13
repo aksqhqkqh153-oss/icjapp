@@ -16,6 +16,14 @@ const DEFAULT_VISIBLE_ITEM_ROWS = 8
 const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
+const DATE_FILTER_OPTIONS = [
+  { value: 'all', label: '전체기간' },
+  { value: 'today', label: '오늘' },
+  { value: '7days', label: '최근7일' },
+  { value: 'thisMonth', label: '이번달' },
+  { value: 'lastMonth', label: '지난달' },
+]
+
 const FILTER_OPTIONS = [
   { value: 'latest', label: '최신 저장순' },
   { value: 'customer', label: '고객명순' },
@@ -152,9 +160,29 @@ function isFreeUnitCostValue(value) {
   return raw === '무료'
 }
 
+function isZeroUnitCostValue(value) {
+  const raw = String(value ?? '').trim()
+  return raw === '0' || raw === '0원'
+}
+
+function formatUnitCostChangeLabel(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '-'
+  if (isFreeUnitCostValue(raw)) return '개당신고비용 : 무료'
+  if (isZeroUnitCostValue(raw)) return '개당신고비용 : 0원'
+  return `개당신고비용 : ${formatCurrency(safeNumber(raw))}`
+}
+
+function formatQuantityChangeLabel(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '-'
+  return `${formatNumber(safeNumber(raw))}개`
+}
+
 function formatCustomerItemCostDisplay(item = {}) {
   if (item?.isFree) return '무료'
-  return item?.finalAmount ? formatCurrency(item.finalAmount) : ''
+  if (item?.unitCostRaw != null && isZeroUnitCostValue(item.unitCostRaw)) return '0원'
+  return item?.finalAmount || item?.finalAmount === 0 ? formatCurrency(item.finalAmount) : ''
 }
 
 function formatCustomerTotalCostDisplay(items = [], totalFinal = 0) {
@@ -328,12 +356,14 @@ function buildRenderedTemplate(draft) {
   const items = sourceItems.slice(0, ITEM_ROW_COUNT).map(item => {
     const unitCostRaw = String(item?.unitCost || '').trim()
     const isFree = isFreeUnitCostValue(unitCostRaw)
+    const isZeroCost = isZeroUnitCostValue(unitCostRaw)
     return {
       itemName: String(item?.itemName || ''),
       quantity: safeNumber(item?.quantity),
       unitCost: isFree ? 0 : safeNumber(item?.unitCost),
       unitCostRaw,
       isFree,
+      isZeroCost,
       reportNo: String(item?.reportNo || ''),
       note: String(item?.note || ''),
     }
@@ -342,7 +372,7 @@ function buildRenderedTemplate(draft) {
     const reportAmount = item.isFree ? 0 : item.quantity * item.unitCost
     const feeAmount = item.isFree ? 0 : Math.round(reportAmount * 0.3)
     const finalAmount = item.isFree ? 0 : reportAmount + feeAmount
-    const customerDisplayCost = item.isFree ? '무료' : ''
+    const customerDisplayCost = item.isFree ? '무료' : (item.isZeroCost ? '0원' : '')
     return {
       ...item,
       reportAmount,
@@ -369,7 +399,7 @@ function buildRenderedTemplate(draft) {
     const sourceRow = 5 + index
     nextRows[sourceRow][1] = item.itemName
     nextRows[sourceRow][2] = item.quantity ? String(item.quantity) : ''
-    nextRows[sourceRow][3] = item.isFree ? '무료' : (item.unitCost ? String(item.unitCost) : '')
+    nextRows[sourceRow][3] = item.isFree ? '무료' : (item.isZeroCost ? '0' : (item.unitCost ? String(item.unitCost) : ''))
     nextRows[sourceRow][4] = item.reportAmount ? String(item.reportAmount) : '0'
     nextRows[sourceRow][5] = item.finalAmount ? String(item.finalAmount) : '0'
     nextRows[sourceRow][6] = item.reportNo
@@ -378,7 +408,7 @@ function buildRenderedTemplate(draft) {
     const summaryRow = 29 + index
     nextRows[summaryRow][1] = item.itemName
     nextRows[summaryRow][2] = item.quantity ? String(item.quantity) : ''
-    nextRows[summaryRow][3] = item.isFree ? '무료' : (item.finalAmount ? String(item.finalAmount) : '')
+    nextRows[summaryRow][3] = item.isFree ? '무료' : (item.isZeroCost ? '0원' : ((item.finalAmount || item.finalAmount === 0) ? String(item.finalAmount) : ''))
 
     const reportNoRow = 54 + index
     nextRows[reportNoRow][1] = item.itemName
@@ -477,8 +507,8 @@ function buildDraftChangeSummary(initialDraft, currentDraft) {
       changedItemDetails.push(
         [
           `폐기품목입력 ${index + 1}번`,
-          `- 기존 : [${valueLabel(before.itemName)}] [${valueLabel(before.quantity)}] [${valueLabel(before.unitCost)}]`,
-          `- 변경 : [${valueLabel(after.itemName)}] [${valueLabel(after.quantity)}] [${valueLabel(after.unitCost)}]`,
+          `- 기존 : [${valueLabel(before.itemName)}] [${formatQuantityChangeLabel(before.quantity)}] [${formatUnitCostChangeLabel(before.unitCost)}]`,
+          `- 변경 : [${valueLabel(after.itemName)}] [${formatQuantityChangeLabel(after.quantity)}] [${formatUnitCostChangeLabel(after.unitCost)}]`,
         ].join('\n')
       )
     }
@@ -861,7 +891,31 @@ function getFinalStatusFromFlags(isPaid, isReported) {
   return composeFinalStatus(!!isPaid, !!isReported)
 }
 
-function buildDisposalListGroups(records, sortKey, searchQuery = '', settlementFilter = 'all') {
+function matchesDateFilter(record, dateFilter = 'all') {
+  if (dateFilter === 'all') return true
+  const raw = String(record?.disposalDate || '').trim()
+  if (!raw) return false
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const targetStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  if (dateFilter === 'today') return targetStart.getTime() === todayStart.getTime()
+  if (dateFilter === '7days') {
+    const start = new Date(todayStart)
+    start.setDate(start.getDate() - 6)
+    return targetStart >= start && targetStart <= todayStart
+  }
+  if (dateFilter === 'thisMonth') return targetStart.getFullYear() === todayStart.getFullYear() && targetStart.getMonth() === todayStart.getMonth()
+  if (dateFilter === 'lastMonth') {
+    const lastMonth = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1)
+    return targetStart.getFullYear() === lastMonth.getFullYear() && targetStart.getMonth() === lastMonth.getMonth()
+  }
+  return true
+}
+
+function buildDisposalListGroups(records, sortKey, searchQuery = '', settlementFilter = 'all', dateFilter = 'all') {
   const grouped = new Map()
   const sorted = sortRecords(records, sortKey)
   const normalizedQuery = normalizeSearchText(searchQuery)
@@ -870,6 +924,7 @@ function buildDisposalListGroups(records, sortKey, searchQuery = '', settlementF
     const searchable = normalizeSearchText([record?.platform, record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
     if (normalizedQuery && !searchable.includes(normalizedQuery)) return
     if (!matchesSettlementFilter(record, settlementFilter)) return
+    if (!matchesDateFilter(record, dateFilter)) return
     if (!grouped.has(customerGroupKey)) {
       grouped.set(customerGroupKey, {
         key: customerGroupKey,
@@ -2473,6 +2528,7 @@ export function DisposalListPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState('all')
   const [settlementFilter, setSettlementFilter] = useState('all')
   const [pendingSettlementMessages, setPendingSettlementMessages] = useState([])
   const [pendingNavigationPath, setPendingNavigationPath] = useState('')
@@ -2483,7 +2539,7 @@ export function DisposalListPage() {
     setRecords(loadRecords())
   }, [])
 
-  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, searchQuery, settlementFilter), [records, sortKey, searchQuery, settlementFilter])
+  const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, searchQuery, settlementFilter, dateFilter), [records, sortKey, searchQuery, settlementFilter, dateFilter])
   const visibleRowKeys = useMemo(() => groupedRows.flatMap(group => group.rows.map(row => row.key)), [groupedRows])
   const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys])
   const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
@@ -2677,6 +2733,9 @@ export function DisposalListPage() {
       <section className="card disposal-records-card disposal-list-board-card">
         <div className="disposal-list-top-controls disposal-list-top-controls-single-row">
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact">
+            <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} aria-label="폐기목록 날짜 필터">
+              {DATE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
             <select value={sortKey} onChange={e => setSortKey(e.target.value)}>
               {FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>

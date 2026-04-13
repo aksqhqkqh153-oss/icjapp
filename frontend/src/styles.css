@@ -22645,3 +22645,31 @@ textarea,
     font-size: 10px;
   }
 }
+
+
+/* disposal 20260413 updates */
+.disposal-filter-inline-group-compact select {
+  width: auto;
+  min-width: fit-content;
+  flex: 0 0 auto;
+  padding-right: 28px;
+}
+.disposal-filter-search-group-compact input {
+  flex: 1 1 120px;
+  min-width: 96px;
+}
+.disposal-filter-inline-group.disposal-filter-inline-group-compact {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+@media (max-width: 900px) {
+  .disposal-list-top-controls-single-row {
+    grid-template-columns: auto auto auto minmax(0,1fr) auto auto !important;
+  }
+  .disposal-filter-inline-group-compact select {
+    width: auto !important;
+    min-width: fit-content !important;
+    padding-left: 8px;
+    padding-right: 24px;
+  }
+}
