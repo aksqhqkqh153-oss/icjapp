@@ -8123,7 +8123,7 @@ function ScheduleFormPage({ mode }) {
     <div className="stack-page">
       <section className="card schedule-editor-card">
         <form ref={scheduleEditorFormRef} onSubmit={submit} onKeyDown={handleScheduleEditorKeyDown} className="stack schedule-editor-form">
-          <div className="schedule-form-topbar">
+          <div className="schedule-form-topbar schedule-form-topbar-compact">
             <button
               type="button"
               className="ghost small icon-only"
@@ -8132,17 +8132,17 @@ function ScheduleFormPage({ mode }) {
             >
               ←
             </button>
-            <div className="inline-actions wrap end">
+            <div className="inline-actions end schedule-topbar-actions">
+              <button type="button" className="ghost small" onClick={() => window.alert('연동 기능은 준비만 완료된 상태이며, 추후 견적 목록 연동 시 활성화됩니다.')}>연동</button>
               <button type="button" className="ghost small" onClick={() => setDepartmentColorConfigOpen(v => !v)}>설정</button>
-              {mode === 'edit' && <button type="button" className="ghost small schedule-save-button top-delete-button" onClick={handleDeleteCurrentSchedule}>삭제</button>}
               <button type="submit" className="small schedule-save-button top-save-button">수정</button>
             </div>
           </div>
-          <div className="schedule-form-grid-1 schedule-type-row">
-            <div className="stack compact-gap">
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
+            <div className="stack compact-gap schedule-compact-field">
               <label>일정구분</label>
               <select value={form.schedule_type || '선택'} onChange={e => setForm({ ...form, schedule_type: e.target.value })}>
-                <option value="선택">선택</option>
+                <option value="선택">일정구분</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
                 <option value="C">C</option>
@@ -8150,11 +8150,22 @@ function ScheduleFormPage({ mode }) {
                 <option value="(B)">(B)</option>
                 <option value="(C)">(C)</option>
               </select>
-              <div className="muted tiny-text">괄호 없는 값은 확정 일정, 괄호 값은 예상 일정이며 A/B/C 카운트는 동일하게 반영됩니다.</div>
             </div>
-            <div className="stack compact-gap schedule-locked-action">
-              <label>&nbsp;</label>
-              <button type="button" className="small ghost" onClick={() => window.alert('견적데이터연동 기능은 준비만 완료된 상태이며, 추후 견적 목록 연동 시 활성화됩니다.')} >견적데이터연동</button>
+            <div className="stack compact-gap schedule-compact-field schedule-title-field">
+              <label>일정제목</label>
+              <input value={titlePreview} placeholder="일정제목" readOnly={titleLocked} className={`readonly-input ${titleLocked ? '' : 'editable-title-input'}`.trim()} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-title-action-field">
+              <label>편집</label>
+              <button type="button" className="ghost small schedule-title-toggle-button" onClick={() => {
+                if (titleLocked) {
+                  setTitleLocked(false)
+                  setForm(prev => ({ ...prev, title: prev.title || buildScheduleTitle(prev) }))
+                  return
+                }
+                setTitleLocked(true)
+                setForm(prev => ({ ...prev, title: buildScheduleTitle(prev) }))
+              }}>{titleLocked ? '편집' : '완료'}</button>
             </div>
           </div>
           {departmentColorConfigOpen && (
@@ -8168,33 +8179,19 @@ function ScheduleFormPage({ mode }) {
                   <label key={`dept-color-${option}`}>{option}<input type="color" value={departmentColorMap[option] || '#2563eb'} onChange={e => setDepartmentColorMap(prev => ({ ...prev, [option]: e.target.value }))} /></label>
                 ))}
               </div>
-              <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 견적데이터 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
+              <div className="muted tiny-text">특정 담당부서/인원을 선택하면 여기서 연결한 표시색상이 자동 반영됩니다. 아래 항목은 추후 연동 시 자동 지정 대상으로 사용됩니다: {DEPARTMENT_AUTO_ASSIGN_OPTIONS.join(', ')}</div>
             </div>
           )}
-          <div className="stack compact-gap">
-            <label>일정 제목</label>
-            <div className="schedule-title-edit-row">
-              <input value={titlePreview} placeholder="자동 생성 제목" readOnly={titleLocked} className={`readonly-input ${titleLocked ? '' : 'editable-title-input'}`.trim()} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} />
-              <button type="button" className="ghost small" onClick={() => {
-                if (titleLocked) {
-                  setTitleLocked(false)
-                  setForm(prev => ({ ...prev, title: prev.title || buildScheduleTitle(prev) }))
-                  return
-                }
-                setTitleLocked(true)
-                setForm(prev => ({ ...prev, title: buildScheduleTitle(prev) }))
-              }}>{titleLocked ? '편집' : '저장'}</button>
-            </div>
-          </div>
-          <div className="schedule-form-grid-2 visit-platform-row">
-            <div className="stack compact-gap highlight-blue-field">
-              <label>출발지 이사방문시각</label>
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
+            <div className="stack compact-gap schedule-compact-field">
+              <label>방문시각</label>
               <div className="inline-actions visit-time-actions">
                 <input
                   ref={visitTimeInputRef}
                   type="text"
                   inputMode="numeric"
                   maxLength={5}
+                  placeholder="방문시각"
                   value={visitTimeText}
                   onChange={e => setVisitTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
                   onBlur={handleVisitTimeBlur}
@@ -8205,9 +8202,10 @@ function ScheduleFormPage({ mode }) {
                 <button type="button" tabIndex={-1} disabled={mode === 'edit'} className={form.visit_time === '미정' ? 'ghost small active-icon mobile-visit-undecided' : 'ghost small mobile-visit-undecided'} onClick={() => changeTimeField('visit_time', form.visit_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
-            <div className="stack compact-gap platform-select-field highlight-blue-field">
+            <div className="stack compact-gap schedule-compact-field platform-select-field">
               <label>플랫폼</label>
               <select
+                aria-label="플랫폼"
                 ref={desktopPlatformSelectRef}
                 value={form.platform}
                 onChange={e => setForm({ ...form, platform: e.target.value })}
@@ -8221,146 +8219,144 @@ function ScheduleFormPage({ mode }) {
                 {PLATFORM_OPTIONS.map(platform => <option key={platform} value={platform}>{platform}</option>)}
               </select>
             </div>
-          </div>
-          <div className="schedule-form-grid-2">
-            <div className="stack compact-gap highlight-blue-field">
-              <label>고객성함</label>
-              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객 성함" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
+            <div className="stack compact-gap schedule-compact-field">
+              <label>고객명</label>
+              <input ref={customerNameInputRef} value={form.customer_name} placeholder="고객명" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, customer_name: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(amountInputRef) } }} />
             </div>
-            <div className="stack compact-gap highlight-blue-field">
+          </div>
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid">
+            <div className="stack compact-gap schedule-compact-field">
               <label>이사금액</label>
-              <input ref={amountInputRef} inputMode="numeric" value={form.amount1} placeholder="예: 150000" onChange={e => setForm({ ...form, amount1: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositMethodSelectRef) } }} />
+              <input ref={amountInputRef} inputMode="numeric" value={form.amount1} placeholder="이사금액" onChange={e => setForm({ ...form, amount1: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositMethodSelectRef) } }} />
             </div>
-          </div>
-          <div className="schedule-form-grid-2">
-            <div className="stack compact-gap">
-              <label>계약입금방법</label>
-              <select ref={depositMethodSelectRef} value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositAmountSelectRef) } }}>
+            <div className="stack compact-gap schedule-compact-field">
+              <label>계약방법</label>
+              <select ref={depositMethodSelectRef} aria-label="계약방법" value={form.deposit_method} onChange={e => setForm({ ...form, deposit_method: e.target.value })} onKeyDown={e => { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); focusNextField(depositAmountSelectRef) } }}>
                 {DEPOSIT_METHOD_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
-            <div className="stack compact-gap">
-              <label>계약입금금액</label>
-              <select ref={depositAmountSelectRef} value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
+            <div className="stack compact-gap schedule-compact-field">
+              <label>계약금액</label>
+              <select ref={depositAmountSelectRef} aria-label="계약금액" value={form.deposit_amount} onChange={e => setForm({ ...form, deposit_amount: e.target.value })}>
                 {DEPOSIT_AMOUNT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
           </div>
-          <div className="memo-side-layout">
-            <div className="stack compact-gap memo-main-field">
-              <label>일정 메모</label>
-              <textarea value={form.content} placeholder="일정 메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box" />
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-media-row">
+            <div className="stack compact-gap schedule-compact-field schedule-photo-field">
+              <label>사진첨부</label>
+              <div className="schedule-upload-row compact-upload-row compact-schedule-upload-row">
+                <label className={`icon-upload-trigger compact-upload-trigger${uploadingImage ? ' disabled' : ''}`}>
+                  <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploadingImage} className="visually-hidden" />
+                  <span className="icon-upload-symbol" aria-hidden="true">📎</span>
+                  <span className="sr-only">사진첨부</span>
+                </label>
+                {uploadingImage && <div className="muted upload-status-text">업로드 중...</div>}
+                {preview && (
+                  <div className="image-preview-wrap compact-image-preview">
+                    <img src={preview} alt="일정 첨부 미리보기" className="image-preview" />
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="memo-side-controls">
-              <div className="stack compact-gap memo-side-control upload-control-field highlight-blue-field">
-                <label>사진파일첨부</label>
-                <div className="schedule-upload-row compact-upload-row">
-                  <label className={`icon-upload-trigger${uploadingImage ? ' disabled' : ''}`}>
-                    <input type="file" accept="image/*" onChange={handleImageChange} disabled={uploadingImage} className="visually-hidden" />
-                    <span className="icon-upload-symbol" aria-hidden="true">📎</span>
-                    <span className="sr-only">사진파일첨부</span>
-                  </label>
-                  {uploadingImage && <div className="muted upload-status-text">업로드 중...</div>}
-                  {preview && (
-                    <div className="image-preview-wrap compact-image-preview">
-                      <img src={preview} alt="일정 첨부 미리보기" className="image-preview" />
-                    </div>
-                  )}
-                </div>
+            <div className="stack compact-gap schedule-compact-field">
+              <label>부서/인원</label>
+              <select aria-label="부서/인원" value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
+                {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div className="stack compact-gap schedule-compact-field form-field-inline color-control-field">
+              <label>일정색상</label>
+              <input type="color" aria-label="일정색상" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
+            </div>
+          </div>
+          <div className="stack compact-gap schedule-compact-field schedule-memo-field">
+            <label>메모</label>
+            <textarea value={form.content} placeholder="메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box" />
+          </div>
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-date-time-compact-row">
+            <div className="stack compact-gap schedule-compact-field schedule-date-field">
+              <label>시작일</label>
+              <input type="date" aria-label="시작일" value={form.move_start_date} onChange={e => setForm({ ...form, move_start_date: e.target.value, event_date: e.target.value })} />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>시작시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="시작시각"
+                  value={endDateStartTimeText}
+                  onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleEndDateStartTimeBlur}
+                />
+                <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
-              <div className="stack compact-gap memo-side-control highlight-blue-field">
-                <label>담당부서/인원</label>
-                <select value={form.department_info} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
-                  {DEFAULT_DEPARTMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </div>
-              <div className="stack compact-gap memo-side-control form-field-inline color-control-field">
-                <label>표시색상</label>
-                <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} />
+            </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>종료예상시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="종료예상시각"
+                  value={endDateEndTimeText}
+                  onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleEndDateEndTimeBlur}
+                />
+                <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
               </div>
             </div>
           </div>
-          <div className="schedule-date-time-row">
-            <div className="stack compact-gap schedule-date-field">
-              <label>이사시작일</label>
-              <input type="date" value={form.move_start_date} onChange={e => setForm({ ...form, move_start_date: e.target.value, event_date: e.target.value })} />
+          <div className="schedule-form-grid-3 schedule-editor-compact-grid schedule-date-time-compact-row">
+            <div className="stack compact-gap schedule-compact-field schedule-date-field">
+              <label>종료일</label>
+              <input type="date" aria-label="종료일" value={form.move_end_date} onChange={e => setForm({ ...form, move_end_date: e.target.value })} />
             </div>
-            <div className="schedule-date-time-fields">
-              <div className="stack compact-gap schedule-time-field">
-                <label>이사종료일 시작시각</label>
-                <div className="inline-actions schedule-time-actions">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    value={endDateStartTimeText}
-                    onChange={e => setEndDateStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleEndDateStartTimeBlur}
-                  />
-                  <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
-                </div>
-              </div>
-              <div className="stack compact-gap schedule-time-field">
-                <label>이사종료일 종료시각</label>
-                <div className="inline-actions schedule-time-actions">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    value={endDateEndTimeText}
-                    onChange={e => setEndDateEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleEndDateEndTimeBlur}
-                  />
-                  <button type="button" className={form.move_end_end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('move_end_end_time', form.move_end_end_time === '미정' ? '10:00' : '미정')}>미정</button>
-                </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>시작시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="시작시각"
+                  value={startTimeText}
+                  onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleStartTimeBlur}
+                />
+                <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
-          </div>
-          <div className="schedule-date-time-row">
-            <div className="stack compact-gap schedule-date-field">
-              <label>이사종료일</label>
-              <input type="date" value={form.move_end_date} onChange={e => setForm({ ...form, move_end_date: e.target.value })} />
-            </div>
-            <div className="schedule-date-time-fields">
-              <div className="stack compact-gap schedule-time-field">
-                <label>이사시작시각</label>
-                <div className="inline-actions schedule-time-actions">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    value={startTimeText}
-                    onChange={e => setStartTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleStartTimeBlur}
-                  />
-                  <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
-                </div>
-              </div>
-              <div className="stack compact-gap schedule-time-field">
-                <label>이사종료예상시각</label>
-                <div className="inline-actions schedule-time-actions">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    value={endTimeText}
-                    onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
-                    onBlur={handleEndTimeBlur}
-                  />
-                  <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
-                </div>
+            <div className="stack compact-gap schedule-compact-field schedule-time-field">
+              <label>종료예상시각</label>
+              <div className="inline-actions schedule-time-actions">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="종료예상시각"
+                  value={endTimeText}
+                  onChange={e => setEndTimeText(e.target.value.replace(/[^\d:]/g, '').slice(0, 5))}
+                  onBlur={handleEndTimeBlur}
+                />
+                <button type="button" className={form.end_time === '미정' ? 'ghost small active-icon' : 'ghost small'} onClick={() => changeTimeField('end_time', form.end_time === '미정' ? '10:00' : '미정')}>미정</button>
               </div>
             </div>
           </div>
-          <div className="stack compact-gap">
+          <div className="stack compact-gap schedule-compact-field">
+            <label>출발지 상세주소</label>
             <input value={form.start_address} placeholder="출발지 상세주소" readOnly={mode === 'edit'} disabled={mode === 'edit'} onChange={e => setForm({ ...form, start_address: e.target.value, location: e.target.value })} />
           </div>
-          <div className="stack compact-gap">
+          <div className="stack compact-gap schedule-compact-field">
+            <label>도착지 상세주소</label>
             <input value={form.end_address} placeholder="도착지 상세주소" onChange={e => setForm({ ...form, end_address: e.target.value })} />
           </div>
-          <div className="schedule-form-grid-2 schedule-assignee-grid">
-            <AssigneeInput label="담당대표자" users={assignableUsers} value={[form.representative1, form.representative2, form.representative3].filter(Boolean).join(' / ')} onChange={updateRepresentativeNames} placeholder="이름/아이디 입력 후 태그 선택" />
-            <AssigneeInput label="담당직원" users={assignableUsers} value={[form.staff1, form.staff2, form.staff3].filter(Boolean).join(' / ')} onChange={updateStaffNames} placeholder="이름/아이디 입력 후 태그 선택" />
+          <div className="schedule-form-grid-2 schedule-assignee-grid schedule-editor-assignee-grid">
+            <AssigneeInput label="담당대표" users={assignableUsers} value={[form.representative1, form.representative2, form.representative3].filter(Boolean).join(' / ')} onChange={updateRepresentativeNames} placeholder="담당대표" />
+            <AssigneeInput label="담당직원" users={assignableUsers} value={[form.staff1, form.staff2, form.staff3].filter(Boolean).join(' / ')} onChange={updateStaffNames} placeholder="담당직원" />
           </div>
           {error && <div className="error">{error}</div>}
 

@@ -22680,3 +22680,130 @@ textarea,
     padding-right: 24px;
   }
 }
+
+
+.schedule-form-topbar-compact {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.schedule-topbar-actions {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.schedule-editor-card {
+  padding-top: 12px;
+}
+
+.schedule-editor-form {
+  gap: 10px;
+}
+
+.schedule-editor-compact-grid {
+  gap: 10px;
+  align-items: stretch;
+}
+
+.schedule-compact-field {
+  min-width: 0;
+}
+
+.schedule-editor-form .schedule-compact-field > label,
+.schedule-editor-form .assignee-field-wrap > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.schedule-editor-form .schedule-compact-field input,
+.schedule-editor-form .schedule-compact-field select,
+.schedule-editor-form .schedule-compact-field textarea,
+.schedule-editor-assignee-grid .assignee-input-shell,
+.schedule-editor-assignee-grid .assignee-chip-list,
+.schedule-title-toggle-button,
+.schedule-topbar-actions > button {
+  min-height: 40px;
+  border-radius: 10px;
+}
+
+.schedule-title-action-field,
+.schedule-title-action-field .schedule-title-toggle-button {
+  width: 100%;
+}
+
+.schedule-media-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compact-schedule-upload-row {
+  min-height: 40px;
+  justify-content: flex-start;
+}
+
+.compact-upload-trigger {
+  width: 40px;
+  height: 40px;
+}
+
+.schedule-memo-box {
+  min-height: 156px;
+  resize: vertical;
+}
+
+.schedule-date-time-compact-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.schedule-date-time-compact-row .schedule-time-actions input[type="text"] {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.schedule-editor-assignee-grid {
+  gap: 10px;
+}
+
+.schedule-editor-assignee-grid .assignee-input-shell,
+.schedule-editor-assignee-grid .assignee-chip-list {
+  min-height: 40px;
+}
+
+@media (max-width: 768px) {
+  .schedule-topbar-actions {
+    gap: 4px;
+  }
+
+  .schedule-topbar-actions > button,
+  .schedule-title-toggle-button {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .schedule-editor-compact-grid,
+  .schedule-date-time-compact-row {
+    gap: 8px;
+  }
+
+  .schedule-editor-form .schedule-compact-field input,
+  .schedule-editor-form .schedule-compact-field select,
+  .schedule-editor-form .schedule-compact-field textarea,
+  .schedule-editor-assignee-grid .assignee-input-shell,
+  .schedule-editor-assignee-grid .assignee-chip-list,
+  .schedule-title-toggle-button,
+  .schedule-topbar-actions > button {
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  .schedule-memo-box {
+    min-height: 120px;
+  }
+}
