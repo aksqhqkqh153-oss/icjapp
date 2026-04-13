@@ -447,6 +447,7 @@ function buildDraftChangeSummary(initialDraft, currentDraft) {
   const initial = normalizeDraftForCompare(initialDraft)
   const current = normalizeDraftForCompare(currentDraft)
   const changed = []
+  const valueLabel = value => String(value || '').trim() || '-'
 
   if (initial.customerName != current.customerName) changed.push('고객명')
   if (initial.disposalDate != current.disposalDate) changed.push('폐기일자')
@@ -455,17 +456,31 @@ function buildDraftChangeSummary(initialDraft, currentDraft) {
   if (initial.district != current.district) changed.push('관할구역')
   if (initial.finalStatus != current.finalStatus) changed.push('최종현황')
 
-  const changedItemRows = []
+  const changedItemDetails = []
   for (let index = 0; index < ITEM_ROW_COUNT; index += 1) {
     const before = initial.items[index] || {}
     const after = current.items[index] || {}
-    const beforeSerialized = JSON.stringify(before)
-    const afterSerialized = JSON.stringify(after)
-    if (beforeSerialized !== afterSerialized) changedItemRows.push(index + 1)
+    const rowChanges = []
+
+    if (before.itemName !== after.itemName) {
+      rowChanges.push(`품목 [${valueLabel(before.itemName)}] → [${valueLabel(after.itemName)}]`)
+    }
+    if (before.quantity !== after.quantity) {
+      rowChanges.push(`개수 [${valueLabel(before.quantity)}] → [${valueLabel(after.quantity)}]`)
+    }
+    if (before.unitCost !== after.unitCost) {
+      rowChanges.push(`개당신고비용 [${valueLabel(before.unitCost)}] → [${valueLabel(after.unitCost)}]`)
+    }
+
+    if (rowChanges.length) {
+      changedItemDetails.push(`폐기품목입력 ${index + 1}번: ${rowChanges.join(', ')}`)
+    }
   }
-  if (changedItemRows.length) {
-    const previewRows = changedItemRows.slice(0, 8).join(', ')
-    changed.push(`폐기품목입력 (${previewRows}${changedItemRows.length > 8 ? ' 외' : ''}번)`)
+  if (changedItemDetails.length) {
+    changed.push(...changedItemDetails.slice(0, 12))
+    if (changedItemDetails.length > 12) {
+      changed.push(`폐기품목입력 외 ${changedItemDetails.length - 12}건`)
+    }
   }
 
   return changed
