@@ -22982,3 +22982,63 @@ textarea,
     padding: 4px 2px;
   }
 }
+
+
+/* 2026-04-13 mobile schedule extra summary box removal + disposal form meta one-line */
+.schedule-page.mobile .calendar-day-summary-button.redesigned.mobile-compact {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.schedule-page.mobile .calendar-mobile-summary-stack.compact-topline {
+  width: auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+}
+
+.schedule-page.mobile .calendar-handless-pill.mobile-compact {
+  margin: 0 !important;
+}
+
+.disposal-linked-preview-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  width: 100%;
+}
+
+.disposal-linked-preview-meta > div {
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@media (max-width: 768px) {
+  .disposal-linked-preview-meta {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 2px !important;
+  }
+
+  .disposal-linked-preview-meta > div {
+    min-height: 28px !important;
+    padding: 3px 4px !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.03em;
+  }
+
+  .disposal-linked-preview-meta-chip-location,
+  .disposal-linked-preview-meta-chip-name,
+  .disposal-linked-preview-meta-chip-date,
+  .disposal-linked-preview-meta-chip-platform {
+    justify-content: center !important;
+  }
+}
