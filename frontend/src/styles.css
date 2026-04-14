@@ -25720,3 +25720,35 @@ button.danger {
     box-shadow:none!important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule header button/header/lane stack/plus row overrides */
+@media (min-width: 769px){
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line{
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .schedule-page .calendar-cell-topline.schedule-header-line::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line::after{
+    box-shadow: none !important;
+  }
+  .schedule-page .calendar-cell-topline.schedule-header-line button,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button,
+  .schedule-page .calendar-cell-topline.schedule-header-line [type="button"],
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line [type="button"]{
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row{
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+}
