@@ -26099,3 +26099,25 @@ button.danger {
 .friends-shell {
   border: 1px solid #000;
 }
+
+/* 2026-04-14 PC work-schedule border/background cleanup */
+@media (min-width: 769px) {
+  .page-container.schedule-wide.work-schedule-wide {
+    border: 1px solid #000 !important;
+    box-sizing: border-box;
+  }
+
+  .card.work-schedule-day.has-entries {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .work-schedule-main-top button[type="button"],
+  .work-schedule-main-top .work-day-status-button,
+  .work-schedule-main-top .work-schedule-nav-button {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+}
