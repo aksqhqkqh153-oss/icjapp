@@ -25061,6 +25061,7 @@ button.danger {
     margin-bottom: 0 !important;
     gap: 3px !important;
     align-items: stretch !important;
+    border-bottom: 0 !important;
   }
 
   .schedule-page .schedule-cell.detail-cell .calendar-date-select {
@@ -25235,10 +25236,11 @@ button.danger {
   .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout {
     min-height: 18px !important;
     height: 18px !important;
-    padding: 0 !important;
+    padding: 0 0 0 2px !important;
     gap: 1px !important;
     line-height: 1 !important;
     border-radius: 0 !important;
+    font-size: 17px !important;
   }
 
   .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout .calendar-day-summary-vehicle,
@@ -25258,10 +25260,11 @@ button.danger {
     height: 18px !important;
     min-width: fit-content !important;
     width: fit-content !important;
-    padding: 0 !important;
+    padding: 0 2px !important;
     margin: 0 !important;
     line-height: 1 !important;
     border-radius: 0 !important;
+    font-size: 11px !important;
   }
 
   .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout span {
