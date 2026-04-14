@@ -278,11 +278,39 @@ export default function StorageStatusPage() {
   }, [])
 
   const filteredRows = useMemo(() => {
+    const statusOrder = { '예정': 0, '진행': 1, '종료': 2, '': 3 }
+
     const statusFilteredRows = rows.filter((row) => {
       if (statusFilter === 'all') return row.status !== '종료'
       return row.status === statusFilter
     })
-    return statusFilteredRows.filter((row) => matchesSearchKeyword(row, searchKeyword))
+
+    return statusFilteredRows
+      .filter((row) => matchesSearchKeyword(row, searchKeyword))
+      .slice()
+      .sort((a, b) => {
+        if (statusFilter === 'all') {
+          const statusCompare = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+          if (statusCompare !== 0) return statusCompare
+        }
+
+        const aDate = parseDate(a.start_date)
+        const bDate = parseDate(b.start_date)
+
+        if (aDate && bDate) {
+          const timeCompare = aDate.getTime() - bDate.getTime()
+          if (timeCompare !== 0) return timeCompare
+        } else if (aDate && !bDate) {
+          return -1
+        } else if (!aDate && bDate) {
+          return 1
+        }
+
+        const customerCompare = String(a.customer_name || '').localeCompare(String(b.customer_name || ''), 'ko')
+        if (customerCompare !== 0) return customerCompare
+
+        return String(a.id || '').localeCompare(String(b.id || ''), 'en')
+      })
   }, [rows, statusFilter, searchKeyword])
 
   const visibleRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows])
