@@ -1644,7 +1644,7 @@ function Layout({ children, user, onLogout }) {
   const [disposalAdminAlertOpen, setDisposalAdminAlertOpen] = useState(false)
   const isScheduleView = location.pathname === '/schedule'
   const isWorkScheduleView = location.pathname === '/work-schedule'
-  const isWideScheduleLayout = isScheduleView || isWorkScheduleView
+  const isWideScheduleLayout = isScheduleView
   const isSearchView = location.pathname === '/search'
   const bottomLinks = [
     ['/', '홈'],
