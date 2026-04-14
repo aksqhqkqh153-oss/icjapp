@@ -14408,23 +14408,27 @@ body:not([data-theme="dark"]) .app-search-result-item * {
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-detail,
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item {
   font-weight: 400;
+  color: #111827;
 }
 
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-detail,
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item {
-  background: #eff6ff;
+  background: #f3f4f6;
+}
+
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary {
+  background: #ffffff;
 }
 
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item > div:nth-child(3),
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item > div:nth-child(4) {
-  color: #1d4ed8;
+  color: #111827;
   font-weight: 600;
 }
 
-.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:first-child,
-.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(2),
-.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(3),
-.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div:nth-child(10) {
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-summary > div {
   font-weight: 700;
+  color: #111827;
 }
 
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-toggle-button,

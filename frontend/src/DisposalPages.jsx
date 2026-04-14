@@ -18,7 +18,7 @@ const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const DATE_FILTER_OPTIONS = [
-  { value: 'all', label: '날짜' },
+  { value: 'all', label: '날짜(전체)' },
   { value: 'today', label: '오늘' },
   { value: '7days', label: '7일' },
   { value: 'thisMonth', label: '이번달' },
@@ -39,13 +39,14 @@ const SORT_DIRECTION_OPTIONS = [
 ]
 
 const SETTLEMENT_PRIMARY_FILTER_OPTIONS = [
+  { value: 'platform', label: '구분' },
   { value: 'disposalDate', label: '폐기일자' },
   { value: 'paymentDate', label: '입금일자' },
 ]
 
 const SETTLEMENT_SORT_DIRECTION_OPTIONS = [
-  { value: 'desc', label: '2차' },
   { value: 'asc', label: '오름차순' },
+  { value: 'desc', label: '내림차순' },
 ]
 
 const FINAL_STATUS_OPTIONS = ['입금전 / 신고전', '입금완 / 신고전', '입금완 / 신고완']
@@ -3329,6 +3330,9 @@ function getSettlementPaymentDateDisplay(record) {
 }
 
 function compareSettlementFieldValue(record, field) {
+  if (field === 'platform') {
+    return String(record?.platform || '').trim() || '-'
+  }
   if (field === 'paymentDate') {
     return getSettlementPaymentDateDisplay(record)
   }
@@ -3505,7 +3509,7 @@ export function DisposalSettlementsPage() {
   const [settlementDateFilter, setSettlementDateFilter] = useState('all')
   const [settlementDateStart, setSettlementDateStart] = useState('')
   const [settlementDateEnd, setSettlementDateEnd] = useState('')
-  const [settlementSortDirection, setSettlementSortDirection] = useState('desc')
+  const [settlementSortDirection, setSettlementSortDirection] = useState('asc')
   const [settlementSearchInput, setSettlementSearchInput] = useState('')
   const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
 
@@ -3600,7 +3604,7 @@ export function DisposalSettlementsPage() {
             <select value={settlementDateFilter} onChange={e => setSettlementDateFilter(e.target.value)} aria-label="월 결산표 날짜 필터">
               {DATE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <select value={settlementSortDirection} onChange={e => setSettlementSortDirection(e.target.value)} aria-label="월 결산표 2차 필터">
+            <select value={settlementSortDirection} onChange={e => setSettlementSortDirection(e.target.value)} aria-label="월 결산표 정렬기준 필터">
               {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             {settlementDateFilter === 'custom' ? (
