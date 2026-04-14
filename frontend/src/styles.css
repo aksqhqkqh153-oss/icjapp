@@ -23967,6 +23967,10 @@ textarea,
   font-weight: 400;
 }
 
+.storage-status-table.is-monthly td {
+  font-weight: 700;
+}
+
 .storage-status-table-monthly thead th:first-child,
 .storage-status-table-monthly tbody th:first-child {
   position: sticky;
@@ -23989,19 +23993,19 @@ textarea,
 .storage-status-table-monthly td.is-safe {
   background: #dcfce7;
   color: #166534;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-warn {
   background: #ffedd5;
   color: #9a3412;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-danger {
   background: #fee2e2;
   color: #991b1b;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .storage-status-empty {
@@ -24100,23 +24104,54 @@ button.danger {
 
   .storage-status-table th,
   .storage-status-table td {
-    font-size: 10px;
-    padding: 5px 3px;
+    font-size: 11px;
+    padding: 5px 2px;
+    font-weight: 700;
+    letter-spacing: -0.15px;
   }
 
   .storage-status-table-input col:nth-child(1) { width: 6%; }
-  .storage-status-table-input col:nth-child(2) { width: 11%; }
-  .storage-status-table-input col:nth-child(3) { width: 21%; }
-  .storage-status-table-input col:nth-child(4) { width: 18%; }
-  .storage-status-table-input col:nth-child(5) { width: 14%; }
-  .storage-status-table-input col:nth-child(6) { width: 14%; }
-  .storage-status-table-input col:nth-child(7) { width: 16%; }
+  .storage-status-table-input col:nth-child(2) { width: 10%; }
+  .storage-status-table-input col:nth-child(3) { width: 17%; }
+  .storage-status-table-input col:nth-child(4) { width: 17%; }
+  .storage-status-table-input col:nth-child(5) { width: 18%; }
+  .storage-status-table-input col:nth-child(6) { width: 18%; }
+  .storage-status-table-input col:nth-child(7) { width: 14%; }
 
   .storage-status-table-input input {
-    font-size: 10px;
-    padding: 4px 3px;
+    font-size: 11px;
+    padding: 4px 2px;
     border-radius: 6px;
     min-height: 24px;
+    font-weight: 700;
+    letter-spacing: -0.15px;
+  }
+
+  .storage-status-table-input td:nth-child(3),
+  .storage-status-table-input td:nth-child(7),
+  .storage-status-table-input th:nth-child(3),
+  .storage-status-table-input th:nth-child(7) {
+    white-space: nowrap;
+  }
+
+  .storage-status-table-input td:nth-child(5),
+  .storage-status-table-input td:nth-child(6),
+  .storage-status-table-input th:nth-child(5),
+  .storage-status-table-input th:nth-child(6) {
+    white-space: nowrap;
+  }
+
+  .storage-status-table-input td:nth-child(3) input,
+  .storage-status-table-input td:nth-child(7) input {
+    padding-left: 1px;
+    padding-right: 1px;
+  }
+
+  .storage-status-table-input td:nth-child(5) input,
+  .storage-status-table-input td:nth-child(6) input {
+    padding-left: 1px;
+    padding-right: 1px;
+    letter-spacing: -0.2px;
   }
 
   .storage-status-check-col {
