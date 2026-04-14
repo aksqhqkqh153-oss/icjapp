@@ -24218,6 +24218,25 @@ button.danger {
   outline: none;
 }
 
+.storage-status-table-monthly th.is-selected-cross,
+.storage-status-table-monthly td.is-selected-cross {
+  box-shadow: inset 0 0 0 2px #111111;
+  position: relative;
+  z-index: 2;
+}
+
+.storage-status-table-monthly td.is-selected-cell,
+.storage-status-table-monthly th.is-selected-cell {
+  box-shadow: inset 0 0 0 2px #111111;
+  position: relative;
+  z-index: 3;
+}
+
+.storage-status-table-monthly thead th.is-selected-cross,
+.storage-status-table-monthly tbody th.is-selected-cross {
+  box-shadow: inset 0 0 0 2px #111111, 1px 0 0 #e5e7eb;
+}
+
 .storage-status-modal-backdrop {
   position: fixed;
   inset: 0;

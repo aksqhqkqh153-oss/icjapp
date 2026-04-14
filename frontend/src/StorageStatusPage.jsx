@@ -218,6 +218,7 @@ export default function StorageStatusPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [searchInput, setSearchInput] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [selectedMonthlyCell, setSelectedMonthlyCell] = useState(null)
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -524,22 +525,33 @@ export default function StorageStatusPage() {
           <table className="storage-status-table is-monthly storage-status-table-monthly">
             <thead>
               <tr>
-                <th>월</th>
-                {Array.from({ length: 31 }, (_, index) => <th key={index + 1}>{index + 1}</th>)}
+                <th className={selectedMonthlyCell ? 'is-selected-cross' : ''}>월</th>
+                {Array.from({ length: 31 }, (_, index) => {
+                  const day = index + 1
+                  const isSelectedColumn = selectedMonthlyCell?.day === day
+                  return <th key={day} className={isSelectedColumn ? 'is-selected-cross' : ''}>{day}</th>
+                })}
               </tr>
             </thead>
             <tbody>
-              {monthlyRows.map((row) => (
+              {monthlyRows.map((row) => {
+                const isSelectedRow = selectedMonthlyCell?.month === row.month
+                return (
                 <tr key={row.month}>
-                  <th>{row.month}월</th>
+                  <th className={isSelectedRow ? 'is-selected-cross' : ''}>{row.month}월</th>
                   {row.days.map((value, index) => {
                     const day = index + 1
                     const toneClass = getMonthlyCellTone(value)
                     const clickableClass = value ? 'is-clickable' : ''
+                    const isSelectedColumn = selectedMonthlyCell?.day === day
+                    const isSelectedCell = isSelectedRow && isSelectedColumn
+                    const crossClass = isSelectedCell
+                      ? 'is-selected-cell'
+                      : (isSelectedRow || isSelectedColumn ? 'is-selected-cross' : '')
                     return (
                       <td
                         key={day}
-                        className={`${toneClass} ${clickableClass}`.trim()}
+                        className={`${toneClass} ${clickableClass} ${crossClass}`.trim()}
                         onClick={value ? () => handleMonthlyCellClick(row.month, day) : undefined}
                         role={value ? 'button' : undefined}
                         tabIndex={value ? 0 : undefined}
@@ -556,7 +568,7 @@ export default function StorageStatusPage() {
                     )
                   })}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
