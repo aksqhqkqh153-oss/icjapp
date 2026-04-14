@@ -25294,3 +25294,19 @@ button.danger {
     padding-top: 0 !important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule toolbar/lane zero padding cleanup */
+@media (min-width: 769px) {
+  .schedule-page .calendar-toolbar.upgraded.schedule-toolbar-updated {
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes {
+    padding-top: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
