@@ -6572,8 +6572,23 @@ function CalendarPage() {
   function openOverflowPopup(date, dayItems, event, title = '일정목록', daySummaryOverride = null) {
     if (event) event.stopPropagation()
     const rect = event?.currentTarget?.getBoundingClientRect?.()
-    const anchorX = rect ? Math.min(window.innerWidth - 420, Math.max(12, rect.left - 150)) : 24
-    const anchorY = rect ? Math.min(window.innerHeight - 360, rect.bottom + 8) : 120
+    const viewportWidth = window.innerWidth || 1280
+    const viewportHeight = window.innerHeight || 900
+    const gap = 12
+    const estimatedPopupWidth = Math.min(720, Math.max(320, viewportWidth - (gap * 2)))
+    const estimatedPopupHeight = Math.min(720, Math.max(280, Math.round(viewportHeight * 0.76)))
+    let anchorX = 24
+    let anchorY = 120
+
+    if (rect) {
+      const centeredLeft = rect.left + (rect.width / 2) - (estimatedPopupWidth / 2)
+      const openBelow = rect.bottom + 8 + estimatedPopupHeight <= viewportHeight - gap || rect.top < estimatedPopupHeight
+      anchorX = Math.min(viewportWidth - estimatedPopupWidth - gap, Math.max(gap, centeredLeft))
+      anchorY = openBelow
+        ? Math.min(viewportHeight - estimatedPopupHeight - gap, rect.bottom + 8)
+        : Math.max(gap, rect.top - estimatedPopupHeight - 8)
+    }
+
     const dateKey = fmtDate(date)
     const popupDaySummary = daySummaryOverride || workDayMap.get(dateKey) || buildDayStatusForm({ date: dateKey })
     setOverflowPopup({ dateKey, items: dayItems, title, x: anchorX, y: anchorY, daySummary: popupDaySummary })
@@ -7086,7 +7101,7 @@ function CalendarPage() {
       )}
 
       {overflowPopup.dateKey && (
-        <div className="schedule-inline-overlay" onClick={closeOverflowPopup}>
+        <div className="schedule-inline-overlay schedule-inline-overlay-pass-through">
           <section className="schedule-inline-popup-card schedule-inline-popup-card-expanded" style={{ left: overflowPopup.x, top: overflowPopup.y }} onClick={event => event.stopPropagation()}>
             <div className="between schedule-popup-head schedule-popup-head-expanded">
               <div className="schedule-popup-head-main">
