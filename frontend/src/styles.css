@@ -22461,6 +22461,11 @@ textarea,
   border-right: 0;
 }
 
+.disposal-bulk-payment-cell-center {
+  justify-content: center;
+  text-align: center;
+}
+
 .disposal-bulk-payment-row:last-child > div {
   border-bottom: 0;
 }

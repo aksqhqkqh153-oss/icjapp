@@ -2640,8 +2640,8 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
               <div>수량</div>
               <div>매출액</div>
               <div>입금일시</div>
-              <div>입금</div>
-              <div>신고</div>
+              <div className="disposal-bulk-payment-cell-center">입금</div>
+              <div className="disposal-bulk-payment-cell-center">신고</div>
             </div>
             {rows.map(row => {
               const nextValue = String(paymentDates[row.key] || '').trim()
@@ -2679,17 +2679,8 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
                       />
                     </div>
                   </div>
-                  <div>{isPaid ? 'O' : 'X'}</div>
-                  <div>
-                    <button
-                      type="button"
-                      className="disposal-bulk-payment-status-button"
-                      onClick={() => onChangeReportStatus?.(row.key, !isReported)}
-                      aria-label={`${row.itemName} 신고 여부 전환`}
-                    >
-                      {isReported ? 'O' : 'X'}
-                    </button>
-                  </div>
+                  <div className="disposal-bulk-payment-cell-center">{isPaid ? 'O' : 'X'}</div>
+                  <div className="disposal-bulk-payment-cell-center">{isReported ? 'O' : 'X'}</div>
                 </div>
               )
             })}
