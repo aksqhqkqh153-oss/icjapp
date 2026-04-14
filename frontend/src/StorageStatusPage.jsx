@@ -138,6 +138,19 @@ function buildMonthlyRows(rows) {
   }))
 }
 
+function isDateWithinRow(targetDate, row) {
+  const start = parseDate(row.start_date)
+  const end = parseDate(row.end_date)
+  if (!targetDate || !start || !end) return false
+  const cursor = new Date(targetDate)
+  cursor.setHours(0, 0, 0, 0)
+  const compareStart = new Date(start)
+  const compareEnd = new Date(end)
+  compareStart.setHours(0, 0, 0, 0)
+  compareEnd.setHours(0, 0, 0, 0)
+  return cursor >= compareStart && cursor <= compareEnd
+}
+
 function serializeRows(rows) {
   return JSON.stringify(rows.map(normalizeRow).map(({ id, status, customer_name, manager_name, start_date, end_date, scale }) => ({
     id,
@@ -186,6 +199,7 @@ export default function StorageStatusPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
+  const [detailModalDate, setDetailModalDate] = useState(null)
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -281,6 +295,8 @@ export default function StorageStatusPage() {
   }, [tab, isDirty, rows, baselineRows, save])
 
   const monthlyRows = useMemo(() => buildMonthlyRows(rows), [rows])
+  const detailRows = useMemo(() => rows.filter((row) => isDateWithinRow(detailModalDate, row)), [rows, detailModalDate])
+
   const changedCellMap = useMemo(() => {
     const map = {}
     rows.forEach((row, index) => {
@@ -295,6 +311,12 @@ export default function StorageStatusPage() {
     })
     return map
   }, [rows, baselineRows])
+
+  const handleMonthlyCellClick = useCallback((month, day) => {
+    const targetDate = new Date(new Date().getFullYear(), month - 1, day)
+    targetDate.setHours(0, 0, 0, 0)
+    setDetailModalDate(targetDate)
+  }, [])
 
   return (
     <div className="feature-card storage-status-shell">
@@ -389,15 +411,83 @@ export default function StorageStatusPage() {
               {monthlyRows.map((row) => (
                 <tr key={row.month}>
                   <th>{row.month}월</th>
-                  {row.days.map((value, index) => (
-                    <td key={index + 1} className={getMonthlyCellTone(value)}>{value}</td>
-                  ))}
+                  {row.days.map((value, index) => {
+                    const day = index + 1
+                    const toneClass = getMonthlyCellTone(value)
+                    const clickableClass = value ? 'is-clickable' : ''
+                    return (
+                      <td
+                        key={day}
+                        className={`${toneClass} ${clickableClass}`.trim()}
+                        onClick={value ? () => handleMonthlyCellClick(row.month, day) : undefined}
+                        role={value ? 'button' : undefined}
+                        tabIndex={value ? 0 : undefined}
+                        onKeyDown={value ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            handleMonthlyCellClick(row.month, day)
+                          }
+                        } : undefined}
+                        aria-label={value ? `${row.month}월 ${day}일 짐규모 세부현황 열기` : undefined}
+                      >
+                        {value}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : null}
+
+      {detailModalDate ? (
+        <div className="storage-status-modal-backdrop" role="dialog" aria-modal="true" aria-label="짐규모 세부현황">
+          <div className="storage-status-modal">
+            <div className="storage-status-modal-header">
+              <button
+                type="button"
+                className="ghost storage-status-modal-back"
+                onClick={() => setDetailModalDate(null)}
+                aria-label="뒤로가기"
+              >
+                ←
+              </button>
+              <strong>짐규모 세부현황</strong>
+              <span className="storage-status-modal-date">{formatDate(detailModalDate)}</span>
+            </div>
+            <div className="storage-status-modal-body">
+              <table className="storage-status-detail-table">
+                <thead>
+                  <tr>
+                    <th>짐규모</th>
+                    <th>시작일</th>
+                    <th>종료일</th>
+                    <th>고객명</th>
+                    <th>담당대표</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="storage-status-empty">해당 일자의 짐보관 일정이 없습니다.</td>
+                    </tr>
+                  ) : detailRows.map((row) => (
+                    <tr key={`detail-${row.id}`}>
+                      <td>{row.scale || '-'}</td>
+                      <td>{row.start_date || '-'}</td>
+                      <td>{row.end_date || '-'}</td>
+                      <td>{row.customer_name || '-'}</td>
+                      <td>{row.manager_name || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   )
 }
