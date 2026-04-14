@@ -7,7 +7,7 @@ const TAB_ITEMS = [
 ]
 
 const STATUS_FILTER_ITEMS = [
-  { key: 'all', title: '전체' },
+  { key: 'all', title: '구분(전체)' },
   { key: '예정', title: '예정' },
   { key: '진행', title: '진행' },
   { key: '종료', title: '종료' },
@@ -576,7 +576,7 @@ export default function StorageStatusPage() {
           </div>
           <div className="storage-status-toolbar storage-status-toolbar-filter-row">
             <div className="storage-status-filter-wrap">
-              <label className="storage-status-filter-label" htmlFor="storage-status-filter">구분필터</label>
+              
               <select
                 id="storage-status-filter"
                 className="storage-status-filter-select"

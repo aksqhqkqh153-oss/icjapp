@@ -6419,7 +6419,7 @@ function CalendarPage() {
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
     if (String(item?.entry_type || 'calendar') !== 'calendar' || linkedId <= 0) return
-    setDetailPopupEventId(linkedId)
+    navigate(`/schedule/${linkedId}`)
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {
@@ -7715,7 +7715,7 @@ function WorkSchedulePage() {
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
     if (String(item?.entry_type || '') !== 'calendar' || linkedId <= 0) return
-    setDetailPopupEventId(linkedId)
+    navigate(`/schedule/${linkedId}`)
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {
