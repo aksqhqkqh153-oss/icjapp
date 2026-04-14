@@ -23930,3 +23930,90 @@ button.danger {
 .work-schedule-page.mobile .work-schedule-nav-spacer {
   width: 38px;
 }
+
+
+/* schedule header single-row alignment + borderless nav */
+.work-schedule-headline-with-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.work-schedule-headline-center {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.work-schedule-heading-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: center;
+  white-space: nowrap;
+}
+.work-schedule-heading-copy strong,
+.work-schedule-heading-copy .work-schedule-date-inline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.work-schedule-nav-button,
+.work-schedule-today-button {
+  min-width: auto;
+  padding: 6px 8px;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.work-schedule-nav-button:hover,
+.work-schedule-today-button:hover {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+.work-schedule-nav-spacer {
+  width: 22px;
+  flex: 0 0 22px;
+}
+.work-schedule-page.mobile .work-schedule-head,
+.work-schedule-page.mobile .work-schedule-head.work-schedule-mobile-block {
+  align-items: center;
+}
+.work-schedule-page.mobile .work-schedule-headline-with-nav {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.work-schedule-page.mobile .work-schedule-headline-center {
+  gap: 2px;
+  min-width: 0;
+}
+.work-schedule-page.mobile .work-schedule-heading-copy {
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+}
+.work-schedule-page.mobile .work-schedule-heading-copy strong {
+  font-size: 14px;
+}
+.work-schedule-page.mobile .work-schedule-heading-copy .work-schedule-date-inline {
+  font-size: 12px;
+}
+.work-schedule-page.mobile .work-schedule-nav-button,
+.work-schedule-page.mobile .work-schedule-today-button {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.work-schedule-page.mobile .work-schedule-nav-spacer {
+  width: 18px;
+  flex-basis: 18px;
+}
