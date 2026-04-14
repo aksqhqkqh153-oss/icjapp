@@ -2289,6 +2289,10 @@ function HomePage() {
   const [editingQuick, setEditingQuick] = useState(false)
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
   const [homeSettings, setHomeSettings] = useState(() => getHomeSettings(currentUser?.id))
+  const [draggingQuickId, setDraggingQuickId] = useState('')
+  const [dragOverQuickId, setDragOverQuickId] = useState('')
+  const quickTouchStateRef = useRef({ active: false, quickId: '', moved: false })
+  const quickDragSuppressClickRef = useRef(false)
   const [holdProgress, setHoldProgress] = useState(false)
   const [workdayStatus, setWorkdayStatus] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -2451,6 +2455,17 @@ function HomePage() {
     updateQuickState({ ...quickState, active: next })
   }
 
+  function reorderQuickActionsById(draggedId, targetId) {
+    if (!draggedId || !targetId || draggedId === targetId) return
+    const next = [...quickState.active]
+    const fromIndex = next.indexOf(draggedId)
+    const toIndex = next.indexOf(targetId)
+    if (fromIndex < 0 || toIndex < 0) return
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    updateQuickState({ ...quickState, active: next })
+  }
+
   function archiveQuickAction(id) {
     updateQuickState({ active: quickState.active.filter(item => item !== id), archived: [...quickState.archived, id] })
   }
@@ -2478,6 +2493,80 @@ function HomePage() {
       return
     }
     window.alert(`${item.label} 기능은 다음 업데이트에서 연결할 예정입니다.`)
+  }
+
+  function resetQuickDragState() {
+    setDraggingQuickId('')
+    setDragOverQuickId('')
+    quickTouchStateRef.current = { active: false, quickId: '', moved: false }
+  }
+
+  function handleQuickDragStart(quickId) {
+    setDraggingQuickId(quickId)
+    setDragOverQuickId(quickId)
+  }
+
+  function handleQuickDragEnter(quickId) {
+    if (!draggingQuickId || !quickId || draggingQuickId === quickId) return
+    setDragOverQuickId(quickId)
+  }
+
+  function handleQuickDrop(quickId) {
+    const draggedId = draggingQuickId || quickTouchStateRef.current.quickId
+    if (!draggedId || !quickId) {
+      resetQuickDragState()
+      return
+    }
+    reorderQuickActionsById(draggedId, quickId)
+    resetQuickDragState()
+  }
+
+  function handleQuickTouchStart(event, quickId) {
+    quickTouchStateRef.current = {
+      active: true,
+      quickId,
+      moved: false,
+      startX: event.touches?.[0]?.clientX ?? 0,
+      startY: event.touches?.[0]?.clientY ?? 0,
+    }
+    setDraggingQuickId(quickId)
+    setDragOverQuickId(quickId)
+  }
+
+  function handleQuickTouchMove(event) {
+    const current = quickTouchStateRef.current
+    if (!current?.active) return
+    const touch = event.touches?.[0]
+    if (!touch) return
+    const dx = Math.abs((touch.clientX ?? 0) - (current.startX ?? 0))
+    const dy = Math.abs((touch.clientY ?? 0) - (current.startY ?? 0))
+    if (dx > 6 || dy > 6) {
+      current.moved = true
+      quickDragSuppressClickRef.current = true
+      event.preventDefault()
+    }
+    const element = document.elementFromPoint(touch.clientX, touch.clientY)
+    const quickTarget = element?.closest?.('[data-quick-id]')
+    const quickId = quickTarget?.dataset?.quickId || ''
+    if (quickId && quickId !== dragOverQuickId) setDragOverQuickId(quickId)
+  }
+
+  function handleQuickTouchEnd() {
+    const current = quickTouchStateRef.current
+    if (current?.moved && current.quickId && dragOverQuickId && current.quickId !== dragOverQuickId) {
+      reorderQuickActionsById(current.quickId, dragOverQuickId)
+    }
+    window.setTimeout(() => {
+      quickDragSuppressClickRef.current = false
+    }, 160)
+    resetQuickDragState()
+  }
+
+  function handleQuickTouchCancel() {
+    window.setTimeout(() => {
+      quickDragSuppressClickRef.current = false
+    }, 160)
+    resetQuickDragState()
   }
 
   const quickLibrary = useMemo(() => {
@@ -2591,14 +2680,41 @@ function HomePage() {
                   : (item.kind === 'placeholder' ? '준비중' : '')
               const isDisabled = item.kind === 'placeholder' || preparingLocked
               const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
+              const isDraggingCard = draggingQuickId === item.id
+              const isDropTarget = dragOverQuickId === item.id && draggingQuickId && draggingQuickId !== item.id
               return (
                 <button
                   key={item.id}
+                  data-quick-id={item.id}
+                  draggable
                   type="button"
-                  className={`quick-check-card ${isDisabled ? 'quick-check-card-disabled' : ''}`.trim()}
-                  onClick={() => handleQuickActionClick(item)}
+                  className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
+                  onDragStart={event => {
+                    event.dataTransfer.effectAllowed = 'move'
+                    event.dataTransfer.setData('text/plain', item.id)
+                    handleQuickDragStart(item.id)
+                  }}
+                  onDragEnter={() => handleQuickDragEnter(item.id)}
+                  onDragOver={event => {
+                    event.preventDefault()
+                    handleQuickDragEnter(item.id)
+                  }}
+                  onDrop={event => {
+                    event.preventDefault()
+                    handleQuickDrop(item.id)
+                  }}
+                  onDragEnd={resetQuickDragState}
+                  onTouchStart={event => handleQuickTouchStart(event, item.id)}
+                  onTouchMove={handleQuickTouchMove}
+                  onTouchEnd={handleQuickTouchEnd}
+                  onTouchCancel={handleQuickTouchCancel}
+                  onClick={() => {
+                    if (quickDragSuppressClickRef.current) return
+                    handleQuickActionClick(item)
+                  }}
                   disabled={isDisabled}
                 >
+                  <span className="quick-check-drag-badge" aria-hidden="true">⋮⋮</span>
                   {topText ? <strong>{topText}</strong> : null}
                   <span style={item.multiline || labelText.includes('\n') ? { whiteSpace: 'pre-line' } : undefined}>{labelText}</span>
                 </button>
@@ -6314,7 +6430,7 @@ function CalendarPage() {
   const [workDays, setWorkDays] = useState([])
   const [monthCursor, setMonthCursor] = useState(initialMonth)
   const [selectedDate, setSelectedDate] = useState(initialDate)
-  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [], title: '', x: 0, y: 0 })
+  const [overflowPopup, setOverflowPopup] = useState({ dateKey: '', items: [], title: '', x: 0, y: 0, daySummary: null })
   const [calendarStatusDate, setCalendarStatusDate] = useState('')
   const [calendarStatusForm, setCalendarStatusForm] = useState(buildDayStatusForm(null))
   const [mobileStatusPopup, setMobileStatusPopup] = useState(null)
@@ -6404,16 +6520,18 @@ function CalendarPage() {
     navigate(`/schedule?date=${todayKey}`, { replace: true })
   }
 
-  function openOverflowPopup(date, dayItems, event) {
+  function openOverflowPopup(date, dayItems, event, title = '일정목록', daySummaryOverride = null) {
     if (event) event.stopPropagation()
     const rect = event?.currentTarget?.getBoundingClientRect?.()
-    const anchorX = rect ? Math.min(window.innerWidth - 320, Math.max(12, rect.left - 120)) : 24
-    const anchorY = rect ? Math.min(window.innerHeight - 260, rect.bottom + 8) : 120
-    setOverflowPopup({ dateKey: fmtDate(date), items: dayItems, title: '일정목록', x: anchorX, y: anchorY })
+    const anchorX = rect ? Math.min(window.innerWidth - 420, Math.max(12, rect.left - 150)) : 24
+    const anchorY = rect ? Math.min(window.innerHeight - 360, rect.bottom + 8) : 120
+    const dateKey = fmtDate(date)
+    const popupDaySummary = daySummaryOverride || workDayMap.get(dateKey) || buildDayStatusForm({ date: dateKey })
+    setOverflowPopup({ dateKey, items: dayItems, title, x: anchorX, y: anchorY, daySummary: popupDaySummary })
   }
 
   function closeOverflowPopup() {
-    setOverflowPopup({ dateKey: '', items: [], title: '', x: 0, y: 0 })
+    setOverflowPopup({ dateKey: '', items: [], title: '', x: 0, y: 0, daySummary: null })
   }
 
   function openScheduleDetailPopup(item) {
@@ -6655,7 +6773,7 @@ function CalendarPage() {
                       </button>
                       {!isMobile && (
                         <div className="calendar-top-actions filled">
-                          <button type="button" className="calendar-entry-band secondary filled" onClick={() => setOverflowPopup({ dateKey: fmtDate(date), items: daySummary?.entries || [], title: '스케줄목록' })}>
+                          <button type="button" className="calendar-entry-band secondary filled" onClick={(event) => openOverflowPopup(date, daySummary?.entries || [], event, '스케줄목록', daySummary)}>
                             <span className="calendar-entry-label two-line">스케줄<br />목록</span>
                           </button>
                           <button type="button" className="calendar-entry-band filled schedule-add-band" onClick={() => openDateForm(date)} title="일정등록" aria-label="일정등록">
@@ -6704,7 +6822,7 @@ function CalendarPage() {
                           ))}
                         </div>
                         <div className="calendar-plus-row">
-                          {extraCount > 0 ? <button type="button" className="calendar-more-indicator single-plus" onClick={(event) => openOverflowPopup(date, dayItems, event)}>+</button> : <span />}
+                          <button type="button" className={`calendar-more-indicator single-plus${dayItems.length > 0 ? ' has-items' : ''}`} onClick={(event) => openOverflowPopup(date, dayItems, event, '일정목록', daySummary)} title="전체 일정 보기" aria-label="전체 일정 보기">+</button>
                         </div>
                       </div>
                     )}
@@ -6918,33 +7036,42 @@ function CalendarPage() {
         </div>
       )}
 
-      {overflowPopup.items.length > 0 && (
+      {overflowPopup.dateKey && (
         <div className="schedule-inline-overlay" onClick={closeOverflowPopup}>
-          <section className="schedule-inline-popup-card" style={{ left: overflowPopup.x, top: overflowPopup.y }} onClick={event => event.stopPropagation()}>
-            <div className="between schedule-popup-head">
-              <div>
+          <section className="schedule-inline-popup-card schedule-inline-popup-card-expanded" style={{ left: overflowPopup.x, top: overflowPopup.y }} onClick={event => event.stopPropagation()}>
+            <div className="between schedule-popup-head schedule-popup-head-expanded">
+              <div className="schedule-popup-head-main">
                 <strong>{formatSelectedDateLabel(overflowPopup.dateKey)}</strong>
-                <div className="muted">{overflowPopup.title === '스케줄목록' ? '해당 날짜의 스케줄 목록입니다.' : '해당 날짜의 전체 일정 목록입니다.'}</div>
               </div>
-              <button type="button" className="ghost small" onClick={closeOverflowPopup}>닫기</button>
+              <button type="button" className="ghost small schedule-popup-close-x" onClick={closeOverflowPopup}>X</button>
             </div>
+            <div className="schedule-popup-summary-bar">
+              <span className="schedule-popup-summary-chip">가용차량수 {String(overflowPopup.daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+              <span className="schedule-popup-summary-chip">A: {String(overflowPopup.daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
+              <span className="schedule-popup-summary-chip">B: {String(overflowPopup.daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
+              <span className="schedule-popup-summary-chip">C: {String(overflowPopup.daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+              <span className={`schedule-popup-summary-chip kind ${overflowPopup.daySummary?.is_handless_day ? 'handless' : 'general'}`}>{overflowPopup.daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
+            </div>
+            <div className="schedule-popup-list-title">기본일정들</div>
             <div className="schedule-popup-list">
               {overflowPopup.items.map(item => {
                 const isWorkEntry = item.entry_type === 'manual' || item.source_summary === ''
                 return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="detail-schedule-item popup-item colorized"
-                  style={{ background: applyAlphaToHex(item.color || '#334155', '24'), borderColor: applyAlphaToHex(item.color || '#334155', '88') }}
-                  onClick={() => {
-                    closeOverflowPopup()
-                    if (!isWorkEntry && item.event_id) openScheduleDetailPopup(item)
-                  }}
-                >
-                  {isWorkEntry ? <ScheduleCardLine item={item} colorized={false} /> : <ScheduleCardLine item={item} colorized={false} />}
-                </button>
-              )})}
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="detail-schedule-item popup-item colorized schedule-popup-item-expanded"
+                    style={{ background: applyAlphaToHex(item.color || '#334155', '24'), borderColor: applyAlphaToHex(item.color || '#334155', '88') }}
+                    onClick={() => {
+                      closeOverflowPopup()
+                      if (!isWorkEntry && item.event_id) openScheduleDetailPopup(item)
+                    }}
+                  >
+                    <ScheduleCardLine item={item} colorized={false} />
+                  </button>
+                )
+              })}
+              {overflowPopup.items.length === 0 && <div className="muted">등록된 일정이 없습니다.</div>}
             </div>
           </section>
         </div>

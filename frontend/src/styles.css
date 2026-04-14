@@ -24595,3 +24595,119 @@ button.danger {
 .schedule-color-select {
   border: 1px solid #111111;
 }
+
+/* 2026-04-14 home quick drag + schedule plus popup */
+.quick-check-draggable {
+  position: relative;
+  cursor: grab;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  user-select: none;
+  touch-action: none;
+}
+.quick-check-draggable:active {
+  cursor: grabbing;
+}
+.quick-check-drag-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 12px;
+  letter-spacing: -1px;
+  opacity: 0.5;
+}
+.quick-check-draggable.is-dragging {
+  opacity: 0.82;
+  transform: scale(1.04) rotate(-1.5deg);
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.22);
+  z-index: 3;
+}
+.quick-check-draggable.is-drop-target {
+  transform: translateX(6px);
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.22), 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.calendar-plus-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.calendar-more-indicator.single-plus {
+  min-width: 28px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+}
+.calendar-more-indicator.single-plus.has-items {
+  background: linear-gradient(135deg, #0f172a, #2563eb);
+}
+.schedule-inline-popup-card.schedule-inline-popup-card-expanded {
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(76vh, 720px);
+  padding: 18px;
+  border-radius: 20px;
+}
+.schedule-popup-head-expanded {
+  align-items: center;
+  border-bottom: 1px solid #e6edf5;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+.schedule-popup-head-main strong {
+  font-size: 1.02rem;
+  color: #0f172a;
+}
+.schedule-popup-close-x {
+  min-width: 42px;
+}
+.schedule-popup-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.schedule-popup-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f3f8ff;
+  border: 1px solid #d9e7fb;
+  color: #1e3a5f;
+  font-weight: 600;
+}
+.schedule-popup-summary-chip.kind.handless {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+.schedule-popup-summary-chip.kind.general {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.schedule-popup-list-title {
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 10px;
+}
+.schedule-popup-item-expanded {
+  text-align: left;
+}
+@media (max-width: 768px) {
+  .quick-check-draggable.is-drop-target {
+    transform: translateY(4px);
+  }
+  .schedule-inline-popup-card.schedule-inline-popup-card-expanded {
+    width: calc(100vw - 20px);
+    left: 10px !important;
+    right: 10px;
+    top: auto !important;
+    bottom: 12px;
+    max-height: 72vh;
+  }
+}
