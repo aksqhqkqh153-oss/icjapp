@@ -635,17 +635,17 @@ export default function StorageStatusPage() {
                 ←
               </button>
               <strong>짐규모 세부현황</strong>
-              <span className="storage-status-modal-date">{formatDate(detailModalDate)}</span>
+              <span className="storage-status-modal-date">{`${formatDate(detailModalDate)}. 일정선택`}</span>
             </div>
             <div className="storage-status-modal-body">
               <table className="storage-status-detail-table">
                 <thead>
                   <tr>
-                    <th>짐규모</th>
-                    <th>시작일</th>
-                    <th>종료일</th>
                     <th>고객명</th>
                     <th>담당대표</th>
+                    <th>시작일</th>
+                    <th>종료일</th>
+                    <th>짐규모</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -655,11 +655,11 @@ export default function StorageStatusPage() {
                     </tr>
                   ) : detailRows.map((row) => (
                     <tr key={`detail-${row.id}`}>
-                      <td>{row.scale || '-'}</td>
-                      <td>{row.start_date || '-'}</td>
-                      <td>{row.end_date || '-'}</td>
                       <td>{row.customer_name || '-'}</td>
                       <td>{row.manager_name || '-'}</td>
+                      <td>{row.start_date || '-'}</td>
+                      <td>{row.end_date || '-'}</td>
+                      <td>{row.scale || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

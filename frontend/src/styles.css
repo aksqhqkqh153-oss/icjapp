@@ -24291,6 +24291,7 @@ button.danger {
 .storage-status-modal-header strong {
   justify-self: center;
   font-size: 16px;
+  font-weight: 800;
   color: #111827;
 }
 
@@ -24298,6 +24299,8 @@ button.danger {
   font-size: 12px;
   font-weight: 700;
   color: #475569;
+  white-space: nowrap;
+  justify-self: end;
 }
 
 .storage-status-modal-back {
@@ -24307,23 +24310,27 @@ button.danger {
   border-radius: 10px;
   font-size: 18px;
   line-height: 1;
+  justify-self: start;
 }
 
 .storage-status-modal-body {
   overflow: auto;
-  padding: 0;
+  padding: 14px 16px 16px;
 }
 
 .storage-status-detail-table {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
+  border: 2px solid #000;
 }
 
 .storage-status-detail-table th,
 .storage-status-detail-table td {
-  border-bottom: 1px solid #e5e7eb;
-  padding: 10px 8px;
+  border: 1px solid #000;
+  padding: 8px 10px;
   text-align: center;
   white-space: nowrap;
   font-size: 12px;
@@ -24345,17 +24352,16 @@ button.danger {
   }
 
   .storage-status-modal-header {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     gap: 8px;
   }
 
   .storage-status-modal-header strong {
-    justify-self: start;
+    justify-self: center;
     font-size: 15px;
   }
 
   .storage-status-modal-date {
-    grid-column: 1 / -1;
     justify-self: end;
   }
 
