@@ -11,7 +11,8 @@ const DISPOSAL_NAV_TABS = [
   { key: 'settlements', label: '폐기결산', path: '/disposal/settlements' },
 ]
 const TEMPLATE_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-const ITEM_ROW_COUNT = 17
+const ITEM_ROW_COUNT = 30
+const TEMPLATE_ITEM_ROW_COUNT = 17
 const DEFAULT_VISIBLE_ITEM_ROWS = 8
 const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
@@ -127,11 +128,16 @@ function getBulkPaymentInputValue(row = {}) {
 }
 
 
+function clampVisibleItemRows(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return DEFAULT_VISIBLE_ITEM_ROWS
+  return Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(numeric)))
+}
+
 function getDefaultVisibleItemRows() {
   try {
     const raw = Number(localStorage.getItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY) || DEFAULT_VISIBLE_ITEM_ROWS)
-    if (!Number.isFinite(raw)) return DEFAULT_VISIBLE_ITEM_ROWS
-    return Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(raw)))
+    return clampVisibleItemRows(raw)
   } catch {
     return DEFAULT_VISIBLE_ITEM_ROWS
   }
@@ -139,7 +145,7 @@ function getDefaultVisibleItemRows() {
 
 function setDefaultVisibleItemRowsStorage(value) {
   try {
-    localStorage.setItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY, String(Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(value)))))
+    localStorage.setItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY, String(clampVisibleItemRows(value)))
   } catch {}
 }
 
@@ -427,7 +433,7 @@ function buildRenderedTemplate(draft) {
   nextRows[50][1] = draft?.disposalDate || nextRows[50][1]
   nextRows[51][1] = draft?.location || ''
 
-  reportRows.forEach((item, index) => {
+  reportRows.slice(0, TEMPLATE_ITEM_ROW_COUNT).forEach((item, index) => {
     const sourceRow = 5 + index
     nextRows[sourceRow][1] = item.itemName
     nextRows[sourceRow][2] = item.quantity ? String(item.quantity) : ''
@@ -1308,6 +1314,9 @@ function DisposalItemsEditor({
   const [exportSettings, setExportSettings] = useState(() => loadDisposalExportSettings())
   const customerSettingsRef = useRef(null)
   const companySettingsRef = useRef(null)
+  const itemSettingsButtonRef = useRef(null)
+  const itemSettingsPopoverRef = useRef(null)
+  const [itemSettingsPopoverStyle, setItemSettingsPopoverStyle] = useState(null)
 
   const customerExportRows = useMemo(() => visibleRows.reduce((acc, row, index) => {
     const hasContent = String(row?.itemName || '').trim() || safeNumber(row?.quantity) || safeNumber(row?.unitCost) || String(row?.reportNo || '').trim()
@@ -1349,6 +1358,47 @@ function DisposalItemsEditor({
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [customerSettingsOpen, companySettingsOpen])
+
+  useEffect(() => {
+    if (!itemSettingsOpen) {
+      setItemSettingsPopoverStyle(null)
+      return undefined
+    }
+
+    function updateItemSettingsPopoverPosition() {
+      const buttonEl = itemSettingsButtonRef.current
+      const popoverEl = itemSettingsPopoverRef.current
+      if (!buttonEl || !popoverEl) return
+
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+      const gap = 8
+      const buttonRect = buttonEl.getBoundingClientRect()
+      const popoverRect = popoverEl.getBoundingClientRect()
+
+      const openBelow = buttonRect.bottom + gap + popoverRect.height <= viewportHeight - gap || buttonRect.top < popoverRect.height
+      const top = openBelow ? buttonRect.height + 6 : -(popoverRect.height + 6)
+
+      let left = 0
+      if (buttonRect.left + popoverRect.width > viewportWidth - gap) {
+        left = Math.min(0, viewportWidth - gap - buttonRect.left - popoverRect.width)
+      }
+      if (buttonRect.left + left < gap) {
+        left += gap - (buttonRect.left + left)
+      }
+
+      setItemSettingsPopoverStyle({ top: `${Math.round(top)}px`, left: `${Math.round(left)}px`, right: 'auto' })
+    }
+
+    const rafId = window.requestAnimationFrame(updateItemSettingsPopoverPosition)
+    window.addEventListener('resize', updateItemSettingsPopoverPosition)
+    window.addEventListener('scroll', updateItemSettingsPopoverPosition, true)
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', updateItemSettingsPopoverPosition)
+      window.removeEventListener('scroll', updateItemSettingsPopoverPosition, true)
+    }
+  }, [itemSettingsOpen])
 
   async function openEstimatePreviewModal(kind) {
     const nextKind = kind === 'company' ? 'company' : 'customer'
@@ -1641,7 +1691,7 @@ function DisposalItemsEditor({
             <button type="button" className="ghost" onClick={addItemRow}>품목추가</button>
             <button type="button" className={`ghost ${deleteMode ? 'active' : ''}`.trim()} onClick={toggleDeleteMode}>{deleteMode ? '삭제모드닫기' : '삭제'}</button>
             <div className="disposal-settings-inline disposal-item-settings-inline">
-              <button type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
+              <button ref={itemSettingsButtonRef} type="button" className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline" onClick={() => setItemSettingsOpen(prev => !prev)} aria-label="폐기양식 설정">설정</button>
               <button
                 type="button"
                 className="ghost disposal-preview-settings-button disposal-preview-settings-button-inline"
@@ -1652,7 +1702,7 @@ function DisposalItemsEditor({
                 저장
               </button>
               {itemSettingsOpen ? (
-                <div className="disposal-settings-popover disposal-item-settings-popover">
+                <div ref={itemSettingsPopoverRef} style={itemSettingsPopoverStyle || undefined} className="disposal-settings-popover disposal-item-settings-popover">
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenPreview(); setItemSettingsOpen(false) }}>폐기견적서 전체 미리보기</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={() => { onOpenRegistry(); setItemSettingsOpen(false) }}>관할구역등록</button>
                   <button type="button" className="ghost disposal-settings-popover-item" onClick={configureDefaultVisibleRows}>기본품목칸</button>

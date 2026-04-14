@@ -11369,10 +11369,11 @@ a:focus-visible {
 }
 
 .disposal-item-settings-popover {
-  top: 0;
-  left: calc(100% + 6px);
+  top: calc(100% + 6px);
+  left: 0;
   right: auto;
   min-width: 132px;
+  max-width: min(240px, calc(100vw - 24px));
 }
 
 
