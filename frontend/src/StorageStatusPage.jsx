@@ -114,14 +114,15 @@ function getStatus(startValue, endValue) {
   return '진행'
 }
 
-function normalizeRow(row) {
+function normalizeRow(row, options = {}) {
+  const { finalizeDates = true, finalizeScale = true } = options
   const next = {
     id: String(row?.id || EMPTY_ROW().id),
     customer_name: String(row?.customer_name || '').trim(),
     manager_name: String(row?.manager_name || '').trim(),
-    start_date: formatDate(row?.start_date || ''),
-    end_date: formatDate(row?.end_date || ''),
-    scale: formatScale(row?.scale || ''),
+    start_date: finalizeDates ? formatDate(row?.start_date || '') : String(row?.start_date || '').trim(),
+    end_date: finalizeDates ? formatDate(row?.end_date || '') : String(row?.end_date || '').trim(),
+    scale: finalizeScale ? formatScale(row?.scale || '') : String(row?.scale || '').trim(),
   }
   return { ...next, status: getStatus(next.start_date, next.end_date) }
 }
@@ -264,12 +265,12 @@ export default function StorageStatusPage() {
     setRows((prev) => prev.map((row) => {
       if (row.id !== rowId) return row
       const next = { ...row, [field]: value }
-      return normalizeRow(next)
+      return normalizeRow(next, { finalizeDates: false, finalizeScale: false })
     }))
   }, [])
 
   const addRow = useCallback(() => {
-    setRows((prev) => [...prev, normalizeRow(EMPTY_ROW())])
+    setRows((prev) => [...prev, normalizeRow(EMPTY_ROW(), { finalizeDates: false, finalizeScale: false })])
   }, [])
 
   const toggleSelectedRow = useCallback((rowId) => {
@@ -505,10 +506,10 @@ export default function StorageStatusPage() {
                     <input value={row.manager_name} onChange={(e) => updateRow(row.id, 'manager_name', e.target.value)} placeholder="담당대표" />
                   </td>
                   <td className={changedCellMap[row.id]?.has('start_date') ? 'storage-status-cell-changed' : ''}>
-                    <input value={row.start_date} onChange={(e) => updateRow(row.id, 'start_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'start_date', formatDate(e.target.value))} placeholder="26.05.01" />
+                    <input value={row.start_date} onChange={(e) => updateRow(row.id, 'start_date', e.target.value)} placeholder="26.05.01" />
                   </td>
                   <td className={changedCellMap[row.id]?.has('end_date') ? 'storage-status-cell-changed' : ''}>
-                    <input value={row.end_date} onChange={(e) => updateRow(row.id, 'end_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'end_date', formatDate(e.target.value))} placeholder="26.05.01" />
+                    <input value={row.end_date} onChange={(e) => updateRow(row.id, 'end_date', e.target.value)} placeholder="26.05.01" />
                   </td>
                   <td className={changedCellMap[row.id]?.has('scale') ? 'storage-status-cell-changed' : ''}>
                     <input value={row.scale} onChange={(e) => updateRow(row.id, 'scale', e.target.value)} onBlur={(e) => updateRow(row.id, 'scale', formatScale(e.target.value))} placeholder="1" />
