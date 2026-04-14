@@ -22357,7 +22357,9 @@ textarea,
   min-height: 40px;
   padding: 0;
   border: 1px solid #111827;
-  background: #ffffff;
+  background: transparent;
+  color: #111827;
+  box-shadow: none;
   font-size: 22px;
   line-height: 1;
 }
@@ -22462,7 +22464,8 @@ textarea,
   width: 100%;
   min-height: 30px;
   border: 1px solid #cfd6e4;
-  background: #ffffff;
+  background: transparent;
+  color: #111827;
   padding: 4px 6px;
   font-size: 12px;
 }
@@ -23588,7 +23591,9 @@ textarea,
   padding: 0 10px;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  background: #fff;
+  background: transparent;
+  color: #111827;
+  box-shadow: none;
   font-weight: 700;
   cursor: pointer;
 }
