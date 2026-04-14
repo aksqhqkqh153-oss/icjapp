@@ -24874,4 +24874,58 @@ button.danger {
     height: 18px;
     font-size: 16px;
   }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-date {
+    font-size: 15px !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled {
+    min-width: 52px !important;
+    padding: 3px 6px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-label.two-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-label.schedule-single-line {
+    font-size: 9px !important;
+    line-height: 1 !important;
+    color: #000 !important;
+    font-weight: 400 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-label.schedule-single-line {
+    flex-direction: row !important;
+    white-space: nowrap !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned {
+    min-height: 22px !important;
+    padding: 1px 5px !important;
+    gap: 3px !important;
+    align-items: center !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-vehicle,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-chip {
+    font-size: 10px !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes {
+    gap: 1px !important;
+    padding: 2px 4px 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane {
+    min-height: 12px !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    padding: 0 6px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span {
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
 }

@@ -6838,7 +6838,7 @@ function CalendarPage() {
                       {!isMobile && (
                         <div className="calendar-top-actions filled">
                           <button type="button" className="calendar-entry-band secondary filled" onClick={(event) => openOverflowPopup(date, daySummary?.entries || [], event, '스케줄목록', daySummary)}>
-                            <span className="calendar-entry-label two-line">스케줄<br />목록</span>
+                            <span className="calendar-entry-label two-line schedule-single-line">스케줄</span>
                           </button>
                           <button type="button" className="calendar-entry-band filled schedule-add-band" onClick={() => openDateForm(date)} title="일정등록" aria-label="일정등록">
                             <span className="calendar-entry-label plus-only">+</span>
