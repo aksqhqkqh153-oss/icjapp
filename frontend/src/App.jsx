@@ -6010,6 +6010,21 @@ function getReadableTextColor(hexColor) {
   return luminance >= 160 ? '#111827' : '#ffffff'
 }
 
+function getDepartmentOptionTextColor(label, backgroundColor) {
+  if (String(label || '').trim() === '당일이사 1인 업무') return '#111827'
+  return getReadableTextColor(backgroundColor)
+}
+
+function getDepartmentOptionStyle(label, backgroundColor) {
+  return {
+    backgroundColor,
+    color: getDepartmentOptionTextColor(label, backgroundColor),
+    borderTop: '1px solid #111111',
+    borderBottom: '1px solid #111111',
+    boxShadow: 'inset 0 0 0 1px #111111',
+  }
+}
+
 function parseScheduleAddressBundle(raw) {
   const text = String(raw || '').replace(/\r/g, '').trim()
   if (!text) return null
@@ -6674,7 +6689,7 @@ function CalendarPage() {
                               key={item.id}
                               type="button"
                               className="calendar-lane filled clickable"
-                              style={{ background: item.color || '#2563eb', boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
+                              style={{ background: item.color || '#2563eb', color: getReadableTextColor(item.color || '#2563eb'), boxShadow: `inset 0 0 0 1px ${applyAlphaToHex(item.color, '55')}` }}
                               title={item.title}
                               onClick={(event) => {
                                 event.stopPropagation()
@@ -8948,10 +8963,10 @@ function ScheduleFormPage({ mode }) {
             </div>
             <div className="stack compact-gap schedule-compact-field schedule-department-field">
               <label>부서/인원</label>
-              <select className="schedule-color-select" aria-label="부서/인원" value={form.department_info} style={{ backgroundColor: departmentColorMap[form.department_info] || form.color || '#2563eb', color: getReadableTextColor(departmentColorMap[form.department_info] || form.color || '#2563eb') }} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
+              <select className="schedule-color-select" aria-label="부서/인원" value={form.department_info} style={{ backgroundColor: departmentColorMap[form.department_info] || form.color || '#2563eb', color: getDepartmentOptionTextColor(form.department_info, departmentColorMap[form.department_info] || form.color || '#2563eb'), border: '1px solid #111111' }} onChange={e => setForm(prev => ({ ...prev, department_info: e.target.value, color: departmentColorMap[e.target.value] || prev.color }))}>
                 {departmentOptions.map(option => {
                   const optionColor = departmentColorMap[option] || '#2563eb'
-                  return <option key={option} value={option} style={{ backgroundColor: optionColor, color: getReadableTextColor(optionColor) }}>{option}</option>
+                  return <option key={option} value={option} style={getDepartmentOptionStyle(option, optionColor)}>{option}</option>
                 })}
               </select>
             </div>

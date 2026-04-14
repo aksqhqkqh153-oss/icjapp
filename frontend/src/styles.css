@@ -1952,6 +1952,8 @@ label { font-size: 14px; color: #4f6f8c; }
 
 .schedule-color-select option {
   font-weight: 700;
+  border: 1px solid #111111;
+  box-shadow: inset 0 0 0 1px #111111;
 }
 
 @media (max-width: 640px) {
@@ -24495,4 +24497,8 @@ button.danger {
   font-size: 14pt;
   font-weight: 700;
   background: #dff3df;
+}
+
+.schedule-color-select {
+  border: 1px solid #111111;
 }
