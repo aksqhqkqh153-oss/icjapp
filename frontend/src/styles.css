@@ -20218,6 +20218,7 @@ textarea,
   flex-direction: column;
 }
 .ladder-preview-textarea {
+  cursor: pointer;
   width: 100%;
   min-height: 520px;
   border: 1px solid #dbe7f3;

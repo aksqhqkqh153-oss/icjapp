@@ -11152,7 +11152,11 @@ function LadderDispatchPage() {
                   )}
                 </div>
               </div>
-              <pre className="ladder-preview-textarea">{previewNodes.map(part => part.type === 'token' ? <span key={part.key} className={part.isDefault ? 'ladder-token-default' : 'ladder-token-filled'}>{part.text}</span> : <span key={part.key}>{part.text}</span>)}</pre>
+              <pre
+                className="ladder-preview-textarea"
+                onClick={() => copyMessage('신청 양식 내용')}
+                title="클릭하면 전체 신청 양식 내용이 복사됩니다"
+              >{previewNodes.map(part => part.type === 'token' ? <span key={part.key} className={part.isDefault ? 'ladder-token-default' : 'ladder-token-filled'}>{part.text}</span> : <span key={part.key}>{part.text}</span>)}</pre>
             </div>
             <div className="ladder-form-panel">
               <section className="card inset-card ladder-form-card">
