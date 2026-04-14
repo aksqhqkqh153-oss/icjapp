@@ -3748,7 +3748,13 @@ export function DisposalSettlementsPage() {
             ) : row.kind === 'detail' ? (
               <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-detail" onClick={() => toggleRow(row.toggleKey)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(row.toggleKey) } }}>
                 {row.cells.map((cell, index) => (
-                  <div key={`${row.key}-${index}`} className={index === 10 ? 'toggle-cell' : ''}>
+                  <div
+                    key={`${row.key}-${index}`}
+                    className={[
+                      index === 10 ? 'toggle-cell' : '',
+                      index === 9 ? 'disposal-month-settlement-sales-cell' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
                     {index === 4 ? (
                       <button type="button" className="disposal-month-settlement-link-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{cell}</button>
                     ) : index === 10 ? (

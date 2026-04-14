@@ -24390,3 +24390,10 @@ button.danger {
     padding-inline: 10px;
   }
 }
+
+
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-row.disposal-month-settlement-detail > .disposal-month-settlement-sales-cell {
+  font-size: 14pt;
+  font-weight: 700;
+  background: #dff3df;
+}
