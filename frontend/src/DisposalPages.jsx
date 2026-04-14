@@ -1333,7 +1333,12 @@ function DisposalItemsEditor({
   onOpenRegistry,
   onSaveEstimate,
 }) {
-  const visibleRows = (draft.items || []).slice(0, ITEM_ROW_COUNT)
+  const effectiveVisibleRows = clampVisibleItemRows(defaultVisibleRows)
+  const visibleRows = useMemo(() => (draft.items || []).slice(0, effectiveVisibleRows), [draft.items, effectiveVisibleRows])
+  const visibleRendered = useMemo(
+    () => buildRenderedTemplate({ ...draft, items: visibleRows }),
+    [draft, visibleRows],
+  )
   const [customerSettingsOpen, setCustomerSettingsOpen] = useState(false)
   const [companySettingsOpen, setCompanySettingsOpen] = useState(false)
   const [customerSaveDirectoryHandle, setCustomerSaveDirectoryHandle] = useState(null)
@@ -1355,7 +1360,7 @@ function DisposalItemsEditor({
   const customerExportRows = useMemo(() => visibleRows.reduce((acc, row, index) => {
     const hasContent = String(row?.itemName || '').trim() || safeNumber(row?.quantity) || safeNumber(row?.unitCost) || String(row?.reportNo || '').trim()
     if (!hasContent) return acc
-    const item = rendered.reportRows[index] || { finalAmount: 0, isFree: false, customerDisplayCost: '' }
+    const item = visibleRendered.reportRows[index] || { finalAmount: 0, isFree: false, customerDisplayCost: '' }
     acc.push({
       index: acc.length + 1,
       itemName: row?.itemName || '',
@@ -1365,7 +1370,7 @@ function DisposalItemsEditor({
       customerDisplayCost: item.customerDisplayCost || '',
     })
     return acc
-  }, []), [visibleRows, rendered.reportRows])
+  }, []), [visibleRows, visibleRendered.reportRows])
 
   const companyExportRows = useMemo(() => visibleRows.reduce((acc, row) => {
     const hasContent = String(row?.itemName || '').trim() || safeNumber(row?.quantity) || safeNumber(row?.unitCost) || String(row?.reportNo || '').trim()
@@ -1449,7 +1454,7 @@ function DisposalItemsEditor({
           })
         : await buildCustomerQuoteCanvas({
             rows: customerExportRows,
-            totalFinal: rendered.totals.totalFinal || 0,
+            totalFinal: visibleRendered.totals.totalFinal || 0,
             customerName: draft.customerName,
             disposalDate: draft.disposalDate,
             location: draft.location,
@@ -1761,7 +1766,7 @@ function DisposalItemsEditor({
               <div className="disposal-items-note-column">메모칸</div>
             </div>
             {visibleRows.map((row, index) => {
-              const item = rendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
+              const item = visibleRendered.reportRows[index] || { reportAmount: 0, finalAmount: 0 }
               return (
                 <div key={`disposal-item-row-${index}`} className="disposal-items-table-row disposal-items-table-data-row">
                   {deleteMode ? (
@@ -1797,10 +1802,10 @@ function DisposalItemsEditor({
               {deleteMode ? <div /> : null}
               <div />
               <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={1} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 1)} className="disposal-items-summary-box strong center">합계</div>
-              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={2} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 2)} className="disposal-items-summary-box strong center">{formatNumber(rendered.totals.totalQty)}개</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={2} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 2)} className="disposal-items-summary-box strong center">{formatNumber(visibleRendered.totals.totalQty)}개</div>
               <div />
-              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={5} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 5)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalReport)}</div>
-              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={6} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 6)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(rendered.totals.totalFinal)}</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={5} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 5)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(visibleRendered.totals.totalReport)}</div>
+              <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={6} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 6)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(visibleRendered.totals.totalFinal)}</div>
               <div />
             </div>
           </div>
