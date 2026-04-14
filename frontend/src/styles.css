@@ -23879,21 +23879,21 @@ textarea,
 }
 
 .storage-status-table-monthly td.is-safe {
-  background: #16a34a;
-  color: #ffffff;
-  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 400;
 }
 
 .storage-status-table-monthly td.is-warn {
-  background: #f59e0b;
-  color: #111827;
-  font-weight: 800;
+  background: #ffedd5;
+  color: #9a3412;
+  font-weight: 400;
 }
 
 .storage-status-table-monthly td.is-danger {
-  background: #dc2626;
-  color: #ffffff;
-  font-weight: 800;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 400;
 }
 
 .storage-status-empty {
@@ -24026,14 +24026,33 @@ button.danger {
     font-size: 9px;
   }
 
-  .storage-status-table.is-monthly th,
-  .storage-status-table.is-monthly td {
+  .storage-status-table-wrap-monthly {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .storage-status-table-wrap-monthly .storage-status-table.is-monthly {
+    width: max-content;
+    min-width: calc(30px + ((100vw - 64px) / 15) * 31);
+  }
+
+  .storage-status-table-wrap-monthly .storage-status-table.is-monthly th,
+  .storage-status-table-wrap-monthly .storage-status-table.is-monthly td {
+    width: calc((100vw - 64px) / 15);
+    min-width: calc((100vw - 64px) / 15);
     font-size: 8px;
+    font-weight: 400;
     padding: 4px 1px;
   }
 
   .storage-status-table-monthly thead th:first-child,
   .storage-status-table-monthly tbody th:first-child {
+    width: 30px;
+    min-width: 30px;
+  }
+
+  .storage-status-table-wrap-monthly .storage-status-table-monthly thead th:first-child,
+  .storage-status-table-wrap-monthly .storage-status-table-monthly tbody th:first-child {
     width: 30px;
     min-width: 30px;
   }

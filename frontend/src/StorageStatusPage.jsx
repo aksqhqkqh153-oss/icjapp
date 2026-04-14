@@ -569,7 +569,7 @@ export default function StorageStatusPage() {
       ) : null}
 
       {!loading && tab === 'monthly' ? (
-        <div className="storage-status-table-wrap">
+        <div className="storage-status-table-wrap storage-status-table-wrap-monthly">
           <table className="storage-status-table is-monthly storage-status-table-monthly">
             <thead>
               <tr>
