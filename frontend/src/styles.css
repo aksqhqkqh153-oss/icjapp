@@ -25622,3 +25622,78 @@ button.danger {
     box-sizing: border-box !important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule compact container/bottom-nav and status row borders */
+@media (min-width: 769px) {
+  .app-shell.schedule-wide .bottom-nav {
+    min-height: 39px !important;
+    height: 39px !important;
+    max-height: 39px !important;
+  }
+
+  .app-shell.schedule-wide .bottom-nav-item {
+    padding: 6px 6px !important;
+    min-height: 39px !important;
+    height: 39px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .page-container.schedule-wide {
+    padding-bottom: 39px !important;
+    min-height: calc(100vh - 39px) !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page {
+    min-height: calc(100vh - 39px) !important;
+    height: calc(100vh - 39px) !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page > .schedule-card {
+    min-height: calc(100vh - 39px) !important;
+    height: calc(100vh - 39px) !important;
+    max-height: calc(100vh - 39px) !important;
+  }
+
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-day-status-row > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row > * {
+    border-right: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-day-status-row > *:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row > *:last-child {
+    border-right: 0 !important;
+  }
+
+  .schedule-page .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout {
+    border: 0 !important;
+  }
+
+  .schedule-page .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > * {
+    border-right: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > *:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > *:last-child {
+    border-right: 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row {
+    border: 0 !important;
+  }
+}
