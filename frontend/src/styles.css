@@ -25604,3 +25604,21 @@ button.danger {
     border-bottom: 0 !important;
   }
 }
+
+/* 2026-04-14 desktop schedule header line and status/lanes stack outer borders */
+@media (min-width: 769px){
+  .schedule-page .calendar-cell-topline.schedule-header-line{
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+  .schedule-page .calendar-cell-topline.schedule-header-line::after{
+    box-shadow: inset 1px 0 0 #000, inset -1px 0 0 #000, inset 0 -1px 0 #000, inset 0 1px 0 #000 !important;
+  }
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row,
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+}
