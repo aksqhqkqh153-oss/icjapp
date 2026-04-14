@@ -26121,3 +26121,115 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+/* 2026-04-14 desktop schedule lane color bar visibility + header/cell line cleanup */
+@media (min-width: 769px){
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes{
+    border: 0 !important;
+    box-shadow: none !important;
+    gap: 0 !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled{
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #000 !important;
+    border-radius: 0 !important;
+    background-clip: padding-box !important;
+  }
+
+  .schedule-page .calendar-lane:last-child,
+  .schedule-page .calendar-lane.filled:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled:last-child{
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row{
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    border-top: 1px solid #000 !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .calendar-lane.filled.clickable,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled{
+    background-image: linear-gradient(to right, var(--lane-color-strong, #2563eb) 0 14%, #ffffff 14% 100%) !important;
+    background-color: #ffffff !important;
+    color: #111111 !important;
+    padding-left: 16% !important;
+  }
+
+  .schedule-page .calendar-lane.filled.clickable span,
+  .schedule-page .calendar-lane.filled span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span{
+    color: #111111 !important;
+    font-weight: 600 !important;
+    padding-left: 3px !important;
+  }
+
+  .schedule-page .calendar-lane.filled.clickable[style*="#2563eb"],
+  .schedule-page .calendar-lane.filled[style*="#2563eb"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#2563eb"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#2563eb"]{ --lane-color-strong:#2563eb; }
+  .schedule-page .calendar-lane.filled.clickable[style*="#f59e0b"],
+  .schedule-page .calendar-lane.filled[style*="#f59e0b"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#f59e0b"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#f59e0b"]{ --lane-color-strong:#f59e0b; }
+  .schedule-page .calendar-lane.filled.clickable[style*="#10b981"],
+  .schedule-page .calendar-lane.filled[style*="#10b981"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#10b981"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#10b981"]{ --lane-color-strong:#10b981; }
+  .schedule-page .calendar-lane.filled.clickable[style*="#ef4444"],
+  .schedule-page .calendar-lane.filled[style*="#ef4444"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#ef4444"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#ef4444"]{ --lane-color-strong:#ef4444; }
+  .schedule-page .calendar-lane.filled.clickable[style*="#8b5cf6"],
+  .schedule-page .calendar-lane.filled[style*="#8b5cf6"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#8b5cf6"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#8b5cf6"]{ --lane-color-strong:#8b5cf6; }
+  .schedule-page .calendar-lane.filled.clickable[style*="#06b6d4"],
+  .schedule-page .calendar-lane.filled[style*="#06b6d4"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#06b6d4"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#06b6d4"]{ --lane-color-strong:#06b6d4; }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line{
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line::after{
+    content: none !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal,
+  .schedule-page .schedule-cell.detail-cell.calendar-day-state-normal,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal{
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+}
