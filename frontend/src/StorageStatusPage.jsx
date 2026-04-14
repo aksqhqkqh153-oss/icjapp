@@ -87,6 +87,15 @@ function formatDate(value) {
   return `${yy}.${mm}.${dd}`
 }
 
+function formatSelectionLabel(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getMonth() + 1}월 ${value.getDate()}일 일정선택`
+  }
+  const parsed = parseDate(value)
+  if (!parsed) return '0월 0일 일정선택'
+  return `${parsed.getMonth() + 1}월 ${parsed.getDate()}일 일정선택`
+}
+
 function parseScale(value) {
   const text = String(value || '').trim().replace(/,/g, '')
   if (!text) return 0
@@ -623,8 +632,8 @@ export default function StorageStatusPage() {
       ) : null}
 
       {detailModalDate ? (
-        <div className="storage-status-modal-backdrop" role="dialog" aria-modal="true" aria-label="짐규모 세부현황">
-          <div className="storage-status-modal">
+        <div className="storage-status-modal-backdrop" role="dialog" aria-modal="true" aria-label="짐규모 세부현황" onClick={() => setDetailModalDate(null)}>
+          <div className="storage-status-modal" onClick={(event) => event.stopPropagation()}>
             <div className="storage-status-modal-header">
               <button
                 type="button"
@@ -635,7 +644,7 @@ export default function StorageStatusPage() {
                 ←
               </button>
               <strong>짐규모 세부현황</strong>
-              <span className="storage-status-modal-date">{`${formatDate(detailModalDate)}. 일정선택`}</span>
+              <span className="storage-status-modal-date">{formatSelectionLabel(detailModalDate)}</span>
             </div>
             <div className="storage-status-modal-body">
               <table className="storage-status-detail-table">

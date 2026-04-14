@@ -182,8 +182,8 @@ label { font-size: 14px; color: #4f6f8c; }
   padding: 6px;
 }
 .topbar-icon-button {
-  width: 38px;
-  min-width: 38px;
+  width: 40px;
+  min-width: 40px;
   height: 38px;
   min-height: 38px;
   padding: 0;
@@ -10834,8 +10834,8 @@ a:focus-visible {
     font-size: 15px;
   }
   .topbar-icon-button {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
     height: 34px;
     min-height: 34px;
   }
@@ -10859,8 +10859,8 @@ a:focus-visible {
     grid-template-columns: 34px minmax(0, 1fr) auto;
   }
   .chat-header-icon-button {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
     height: 34px;
     min-height: 34px;
   }
@@ -13812,8 +13812,8 @@ body:not([data-theme="dark"]) .app-search-result-item * {
     padding-inline: 1px;
   }
   .work-shift-table .head-summary:first-of-type, .work-shift-table .summary-cell:first-of-type {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
     max-width: 34px;
   }
   .work-shift-table .sticky.left.second {
@@ -16689,8 +16689,8 @@ body.layout-guide-enabled .error {
   }
 
   .disposal-month-nav-button {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
     height: 34px;
     font-size: 13px;
     border-radius: 10px;
@@ -17953,8 +17953,8 @@ textarea,
     height: 36px;
   }
   .topbar-icon-button {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
     height: 34px;
     min-height: 34px;
   }
@@ -23925,10 +23925,11 @@ textarea,
 .storage-status-table.is-monthly th,
 .storage-status-table.is-monthly td {
   min-width: 0;
-  width: calc((100% - 38px) / 31);
-  padding: 6px 2px;
-  font-size: 10px;
-  letter-spacing: -0.2px;
+  width: calc((100% - 40px) / 31);
+  padding: 5px 1px;
+  font-size: 11px;
+  letter-spacing: -0.25px;
+  font-weight: 400;
 }
 
 .storage-status-table-monthly thead th:first-child,
@@ -23936,8 +23937,8 @@ textarea,
   position: sticky;
   left: 0;
   z-index: 4;
-  width: 38px;
-  min-width: 38px;
+  width: 40px;
+  min-width: 40px;
   background: #f8fafc;
   box-shadow: 1px 0 0 #e5e7eb;
 }
@@ -24011,14 +24012,15 @@ button.danger {
 @media (max-width: 1024px) {
   .storage-status-table.is-monthly th,
   .storage-status-table.is-monthly td {
-    font-size: 9px;
-    padding: 5px 1px;
+    font-size: 10px;
+    padding: 4px 1px;
+    font-weight: 400;
   }
 
   .storage-status-table-monthly thead th:first-child,
   .storage-status-table-monthly tbody th:first-child {
-    width: 34px;
-    min-width: 34px;
+    width: 36px;
+    min-width: 36px;
   }
 }
 
@@ -24105,15 +24107,15 @@ button.danger {
 
   .storage-status-table-wrap-monthly .storage-status-table.is-monthly {
     width: max-content;
-    min-width: calc(30px + ((100vw - 64px) / 15) * 31);
+    min-width: calc(30px + ((100vw - 64px) / 10) * 31);
   }
 
   .storage-status-table-wrap-monthly .storage-status-table.is-monthly th,
   .storage-status-table-wrap-monthly .storage-status-table.is-monthly td {
-    width: calc((100vw - 64px) / 15);
-    min-width: calc((100vw - 64px) / 15);
-    font-size: 8px;
-    font-weight: 400;
+    width: calc((100vw - 64px) / 10);
+    min-width: calc((100vw - 64px) / 10);
+    font-size: 9px;
+    font-weight: 700;
     padding: 4px 1px;
   }
 
