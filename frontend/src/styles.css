@@ -25697,3 +25697,26 @@ button.danger {
     border: 0 !important;
   }
 }
+
+@media (min-width: 769px){
+  .schedule-page .weekday{
+    border-right:0!important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled{
+    border:0!important;
+    box-shadow:inset 0 0 0 1px #000!important;
+    box-sizing:border-box!important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell{
+    border:0!important;
+    box-shadow:none!important;
+  }
+}
