@@ -6538,7 +6538,7 @@ function CalendarPage() {
     }
     return map
   }, [items])
-  const visibleLaneCount = isMobile ? 3 : 5
+  const visibleLaneCount = isMobile ? 3 : 4
   const workDayMap = useMemo(() => new Map((workDays || []).map(day => [day.date, day])), [workDays])
   const detailItems = grouped.get(selectedDate) || []
   const selectedDaySummary = workDayMap.get(selectedDate) || buildDayStatusForm({ date: selectedDate })

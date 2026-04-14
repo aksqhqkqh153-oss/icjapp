@@ -3873,8 +3873,9 @@ label { font-size: 14px; color: #4f6f8c; }
   }
 
   .schedule-page .calendar-plus-row {
+    margin: 0;
     padding: 0;
-    border-top: 1px solid #d7dee8;
+    border: 0;
     min-height: 20px;
     align-items: stretch;
   }
@@ -3884,6 +3885,7 @@ label { font-size: 14px; color: #4f6f8c; }
     min-width: 0;
     height: 20px;
     margin: 0;
+    padding: 0;
     border: 0;
     border-radius: 0;
     background: #fff;
@@ -24688,7 +24690,8 @@ button.danger {
 .calendar-plus-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4px;
+  margin: 0;
+  border: 0;
 }
 .calendar-more-indicator.single-plus {
   min-width: 28px;
@@ -24696,6 +24699,7 @@ button.danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   font-size: 18px;
   font-weight: 700;
   color: #ffffff;
