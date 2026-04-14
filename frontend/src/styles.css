@@ -24770,3 +24770,108 @@ button.danger {
     max-height: 72vh;
   }
 }
+
+/* 2026-04-14 schedule desktop one-screen fit */
+@media (min-width: 769px) {
+  .schedule-page {
+    min-height: calc(100vh - 132px);
+  }
+
+  .schedule-page .schedule-card {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 132px);
+    max-height: calc(100vh - 132px);
+    overflow: hidden;
+    padding-bottom: 10px;
+  }
+
+  .schedule-page .calendar-toolbar.upgraded {
+    margin-bottom: 8px;
+  }
+
+  .schedule-page .calendar-weekdays {
+    flex: 0 0 auto;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .schedule-page .weekday {
+    padding: 4px 0;
+    font-size: 12px;
+  }
+
+  .schedule-page .schedule-grid.detail-mode {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 4px;
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+    align-content: stretch;
+  }
+
+  .schedule-page .schedule-cell.detail-cell {
+    min-height: 0;
+    height: auto;
+  }
+
+  .schedule-page .calendar-cell-topline {
+    min-height: 26px;
+  }
+
+  .schedule-page .calendar-date-select {
+    min-height: 26px;
+    padding: 3px 8px;
+  }
+
+  .schedule-page .calendar-date {
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .schedule-page .calendar-entry-band {
+    min-width: 62px;
+    padding: 4px 8px;
+  }
+
+  .schedule-page .calendar-entry-label {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned {
+    min-height: 28px;
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .schedule-page .calendar-day-summary-vehicle,
+  .schedule-page .calendar-day-summary-chip,
+  .schedule-page .calendar-handless-banner {
+    font-size: 10px;
+  }
+
+  .schedule-page .calendar-handless-banner {
+    padding: 2px 6px;
+    margin: 0;
+  }
+
+  .schedule-page .calendar-lanes {
+    gap: 2px;
+    padding: 4px 6px 0;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled {
+    min-height: 0;
+    font-size: 10px;
+  }
+
+  .schedule-page .calendar-plus-row {
+    min-height: 18px;
+  }
+
+  .schedule-page .calendar-more-indicator.single-plus {
+    height: 18px;
+    font-size: 16px;
+  }
+}
