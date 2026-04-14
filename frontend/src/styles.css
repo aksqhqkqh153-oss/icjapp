@@ -25548,3 +25548,59 @@ button.danger {
     max-height: 18px !important;
   }
 }
+
+
+@media (min-width: 769px){
+  .schedule-page .calendar-plus-row{
+    min-height: 12px !important;
+    height: 12px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+    align-items: center !important;
+  }
+  .schedule-page .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-plus-row .single-plus{
+    min-height: 100% !important;
+    height: 100% !important;
+    min-width: 18px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    line-height: 1 !important;
+  }
+  .schedule-page .calendar-toolbar.upgraded.schedule-toolbar-updated{
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+  .schedule-page .calendar-grid.schedule-grid.detail-mode{
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row{
+    border-color: #000 !important;
+  }
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell{
+    border-right: 1px solid #000 !important;
+    border-bottom: 1px solid #000 !important;
+  }
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n){
+    border-right: 0 !important;
+  }
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-last-child(-n+7){
+    border-bottom: 0 !important;
+  }
+}
