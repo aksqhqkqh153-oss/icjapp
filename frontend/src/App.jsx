@@ -2293,10 +2293,45 @@ function HomePage() {
   const [dragOverQuickId, setDragOverQuickId] = useState('')
   const quickTouchStateRef = useRef({ active: false, quickId: '', moved: false })
   const quickDragSuppressClickRef = useRef(false)
+  const quickCardRefs = useRef(new Map())
+  const quickCardPrevRectsRef = useRef(new Map())
   const [holdProgress, setHoldProgress] = useState(false)
   const [workdayStatus, setWorkdayStatus] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const holdTimerRef = useRef(null)
+
+
+  useLayoutEffect(() => {
+    const nextRects = new Map()
+    quickState.active.forEach(id => {
+      const node = quickCardRefs.current.get(id)
+      if (node) {
+        nextRects.set(id, node.getBoundingClientRect())
+      }
+    })
+
+    quickState.active.forEach(id => {
+      const node = quickCardRefs.current.get(id)
+      const prevRect = quickCardPrevRectsRef.current.get(id)
+      const nextRect = nextRects.get(id)
+      if (!node || !prevRect || !nextRect) return
+      const deltaX = prevRect.left - nextRect.left
+      const deltaY = prevRect.top - nextRect.top
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return
+      node.animate(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: 'translate(0px, 0px)' },
+        ],
+        {
+          duration: 220,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        },
+      )
+    })
+
+    quickCardPrevRectsRef.current = nextRects
+  }, [quickState.active])
 
   useEffect(() => {
     async function load() {
@@ -2466,6 +2501,16 @@ function HomePage() {
     updateQuickState({ ...quickState, active: next })
   }
 
+  function swapQuickActionsById(firstId, secondId) {
+    if (!firstId || !secondId || firstId === secondId) return
+    const next = [...quickState.active]
+    const firstIndex = next.indexOf(firstId)
+    const secondIndex = next.indexOf(secondId)
+    if (firstIndex < 0 || secondIndex < 0) return
+    ;[next[firstIndex], next[secondIndex]] = [next[secondIndex], next[firstIndex]]
+    updateQuickState({ ...quickState, active: next })
+  }
+
   function archiveQuickAction(id) {
     updateQuickState({ active: quickState.active.filter(item => item !== id), archived: [...quickState.archived, id] })
   }
@@ -2508,9 +2553,6 @@ function HomePage() {
 
   function handleQuickDragEnter(quickId) {
     if (!draggingQuickId || !quickId || draggingQuickId === quickId) return
-    if (dragOverQuickId !== quickId) {
-      reorderQuickActionsById(draggingQuickId, quickId)
-    }
     setDragOverQuickId(quickId)
   }
 
@@ -2520,7 +2562,7 @@ function HomePage() {
       resetQuickDragState()
       return
     }
-    reorderQuickActionsById(draggedId, quickId)
+    swapQuickActionsById(draggedId, quickId)
     resetQuickDragState()
   }
 
@@ -2556,7 +2598,7 @@ function HomePage() {
   function handleQuickTouchEnd() {
     const current = quickTouchStateRef.current
     if (current?.moved && current.quickId && dragOverQuickId && current.quickId !== dragOverQuickId) {
-      reorderQuickActionsById(current.quickId, dragOverQuickId)
+      swapQuickActionsById(current.quickId, dragOverQuickId)
     }
     window.setTimeout(() => {
       quickDragSuppressClickRef.current = false
@@ -2687,6 +2729,10 @@ function HomePage() {
               return (
                 <button
                   key={item.id}
+                  ref={node => {
+                    if (node) quickCardRefs.current.set(item.id, node)
+                    else quickCardRefs.current.delete(item.id)
+                  }}
                   data-quick-id={item.id}
                   draggable
                   type="button"
