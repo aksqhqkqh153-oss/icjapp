@@ -23492,15 +23492,21 @@ textarea,
   .schedule-detail-page-v2 {
     padding-bottom: 0;
     min-height: calc(100dvh - 52px);
+    height: calc(100dvh - 52px);
+    overflow: hidden;
   }
   .schedule-detail-card-v2 {
     display: flex;
     flex-direction: column;
-    min-height: calc(100dvh - 112px);
+    min-height: calc(100dvh - 52px);
+    height: calc(100dvh - 52px);
+    overflow: hidden;
   }
   .schedule-detail-sticky-stack {
     position: sticky;
     top: 52px;
+    z-index: 80;
+    flex: 0 0 auto;
     padding: 8px 0 10px;
     gap: 6px;
   }
@@ -23523,12 +23529,14 @@ textarea,
   .schedule-detail-scroll-region {
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
     overflow-y: auto;
-    padding-bottom: 134px;
+    overscroll-behavior: contain;
+    padding: 12px 0 134px;
     -webkit-overflow-scrolling: touch;
   }
   .schedule-detail-content-body {
-    padding-top: 14px;
+    padding-top: 0;
   }
   .schedule-detail-comments-section {
     margin-top: 14px;
