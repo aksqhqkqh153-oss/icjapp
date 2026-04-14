@@ -26003,3 +26003,86 @@ button.danger {
     background: #fff !important;
   }
 }
+
+/* 2026-04-14 desktop schedule outside-month gap removal + status/weekdays cleanup */
+@media (min-width: 769px){
+  .schedule-page .calendar-weekdays{
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row{
+    border: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell{
+    background: #fff !important;
+    background-color: #fff !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    row-gap: 0 !important;
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell .calendar-day-status-row,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack{
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    gap: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .calendar-cell.outside-month-cell,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-date,
+  .schedule-page .calendar-cell.outside-month-cell .handless-date-number,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-date-select,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-day-summary-button,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-entry-band,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-more-indicator,
+  .schedule-page .calendar-cell.outside-month-cell .calendar-lane.filled{
+    background: #fff !important;
+    background-color: #fff !important;
+    opacity: 1 !important;
+  }
+}
