@@ -310,6 +310,9 @@ function loadRecords() {
 
 function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
+  try {
+    window.dispatchEvent(new CustomEvent('icj-disposal-records-updated'))
+  } catch {}
 }
 
 function getDateValueParts(rawValue) {

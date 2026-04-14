@@ -1503,6 +1503,69 @@ function saveFriendGroupState(userId, nextState) {
   localStorage.setItem(friendGroupStorageKey(userId), JSON.stringify(nextState))
 }
 
+function loadDisposalAdminAlertItems() {
+  try {
+    const raw = localStorage.getItem('icj_disposal_records_v2') || localStorage.getItem('icj_disposal_records_v1') || '[]'
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const alerts = []
+    parsed.forEach((record) => {
+      if (!record || typeof record !== 'object') return
+      if (!record?.settlementTransferredAt) return
+      const items = Array.isArray(record?.items) ? record.items : []
+      const hasUnreportedSettlementItem = items.some((item) => {
+        const paymentDone = !!item?.paymentDone
+        const paymentSettledAt = String(item?.paymentSettledAt || '').trim()
+        const reportDone = !!item?.reportDone
+        return paymentDone && !!paymentSettledAt && !reportDone
+      })
+      if (!hasUnreportedSettlementItem) return
+      alerts.push({
+        key: String(record?.id || `${record?.disposalDate || ''}-${record?.customerName || ''}-${record?.location || ''}`),
+        disposalDate: String(record?.disposalDate || '').trim() || '-',
+        customerName: String(record?.customerName || '').trim() || '고객',
+        message: `(${String(record?.disposalDate || '').trim() || '-'}) 폐기 예정인 ${String(record?.customerName || '').trim() || '고객'} 고객님의 폐기 신고접수가 되어 있지 않습니다.`,
+      })
+    })
+    return alerts
+  } catch (_) {
+    return []
+  }
+}
+
+function disposalAdminAlertSignature(items = []) {
+  return (items || []).map(item => `${item.key}:${item.disposalDate}:${item.customerName}`).sort().join('|')
+}
+
+function DisposalAdminAlertModal({ open, items = [], onClose, onOpenSettlements }) {
+  if (!open || !items.length) return null
+  return (
+    <div className="disposal-confirm-overlay disposal-admin-alert-overlay" role="dialog" aria-modal="true" onMouseDown={(event) => {
+      if (event.target !== event.currentTarget) return
+      onClose?.()
+    }}>
+      <div className="disposal-confirm-card disposal-admin-alert-card">
+        <div className="disposal-bulk-payment-header">
+          <div className="disposal-bulk-payment-title">폐기 신고 미접수 알림</div>
+        </div>
+        <div className="stack" style={{ gap: 10 }}>
+          {items.map((item) => (
+            <div key={item.key} className="card" style={{ padding: '12px 14px' }}>
+              <strong>{item.disposalDate}</strong>
+              <div style={{ marginTop: 6 }}>{item.customerName}</div>
+              <div className="muted small-text" style={{ marginTop: 6 }}>{item.message}</div>
+            </div>
+          ))}
+        </div>
+        <div className="disposal-confirm-actions">
+          <button type="button" className="ghost" onClick={onClose}>닫기</button>
+          <button type="button" onClick={onOpenSettlements}>폐기결산 보기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 function isLeaderPosition(positionTitle) {
   return ['대표', '부대표', '호점대표'].includes(String(positionTitle || '').trim())
@@ -1555,6 +1618,8 @@ function Layout({ children, user, onLogout }) {
   const menuRef = useRef(null)
   const settingsRef = useRef(null)
   const [badges, setBadges] = useState({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
+  const [disposalAdminAlerts, setDisposalAdminAlerts] = useState([])
+  const [disposalAdminAlertOpen, setDisposalAdminAlertOpen] = useState(false)
   const isScheduleView = location.pathname === '/schedule'
   const isWorkScheduleView = location.pathname === '/work-schedule'
   const isWideScheduleLayout = isScheduleView || isWorkScheduleView
@@ -1637,6 +1702,46 @@ function Layout({ children, user, onLogout }) {
     }
   }, [location.pathname, user?.id])
 
+  useEffect(() => {
+    const grade = Number(user?.grade || 6)
+    if (grade > 2) {
+      setDisposalAdminAlerts([])
+      setDisposalAdminAlertOpen(false)
+      return undefined
+    }
+    const syncDisposalAlerts = () => {
+      const nextItems = loadDisposalAdminAlertItems()
+      const nextSignature = disposalAdminAlertSignature(nextItems)
+      setDisposalAdminAlerts(nextItems)
+      if (!nextItems.length) {
+        setDisposalAdminAlertOpen(false)
+        try {
+          sessionStorage.removeItem(`icj_disposal_admin_alert_seen_${user?.id || 'guest'}`)
+        } catch (_) {}
+        return
+      }
+      try {
+        const seenKey = `icj_disposal_admin_alert_seen_${user?.id || 'guest'}`
+        const previousSignature = sessionStorage.getItem(seenKey) || ''
+        if (previousSignature !== nextSignature) {
+          sessionStorage.setItem(seenKey, nextSignature)
+          setDisposalAdminAlertOpen(true)
+        }
+      } catch (_) {
+        setDisposalAdminAlertOpen(true)
+      }
+    }
+    syncDisposalAlerts()
+    window.addEventListener('storage', syncDisposalAlerts)
+    window.addEventListener('focus', syncDisposalAlerts)
+    window.addEventListener('icj-disposal-records-updated', syncDisposalAlerts)
+    return () => {
+      window.removeEventListener('storage', syncDisposalAlerts)
+      window.removeEventListener('focus', syncDisposalAlerts)
+      window.removeEventListener('icj-disposal-records-updated', syncDisposalAlerts)
+    }
+  }, [user?.grade, user?.id, location.pathname])
+
   function renderBottomLabel(to, label) {
     const count = to === '/chats' ? Number(badges.chat_count || 0) : to === '/friends' ? Number(badges.friend_request_count || 0) : 0
     return (
@@ -1649,6 +1754,15 @@ function Layout({ children, user, onLogout }) {
 
   return (
     <div className={`app-shell${isWideScheduleLayout ? ' schedule-wide' : ''}`}>
+      <DisposalAdminAlertModal
+        open={disposalAdminAlertOpen && disposalAdminAlerts.length > 0}
+        items={disposalAdminAlerts}
+        onClose={() => setDisposalAdminAlertOpen(false)}
+        onOpenSettlements={() => {
+          setDisposalAdminAlertOpen(false)
+          navigate('/disposal/settlements')
+        }}
+      />
       {isSearchView ? (
         <header className="topbar topbar-fixed topbar-search-mode">
           <div className="topbar-search-shell">
