@@ -8,13 +8,16 @@ from typing import Any
 from .db import utcnow
 
 STORAGE_STATUS_SETTING_KEY = 'storage_status_state_json'
+STORAGE_STATUS_SEED_VERSION_KEY = 'storage_status_seed_version'
 SEED_PATH = Path(__file__).resolve().with_name('storage_status_seed.json')
 
 
 def _load_seed() -> dict[str, Any]:
     with SEED_PATH.open('r', encoding='utf-8') as fp:
         data = json.load(fp)
-    return _normalize_state(data)
+    normalized = _normalize_state(data)
+    normalized['seed_version'] = str((data or {}).get('seed_version') or '').strip()
+    return normalized
 
 
 def _parse_date(value: Any) -> date | None:
@@ -115,6 +118,19 @@ def _normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def get_state(conn) -> dict[str, Any]:
+    seed_state = _load_seed()
+    seed_version = str(seed_state.get('seed_version') or '').strip()
+    version_row = conn.execute('SELECT value FROM admin_settings WHERE key = ?', (STORAGE_STATUS_SEED_VERSION_KEY,)).fetchone()
+    current_seed_version = str(version_row['value']).strip() if version_row and version_row['value'] else ''
+
+    if seed_version and seed_version != current_seed_version:
+        normalized_seed = save_state(conn, seed_state)
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (STORAGE_STATUS_SEED_VERSION_KEY, seed_version, utcnow()),
+        )
+        return normalized_seed
+
     row = conn.execute('SELECT value FROM admin_settings WHERE key = ?', (STORAGE_STATUS_SETTING_KEY,)).fetchone()
     if row and row['value']:
         try:
@@ -125,9 +141,14 @@ def get_state(conn) -> dict[str, Any]:
                 return normalized
         except Exception:
             pass
-    state = _load_seed()
-    save_state(conn, state)
-    return state
+
+    normalized_seed = save_state(conn, seed_state)
+    if seed_version:
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (STORAGE_STATUS_SEED_VERSION_KEY, seed_version, utcnow()),
+        )
+    return normalized_seed
 
 
 def save_state(conn, state: dict[str, Any]) -> dict[str, Any]:
