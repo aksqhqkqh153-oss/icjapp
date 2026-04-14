@@ -156,6 +156,7 @@ function createEmptyItem() {
 }
 
 function createInitialDraft() {
+  const visibleItemRows = getDefaultVisibleItemRows()
   return {
     disposalDate: '',
     location: '',
@@ -163,7 +164,8 @@ function createInitialDraft() {
     finalStatus: '',
     platform: '',
     customerName: '',
-    items: Array.from({ length: getDefaultVisibleItemRows() }, () => createEmptyItem()),
+    visibleItemRows,
+    items: Array.from({ length: visibleItemRows }, () => createEmptyItem()),
   }
 }
 
@@ -260,8 +262,8 @@ function findMatchingRecord(records = [], draft = {}) {
 function normalizeRecordShape(record) {
   if (!record || typeof record !== 'object') return null
   const sourceItems = Array.isArray(record.items) ? record.items : []
-  const defaultVisibleRows = getDefaultVisibleItemRows()
-  const visibleItemCount = Math.max(defaultVisibleRows, Math.min(ITEM_ROW_COUNT, sourceItems.length || defaultVisibleRows))
+  const savedVisibleRows = clampVisibleItemRows(record?.visibleItemRows || sourceItems.length || getDefaultVisibleItemRows())
+  const visibleItemCount = Math.max(savedVisibleRows, Math.min(ITEM_ROW_COUNT, sourceItems.length || savedVisibleRows))
   const defaultPaid = /입금완/.test(String(record?.finalStatus || '').trim())
   const defaultReported = /신고완/.test(String(record?.finalStatus || '').trim())
   const items = Array.from({ length: visibleItemCount }, (_, index) => {
@@ -283,6 +285,7 @@ function normalizeRecordShape(record) {
     finalStatus: String(record.finalStatus || ''),
     platform: String(record.platform || ''),
     customerName: String(record.customerName || ''),
+    visibleItemRows: savedVisibleRows,
     items,
     settlementTransferredAt: record.settlementTransferredAt ? String(record.settlementTransferredAt) : '',
     totals: {
@@ -487,6 +490,7 @@ function makeRecordFromDraft(draft, totals, existingId = '') {
     finalStatus: draft.finalStatus,
     platform: draft.platform,
     customerName: draft.customerName,
+    visibleItemRows: clampVisibleItemRows(draft.visibleItemRows || (draft.items || []).length || getDefaultVisibleItemRows()),
     items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
     settlementTransferredAt: '',
     totals: normalizedTotals,
@@ -509,6 +513,7 @@ function normalizeDraftForCompare(draft) {
     finalStatus: String(source.finalStatus || '').trim(),
     platform: String(source.platform || '').trim(),
     customerName: String(source.customerName || '').trim(),
+    visibleItemRows: clampVisibleItemRows(source.visibleItemRows || (source.items || []).length || getDefaultVisibleItemRows()),
     items: Array.from({ length: ITEM_ROW_COUNT }, (_, index) => {
       const item = (source.items || [])[index] || {}
       return {
@@ -1807,7 +1812,16 @@ function DisposalItemsEditor({
               <div />
               <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={5} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 5)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(visibleRendered.totals.totalReport)}</div>
               <div tabIndex={0} data-grid-row={visibleRows.length} data-grid-col={6} onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 6)} className="disposal-items-summary-box strong center">{formatCurrencyPlain(visibleRendered.totals.totalFinal)}</div>
-              <div />
+              <input
+                data-grid-row={visibleRows.length}
+                data-grid-col={7}
+                onKeyDown={e => handleItemGridKeyDown(e, visibleRows.length, 7)}
+                className="disposal-items-summary-input center"
+                value={draft.items.every(item => String(item?.reportNo || '') === String(draft.items?.[0]?.reportNo || '')) ? String(draft.items?.[0]?.reportNo || '') : ''}
+                onChange={e => updateAllItemReportNo(e.target.value)}
+                placeholder="신고번호 일괄입력"
+                aria-label="합계 행 신고번호 일괄입력"
+              />
             </div>
           </div>
         </div>
@@ -2221,32 +2235,32 @@ export function DisposalFormsPage() {
 
   useEffect(() => {
     if (!recordId) {
+      const initialDraft = createInitialDraft()
       setLoadedRecordId('')
-      setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
+      setDefaultVisibleRows(initialDraft.visibleItemRows || getDefaultVisibleItemRows())
+      setDraft(initialDraft)
+      setSavedAt('')
+      setSavedDraftBaseline(normalizeDraftForCompare(initialDraft))
       return
     }
     const found = loadRecords().find(record => record.id === recordId)
     if (found) {
+      const recordVisibleRows = clampVisibleItemRows(found.visibleItemRows || found.items?.length || getDefaultVisibleItemRows())
+      const nextDraft = {
+        platform: found.platform || '',
+        customerName: found.customerName || '',
+        disposalDate: found.disposalDate || '',
+        location: found.location || '',
+        district: found.district || '',
+        finalStatus: found.finalStatus || '',
+        visibleItemRows: recordVisibleRows,
+        items: Array.from({ length: Math.max(recordVisibleRows, Math.min(ITEM_ROW_COUNT, found.items?.length || recordVisibleRows)) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+      }
       setLoadedRecordId(found.id || recordId)
-      setDraft({
-        platform: found.platform || '',
-        customerName: found.customerName || '',
-        disposalDate: found.disposalDate || '',
-        location: found.location || '',
-        district: found.district || '',
-        finalStatus: found.finalStatus || '',
-        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
-      })
+      setDefaultVisibleRows(recordVisibleRows)
+      setDraft(nextDraft)
       setSavedAt(found.savedAt || '')
-      setSavedDraftBaseline(normalizeDraftForCompare({
-        platform: found.platform || '',
-        customerName: found.customerName || '',
-        disposalDate: found.disposalDate || '',
-        location: found.location || '',
-        district: found.district || '',
-        finalStatus: found.finalStatus || '',
-        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
-      }))
+      setSavedDraftBaseline(normalizeDraftForCompare(nextDraft))
       return
     }
     setLoadedRecordId(recordId)
@@ -2318,6 +2332,13 @@ useEffect(() => {
     }))
   }
 
+  function updateAllItemReportNo(value) {
+    setDraft(prev => ({
+      ...prev,
+      items: (prev.items || []).map(item => ({ ...item, reportNo: value })),
+    }))
+  }
+
   function addItemRow() {
     setDraft(prev => {
       if ((prev.items || []).length >= ITEM_ROW_COUNT) {
@@ -2365,10 +2386,10 @@ useEffect(() => {
     setDefaultVisibleItemRowsStorage(nextValue)
     setDraft(prev => {
       const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
-      if (currentItems.length >= nextValue) return prev
       return {
         ...prev,
-        items: currentItems.concat(Array.from({ length: nextValue - currentItems.length }, () => createEmptyItem())),
+        visibleItemRows: nextValue,
+        items: currentItems.length >= nextValue ? currentItems : currentItems.concat(Array.from({ length: nextValue - currentItems.length }, () => createEmptyItem())),
       }
     })
     setItemSettingsOpen(false)
@@ -2431,6 +2452,7 @@ useEffect(() => {
 
   function resetDraft() {
     const initialDraft = createInitialDraft()
+    setDefaultVisibleRows(initialDraft.visibleItemRows || getDefaultVisibleItemRows())
     setDraft(initialDraft)
     setLoadedRecordId('')
     setSavedAt('')

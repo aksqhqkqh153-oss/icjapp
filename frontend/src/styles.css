@@ -11555,6 +11555,21 @@ button.disposal-items-number-cell.has-note {
   background: #ffffff;
 }
 
+.disposal-items-summary-row > input {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 1px solid #d8e0ec;
+  background: #ffffff;
+  color: #111827;
+  font-size: 11px;
+  text-align: center;
+}
+
+.disposal-items-summary-row > input::placeholder {
+  color: #94a3b8;
+}
+
 .disposal-items-summary-box {
   justify-content: flex-start !important;
   background: #f8fafc !important;
