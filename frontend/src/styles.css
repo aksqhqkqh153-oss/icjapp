@@ -23829,6 +23829,39 @@ textarea,
   border: 1px solid #bfdbfe;
 }
 
+.storage-status-monthly-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.storage-status-monthly-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.storage-status-monthly-panel-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.storage-status-copy-button {
+  white-space: nowrap;
+}
+
+.storage-status-monthly-copy-target {
+  display: inline-block;
+  min-width: 100%;
+  background: #ffffff;
+}
+
 .storage-status-table-wrap {
   overflow: auto;
   border: 1px solid #e5e7eb;

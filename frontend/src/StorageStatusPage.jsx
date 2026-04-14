@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 
 const TAB_ITEMS = [
@@ -222,6 +222,75 @@ function describeRowChanges(previousRow, nextRow) {
   return changes.join(', ')
 }
 
+
+function cloneWithInlineStyles(node) {
+  const clone = node.cloneNode(false)
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const computed = window.getComputedStyle(node)
+    const styleText = Array.from(computed).map((prop) => `${prop}:${computed.getPropertyValue(prop)};`).join(' ')
+    clone.setAttribute('style', styleText)
+    if (node instanceof HTMLCanvasElement) {
+      const dataUrl = node.toDataURL()
+      const img = document.createElement('img')
+      img.src = dataUrl
+      img.setAttribute('style', styleText)
+      return img
+    }
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
+      clone.setAttribute('value', node.value)
+      if (node.tagName === 'TEXTAREA') clone.textContent = node.value
+    }
+  }
+  node.childNodes.forEach((child) => {
+    clone.appendChild(cloneWithInlineStyles(child))
+  })
+  return clone
+}
+
+async function copyElementAsImage(element) {
+  if (!element) throw new Error('복사할 표를 찾지 못했습니다.')
+  const rect = element.getBoundingClientRect()
+  const cloned = cloneWithInlineStyles(element)
+  const wrapper = document.createElement('div')
+  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+  wrapper.style.display = 'inline-block'
+  wrapper.style.background = '#ffffff'
+  wrapper.style.padding = '12px'
+  wrapper.appendChild(cloned)
+  const serialized = new XMLSerializer().serializeToString(wrapper)
+  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width + 24)}" height="${Math.ceil(rect.height + 24)}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = reject
+      image.src = url
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.ceil(rect.width + 24)
+    canvas.height = Math.ceil(rect.height + 24)
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(img, 0, 0)
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!pngBlob) throw new Error('표 이미지를 생성하지 못했습니다.')
+    if (navigator.clipboard?.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
+      return
+    }
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText('표 이미지 복사는 이 브라우저에서 지원되지 않습니다.')
+      throw new Error('이미지 클립보드 복사를 지원하지 않는 브라우저입니다.')
+    }
+    throw new Error('클립보드 복사를 지원하지 않는 브라우저입니다.')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 function getMonthlyCellTone(value) {
   const amount = parseScale(value)
   if (!amount) return ''
@@ -244,6 +313,8 @@ export default function StorageStatusPage() {
   const [searchInput, setSearchInput] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [selectedMonthlyCell, setSelectedMonthlyCell] = useState(null)
+  const [copyMessage, setCopyMessage] = useState('')
+  const monthlyTableRef = useRef(null)
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -513,6 +584,7 @@ export default function StorageStatusPage() {
 
       {error ? <div className="storage-status-feedback is-error">{error}</div> : null}
       {savedMessage ? <div className="storage-status-feedback is-success">{savedMessage}</div> : null}
+      {copyMessage ? <div className="storage-status-feedback is-success">{copyMessage}</div> : null}
       {loading ? <div className="muted">짐보관현황을 불러오는 중입니다.</div> : null}
 
       {!loading && tab === 'input' ? (
@@ -586,56 +658,64 @@ export default function StorageStatusPage() {
       ) : null}
 
       {!loading && tab === 'monthly' ? (
-        <div className="storage-status-table-wrap storage-status-table-wrap-monthly">
-          <table className="storage-status-table is-monthly storage-status-table-monthly">
-            <thead>
-              <tr>
-                <th className={selectedMonthlyCell ? 'is-selected-cross' : ''}>월</th>
-                {Array.from({ length: 31 }, (_, index) => {
-                  const day = index + 1
-                  const isSelectedColumn = selectedMonthlyCell?.day === day
-                  return <th key={day} className={isSelectedColumn ? 'is-selected-cross' : ''}>{day}</th>
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyRows.map((row) => {
-                const isSelectedRow = selectedMonthlyCell?.month === row.month
-                return (
-                <tr key={row.month}>
-                  <th className={isSelectedRow ? 'is-selected-cross' : ''}>{row.month}월</th>
-                  {row.days.map((value, index) => {
-                    const day = index + 1
-                    const toneClass = getMonthlyCellTone(value)
-                    const clickableClass = value ? 'is-clickable' : ''
-                    const isSelectedColumn = selectedMonthlyCell?.day === day
-                    const isSelectedCell = isSelectedRow && isSelectedColumn
-                    const crossClass = isSelectedCell
-                      ? 'is-selected-cell'
-                      : (isSelectedRow || isSelectedColumn ? 'is-selected-cross' : '')
+        <div className="storage-status-monthly-panel">
+          <div className="storage-status-monthly-panel-header">
+            <div className="storage-status-monthly-panel-title">월별현황 표</div>
+            <button type="button" className="small ghost storage-status-copy-button" onClick={handleCopyMonthlyTable}>복사</button>
+          </div>
+          <div className="storage-status-table-wrap storage-status-table-wrap-monthly">
+            <div ref={monthlyTableRef} className="storage-status-monthly-copy-target">
+              <table className="storage-status-table is-monthly storage-status-table-monthly">
+                <thead>
+                  <tr>
+                    <th className={selectedMonthlyCell ? 'is-selected-cross' : ''}>월</th>
+                    {Array.from({ length: 31 }, (_, index) => {
+                      const day = index + 1
+                      const isSelectedColumn = selectedMonthlyCell?.day === day
+                      return <th key={day} className={isSelectedColumn ? 'is-selected-cross' : ''}>{day}</th>
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRows.map((row) => {
+                    const isSelectedRow = selectedMonthlyCell?.month === row.month
                     return (
-                      <td
-                        key={day}
-                        className={`${toneClass} ${clickableClass} ${crossClass}`.trim()}
-                        onClick={value ? () => handleMonthlyCellClick(row.month, day) : undefined}
-                        role={value ? 'button' : undefined}
-                        tabIndex={value ? 0 : undefined}
-                        onKeyDown={value ? (event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            handleMonthlyCellClick(row.month, day)
-                          }
-                        } : undefined}
-                        aria-label={value ? `${row.month}월 ${day}일 짐규모 세부현황 열기` : undefined}
-                      >
-                        {value}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )})}
-            </tbody>
-          </table>
+                    <tr key={row.month}>
+                      <th className={isSelectedRow ? 'is-selected-cross' : ''}>{row.month}월</th>
+                      {row.days.map((value, index) => {
+                        const day = index + 1
+                        const toneClass = getMonthlyCellTone(value)
+                        const clickableClass = value ? 'is-clickable' : ''
+                        const isSelectedColumn = selectedMonthlyCell?.day === day
+                        const isSelectedCell = isSelectedRow && isSelectedColumn
+                        const crossClass = isSelectedCell
+                          ? 'is-selected-cell'
+                          : (isSelectedRow || isSelectedColumn ? 'is-selected-cross' : '')
+                        return (
+                          <td
+                            key={day}
+                            className={`${toneClass} ${clickableClass} ${crossClass}`.trim()}
+                            onClick={value ? () => handleMonthlyCellClick(row.month, day) : undefined}
+                            role={value ? 'button' : undefined}
+                            tabIndex={value ? 0 : undefined}
+                            onKeyDown={value ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                handleMonthlyCellClick(row.month, day)
+                              }
+                            } : undefined}
+                            aria-label={value ? `${row.month}월 ${day}일 짐규모 세부현황 열기` : undefined}
+                          >
+                            {value}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )})}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : null}
 
