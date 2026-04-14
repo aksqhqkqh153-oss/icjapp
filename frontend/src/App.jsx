@@ -2508,6 +2508,9 @@ function HomePage() {
 
   function handleQuickDragEnter(quickId) {
     if (!draggingQuickId || !quickId || draggingQuickId === quickId) return
+    if (dragOverQuickId !== quickId) {
+      reorderQuickActionsById(draggingQuickId, quickId)
+    }
     setDragOverQuickId(quickId)
   }
 
@@ -2543,7 +2546,6 @@ function HomePage() {
     if (dx > 6 || dy > 6) {
       current.moved = true
       quickDragSuppressClickRef.current = true
-      event.preventDefault()
     }
     const element = document.elementFromPoint(touch.clientX, touch.clientY)
     const quickTarget = element?.closest?.('[data-quick-id]')
@@ -2697,6 +2699,7 @@ function HomePage() {
                   onDragEnter={() => handleQuickDragEnter(item.id)}
                   onDragOver={event => {
                     event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
                     handleQuickDragEnter(item.id)
                   }}
                   onDrop={event => {

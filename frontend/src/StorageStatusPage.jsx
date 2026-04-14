@@ -384,19 +384,6 @@ export default function StorageStatusPage() {
   const [copyMessage, setCopyMessage] = useState('')
   const monthlyTableRef = useRef(null)
 
-  const handleCopyMonthlyTable = useCallback(async () => {
-    setError('')
-    setSavedMessage('')
-    setCopyMessage('')
-    try {
-      await copyMonthlyTableAsImage(monthlyRows, selectedMonthlyCell)
-      setCopyMessage('월별현황 표가 이미지로 복사되었습니다.')
-      window.setTimeout(() => setCopyMessage(''), 1800)
-    } catch (err) {
-      setError(err?.message || '월별현황 표 복사에 실패했습니다.')
-    }
-  }, [monthlyRows, selectedMonthlyCell])
-
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
     [rows, baselineRows],
@@ -592,6 +579,19 @@ export default function StorageStatusPage() {
 
   const monthlyTargetYear = useMemo(() => new Date().getFullYear(), [])
   const monthlyRows = useMemo(() => buildMonthlyRows(rows, monthlyTargetYear), [rows, monthlyTargetYear])
+
+  const handleCopyMonthlyTable = useCallback(async () => {
+    setError('')
+    setSavedMessage('')
+    setCopyMessage('')
+    try {
+      await copyMonthlyTableAsImage(monthlyRows, selectedMonthlyCell)
+      setCopyMessage('월별현황 표가 이미지로 복사되었습니다.')
+      window.setTimeout(() => setCopyMessage(''), 1800)
+    } catch (err) {
+      setError(err?.message || '월별현황 표 복사에 실패했습니다.')
+    }
+  }, [monthlyRows, selectedMonthlyCell])
   const detailRows = useMemo(() => rows.filter((row) => isDateWithinRow(detailModalDate, row)), [rows, detailModalDate])
 
   const changedCellMap = useMemo(() => {

@@ -23988,6 +23988,16 @@ textarea,
 .storage-status-scale-label {
   display: inline-block;
   line-height: 1;
+  white-space: nowrap;
+}
+@media (max-width: 768px) {
+  .storage-status-scale-label {
+    white-space: normal;
+    word-break: break-all;
+    width: 1.2em;
+    text-align: center;
+    line-height: 1.05;
+  }
 }
 
 .storage-status-cell-changed {
