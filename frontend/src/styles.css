@@ -25270,3 +25270,27 @@ button.danger {
     line-height: 1 !important;
   }
 }
+
+/* 2026-04-14 desktop schedule remove row gaps between status and lanes / remove grid seams */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell {
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+}
