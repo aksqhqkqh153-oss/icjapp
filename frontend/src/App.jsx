@@ -1382,6 +1382,27 @@ const HOME_HOLD_SECONDS_DEFAULT = 1
 const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
 
 const QUICK_ACTION_LIMIT = 36
+const QUICK_ACTION_PREPARING_IDS = new Set([
+  'point',
+  'warehouse',
+  'materials',
+  'materialsBuy',
+  'materialsRequesters',
+  'materialsSettlement',
+  'storageStatus',
+  'memoPad',
+  'ladderDispatch',
+  'soomgoReviewFinder',
+  'dailySettlement',
+  'weeklySettlement',
+  'monthlySettlement',
+  'materialSummary',
+  'settlements',
+])
+
+function isQuickActionPreparingLockedForUser(user, itemId) {
+  return Number(user?.grade || 6) > 2 && QUICK_ACTION_PREPARING_IDS.has(String(itemId || ''))
+}
 
 function homeSettingsStorageKey(userId) {
   return `icj_home_settings_${userId || 'guest'}`
@@ -2443,6 +2464,10 @@ function HomePage() {
   }
 
   function handleQuickActionClick(item) {
+    if (isQuickActionPreparingLockedForUser(currentUser, item.id)) {
+      window.alert('준비 중입니다.')
+      return
+    }
     if (item.kind === 'placeholder') return
     if (item.path?.includes('?')) {
       navigate(item.path)
@@ -2458,6 +2483,7 @@ function HomePage() {
   const quickLibrary = useMemo(() => {
     let base = [...QUICK_ACTION_LIBRARY]
     base = base.filter(item => {
+      if (isQuickActionPreparingLockedForUser(currentUser, item.id)) return true
       if (item.adminOnly && Number(currentUser?.grade || 6) > 2) return false
       if (item.path) return canUserAccessPath(currentUser, item.path, menuPermissions, menuLocks)
       if (item.id === 'point') return canUserAccessPath(currentUser, '/points', menuPermissions, menuLocks)
@@ -2468,7 +2494,7 @@ function HomePage() {
     })
     if (employeeRestricted) {
       const hiddenQuickIds = new Set(['materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'settlements'])
-      base = base.filter(item => !hiddenQuickIds.has(item.id))
+      base = base.filter(item => isQuickActionPreparingLockedForUser(currentUser, item.id) || !hiddenQuickIds.has(item.id))
     }
     return base
   }, [employeeRestricted, currentUser, menuLocks, menuPermissions])
@@ -2532,27 +2558,38 @@ function HomePage() {
             </div>
           </div>
           <div className="quick-check-grid quick-check-grid-desktop-6">
-            {!employeeRestricted && homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
-              <button
-                type="button"
-                className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
-                onMouseDown={startHoldAction}
-                onMouseUp={stopHoldAction}
-                onMouseLeave={stopHoldAction}
-                onTouchStart={startHoldAction}
-                onTouchEnd={stopHoldAction}
-                onTouchCancel={stopHoldAction}
-              >
-                <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
-                <span>{formatElapsed(elapsedSeconds)}</span>
-                <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
-              </button>
+            {homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
+              Number(currentUser?.grade || 6) <= 2 ? (
+                <button
+                  type="button"
+                  className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
+                  onMouseDown={startHoldAction}
+                  onMouseUp={stopHoldAction}
+                  onMouseLeave={stopHoldAction}
+                  onTouchStart={startHoldAction}
+                  onTouchEnd={stopHoldAction}
+                  onTouchCancel={stopHoldAction}
+                >
+                  <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
+                  <span>{formatElapsed(elapsedSeconds)}</span>
+                  <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
+                </button>
+              ) : (
+                <button type="button" className="quick-check-card quick-check-card-disabled workday-inline-card" disabled>
+                  <strong>준비중</strong>
+                  <span>일 시작</span>
+                  <small>관리자/부관리자 전용</small>
+                </button>
+              )
             )}
             {activeQuickItems.map(item => {
-              const topText = item.kind === 'metric'
-                ? String(summary?.[item.metricKey] ?? 0)
-                : (item.kind === 'placeholder' ? '준비중' : '')
-              const isDisabled = item.kind === 'placeholder'
+              const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
+              const topText = preparingLocked
+                ? '준비중'
+                : item.kind === 'metric'
+                  ? String(summary?.[item.metricKey] ?? 0)
+                  : (item.kind === 'placeholder' ? '준비중' : '')
+              const isDisabled = item.kind === 'placeholder' || preparingLocked
               const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
               return (
                 <button
