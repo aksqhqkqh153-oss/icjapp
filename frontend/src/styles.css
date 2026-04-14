@@ -25313,3 +25313,37 @@ button.danger {
     padding-right: 0 !important;
   }
 }
+
+/* 2026-04-14 desktop schedule header equal thirds and left-aligned lane text */
+@media (min-width: 769px) {
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable span {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+    gap: 1px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-top-actions.filled {
+    display: contents !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-date-select,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.filled.schedule-add-band {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+}
