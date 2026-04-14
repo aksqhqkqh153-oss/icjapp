@@ -223,72 +223,140 @@ function describeRowChanges(previousRow, nextRow) {
 }
 
 
-function cloneWithInlineStyles(node) {
-  const clone = node.cloneNode(false)
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const computed = window.getComputedStyle(node)
-    const styleText = Array.from(computed).map((prop) => `${prop}:${computed.getPropertyValue(prop)};`).join(' ')
-    clone.setAttribute('style', styleText)
-    if (node instanceof HTMLCanvasElement) {
-      const dataUrl = node.toDataURL()
-      const img = document.createElement('img')
-      img.src = dataUrl
-      img.setAttribute('style', styleText)
-      return img
-    }
-    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
-      clone.setAttribute('value', node.value)
-      if (node.tagName === 'TEXTAREA') clone.textContent = node.value
-    }
-  }
-  node.childNodes.forEach((child) => {
-    clone.appendChild(cloneWithInlineStyles(child))
-  })
-  return clone
+function getMonthlyCellFillStyle(value) {
+  const amount = parseScale(value)
+  if (!amount) return '#ffffff'
+  if (amount < 17) return '#ccf4da'
+  if (amount < 18) return '#ffe1be'
+  return '#ffd0d0'
 }
 
-async function copyElementAsImage(element) {
-  if (!element) throw new Error('복사할 표를 찾지 못했습니다.')
-  const rect = element.getBoundingClientRect()
-  const cloned = cloneWithInlineStyles(element)
-  const wrapper = document.createElement('div')
-  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
-  wrapper.style.display = 'inline-block'
-  wrapper.style.background = '#ffffff'
-  wrapper.style.padding = '12px'
-  wrapper.appendChild(cloned)
-  const serialized = new XMLSerializer().serializeToString(wrapper)
-  const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width + 24)}" height="${Math.ceil(rect.height + 24)}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const image = new Image()
-      image.onload = () => resolve(image)
-      image.onerror = reject
-      image.src = url
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.ceil(rect.width + 24)
-    canvas.height = Math.ceil(rect.height + 24)
-    const context = canvas.getContext('2d')
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(img, 0, 0)
-    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
-    if (!pngBlob) throw new Error('표 이미지를 생성하지 못했습니다.')
-    if (navigator.clipboard?.write && window.ClipboardItem) {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
-      return
-    }
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText('표 이미지 복사는 이 브라우저에서 지원되지 않습니다.')
-      throw new Error('이미지 클립보드 복사를 지원하지 않는 브라우저입니다.')
-    }
-    throw new Error('클립보드 복사를 지원하지 않는 브라우저입니다.')
-  } finally {
-    URL.revokeObjectURL(url)
+function getMonthlyCrossFillStyle({ isSelectedCell, isSelectedCross, baseFill }) {
+  if (isSelectedCell) return '#111111'
+  if (isSelectedCross) return '#eceff3'
+  return baseFill
+}
+
+function getMonthlyCrossTextStyle({ isSelectedCell, isHeader }) {
+  if (isSelectedCell) return '#ffffff'
+  if (isHeader) return '#111111'
+  return '#111111'
+}
+
+async function canvasToPngBlob(canvas) {
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, 'image/png')
+  })
+}
+
+async function buildMonthlyTableCanvas(monthlyRows, selectedMonthlyCell) {
+  if (!Array.isArray(monthlyRows) || monthlyRows.length === 0) {
+    throw new Error('복사할 월별현황 데이터가 없습니다.')
   }
+
+  const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
+  const paddingX = 18
+  const paddingY = 18
+  const monthColWidth = 62
+  const dayColWidth = 42
+  const headerHeight = 40
+  const rowHeight = 38
+  const borderColor = '#e5e7eb'
+  const headerFill = '#f1f5f9'
+  const crossFill = '#eceff3'
+  const textColor = '#111111'
+  const strongBorder = '#111111'
+
+  const tableWidth = monthColWidth + (31 * dayColWidth)
+  const tableHeight = headerHeight + (monthlyRows.length * rowHeight)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round((tableWidth + paddingX * 2) * scale)
+  canvas.height = Math.round((tableHeight + paddingY * 2) * scale)
+
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('표 이미지를 생성하지 못했습니다.')
+
+  context.scale(scale, scale)
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, tableWidth + paddingX * 2, tableHeight + paddingY * 2)
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+
+  function drawCell(x, y, width, height, label, options = {}) {
+    const {
+      fill = '#ffffff',
+      color = textColor,
+      font = '700 13px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
+      border = borderColor,
+      lineWidth = 1,
+    } = options
+    context.fillStyle = fill
+    context.fillRect(x, y, width, height)
+    context.strokeStyle = border
+    context.lineWidth = lineWidth
+    context.strokeRect(x + lineWidth / 2, y + lineWidth / 2, width - lineWidth, height - lineWidth)
+    context.fillStyle = color
+    context.font = font
+    context.fillText(String(label ?? ''), x + (width / 2), y + (height / 2) + 0.5)
+  }
+
+  const originX = paddingX
+  const originY = paddingY
+  const hasSelection = Boolean(selectedMonthlyCell?.month && selectedMonthlyCell?.day)
+
+  drawCell(originX, originY, monthColWidth, headerHeight, '월', {
+    fill: hasSelection ? crossFill : headerFill,
+    font: '800 13px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
+  })
+
+  Array.from({ length: 31 }, (_, index) => {
+    const day = index + 1
+    const isSelectedColumn = selectedMonthlyCell?.day === day
+    drawCell(originX + monthColWidth + (index * dayColWidth), originY, dayColWidth, headerHeight, day, {
+      fill: isSelectedColumn ? crossFill : headerFill,
+      font: '800 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
+      border: isSelectedColumn ? strongBorder : borderColor,
+      lineWidth: isSelectedColumn ? 2 : 1,
+    })
+  })
+
+  monthlyRows.forEach((row, rowIndex) => {
+    const y = originY + headerHeight + (rowIndex * rowHeight)
+    const isSelectedRow = selectedMonthlyCell?.month === row.month
+    drawCell(originX, y, monthColWidth, rowHeight, `${row.month}월`, {
+      fill: isSelectedRow ? crossFill : headerFill,
+      font: '800 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
+      border: isSelectedRow ? strongBorder : borderColor,
+      lineWidth: isSelectedRow ? 2 : 1,
+    })
+    row.days.forEach((value, dayIndex) => {
+      const day = dayIndex + 1
+      const isSelectedColumn = selectedMonthlyCell?.day === day
+      const isSelectedCell = isSelectedRow && isSelectedColumn
+      const isSelectedCross = !isSelectedCell && (isSelectedRow || isSelectedColumn)
+      const baseFill = getMonthlyCellFillStyle(value)
+      drawCell(originX + monthColWidth + (dayIndex * dayColWidth), y, dayColWidth, rowHeight, value || '', {
+        fill: getMonthlyCrossFillStyle({ isSelectedCell, isSelectedCross, baseFill }),
+        color: getMonthlyCrossTextStyle({ isSelectedCell, isHeader: false }),
+        font: value ? '800 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif' : '500 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
+        border: (isSelectedCell || isSelectedCross) ? strongBorder : borderColor,
+        lineWidth: (isSelectedCell || isSelectedCross) ? 2 : 1,
+      })
+    })
+  })
+
+  return canvas
+}
+
+async function copyMonthlyTableAsImage(monthlyRows, selectedMonthlyCell) {
+  const canvas = await buildMonthlyTableCanvas(monthlyRows, selectedMonthlyCell)
+  const pngBlob = await canvasToPngBlob(canvas)
+  if (!pngBlob) throw new Error('표 이미지를 생성하지 못했습니다.')
+  if (navigator.clipboard?.write && window.ClipboardItem) {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
+    return
+  }
+  throw new Error('이미지 클립보드 복사를 지원하지 않는 브라우저입니다.')
 }
 
 function getMonthlyCellTone(value) {
@@ -321,13 +389,13 @@ export default function StorageStatusPage() {
     setSavedMessage('')
     setCopyMessage('')
     try {
-      await copyElementAsImage(monthlyTableRef.current)
+      await copyMonthlyTableAsImage(monthlyRows, selectedMonthlyCell)
       setCopyMessage('월별현황 표가 이미지로 복사되었습니다.')
       window.setTimeout(() => setCopyMessage(''), 1800)
     } catch (err) {
       setError(err?.message || '월별현황 표 복사에 실패했습니다.')
     }
-  }, [])
+  }, [monthlyRows, selectedMonthlyCell])
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -636,7 +704,7 @@ export default function StorageStatusPage() {
                 <th>담당대표</th>
                 <th>시작일</th>
                 <th>종료일</th>
-                <th><span className="storage-status-scale-label">짐<br />규모</span></th>
+                <th><span className="storage-status-scale-label">짐규모</span></th>
               </tr>
             </thead>
             <tbody>

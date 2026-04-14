@@ -1202,7 +1202,7 @@ label { font-size: 14px; color: #4f6f8c; }
   border-radius: 0;
   border: 1px solid #cbd5e1;
   box-shadow: none;
-  background: #f8fafc;
+  background: #f1f5f9;
 }
 .work-schedule-day.has-entries {
   background: #eef6ff;
@@ -1520,7 +1520,7 @@ label { font-size: 14px; color: #4f6f8c; }
   padding: 8px 10px;
   border-radius: 12px;
   white-space: normal;
-  line-height: 1.05;
+  line-height: 1;
 }
 .multiline-action-button span {
   display: inline-block;
@@ -4714,7 +4714,7 @@ button.materials-tab {
   line-height: 1.2;
 }
 button.materials-tab.active {
-  background: #dcfce7;
+  background: #ccf4da;
   border-color: #86efac;
   color: #166534;
 }
@@ -7446,7 +7446,7 @@ a:focus-visible {
 
   .materials-history-group-header > div,
   .materials-history-group-meta > div {
-    padding: 5px 4px;
+    padding: 3px 3px;
   }
 
   .materials-history-group-detail-line {
@@ -23891,7 +23891,7 @@ textarea,
 }
 
 .storage-status-table thead th {
-  background: #f8fafc;
+  background: #f1f5f9;
   font-weight: 800;
   color: #0f172a;
   position: sticky;
@@ -23928,12 +23928,12 @@ textarea,
 
 .storage-status-table-input th,
 .storage-status-table-input td {
-  padding: 5px 4px;
+  padding: 3px 3px;
 }
 
 .storage-status-table-input input {
-  padding: 4px 5px;
-  min-height: 28px;
+  padding: 3px 4px;
+  min-height: 24px;
 }
 
 .storage-status-check-col {
@@ -23949,11 +23949,11 @@ textarea,
 
 .storage-status-scale-label {
   display: inline-block;
-  line-height: 1.05;
+  line-height: 1;
 }
 
 .storage-status-cell-changed {
-  background: #dcfce7;
+  background: #ccf4da;
 }
 
 .storage-status-cell-changed input {
@@ -23986,7 +23986,7 @@ textarea,
   z-index: 4;
   width: 40px;
   min-width: 40px;
-  background: #f8fafc;
+  background: #f1f5f9;
   box-shadow: 1px 0 0 #e5e7eb;
 }
 
@@ -23999,19 +23999,19 @@ textarea,
 }
 
 .storage-status-table-monthly td.is-safe {
-  background: #dcfce7;
+  background: #ccf4da;
   color: #111111;
   font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-warn {
-  background: #ffedd5;
+  background: #ffe1be;
   color: #111111;
   font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-danger {
-  background: #fee2e2;
+  background: #ffd0d0;
   color: #111111;
   font-weight: 700;
 }
@@ -24124,13 +24124,19 @@ button.danger {
   .storage-status-table-input col:nth-child(4) { width: 19%; }
   .storage-status-table-input col:nth-child(5) { width: 18%; }
   .storage-status-table-input col:nth-child(6) { width: 18%; }
-  .storage-status-table-input col:nth-child(7) { width: 14%; }
+  .storage-status-table-input col:nth-child(7) { width: 11%; }
+
+  .storage-status-table-input th:nth-child(7),
+  .storage-status-table-input td:nth-child(7) {
+    padding-left: 1px;
+    padding-right: 1px;
+  }
 
   .storage-status-table-input input {
     font-size: 12px;
-    padding: 4px 2px;
+    padding: 3px 1px;
     border-radius: 6px;
-    min-height: 24px;
+    min-height: 22px;
     font-weight: 700;
     letter-spacing: -0.15px;
   }
@@ -24143,8 +24149,8 @@ button.danger {
   }
 
   .storage-status-table-input th:nth-child(7) {
-    white-space: normal;
-    line-height: 1.05;
+    white-space: nowrap;
+    line-height: 1;
     letter-spacing: -0.2px;
   }
 
