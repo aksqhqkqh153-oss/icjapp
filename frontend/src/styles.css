@@ -26086,3 +26086,16 @@ button.danger {
     opacity: 1 !important;
   }
 }
+
+
+.page-container.page-container-home,
+.page-container.page-container-map,
+.page-container.page-container-friends,
+.page-container.page-container-chat {
+  padding: 0;
+}
+
+.card.friends-shell,
+.friends-shell {
+  border: 1px solid #000;
+}

@@ -1934,7 +1934,7 @@ function Layout({ children, user, onLogout }) {
         </div>
       </header>
       )}
-      <main className={`page-container${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
+      <main className={`page-container${location.pathname === '/' ? ' page-container-home' : ''}${location.pathname === '/map' ? ' page-container-map' : ''}${location.pathname === '/friends' ? ' page-container-friends' : ''}${location.pathname.startsWith('/chat') ? ' page-container-chat' : ''}${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
           <Link key={to} className={isBottomActive(to) ? 'bottom-nav-item active' : 'bottom-nav-item'} to={to}>
@@ -6506,8 +6506,8 @@ function CalendarPage() {
       api(`/api/calendar/events?start_date=${firstDate}&end_date=${lastDate}`),
       api(`/api/work-schedule?start_date=${firstDate}&days=42`),
     ])
-    setItems(calendarData)
-    setWorkDays(workData.days || [])
+    setItems(Array.isArray(calendarData) ? calendarData : (Array.isArray(calendarData?.items) ? calendarData.items : []))
+    setWorkDays(Array.isArray(workData?.days) ? workData.days : (Array.isArray(workData) ? workData : []))
   }
   useEffect(() => { load().catch(() => {}) }, [monthCursor, days])
   useEffect(() => {
@@ -6523,9 +6523,11 @@ function CalendarPage() {
 
   const monthLabel = useMemo(() => `${monthCursor.getFullYear()}년 ${monthCursor.getMonth() + 1}월`, [monthCursor])
   const grouped = useMemo(() => {
+    const safeItems = Array.isArray(items) ? items : []
     const map = new Map()
-    items.forEach(item => {
-      const key = item.event_date
+    safeItems.forEach(item => {
+      const key = item?.event_date
+      if (!key) return
       if (!map.has(key)) map.set(key, [])
       map.get(key).push(item)
     })
@@ -6539,7 +6541,10 @@ function CalendarPage() {
     return map
   }, [items])
   const visibleLaneCount = isMobile ? 3 : 4
-  const workDayMap = useMemo(() => new Map((workDays || []).map(day => [day.date, day])), [workDays])
+  const workDayMap = useMemo(() => {
+    const safeDays = Array.isArray(workDays) ? workDays : []
+    return new Map(safeDays.filter(day => day?.date).map(day => [day.date, day]))
+  }, [workDays])
   const detailItems = grouped.get(selectedDate) || []
   const selectedDaySummary = workDayMap.get(selectedDate) || buildDayStatusForm({ date: selectedDate })
 
