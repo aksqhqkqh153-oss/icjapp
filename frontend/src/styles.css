@@ -14420,9 +14420,13 @@ body:not([data-theme="dark"]) .app-search-result-item * {
   background: #ffffff;
 }
 
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item > div {
+  color: #1d4ed8;
+}
+
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item > div:nth-child(3),
 .disposal-month-settlement-table.simple-sheet .disposal-month-settlement-item > div:nth-child(4) {
-  color: #111827;
+  color: #1d4ed8;
   font-weight: 600;
 }
 
