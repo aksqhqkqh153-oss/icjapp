@@ -257,6 +257,19 @@ class LocationIn(BaseModel):
 class LocationShareConsentIn(BaseModel):
     enabled: bool
 
+class StorageStatusRowIn(BaseModel):
+    id: str = ''
+    status: str = ''
+    customer_name: str = ''
+    manager_name: str = ''
+    start_date: str = ''
+    end_date: str = ''
+    scale: str = ''
+
+
+class StorageStatusStateIn(BaseModel):
+    rows: list[StorageStatusRowIn] = Field(default_factory=list)
+
 class DisposalJurisdictionRowIn(BaseModel):
     id: Optional[int] = None
     category: str = '기본'
@@ -6079,6 +6092,21 @@ def resolve_disposal_jurisdiction(location: str = Query(default=''), user=Depend
             report_link=str(best_row['report_link'] or ''),
         )
     return DisposalJurisdictionResolveOut(matched=False, place_prefix=normalized)
+
+
+@app.get('/api/storage-status/state')
+def storage_status_state_api(user=Depends(require_user)):
+    with get_conn() as conn:
+        state = get_storage_status_state(conn)
+    return {'state': state}
+
+
+@app.post('/api/storage-status/state')
+def save_storage_status_state_api(payload: StorageStatusStateIn, user=Depends(require_user)):
+    rows = [item.model_dump() for item in (payload.rows or [])]
+    with get_conn() as conn:
+        state = replace_storage_status_rows(conn, rows)
+    return {'ok': True, 'state': state}
 
 
 @app.get('/api/warehouse/state')

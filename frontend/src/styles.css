@@ -23663,22 +23663,24 @@ textarea,
 }
 
 .storage-status-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 18px;
   background: #fff;
+  position: relative;
 }
 
 .storage-status-table {
   width: 100%;
-  min-width: 860px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
 }
 
 .storage-status-table th,
 .storage-status-table td {
   border-bottom: 1px solid #eef2f7;
-  padding: 10px 10px;
+  padding: 10px 8px;
   text-align: center;
   font-size: 13px;
   vertical-align: middle;
@@ -23689,6 +23691,9 @@ textarea,
   background: #f8fafc;
   font-weight: 800;
   color: #0f172a;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .storage-status-table tbody tr:last-child td,
@@ -23698,12 +23703,32 @@ textarea,
 
 .storage-status-table input {
   width: 100%;
-  min-width: 110px;
+  min-width: 0;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 8px 8px;
   font-size: 13px;
   background: #fff;
+}
+
+.storage-status-table-input col:nth-child(1) { width: 12%; }
+.storage-status-table-input col:nth-child(2) { width: 18%; }
+.storage-status-table-input col:nth-child(3) { width: 18%; }
+.storage-status-table-input col:nth-child(4) { width: 18%; }
+.storage-status-table-input col:nth-child(5) { width: 18%; }
+.storage-status-table-input col:nth-child(6) { width: 16%; }
+
+.storage-status-table-input {
+  min-width: 0;
+}
+
+.storage-status-table-input th,
+.storage-status-table-input td {
+  padding: 10px 6px;
+}
+
+.storage-status-table-input input {
+  padding: 7px 6px;
 }
 
 .storage-status-table.is-monthly {
@@ -23714,6 +23739,22 @@ textarea,
 .storage-status-table.is-monthly td {
   min-width: 42px;
   padding: 8px 6px;
+}
+
+.storage-status-table-monthly thead th:first-child,
+.storage-status-table-monthly tbody th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: #f8fafc;
+}
+
+.storage-status-table-monthly tbody th:first-child {
+  z-index: 2;
+}
+
+.storage-status-table-monthly thead th:first-child {
+  z-index: 5;
 }
 
 .storage-status-empty {
@@ -23764,6 +23805,32 @@ button.danger {
   .storage-status-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .storage-status-table th,
+  .storage-status-table td {
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+
+  .storage-status-table-input col:nth-child(1) { width: 14%; }
+  .storage-status-table-input col:nth-child(2) { width: 18%; }
+  .storage-status-table-input col:nth-child(3) { width: 18%; }
+  .storage-status-table-input col:nth-child(4) { width: 18%; }
+  .storage-status-table-input col:nth-child(5) { width: 18%; }
+  .storage-status-table-input col:nth-child(6) { width: 14%; }
+
+  .storage-status-table-input input {
+    font-size: 11px;
+    padding: 6px 4px;
+    border-radius: 8px;
+  }
+
+  .storage-status-badge {
+    min-width: 0;
+    width: 100%;
+    padding: 5px 4px;
+    font-size: 10px;
   }
 }
 

@@ -158,10 +158,6 @@ export default function StorageStatusPage() {
     setRows((prev) => [...prev, normalizeRow(EMPTY_ROW())])
   }, [])
 
-  const removeRow = useCallback((rowId) => {
-    setRows((prev) => prev.filter((row) => row.id !== rowId))
-  }, [])
-
   const save = useCallback(async () => {
     setSaving(true)
     setError('')
@@ -213,7 +209,15 @@ export default function StorageStatusPage() {
 
       {!loading && tab === 'input' ? (
         <div className="storage-status-table-wrap">
-          <table className="storage-status-table">
+          <table className="storage-status-table storage-status-table-input">
+            <colgroup>
+              <col />
+              <col />
+              <col />
+              <col />
+              <col />
+              <col />
+            </colgroup>
             <thead>
               <tr>
                 <th>구분</th>
@@ -222,13 +226,12 @@ export default function StorageStatusPage() {
                 <th>시작일</th>
                 <th>종료일</th>
                 <th>짐규모</th>
-                <th>관리</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="storage-status-empty">등록된 짐보관 현황이 없습니다.</td>
+                  <td colSpan={6} className="storage-status-empty">등록된 짐보관 현황이 없습니다.</td>
                 </tr>
               ) : rows.map((row) => (
                 <tr key={row.id}>
@@ -238,7 +241,6 @@ export default function StorageStatusPage() {
                   <td><input value={row.start_date} onChange={(e) => updateRow(row.id, 'start_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'start_date', formatDate(e.target.value))} placeholder="26.04.10" /></td>
                   <td><input value={row.end_date} onChange={(e) => updateRow(row.id, 'end_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'end_date', formatDate(e.target.value))} placeholder="26.04.10" /></td>
                   <td><input value={row.scale} onChange={(e) => updateRow(row.id, 'scale', e.target.value)} onBlur={(e) => updateRow(row.id, 'scale', formatScale(e.target.value))} placeholder="1" /></td>
-                  <td><button type="button" className="small ghost danger" onClick={() => removeRow(row.id)}>삭제</button></td>
                 </tr>
               ))}
             </tbody>
@@ -248,7 +250,7 @@ export default function StorageStatusPage() {
 
       {!loading && tab === 'monthly' ? (
         <div className="storage-status-table-wrap">
-          <table className="storage-status-table is-monthly">
+          <table className="storage-status-table is-monthly storage-status-table-monthly">
             <thead>
               <tr>
                 <th>월</th>
