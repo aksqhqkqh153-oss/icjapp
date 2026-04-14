@@ -10535,6 +10535,10 @@ function ladderTemplateStorageKey(userKey) {
   return `icj_ladder_template_${userKey || 'guest'}`
 }
 
+function ladderSavedListStorageKey(userKey) {
+  return `icj_ladder_saved_list_${userKey || 'guest'}`
+}
+
 const LADDER_TEMPLATE_DEFAULT = [
   '★ {{date}} {{move_time}} {{customer_name}} ★',
   '※ 출발지 -> 도착지 이동소요시간 : {{travel_time}}',
@@ -10698,6 +10702,45 @@ function saveLadderTemplate(userKey, template) {
   } catch (_) {}
 }
 
+function readLadderSavedList(userKey) {
+  try {
+    const raw = localStorage.getItem(ladderSavedListStorageKey(userKey))
+    const parsed = JSON.parse(raw || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(item => item && typeof item === 'object')
+      .map(item => ({
+        id: String(item.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+        date: String(item.date || ''),
+        moveTime: String(item.moveTime || ''),
+        customerName: String(item.customerName || ''),
+        branch: String(item.branch || ''),
+        text: String(item.text || ''),
+        createdAt: String(item.createdAt || ''),
+      }))
+  } catch (_) {
+    return []
+  }
+}
+
+function saveLadderSavedList(userKey, items) {
+  try {
+    localStorage.setItem(ladderSavedListStorageKey(userKey), JSON.stringify(Array.isArray(items) ? items : []))
+  } catch (_) {}
+}
+
+function createEmptyLadderForm() {
+  return {
+    date: '',
+    branch: '',
+    moveTime: '',
+    customerName: '',
+    travelTime: '',
+    start: createLadderLocationState(),
+    end: createLadderLocationState(),
+  }
+}
+
 function formatLadderDateLabelFromIso(isoDate) {
   if (!isoDate) return ''
   const parts = String(isoDate).split('-')
@@ -10755,10 +10798,11 @@ function getLadderPreviewModel(form, options = {}) {
   const customerNameRaw = String(form.customerName || '').trim()
   const travelTimeRaw = String(form.travelTime || '').trim()
   const moveTimeVal = normalizeLadderMoveTime(moveTimeRaw) || '00:00'
-  const customerNameVal = customerNameRaw || '홍길동'
-  const travelTimeVal = travelTimeRaw || '0시간 00분'
   const useStart = !!form.start.enabled
   const useEnd = !!form.end.enabled
+  const locationSuffix = useStart && useEnd ? '(출발지/도착지)' : useStart ? '(출발지)' : useEnd ? '(도착지)' : ''
+  const customerNameVal = `${customerNameRaw || '홍길동'}${locationSuffix}`
+  const travelTimeVal = travelTimeRaw || '0시간 00분'
 
   const sectionResult = (startVal, endVal, defaultVal) => {
     const startRaw = String(startVal || '').trim()
@@ -10931,16 +10975,11 @@ function LadderDispatchPage() {
   const datePickerRef = useRef(null)
   const [branchDb, setBranchDb] = useState(() => readLadderBranchDb(userKey))
   const [templateText, setTemplateText] = useState(() => readLadderTemplate(userKey))
-  const [form, setForm] = useState(() => ({
-    date: '',
-    branch: '',
-    moveTime: '',
-    customerName: '',
-    travelTime: '',
-    start: createLadderLocationState(),
-    end: createLadderLocationState(),
-  }))
+  const [form, setForm] = useState(() => createEmptyLadderForm())
   const [copiedTarget, setCopiedTarget] = useState('')
+  const [savedList, setSavedList] = useState(() => readLadderSavedList(userKey))
+  const [savedListOpen, setSavedListOpen] = useState(false)
+  const [savedSelections, setSavedSelections] = useState({})
   const [branchEditMenuOpen, setBranchEditMenuOpen] = useState(false)
   const [templateEditMenuOpen, setTemplateEditMenuOpen] = useState(false)
   const [branchEditorOpen, setBranchEditorOpen] = useState(false)
@@ -10956,6 +10995,10 @@ function LadderDispatchPage() {
   useEffect(() => {
     saveLadderTemplate(userKey, templateText)
   }, [templateText, userKey])
+
+  useEffect(() => {
+    saveLadderSavedList(userKey, savedList)
+  }, [savedList, userKey])
 
   useEffect(() => {
     if (!branchNames.length) return
@@ -11034,15 +11077,63 @@ function LadderDispatchPage() {
     }
   }
 
+  function resetLadderForm() {
+    if (!window.confirm('기본정보, 출발지정보, 도착지정보를 모두 초기화하시겠습니까?')) return
+    setForm(createEmptyLadderForm())
+    setCopiedTarget('')
+  }
+
+  function saveCurrentLadderMessage() {
+    const text = buildLadderMessage(form, { branchDb, template: templateText })
+    const item = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      date: String(form.date || '').trim(),
+      moveTime: normalizeLadderMoveTime(form.moveTime) || '',
+      customerName: String(form.customerName || '').trim(),
+      branch: String(form.branch || '').trim(),
+      text,
+      createdAt: new Date().toISOString(),
+    }
+    setSavedList(prev => [item, ...prev])
+    setCopiedTarget('저장완료')
+    window.setTimeout(() => setCopiedTarget(''), 1600)
+  }
+
+  function toggleSavedSelection(id, checked) {
+    setSavedSelections(prev => ({ ...prev, [id]: checked }))
+  }
+
+  function deleteSelectedSavedItems() {
+    const ids = Object.entries(savedSelections).filter(([, checked]) => checked).map(([id]) => id)
+    if (!ids.length) {
+      window.alert('삭제할 저장목록을 선택해주세요.')
+      return
+    }
+    if (!window.confirm('선택한 저장목록을 삭제하시겠습니까?')) return
+    const idSet = new Set(ids)
+    setSavedList(prev => prev.filter(item => !idSet.has(item.id)))
+    setSavedSelections({})
+  }
+
+  async function copySavedItemText(item) {
+    const ok = await writeClipboardText(String(item?.text || ''))
+    if (ok) {
+      setCopiedTarget('저장목록 복사완료')
+      window.setTimeout(() => setCopiedTarget(''), 1600)
+    } else {
+      window.alert('클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.')
+    }
+  }
+
   return (
     <div className="stack-page ladder-dispatch-page">
       <section className="card">
         <div className="between ladder-dispatch-head">
           <div />
-          <div className="inline-actions wrap end">
-            <button type="button" className="small" onClick={() => copyMessage('본사방')}>본사방 복사</button>
-            <button type="button" className="small" onClick={() => copyMessage('본사 상담팀')}>본사 상담팀 복사</button>
-            <button type="button" className="small" onClick={() => copyMessage('사다리차 배차방')}>사다리차 배차방 복사</button>
+          <div className="inline-actions wrap end ladder-top-actions">
+            <button type="button" className="small" onClick={resetLadderForm}>초기화</button>
+            <button type="button" className="small" onClick={() => setSavedListOpen(true)}>저장목록</button>
+            <button type="button" className="small" onClick={saveCurrentLadderMessage}>저장</button>
           </div>
         </div>
         {copiedTarget && <div className="success ladder-copy-notice">{copiedTarget}용 문구를 클립보드에 복사했습니다.</div>}
@@ -11137,6 +11228,32 @@ function LadderDispatchPage() {
           </div>
         </div>
       </section>
+
+      {savedListOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setSavedListOpen(false)}>
+          <div className="modal-card ladder-modal-card ladder-saved-modal" onClick={e => e.stopPropagation()}>
+            <div className="ladder-saved-header-row">
+              <button type="button" className="small" onClick={() => setSavedListOpen(false)}>←</button>
+              <strong>저장목록</strong>
+              <button type="button" className="small" onClick={deleteSelectedSavedItems}>삭제</button>
+            </div>
+            <div className="ladder-saved-list">
+              {savedList.length ? savedList.map(item => (
+                <div key={item.id} className="ladder-saved-item-row">
+                  <label className="ladder-saved-check"><input type="checkbox" checked={!!savedSelections[item.id]} onChange={e => toggleSavedSelection(item.id, e.target.checked)} /></label>
+                  <button type="button" className="ladder-saved-item-button" onClick={() => copySavedItemText(item)}>
+                    <span>{item.date || '-'}</span>
+                    <span>{item.moveTime || '-'}</span>
+                    <span>{item.customerName || '-'}</span>
+                    <span>{item.branch || '-'}</span>
+                  </button>
+                </div>
+              )) : <div className="muted small-text">저장된 목록이 없습니다.</div>}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {branchEditorOpen && createPortal(
         <div className="modal-overlay" onClick={() => setBranchEditorOpen(false)}>
