@@ -40,6 +40,7 @@ const SORT_DIRECTION_OPTIONS = [
 
 const SETTLEMENT_PRIMARY_FILTER_OPTIONS = [
   { value: 'platform', label: '구분' },
+  { value: 'customerName', label: '고객명' },
   { value: 'disposalDate', label: '폐기일자' },
   { value: 'paymentDate', label: '입금일자' },
 ]
@@ -3352,6 +3353,34 @@ function normalizeSettlementSearchValue(record, field) {
   return String(raw || '').replace(/\s+/g, '').toLowerCase()
 }
 
+function buildSettlementSearchValue(record) {
+  const baseValues = [
+    record?.platform,
+    record?.customerName,
+    record?.location,
+    record?.disposalDate,
+    getSettlementPaymentDateDisplay(record),
+  ]
+  const itemValues = getSettlementEligibleItems(record).flatMap(item => [
+    item?.itemName,
+    item?.note,
+    item?.reportNo,
+    item?.paymentSettledAt,
+  ])
+  return [...baseValues, ...itemValues]
+    .map(value => String(value || '').replace(/\s+/g, '').toLowerCase())
+    .filter(Boolean)
+    .join(' ')
+}
+
+function matchesSettlementSearch(record, query, field) {
+  const normalizedQuery = String(query || '').replace(/\s+/g, '').toLowerCase()
+  if (!normalizedQuery) return true
+  const fieldValue = normalizeSettlementSearchValue(record, field)
+  if (fieldValue.includes(normalizedQuery)) return true
+  return buildSettlementSearchValue(record).includes(normalizedQuery)
+}
+
 function sortSettlementRecords(records, field = 'disposalDate', direction = 'desc') {
   const sorted = [...records].sort((a, b) => {
     const aValue = compareSettlementFieldValue(a, field)
@@ -3537,7 +3566,7 @@ export function DisposalSettlementsPage() {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
     const dateFiltered = monthlyRecords.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementFilterField === 'paymentDate' ? 'paymentDate' : 'disposalDate'))
     const filtered = normalizedQuery
-      ? dateFiltered.filter(record => normalizeSettlementSearchValue(record, settlementFilterField).includes(normalizedQuery))
+      ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
     return sortSettlementRecords(filtered, settlementFilterField, settlementSortDirection)
   }, [monthlyRecords, settlementFilterField, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
