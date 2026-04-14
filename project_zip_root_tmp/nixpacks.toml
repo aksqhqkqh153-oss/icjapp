@@ -1,0 +1,12 @@
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.12"
+PYTHONUNBUFFERED = "1"
+
+[phases.install]
+cmds = [
+  "cd backend && python -m pip install --upgrade pip setuptools wheel",
+  "cd backend && pip install -r requirements.txt"
+]
+
+[start]
+cmd = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"

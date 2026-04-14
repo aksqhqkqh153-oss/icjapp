@@ -1,0 +1,510 @@
+{
+  "seed_version": "20260414-storage-xlsx-import-v1",
+  "source_file": "(본사) 짐보관 현황.xlsx",
+  "rows": [
+    {
+      "id": "seed-row-1",
+      "status": "종료",
+      "customer_name": "김가현",
+      "manager_name": "박우민",
+      "start_date": "26.02.01",
+      "end_date": "26.02.14",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-2",
+      "status": "종료",
+      "customer_name": "김남정",
+      "manager_name": "임채영",
+      "start_date": "26.02.02",
+      "end_date": "26.02.07",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-3",
+      "status": "종료",
+      "customer_name": "박성혁",
+      "manager_name": "심훈",
+      "start_date": "26.01.30",
+      "end_date": "26.01.31",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-4",
+      "status": "종료",
+      "customer_name": "김덕현",
+      "manager_name": "황인준",
+      "start_date": "26.02.04",
+      "end_date": "26.02.22",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-5",
+      "status": "종료",
+      "customer_name": "박정하",
+      "manager_name": "손영재",
+      "start_date": "26.02.04",
+      "end_date": "26.02.19",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-6",
+      "status": "종료",
+      "customer_name": "장새별",
+      "manager_name": "심훈",
+      "start_date": "26.02.20",
+      "end_date": "26.02.23",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-7",
+      "status": "종료",
+      "customer_name": "채수연",
+      "manager_name": "장준영",
+      "start_date": "26.01.16",
+      "end_date": "26.02.12",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-8",
+      "status": "종료",
+      "customer_name": "최영준",
+      "manager_name": "손영재",
+      "start_date": "26.01.16",
+      "end_date": "26.02.03",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-9",
+      "status": "종료",
+      "customer_name": "한귀자",
+      "manager_name": "송지훈",
+      "start_date": "25.12.03",
+      "end_date": "26.01.31",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-10",
+      "status": "종료",
+      "customer_name": "김시헌",
+      "manager_name": "심진수",
+      "start_date": "26.02.27",
+      "end_date": "26.03.05",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-11",
+      "status": "종료",
+      "customer_name": "이경희",
+      "manager_name": "심진수",
+      "start_date": "25.11.04",
+      "end_date": "26.03.11",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-12",
+      "status": "종료",
+      "customer_name": "이수빈",
+      "manager_name": "손영재",
+      "start_date": "26.02.23",
+      "end_date": "26.02.27",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-13",
+      "status": "종료",
+      "customer_name": "윤성호",
+      "manager_name": "정경호",
+      "start_date": "26.02.25",
+      "end_date": "26.03.03",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-14",
+      "status": "종료",
+      "customer_name": "최영윤",
+      "manager_name": "심훈",
+      "start_date": "26.02.26",
+      "end_date": "26.03.04",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-15",
+      "status": "진행",
+      "customer_name": "최동욱",
+      "manager_name": "",
+      "start_date": "26.03.20",
+      "end_date": "26.03.23",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-16",
+      "status": "진행",
+      "customer_name": "강선형",
+      "manager_name": "장준영(0.5 짐량)",
+      "start_date": "26.03.16",
+      "end_date": "26.04.22",
+      "scale": "0.5"
+    },
+    {
+      "id": "seed-row-17",
+      "status": "진행",
+      "customer_name": "박재우",
+      "manager_name": "송지훈, 최명권",
+      "start_date": "26.03.20",
+      "end_date": "26.05.07",
+      "scale": "3"
+    },
+    {
+      "id": "seed-row-18",
+      "status": "진행",
+      "customer_name": "조성식",
+      "manager_name": "박우민",
+      "start_date": "26.03.20",
+      "end_date": "26.04.16",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-19",
+      "status": "종료",
+      "customer_name": "장혜리",
+      "manager_name": "최명권/임채영",
+      "start_date": "25.12.19",
+      "end_date": "26.01.27",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-20",
+      "status": "종료",
+      "customer_name": "김환희",
+      "manager_name": "정경호",
+      "start_date": "25.12.20",
+      "end_date": "26.01.19",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-21",
+      "status": "종료",
+      "customer_name": "정하연",
+      "manager_name": "송지훈",
+      "start_date": "25.09.23",
+      "end_date": "26.01.26",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-22",
+      "status": "종료",
+      "customer_name": "정주현",
+      "manager_name": "",
+      "start_date": "26.01.05",
+      "end_date": "26.01.12",
+      "scale": "3"
+    },
+    {
+      "id": "seed-row-23",
+      "status": "종료",
+      "customer_name": "박현형",
+      "manager_name": "",
+      "start_date": "26.01.11",
+      "end_date": "26.01.17",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-24",
+      "status": "종료",
+      "customer_name": "김태한",
+      "manager_name": "",
+      "start_date": "26.01.09",
+      "end_date": "26.01.15",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-25",
+      "status": "종료",
+      "customer_name": "이소미",
+      "manager_name": "",
+      "start_date": "26.01.21",
+      "end_date": "26.01.28",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-26",
+      "status": "종료",
+      "customer_name": "김대웅",
+      "manager_name": "",
+      "start_date": "26.01.23",
+      "end_date": "26.01.28",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-27",
+      "status": "진행",
+      "customer_name": "김지해",
+      "manager_name": "백인환",
+      "start_date": "26.03.14",
+      "end_date": "26.03.24",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-28",
+      "status": "예정",
+      "customer_name": "권혁래",
+      "manager_name": "",
+      "start_date": "26.03.27",
+      "end_date": "26.04.01",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-29",
+      "status": "예정",
+      "customer_name": "방준석",
+      "manager_name": "",
+      "start_date": "26.03.25",
+      "end_date": "26.04.04",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-30",
+      "status": "예정",
+      "customer_name": "최지원",
+      "manager_name": "",
+      "start_date": "26.04.22",
+      "end_date": "26.05.31",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-31",
+      "status": "예정",
+      "customer_name": "오동규",
+      "manager_name": "",
+      "start_date": "26.04.04",
+      "end_date": "26.04.23",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-32",
+      "status": "예정",
+      "customer_name": "이현아",
+      "manager_name": "",
+      "start_date": "26.04.15",
+      "end_date": "26.04.30",
+      "scale": "3"
+    },
+    {
+      "id": "seed-row-33",
+      "status": "종료",
+      "customer_name": "이은진",
+      "manager_name": "송지훈 / 장준영",
+      "start_date": "26.02.06",
+      "end_date": "26.03.12",
+      "scale": "3"
+    },
+    {
+      "id": "seed-row-34",
+      "status": "진행",
+      "customer_name": "신지웅1",
+      "manager_name": "정경호",
+      "start_date": "25.12.12",
+      "end_date": "26.12.31",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-35",
+      "status": "진행",
+      "customer_name": "신지웅2",
+      "manager_name": "신백윤",
+      "start_date": "25.12.17",
+      "end_date": "26.12.31",
+      "scale": "0.5"
+    },
+    {
+      "id": "seed-row-36",
+      "status": "진행",
+      "customer_name": "김소진",
+      "manager_name": "임채영/최명권",
+      "start_date": "25.11.27",
+      "end_date": "26.04.11",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-37",
+      "status": "진행",
+      "customer_name": "천호",
+      "manager_name": "최진용->",
+      "start_date": "24.10.16",
+      "end_date": "26.12.31",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-38",
+      "status": "진행",
+      "customer_name": "김보빈",
+      "manager_name": "심훈",
+      "start_date": "25.04.09",
+      "end_date": "26.12.31",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-39",
+      "status": "진행",
+      "customer_name": "최자윤",
+      "manager_name": "백인환",
+      "start_date": "26.01.20",
+      "end_date": "26.12.31",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-40",
+      "status": "진행",
+      "customer_name": "이정숙",
+      "manager_name": "손영재",
+      "start_date": "26.01.29",
+      "end_date": "27.01.28",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-41",
+      "status": "진행",
+      "customer_name": "이혜진",
+      "manager_name": "황인준",
+      "start_date": "26.02.25",
+      "end_date": "26.03.28",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-42",
+      "status": "종료",
+      "customer_name": "김태민",
+      "manager_name": "심훈",
+      "start_date": "26.01.30",
+      "end_date": "26.03.13",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-43",
+      "status": "종료",
+      "customer_name": "이태나",
+      "manager_name": "박우민",
+      "start_date": "26.02.19",
+      "end_date": "26.03.12",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-44",
+      "status": "종료",
+      "customer_name": "황병남",
+      "manager_name": "손영재",
+      "start_date": "26.02.20",
+      "end_date": "26.03.19",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-45",
+      "status": "종료",
+      "customer_name": "이진우",
+      "manager_name": "송지훈",
+      "start_date": "26.03.09",
+      "end_date": "26.03.14",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-46",
+      "status": "예정",
+      "customer_name": "박상현",
+      "manager_name": "",
+      "start_date": "26.04.28",
+      "end_date": "26.05.08",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-47",
+      "status": "진행",
+      "customer_name": "장혜림",
+      "manager_name": "",
+      "start_date": "26.04.03",
+      "end_date": "26.04.18",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-48",
+      "status": "예정",
+      "customer_name": "최윤잔",
+      "manager_name": "",
+      "start_date": "26.04.27",
+      "end_date": "26.05.27",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-49",
+      "status": "예정",
+      "customer_name": "박영호",
+      "manager_name": "",
+      "start_date": "26.05.03",
+      "end_date": "26.05.04",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-50",
+      "status": "예정",
+      "customer_name": "서승종",
+      "manager_name": "",
+      "start_date": "26.04.20",
+      "end_date": "26.05.07",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-51",
+      "status": "예정",
+      "customer_name": "강은지",
+      "manager_name": "",
+      "start_date": "26.04.04",
+      "end_date": "26.06.06",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-52",
+      "status": "예정",
+      "customer_name": "김민지",
+      "manager_name": "",
+      "start_date": "26.05.18",
+      "end_date": "26.05.30",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-53",
+      "status": "예정",
+      "customer_name": "박원",
+      "manager_name": "",
+      "start_date": "26.05.21",
+      "end_date": "26.05.22",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-54",
+      "status": "예정",
+      "customer_name": "장동현",
+      "manager_name": "",
+      "start_date": "26.06.10",
+      "end_date": "26.07.28",
+      "scale": "1"
+    },
+    {
+      "id": "seed-row-55",
+      "status": "예정",
+      "customer_name": "권수빈",
+      "manager_name": "",
+      "start_date": "26.06.18",
+      "end_date": "26.09.30",
+      "scale": "2"
+    },
+    {
+      "id": "seed-row-56",
+      "status": "예정",
+      "customer_name": "김나영",
+      "manager_name": "",
+      "start_date": "26.05.04",
+      "end_date": "26.05.20",
+      "scale": "1"
+    }
+  ]
+}

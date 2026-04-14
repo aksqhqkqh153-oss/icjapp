@@ -1,0 +1,12 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+psycopg[binary]==3.2.9
+boto3==1.40.14
+python-multipart==0.0.20
+
+playwright==1.53.0
+selenium==4.34.2
+webdriver-manager==4.0.2
+openai==1.99.9
+
+openpyxl==3.1.5
