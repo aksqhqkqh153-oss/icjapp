@@ -25794,3 +25794,38 @@ button.danger {
     grid-auto-rows: auto !important;
   }
 }
+
+/* 2026-04-14 desktop schedule grid/cell border cleanup with headerline thin black outline */
+@media (min-width: 769px){
+  .schedule-page .calendar-grid.schedule-grid.detail-mode,
+  .schedule-page .schedule-card .calendar-grid.schedule-grid.detail-mode{
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell{
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line{
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line::after{
+    box-shadow: none !important;
+  }
+}
