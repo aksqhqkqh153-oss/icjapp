@@ -5519,6 +5519,34 @@ def _normalize_disposal_place_prefix(value: str) -> str:
         return ''
     raw = re.sub(r'([가-힣])(특별시|광역시|특별자치시|특별자치도|도|시|구|군)', r'\1\2 ', raw)
     raw = re.sub(r'\s+', ' ', raw).strip()
+
+    # Prefer the opening address phrase because disposal jurisdiction matching should rely mostly on the first 2~3 words.
+    tokens = [token for token in raw.split(' ') if token]
+    if tokens:
+        region_token = ''
+        if tokens[0] in _DISPOSAL_REGION_ALIAS_MAP:
+            region_token = _DISPOSAL_REGION_ALIAS_MAP.get(tokens[0], tokens[0])
+        else:
+            compact_first = re.sub(r'\s+', '', tokens[0])
+            for region_alias in sorted(_DISPOSAL_REGION_ALIAS_MAP.keys(), key=len, reverse=True):
+                if compact_first.startswith(region_alias):
+                    region_token = _DISPOSAL_REGION_ALIAS_MAP.get(region_alias, region_alias)
+                    tail = compact_first[len(region_alias):].strip()
+                    if tail:
+                        if len(tokens) == 1:
+                            tokens = [region_token, tail]
+                        else:
+                            tokens = [region_token, tail] + tokens[1:]
+                    else:
+                        tokens[0] = region_token
+                    break
+        if region_token and len(tokens) >= 2:
+            second = tokens[1]
+            if re.search(r'(시|구|군)$', second):
+                if len(tokens) >= 3 and second.endswith('시') and re.search(r'(구|군)$', tokens[2]):
+                    return f"{region_token} {second} {tokens[2]}".strip()
+                return f"{region_token} {second}".strip()
+
     match = re.search(r'((?:[가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시))\s+[가-힣0-9]+(?:구|군|시))', raw)
     if match:
         return match.group(1).strip()
@@ -5693,6 +5721,19 @@ def _disposal_location_compact_tokens(value: str) -> set[str]:
     return {token for token in tokens if token}
 
 
+def _disposal_front_weighted_tokens(value: str, limit: int = 3) -> tuple[list[str], str, str]:
+    raw = _disposal_compact_text(value)
+    if not raw:
+        return ([], '', '')
+    raw = re.sub(r'[,()/\-]+', ' ', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
+    tokens = [token for token in raw.split(' ') if token]
+    front_tokens = tokens[:max(1, limit)]
+    front_phrase = ' '.join(front_tokens).strip()
+    compact_front = re.sub(r'\s+', '', front_phrase)
+    return (front_tokens, front_phrase, compact_front)
+
+
 def _disposal_row_region_district_tokens(place_prefix: str, district_name: str = '') -> tuple[str, set[str]]:
     row_region, row_district = _disposal_place_search_parts(place_prefix)
     aliases: set[str] = set()
@@ -5726,6 +5767,8 @@ def _disposal_similarity_score(location: str, place_prefix: str, district_name: 
 
     compact_location = re.sub(r'\s+', '', _disposal_compact_text(location))
     location_tokens = _disposal_location_compact_tokens(location)
+    front_tokens, front_phrase, compact_front = _disposal_front_weighted_tokens(location, limit=3)
+    front_location_tokens = _disposal_location_compact_tokens(front_phrase)
 
     if not row_region:
         return -1
@@ -5796,6 +5839,46 @@ def _disposal_similarity_score(location: str, place_prefix: str, district_name: 
                 score += 35
             elif any(token and token in compact_input for token in {district_alias, row_district}):
                 score += 25
+
+    # Give heavy weight to the opening address phrase so the first 3 words drive ~80% of the match quality.
+    # Example: "경기 고양시 일산동구 ..." should strongly favor rows like "경기 고양시" over tokens found later in the sentence.
+    if compact_front and compact_row:
+        front_score = 0
+        if compact_front == compact_row:
+            front_score = 220
+        elif compact_row.startswith(compact_front) or compact_front.startswith(compact_row):
+            front_score = 185
+        elif compact_row in compact_front or compact_front in compact_row:
+            front_score = 160
+        else:
+            front_region, front_district = _disposal_place_search_parts(front_phrase)
+            if front_region and front_region == row_region:
+                front_score += 95
+            if front_district and row_district:
+                if front_district == row_district:
+                    front_score += 95
+                elif row_district.startswith(front_district) or front_district.startswith(row_district):
+                    front_score += 80
+                elif front_district in row_district or row_district in front_district:
+                    front_score += 60
+            for alias in row_aliases.union({row_region, row_district, district_alias}):
+                stripped_alias = _strip_disposal_region_suffix(alias)
+                compact_alias = re.sub(r'\s+', '', _disposal_compact_text(alias))
+                if stripped_alias and stripped_alias in front_location_tokens:
+                    front_score = max(front_score, 140)
+                if compact_alias and compact_alias in compact_front:
+                    front_score = max(front_score, 130)
+        score += front_score
+
+    # Small penalty if the row only matches the full sentence weakly but does not appear near the front.
+    if compact_front and compact_row and compact_row not in compact_front and compact_front not in compact_row:
+        if row_region not in front_location_tokens and not any(
+            (_strip_disposal_region_suffix(alias) and _strip_disposal_region_suffix(alias) in front_location_tokens)
+            or (re.sub(r'\s+', '', _disposal_compact_text(alias)) and re.sub(r'\s+', '', _disposal_compact_text(alias)) in compact_front)
+            for alias in row_aliases
+        ):
+            score -= 35
+
     return score
 
 
