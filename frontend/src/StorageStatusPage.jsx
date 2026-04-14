@@ -316,11 +316,33 @@ export default function StorageStatusPage() {
   const [copyMessage, setCopyMessage] = useState('')
   const monthlyTableRef = useRef(null)
 
+  const handleCopyMonthlyTable = useCallback(async () => {
+    setError('')
+    setSavedMessage('')
+    setCopyMessage('')
+    try {
+      await copyElementAsImage(monthlyTableRef.current)
+      setCopyMessage('월별현황 표가 이미지로 복사되었습니다.')
+      window.setTimeout(() => setCopyMessage(''), 1800)
+    } catch (err) {
+      setError(err?.message || '월별현황 표 복사에 실패했습니다.')
+    }
+  }, [])
+
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
     [rows, baselineRows],
   )
 
+
+  useEffect(() => {
+    if (!detailModalDate) return undefined
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setDetailModalDate(null)
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [detailModalDate])
 
   useEffect(() => {
     if (!isDirty) return undefined
