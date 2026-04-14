@@ -11098,7 +11098,7 @@ function LadderDispatchPage() {
                     </div>
                     <div className="ladder-location-grid">
                       <input className="ladder-span-3" type="text" value={data.work} onChange={e => updateLocation(section, 'work', e.target.value)} placeholder="작업 ex) 2톤 이상 내리는 작업" />
-                      <input className="ladder-span-3" type="text" value={data.addr} onChange={e => updateLocation(section, 'addr', e.target.value)} placeholder="주소 ex) 서울 송파구 삼전로8길 4" />
+                      <textarea className="ladder-span-3 ladder-address-input" value={data.addr} onChange={e => updateLocation(section, 'addr', e.target.value)} placeholder={"주소 ex) 경기도 안양시 동안구 달안로 78\n609동 407호 (샛별한양아파트)"} rows={2} />
                       <select value={data.method} onChange={e => updateLocation(section, 'method', e.target.value)}>
                         <option value="">방법선택</option>
                         {LADDER_METHOD_OPTIONS.map(item => <option key={item} value={item}>{item}</option>)}

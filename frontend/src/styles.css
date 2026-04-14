@@ -20283,6 +20283,7 @@ textarea,
 .ladder-basic-grid input,
 .ladder-basic-grid select,
 .ladder-location-grid input,
+.ladder-location-grid textarea,
 .ladder-location-grid select,
 .ladder-check-head,
 .ladder-copy-notice,
@@ -20292,7 +20293,17 @@ textarea,
 .ladder-basic-grid input,
 .ladder-basic-grid select,
 .ladder-location-grid input,
+.ladder-location-grid textarea,
 .ladder-location-grid select,
+
+.ladder-address-input {
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  padding: 10px 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
 .ladder-picker-button {
   width: 100%;
   min-height: 38px;
