@@ -23947,6 +23947,11 @@ textarea,
   accent-color: #2563eb;
 }
 
+.storage-status-scale-label {
+  display: inline-block;
+  line-height: 1.05;
+}
+
 .storage-status-cell-changed {
   background: #dcfce7;
 }
@@ -23995,19 +24000,19 @@ textarea,
 
 .storage-status-table-monthly td.is-safe {
   background: #dcfce7;
-  color: #166534;
+  color: #111111;
   font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-warn {
   background: #ffedd5;
-  color: #9a3412;
+  color: #111111;
   font-weight: 700;
 }
 
 .storage-status-table-monthly td.is-danger {
   background: #fee2e2;
-  color: #991b1b;
+  color: #111111;
   font-weight: 700;
 }
 
@@ -24107,7 +24112,7 @@ button.danger {
 
   .storage-status-table th,
   .storage-status-table td {
-    font-size: 11px;
+    font-size: 12px;
     padding: 5px 2px;
     font-weight: 700;
     letter-spacing: -0.15px;
@@ -24115,14 +24120,14 @@ button.danger {
 
   .storage-status-table-input col:nth-child(1) { width: 6%; }
   .storage-status-table-input col:nth-child(2) { width: 10%; }
-  .storage-status-table-input col:nth-child(3) { width: 17%; }
-  .storage-status-table-input col:nth-child(4) { width: 17%; }
+  .storage-status-table-input col:nth-child(3) { width: 15%; }
+  .storage-status-table-input col:nth-child(4) { width: 19%; }
   .storage-status-table-input col:nth-child(5) { width: 18%; }
   .storage-status-table-input col:nth-child(6) { width: 18%; }
   .storage-status-table-input col:nth-child(7) { width: 14%; }
 
   .storage-status-table-input input {
-    font-size: 11px;
+    font-size: 12px;
     padding: 4px 2px;
     border-radius: 6px;
     min-height: 24px;
@@ -24137,6 +24142,12 @@ button.danger {
     white-space: nowrap;
   }
 
+  .storage-status-table-input th:nth-child(7) {
+    white-space: normal;
+    line-height: 1.05;
+    letter-spacing: -0.2px;
+  }
+
   .storage-status-table-input td:nth-child(5),
   .storage-status-table-input td:nth-child(6),
   .storage-status-table-input th:nth-child(5),
@@ -24148,6 +24159,11 @@ button.danger {
   .storage-status-table-input td:nth-child(7) input {
     padding-left: 1px;
     padding-right: 1px;
+  }
+
+  .storage-status-table-input td:nth-child(4) input {
+    padding-left: 2px;
+    padding-right: 2px;
   }
 
   .storage-status-table-input td:nth-child(5) input,

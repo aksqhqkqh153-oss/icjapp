@@ -636,7 +636,7 @@ export default function StorageStatusPage() {
                 <th>담당대표</th>
                 <th>시작일</th>
                 <th>종료일</th>
-                <th>짐규모</th>
+                <th><span className="storage-status-scale-label">짐<br />규모</span></th>
               </tr>
             </thead>
             <tbody>
