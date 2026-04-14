@@ -132,7 +132,7 @@ function normalizeRow(row, options = {}) {
   }
 }
 
-function buildMonthlyRows(rows) {
+function buildMonthlyRows(rows, targetYear = new Date().getFullYear()) {
   const totals = Array.from({ length: 12 }, () => Array.from({ length: 31 }, () => 0))
   rows.forEach((row) => {
     const start = parseDate(row.start_date)
@@ -145,7 +145,9 @@ function buildMonthlyRows(rows) {
     limit.setHours(0, 0, 0, 0)
     if (cursor > limit) return
     while (cursor <= limit) {
-      totals[cursor.getMonth()][cursor.getDate() - 1] += amount
+      if (cursor.getFullYear() === targetYear) {
+        totals[cursor.getMonth()][cursor.getDate() - 1] += amount
+      }
       cursor.setDate(cursor.getDate() + 1)
     }
   })
@@ -410,7 +412,8 @@ export default function StorageStatusPage() {
     setTab(nextTab)
   }, [tab, isDirty, rows, baselineRows, save])
 
-  const monthlyRows = useMemo(() => buildMonthlyRows(rows), [rows])
+  const monthlyTargetYear = useMemo(() => new Date().getFullYear(), [])
+  const monthlyRows = useMemo(() => buildMonthlyRows(rows, monthlyTargetYear), [rows, monthlyTargetYear])
   const detailRows = useMemo(() => rows.filter((row) => isDateWithinRow(detailModalDate, row)), [rows, detailModalDate])
 
   const changedCellMap = useMemo(() => {
