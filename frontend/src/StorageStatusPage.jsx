@@ -124,7 +124,12 @@ function normalizeRow(row, options = {}) {
     end_date: finalizeDates ? formatDate(row?.end_date || '') : String(row?.end_date || '').trim(),
     scale: finalizeScale ? formatScale(row?.scale || '') : String(row?.scale || '').trim(),
   }
-  return { ...next, status: getStatus(next.start_date, next.end_date) }
+  return {
+    ...next,
+    status: getStatus(next.start_date, next.end_date),
+    __isNew: Boolean(row?.__isNew),
+    __newAt: Number(row?.__newAt || 0),
+  }
 }
 
 function buildMonthlyRows(rows) {
@@ -270,7 +275,12 @@ export default function StorageStatusPage() {
   }, [])
 
   const addRow = useCallback(() => {
-    setRows((prev) => [...prev, normalizeRow(EMPTY_ROW(), { finalizeDates: false, finalizeScale: false })])
+    const nextRow = normalizeRow({
+      ...EMPTY_ROW(),
+      __isNew: true,
+      __newAt: Date.now(),
+    }, { finalizeDates: false, finalizeScale: false })
+    setRows((prev) => [nextRow, ...prev])
   }, [])
 
   const toggleSelectedRow = useCallback((rowId) => {
@@ -289,6 +299,12 @@ export default function StorageStatusPage() {
       .filter((row) => matchesSearchKeyword(row, searchKeyword))
       .slice()
       .sort((a, b) => {
+        if (a.__isNew && b.__isNew) {
+          return (b.__newAt || 0) - (a.__newAt || 0)
+        }
+        if (a.__isNew) return -1
+        if (b.__isNew) return 1
+
         if (statusFilter === 'all') {
           const statusCompare = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
           if (statusCompare !== 0) return statusCompare
