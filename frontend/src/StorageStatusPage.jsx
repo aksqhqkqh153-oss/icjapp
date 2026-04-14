@@ -13,6 +13,13 @@ const STATUS_FILTER_ITEMS = [
   { key: '종료', title: '종료' },
 ]
 
+function matchesSearchKeyword(row, keyword) {
+  const needle = String(keyword || '').trim().toLowerCase()
+  if (!needle) return true
+  const haystacks = [row.customer_name, row.manager_name, row.start_date, row.end_date, row.scale, row.status]
+  return haystacks.some((value) => String(value || '').toLowerCase().includes(needle))
+}
+
 const EMPTY_ROW = () => ({
   id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   status: '',
@@ -209,6 +216,8 @@ export default function StorageStatusPage() {
   const [detailModalDate, setDetailModalDate] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState([])
+  const [searchInput, setSearchInput] = useState('')
+  const [searchKeyword, setSearchKeyword] = useState('')
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -267,9 +276,12 @@ export default function StorageStatusPage() {
   }, [])
 
   const filteredRows = useMemo(() => {
-    if (statusFilter === 'all') return rows
-    return rows.filter((row) => row.status === statusFilter)
-  }, [rows, statusFilter])
+    const statusFilteredRows = rows.filter((row) => {
+      if (statusFilter === 'all') return row.status !== '종료'
+      return row.status === statusFilter
+    })
+    return statusFilteredRows.filter((row) => matchesSearchKeyword(row, searchKeyword))
+  }, [rows, statusFilter, searchKeyword])
 
   const visibleRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows])
 
@@ -295,6 +307,17 @@ export default function StorageStatusPage() {
     setRows((prev) => prev.filter((row) => !selectedIds.includes(row.id)))
     setSelectedIds([])
   }, [selectedIds])
+
+  const runSearch = useCallback(() => {
+    setSearchKeyword(searchInput.trim())
+  }, [searchInput])
+
+  const handleSearchKeyDown = useCallback((event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      setSearchKeyword(searchInput.trim())
+    }
+  }, [searchInput])
 
   const save = useCallback(async (rowsToSave = rows) => {
     setSaving(true)
@@ -383,24 +406,41 @@ export default function StorageStatusPage() {
       </div>
 
       {tab === 'input' ? (
-        <div className="storage-status-toolbar">
-          <div className="storage-status-filter-wrap">
-            <label className="storage-status-filter-label" htmlFor="storage-status-filter">구분필터</label>
-            <select
-              id="storage-status-filter"
-              className="storage-status-filter-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              {STATUS_FILTER_ITEMS.map((item) => (
-                <option key={item.key} value={item.key}>{item.title}</option>
-              ))}
-            </select>
+        <div className="storage-status-toolbar-stack">
+          <div className="storage-status-toolbar storage-status-toolbar-actions-row">
+            <div className="storage-status-toolbar-spacer" aria-hidden="true" />
+            <div className="storage-status-actions">
+              <button type="button" className="small ghost danger" onClick={deleteSelectedRows}>삭제</button>
+              <button type="button" className="small ghost" onClick={addRow}>행추가</button>
+              <button type="button" className="small" onClick={() => save(rows)} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+            </div>
           </div>
-          <div className="storage-status-actions">
-            <button type="button" className="small ghost danger" onClick={deleteSelectedRows}>삭제</button>
-            <button type="button" className="small ghost" onClick={addRow}>행추가</button>
-            <button type="button" className="small" onClick={() => save(rows)} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+          <div className="storage-status-toolbar storage-status-toolbar-filter-row">
+            <div className="storage-status-filter-wrap">
+              <label className="storage-status-filter-label" htmlFor="storage-status-filter">구분필터</label>
+              <select
+                id="storage-status-filter"
+                className="storage-status-filter-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                {STATUS_FILTER_ITEMS.map((item) => (
+                  <option key={item.key} value={item.key}>{item.title}</option>
+                ))}
+              </select>
+            </div>
+            <div className="storage-status-search-wrap">
+              <input
+                type="text"
+                className="storage-status-search-input"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="고객명, 담당대표, 날짜 검색"
+                aria-label="현황입력 검색"
+              />
+              <button type="button" className="small ghost storage-status-search-button" onClick={runSearch} aria-label="검색">검색</button>
+            </div>
           </div>
         </div>
       ) : null}

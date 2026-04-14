@@ -23674,6 +23674,48 @@ textarea,
   align-items: center;
 }
 
+.storage-status-toolbar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.storage-status-toolbar-actions-row {
+  justify-content: space-between;
+}
+
+.storage-status-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.storage-status-toolbar-filter-row {
+  align-items: center;
+}
+
+.storage-status-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+  flex: 1 1 360px;
+  justify-content: flex-end;
+}
+
+.storage-status-search-input {
+  width: min(100%, 280px);
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: #fff;
+}
+
+.storage-status-search-button {
+  white-space: nowrap;
+}
+
 .storage-status-feedback {
   border-radius: 12px;
   padding: 10px 12px;
@@ -23893,19 +23935,38 @@ button.danger {
     align-items: stretch;
   }
 
+  .storage-status-toolbar-actions-row,
+  .storage-status-toolbar-filter-row {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+
   .storage-status-filter-wrap {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    justify-content: flex-start;
+    flex: 0 0 auto;
   }
 
   .storage-status-filter-select {
+    flex: 0 0 auto;
+    min-width: 92px;
+  }
+
+  .storage-status-search-wrap {
+    margin-left: 0;
     flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  .storage-status-search-input {
+    width: 100%;
     min-width: 0;
   }
 
   .storage-status-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
+    margin-left: auto;
   }
 
   .storage-status-table th,
@@ -24263,5 +24324,30 @@ button.danger {
   .storage-status-detail-table td {
     font-size: 10px;
     padding: 8px 4px;
+  }
+}
+
+@media (max-width: 560px) {
+  .storage-status-toolbar-filter-row {
+    gap: 6px;
+  }
+
+  .storage-status-filter-label {
+    font-size: 11px;
+  }
+
+  .storage-status-filter-select,
+  .storage-status-search-input {
+    height: 30px;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+
+  .storage-status-actions {
+    gap: 5px;
+  }
+
+  .storage-status-search-button {
+    padding-inline: 10px;
   }
 }
