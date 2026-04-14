@@ -23811,3 +23811,55 @@ button.danger {
     min-width: 0 !important;
   }
 }
+
+
+.work-schedule-headline-with-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+.work-schedule-headline-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+}
+.work-schedule-heading-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.work-schedule-nav-button,
+.work-schedule-today-button {
+  min-width: 44px;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: nowrap;
+}
+.work-schedule-nav-spacer {
+  display: inline-block;
+  width: 44px;
+}
+.work-schedule-page.mobile .work-schedule-headline-with-nav {
+  gap: 8px;
+}
+.work-schedule-page.mobile .work-schedule-headline-center {
+  gap: 6px;
+}
+.work-schedule-page.mobile .work-schedule-heading-copy {
+  min-width: 0;
+}
+.work-schedule-page.mobile .work-schedule-nav-button,
+.work-schedule-page.mobile .work-schedule-today-button {
+  min-width: 38px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.work-schedule-page.mobile .work-schedule-nav-spacer {
+  width: 38px;
+}

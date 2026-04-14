@@ -7368,10 +7368,10 @@ function AssigneeInput({ label, value, onChange, users, placeholder, predicate =
 }
 
 function workScheduleHeading(index) {
-  if (index === 0) return '당일일정'
-  if (index === 1) return '내일일정'
-  if (index === 2) return '모레일정'
-  return `${index + 1}일차 일정`
+  if (index === 0) return '당일스케줄'
+  if (index === 1) return '내일스케줄'
+  if (index === 2) return '모레스케줄'
+  return `${index + 1}일치 스케줄`
 }
 
 function workScheduleDateLine(dateText) {
@@ -7484,6 +7484,8 @@ function WorkSchedulePage() {
   const currentUser = getStoredUser()
   const readOnly = isReadOnlyMember(currentUser)
   const canEditAssignmentFields = canEditScheduleAssignments(currentUser)
+  const todayKey = fmtDate(new Date())
+  const [viewStartDate, setViewStartDate] = useState(todayKey)
   const [daysData, setDaysData] = useState([])
   const [loading, setLoading] = useState(true)
   const [entryForm, setEntryForm] = useState(emptyWorkScheduleForm(fmtDate(new Date())))
@@ -7520,7 +7522,7 @@ function WorkSchedulePage() {
   async function load() {
     setLoading(true)
     try {
-      const requests = [api('/api/work-schedule'), api('/api/users')]
+      const requests = [api(`/api/work-schedule?start_date=${encodeURIComponent(viewStartDate)}&days=7`), api('/api/users')]
       if (!readOnly) requests.push(api('/api/admin-mode').catch(() => null))
       const [data, users, adminData] = await Promise.all(requests)
       setDaysData(data.days || [])
@@ -7559,7 +7561,17 @@ function WorkSchedulePage() {
 
   useEffect(() => {
     load().catch(() => setLoading(false))
-  }, [])
+  }, [viewStartDate])
+
+  const canMoveToNextDate = viewStartDate < todayKey
+
+  function moveScheduleWindow(amount) {
+    setViewStartDate(fmtDate(addDays(new Date(`${viewStartDate}T00:00:00`), amount)))
+  }
+
+  function goTodaySchedule() {
+    setViewStartDate(todayKey)
+  }
 
   function openCreate(dateText) {
     setActiveFormDate(dateText)
@@ -7896,10 +7908,24 @@ function WorkSchedulePage() {
           <section key={day.date} className={`card work-schedule-day${day.entries.length > 0 ? ' has-entries' : ' empty-day'}`}>
             <div className={`work-schedule-mobile-group-shell${isMobile ? ' mobile' : ''}`}>
               <div className={`between work-schedule-head${isMobile ? ' work-schedule-mobile-block' : ''}`}>
-                <div className="work-schedule-headline">
-                  <strong>{workScheduleHeading(index)}</strong>
-                  <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
-                </div>
+                {index === 0 ? (
+                  <div className="work-schedule-headline work-schedule-headline-with-nav">
+                    <button type="button" className="ghost small work-schedule-today-button" onClick={goTodaySchedule}>오늘</button>
+                    <div className="work-schedule-headline-center">
+                      <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(-1)} aria-label="이전 날짜">◀</button>
+                      <div className="work-schedule-heading-copy">
+                        <strong>{workScheduleHeading(index)}</strong>
+                        <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+                      </div>
+                      {canMoveToNextDate ? <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(1)} aria-label="다음 날짜">▶</button> : <span className="work-schedule-nav-spacer" aria-hidden="true" />}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="work-schedule-headline">
+                    <strong>{workScheduleHeading(index)}</strong>
+                    <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+                  </div>
+                )}
               </div>
 
               <div className={`work-schedule-main-top${isMobile ? ' work-schedule-mobile-stack' : ''}`}>
