@@ -24961,3 +24961,89 @@ button.danger {
 .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout span {
   line-height: 1 !important;
 }
+
+/* 2026-04-14 desktop schedule topbar removal + compact sticky toolbar */
+@media (min-width: 769px) {
+  .app-shell.schedule-wide > .topbar.topbar-fixed {
+    display: none !important;
+  }
+
+  .page-container.schedule-wide {
+    padding-top: 4px !important;
+  }
+
+  .schedule-page {
+    gap: 4px !important;
+  }
+
+  .schedule-page > .schedule-card {
+    border-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  .schedule-page .calendar-toolbar.upgraded.schedule-toolbar-updated {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: none !important;
+    padding: 1px 0 2px !important;
+    margin-bottom: 2px !important;
+    gap: 2px !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .schedule-page .schedule-toolbar-main-row.single-line {
+    grid-template-columns: minmax(56px, auto) minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+    min-height: 30px !important;
+  }
+
+  .schedule-page .schedule-toolbar-side-left {
+    min-width: 56px !important;
+  }
+
+  .schedule-page .schedule-today-button,
+  .schedule-page .schedule-settings-button,
+  .schedule-page .schedule-handless-button,
+  .schedule-page .schedule-add-button,
+  .schedule-page .schedule-month-nav .icon-month-button {
+    min-height: 26px !important;
+    height: 26px !important;
+    border-radius: 8px !important;
+    padding: 0 6px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+  }
+
+  .schedule-page .schedule-month-nav {
+    gap: 4px !important;
+  }
+
+  .schedule-page .schedule-month-label {
+    min-width: 132px !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .schedule-toolbar-actions.compact-inline.desktop-inline {
+    gap: 4px !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    gap: 4px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .schedule-page .weekday {
+    color: #111111 !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+    min-height: 16px !important;
+    height: 16px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
