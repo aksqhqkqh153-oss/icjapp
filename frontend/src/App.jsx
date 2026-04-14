@@ -9452,44 +9452,46 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
           </div>
         </div>
 
-        <div className="schedule-detail-content-body">
-          <div className={`schedule-detail-image-grid count-${Math.min(Math.max(detailImages.length || 1, 1), 4)}`}>
-            {detailImages.length ? detailImages.slice(0, 5).map((src, index) => (
-              <div key={`${src}-${index}`} className="schedule-detail-image-tile"><img src={src} alt={`첨부파일 ${index + 1}`} className="schedule-detail-image" /></div>
-            )) : <div className="schedule-detail-empty-box">첨부파일이 없습니다.</div>}
+        <div className="schedule-detail-scroll-region">
+          <div className="schedule-detail-content-body">
+            <div className={`schedule-detail-image-grid count-${Math.min(Math.max(detailImages.length || 1, 1), 4)}`}>
+              {detailImages.length ? detailImages.slice(0, 5).map((src, index) => (
+                <div key={`${src}-${index}`} className="schedule-detail-image-tile"><img src={src} alt={`첨부파일 ${index + 1}`} className="schedule-detail-image" /></div>
+              )) : <div className="schedule-detail-empty-box">첨부파일이 없습니다.</div>}
+            </div>
+            <div className="schedule-detail-memo-box">{item.content || '메모가 없습니다.'}</div>
           </div>
-          <div className="schedule-detail-memo-box">{item.content || '메모가 없습니다.'}</div>
-        </div>
 
-        <div className="schedule-detail-comments-section">
-          <div className="schedule-detail-comments-title">댓글창</div>
-          <div className="schedule-detail-comments-list">
-            {comments.length ? comments.map(comment => {
-              const commentImages = eventImageList(comment.image_list?.length ? comment.image_list : comment.image_data)
-              return (
-                <div key={comment.id} className="schedule-comment-card">
-                  <div className="schedule-comment-meta-row">
-                    <div className="schedule-comment-meta">[{formatLogDate(comment.created_at)}] [{comment.user?.nickname || comment.user?.name || '프로필명'}]</div>
-                    <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
-                      <button type="button" className="ghost small schedule-comment-settings-button" onClick={() => setCommentMenuId(prev => prev === comment.id ? null : comment.id)}>설정</button>
-                      {commentMenuId === comment.id ? (
-                        <div className="dropdown-menu right schedule-comment-setting-menu">
-                          <button type="button" className="dropdown-item" onClick={() => handleCommentEdit(comment)} disabled={commentActionLoadingId === comment.id}>수정</button>
-                          <button type="button" className="dropdown-item danger" onClick={() => handleCommentDelete(comment)} disabled={commentActionLoadingId === comment.id}>삭제</button>
-                        </div>
-                      ) : null}
+          <div className="schedule-detail-comments-section">
+            <div className="schedule-detail-comments-title">댓글창</div>
+            <div className="schedule-detail-comments-list">
+              {comments.length ? comments.map(comment => {
+                const commentImages = eventImageList(comment.image_list?.length ? comment.image_list : comment.image_data)
+                return (
+                  <div key={comment.id} className="schedule-comment-card">
+                    <div className="schedule-comment-meta-row">
+                      <div className="schedule-comment-meta">[{formatLogDate(comment.created_at)}] [{comment.user?.nickname || comment.user?.name || '프로필명'}]</div>
+                      <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
+                        <button type="button" className="ghost small schedule-comment-settings-button" onClick={() => setCommentMenuId(prev => prev === comment.id ? null : comment.id)}>설정</button>
+                        {commentMenuId === comment.id ? (
+                          <div className="dropdown-menu right schedule-comment-setting-menu">
+                            <button type="button" className="dropdown-item" onClick={() => handleCommentEdit(comment)} disabled={commentActionLoadingId === comment.id}>수정</button>
+                            <button type="button" className="dropdown-item danger" onClick={() => handleCommentDelete(comment)} disabled={commentActionLoadingId === comment.id}>삭제</button>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
+                    {commentImages.length ? (
+                      <div className={`schedule-comment-image-grid count-${Math.min(Math.max(commentImages.length, 1), 4)}`}>
+                        {commentImages.slice(0, 4).map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}
+                      </div>
+                    ) : null}
+                    {comment.content ? <div className="schedule-comment-content">{comment.content}</div> : null}
+                    <div className="schedule-comment-actions">🙂 💬</div>
                   </div>
-                  {commentImages.length ? (
-                    <div className={`schedule-comment-image-grid count-${Math.min(Math.max(commentImages.length, 1), 4)}`}>
-                      {commentImages.slice(0, 4).map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}
-                    </div>
-                  ) : null}
-                  {comment.content ? <div className="schedule-comment-content">{comment.content}</div> : null}
-                  <div className="schedule-comment-actions">🙂 💬</div>
-                </div>
-              )
-            }) : <div className="muted">등록된 댓글이 없습니다.</div>}
+                )
+              }) : <div className="muted">등록된 댓글이 없습니다.</div>}
+            </div>
           </div>
         </div>
       </section>
