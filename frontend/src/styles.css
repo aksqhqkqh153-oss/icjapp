@@ -25126,3 +25126,44 @@ button.danger {
     white-space: nowrap !important;
   }
 }
+
+/* 2026-04-14 desktop schedule card flush-top and full-height to bottom nav */
+@media (min-width: 769px) {
+  .page-container.schedule-wide {
+    padding-top: 0 !important;
+    padding-bottom: 58px !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page {
+    gap: 0 !important;
+    min-height: calc(100vh - 58px) !important;
+    height: calc(100vh - 58px) !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page > .schedule-card {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: calc(100vh - 58px) !important;
+    height: calc(100vh - 58px) !important;
+    max-height: calc(100vh - 58px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page > .schedule-card > .calendar-toolbar.upgraded.schedule-toolbar-updated {
+    margin-top: 0 !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page > .schedule-card > .calendar-weekdays {
+    margin-top: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  .page-container.schedule-wide > .schedule-page > .schedule-card > .calendar-grid.schedule-grid.detail-mode {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+}
