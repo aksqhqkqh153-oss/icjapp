@@ -23623,7 +23623,20 @@ textarea,
   gap: 14px;
 }
 
-.storage-status-topbar {
+.storage-status-category-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.storage-status-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.storage-status-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -23631,10 +23644,28 @@ textarea,
   flex-wrap: wrap;
 }
 
-.storage-status-tabs {
-  display: flex;
+.storage-status-filter-wrap {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.storage-status-filter-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.storage-status-filter-select {
+  min-width: 110px;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: #fff;
 }
 
 .storage-status-actions {
@@ -23711,12 +23742,13 @@ textarea,
   background: #fff;
 }
 
-.storage-status-table-input col:nth-child(1) { width: 11%; }
-.storage-status-table-input col:nth-child(2) { width: 18%; }
-.storage-status-table-input col:nth-child(3) { width: 18%; }
-.storage-status-table-input col:nth-child(4) { width: 18%; }
-.storage-status-table-input col:nth-child(5) { width: 18%; }
-.storage-status-table-input col:nth-child(6) { width: 17%; }
+.storage-status-table-input col:nth-child(1) { width: 5%; }
+.storage-status-table-input col:nth-child(2) { width: 10%; }
+.storage-status-table-input col:nth-child(3) { width: 20%; }
+.storage-status-table-input col:nth-child(4) { width: 19%; }
+.storage-status-table-input col:nth-child(5) { width: 15%; }
+.storage-status-table-input col:nth-child(6) { width: 15%; }
+.storage-status-table-input col:nth-child(7) { width: 16%; }
 
 .storage-status-table-input {
   min-width: 0;
@@ -23730,6 +23762,17 @@ textarea,
 .storage-status-table-input input {
   padding: 4px 5px;
   min-height: 28px;
+}
+
+.storage-status-check-col {
+  width: 36px;
+  min-width: 36px;
+}
+
+.storage-status-check-col input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #2563eb;
 }
 
 .storage-status-cell-changed {
@@ -23846,8 +23889,18 @@ button.danger {
 }
 
 @media (max-width: 768px) {
-  .storage-status-topbar {
+  .storage-status-toolbar {
     align-items: stretch;
+  }
+
+  .storage-status-filter-wrap {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .storage-status-filter-select {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .storage-status-actions {
@@ -23861,18 +23914,28 @@ button.danger {
     padding: 5px 3px;
   }
 
-  .storage-status-table-input col:nth-child(1) { width: 12%; }
-  .storage-status-table-input col:nth-child(2) { width: 18%; }
-  .storage-status-table-input col:nth-child(3) { width: 18%; }
+  .storage-status-table-input col:nth-child(1) { width: 6%; }
+  .storage-status-table-input col:nth-child(2) { width: 11%; }
+  .storage-status-table-input col:nth-child(3) { width: 21%; }
   .storage-status-table-input col:nth-child(4) { width: 18%; }
-  .storage-status-table-input col:nth-child(5) { width: 18%; }
-  .storage-status-table-input col:nth-child(6) { width: 16%; }
+  .storage-status-table-input col:nth-child(5) { width: 14%; }
+  .storage-status-table-input col:nth-child(6) { width: 14%; }
+  .storage-status-table-input col:nth-child(7) { width: 16%; }
 
   .storage-status-table-input input {
     font-size: 10px;
     padding: 4px 3px;
     border-radius: 6px;
     min-height: 24px;
+  }
+
+  .storage-status-check-col {
+    width: 28px;
+    min-width: 28px;
+  }
+
+  .storage-status-actions {
+    gap: 6px;
   }
 
   .storage-status-badge {

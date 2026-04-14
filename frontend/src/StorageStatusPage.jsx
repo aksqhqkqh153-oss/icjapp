@@ -6,6 +6,13 @@ const TAB_ITEMS = [
   { key: 'monthly', title: '월별현황' },
 ]
 
+const STATUS_FILTER_ITEMS = [
+  { key: 'all', title: '전체' },
+  { key: '예정', title: '예정' },
+  { key: '진행', title: '진행' },
+  { key: '종료', title: '종료' },
+]
+
 const EMPTY_ROW = () => ({
   id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   status: '',
@@ -200,6 +207,8 @@ export default function StorageStatusPage() {
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
   const [detailModalDate, setDetailModalDate] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [selectedIds, setSelectedIds] = useState([])
 
   const isDirty = useMemo(
     () => serializeRows(rows) !== serializeRows(baselineRows),
@@ -237,6 +246,10 @@ export default function StorageStatusPage() {
     load()
   }, [load])
 
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => rows.some((row) => row.id === id)))
+  }, [rows])
+
   const updateRow = useCallback((rowId, field, value) => {
     setRows((prev) => prev.map((row) => {
       if (row.id !== rowId) return row
@@ -248,6 +261,40 @@ export default function StorageStatusPage() {
   const addRow = useCallback(() => {
     setRows((prev) => [...prev, normalizeRow(EMPTY_ROW())])
   }, [])
+
+  const toggleSelectedRow = useCallback((rowId) => {
+    setSelectedIds((prev) => prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId])
+  }, [])
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows
+    return rows.filter((row) => row.status === statusFilter)
+  }, [rows, statusFilter])
+
+  const visibleRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows])
+
+  const areAllVisibleSelected = useMemo(() => visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedIds.includes(id)), [visibleRowIds, selectedIds])
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (visibleRowIds.length === 0) return prev
+      if (visibleRowIds.every((id) => prev.includes(id))) {
+        return prev.filter((id) => !visibleRowIds.includes(id))
+      }
+      return Array.from(new Set([...prev, ...visibleRowIds]))
+    })
+  }, [visibleRowIds])
+
+  const deleteSelectedRows = useCallback(() => {
+    if (selectedIds.length === 0) {
+      window.alert('삭제할 일정을 선택해주세요.')
+      return
+    }
+    const confirmed = window.confirm(`선택한 ${selectedIds.length}개의 일정을 삭제하시겠습니까?`)
+    if (!confirmed) return
+    setRows((prev) => prev.filter((row) => !selectedIds.includes(row.id)))
+    setSelectedIds([])
+  }, [selectedIds])
 
   const save = useCallback(async (rowsToSave = rows) => {
     setSaving(true)
@@ -320,7 +367,7 @@ export default function StorageStatusPage() {
 
   return (
     <div className="feature-card storage-status-shell">
-      <div className="storage-status-topbar">
+      <div className="storage-status-category-bar">
         <div className="settlement-tabs settlement-tabs-inline storage-status-tabs" role="tablist" aria-label="짐보관현황 카테고리">
           {TAB_ITEMS.map((item) => (
             <button
@@ -333,13 +380,30 @@ export default function StorageStatusPage() {
             </button>
           ))}
         </div>
-        {tab === 'input' ? (
+      </div>
+
+      {tab === 'input' ? (
+        <div className="storage-status-toolbar">
+          <div className="storage-status-filter-wrap">
+            <label className="storage-status-filter-label" htmlFor="storage-status-filter">구분필터</label>
+            <select
+              id="storage-status-filter"
+              className="storage-status-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              {STATUS_FILTER_ITEMS.map((item) => (
+                <option key={item.key} value={item.key}>{item.title}</option>
+              ))}
+            </select>
+          </div>
           <div className="storage-status-actions">
+            <button type="button" className="small ghost danger" onClick={deleteSelectedRows}>삭제</button>
             <button type="button" className="small ghost" onClick={addRow}>행추가</button>
             <button type="button" className="small" onClick={() => save(rows)} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {error ? <div className="storage-status-feedback is-error">{error}</div> : null}
       {savedMessage ? <div className="storage-status-feedback is-success">{savedMessage}</div> : null}
@@ -355,9 +419,18 @@ export default function StorageStatusPage() {
               <col />
               <col />
               <col />
+              <col />
             </colgroup>
             <thead>
               <tr>
+                <th className="storage-status-check-col">
+                  <input
+                    type="checkbox"
+                    checked={areAllVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="전체 선택"
+                  />
+                </th>
                 <th>구분</th>
                 <th>고객명</th>
                 <th>담당대표</th>
@@ -367,12 +440,20 @@ export default function StorageStatusPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="storage-status-empty">등록된 짐보관 현황이 없습니다.</td>
+                  <td colSpan={7} className="storage-status-empty">등록된 짐보관 현황이 없습니다.</td>
                 </tr>
-              ) : rows.map((row) => (
+) : filteredRows.map((row) => (
                 <tr key={row.id}>
+                  <td className="storage-status-check-col">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(row.id)}
+                      onChange={() => toggleSelectedRow(row.id)}
+                      aria-label={`${row.customer_name || '일정'} 선택`}
+                    />
+                  </td>
                   <td className={changedCellMap[row.id]?.has('status') ? 'storage-status-cell-changed' : ''}>
                     <span className={`storage-status-badge is-${row.status || 'empty'}`}>{row.status || '-'}</span>
                   </td>
