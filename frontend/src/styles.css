@@ -24929,3 +24929,35 @@ button.danger {
     line-height: 1 !important;
   }
 }
+
+
+.schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  margin-top: 0 !important;
+}
+
+.schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout {
+  width: 100% !important;
+  min-width: 0 !important;
+  justify-content: flex-start !important;
+}
+
+.schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 48px !important;
+  white-space: nowrap !important;
+  padding: 1px 6px !important;
+  margin: 0 !important;
+  align-self: stretch !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+.schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout span {
+  line-height: 1 !important;
+}

@@ -6847,21 +6847,23 @@ function CalendarPage() {
                       )}
                     </div>
 
-                    <button type="button" className={`calendar-day-summary-button redesigned${isMobile ? ' mobile-compact' : ''}`} title={dayCapacity?.detail || ''} onClick={() => (isMobile ? selectDate(date) : openCalendarStatus(daySummary))}>
-                      {isMobile ? (
+                    {isMobile ? (
+                      <button type="button" className={`calendar-day-summary-button redesigned mobile-compact`} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
                         <div className="calendar-mobile-summary-stack compact-topline">
                           <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}${shouldHighlightDayKind ? ' special-attention' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
                         </div>
-                      ) : (
-                        <>
+                      </button>
+                    ) : (
+                      <div className="calendar-day-status-row">
+                        <button type="button" className="calendar-day-summary-button redesigned split-layout" title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
                           <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-chip">A:{String(daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-chip">B:{String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-chip">C:{String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
-                        </>
-                      )}
-                    </button>
-                    {!isMobile && <div className={`calendar-handless-banner ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>}
+                        </button>
+                        <div className={`calendar-handless-banner split-layout ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>
+                      </div>
+                    )}
 
                     {!isMobile && (
                       <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
