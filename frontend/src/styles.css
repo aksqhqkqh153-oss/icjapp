@@ -23766,3 +23766,48 @@ button.danger {
     justify-content: flex-end;
   }
 }
+
+/* 2026-04-14 settlement search expansion + custom date input compact labels */
+.disposal-settlement-custom-date-group {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.disposal-settlement-custom-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 112px;
+}
+
+.disposal-settlement-custom-date-field > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1;
+}
+
+.disposal-settlement-custom-date-field input[type="date"] {
+  width: 118px !important;
+  min-width: 118px !important;
+}
+
+@media (max-width: 768px) {
+  .disposal-settlement-custom-date-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .disposal-settlement-custom-date-field {
+    min-width: 0;
+  }
+
+  .disposal-settlement-custom-date-field input[type="date"] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}

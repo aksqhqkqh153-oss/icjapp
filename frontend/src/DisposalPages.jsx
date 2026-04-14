@@ -3348,6 +3348,26 @@ function compareSettlementFieldValue(record, field) {
   return String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '')
 }
 
+function getSettlementSortPrimitive(record, field) {
+  if (field === 'paymentDate') {
+    const timestamps = getSettlementEligibleItems(record)
+      .map(item => getDateValueParts(item?.paymentSettledAt)?.date?.getTime?.())
+      .filter(value => Number.isFinite(value))
+    return timestamps.length ? Math.min(...timestamps) : Number.POSITIVE_INFINITY
+  }
+  if (field === 'disposalDate') {
+    const dateValue = getDateValueParts(record?.disposalDate || getSavedDateKey(record?.savedAt))?.date?.getTime?.()
+    return Number.isFinite(dateValue) ? dateValue : Number.POSITIVE_INFINITY
+  }
+  if (field === 'customerName') {
+    return String(record?.customerName || '').trim().toLowerCase()
+  }
+  if (field === 'platform') {
+    return String(record?.platform || '').trim().toLowerCase()
+  }
+  return String(compareSettlementFieldValue(record, field) || '').trim().toLowerCase()
+}
+
 function normalizeSettlementSearchValue(record, field) {
   const raw = compareSettlementFieldValue(record, field)
   return String(raw || '').replace(/\s+/g, '').toLowerCase()
@@ -3383,8 +3403,11 @@ function matchesSettlementSearch(record, query, field) {
 
 function sortSettlementRecords(records, field = 'disposalDate', direction = 'desc') {
   const sorted = [...records].sort((a, b) => {
-    const aValue = compareSettlementFieldValue(a, field)
-    const bValue = compareSettlementFieldValue(b, field)
+    const aValue = getSettlementSortPrimitive(a, field)
+    const bValue = getSettlementSortPrimitive(b, field)
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return aValue - bValue
+    }
     return String(aValue).localeCompare(String(bValue), 'ko')
   })
   return direction === 'desc' ? sorted.reverse() : sorted
@@ -3392,13 +3415,13 @@ function sortSettlementRecords(records, field = 'disposalDate', direction = 'des
 
 function buildSettlementMonthlyRows(monthlyRecords) {
   const byDate = new Map()
-  sortRecords(monthlyRecords, 'date').forEach(record => {
+  monthlyRecords.forEach(record => {
     const dateKey = String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
     if (!byDate.has(dateKey)) byDate.set(dateKey, [])
     byDate.get(dateKey).push(record)
   })
   const rows = []
-  Array.from(byDate.entries()).sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'ko')).forEach(([dateKey, records]) => {
+  Array.from(byDate.entries()).forEach(([dateKey, records]) => {
     const summary = records.reduce((acc, record) => {
       const metrics = getRecordSettlementMetrics(record)
       acc.customerCount += 1
@@ -3573,24 +3596,42 @@ export function DisposalSettlementsPage() {
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, filteredMonthlyRecords), [monthLabel, filteredMonthlyRecords])
   const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredMonthlyRecords), [filteredMonthlyRecords])
+  const effectiveExpandedKeys = useMemo(() => {
+    const next = { ...expandedKeys }
+    const normalizedQuery = String(settlementSearchQuery || '').trim()
+    if (normalizedQuery) {
+      settlementRows.forEach((row) => {
+        if (row.kind === 'summary' && row.toggleKey) next[row.toggleKey] = true
+        if (row.kind === 'detail' && row.parentKey && row.toggleKey) {
+          next[row.parentKey] = true
+          next[row.toggleKey] = true
+        }
+      })
+    }
+    return next
+  }, [expandedKeys, settlementRows, settlementSearchQuery])
   const visibleRows = useMemo(() => settlementRows.filter((row) => {
     if (row.kind === 'summary') return true
-    if (row.kind === 'detail') return !!expandedKeys[row.parentKey]
-    if (row.kind === 'item') return !!expandedKeys[row.parentKey] && !!expandedKeys[row.detailParentKey]
+    if (row.kind === 'detail') return !!effectiveExpandedKeys[row.parentKey]
+    if (row.kind === 'item') return !!effectiveExpandedKeys[row.parentKey] && !!effectiveExpandedKeys[row.detailParentKey]
     return false
-  }), [settlementRows, expandedKeys])
+  }), [settlementRows, effectiveExpandedKeys])
 
   function toggleRow(key) {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   function applySettlementSearch() {
+    const trimmedQuery = settlementSearchInput.trim()
     setSettlementFilterField(settlementFilterFieldInput)
     setSettlementDateFilter(settlementDateFilterInput)
     setSettlementDateStart(settlementDateFilterInput === 'custom' ? settlementDateStartInput : '')
     setSettlementDateEnd(settlementDateFilterInput === 'custom' ? settlementDateEndInput : '')
     setSettlementSortDirection(settlementSortDirectionInput)
-    setSettlementSearchQuery(settlementSearchInput.trim())
+    setSettlementSearchQuery(trimmedQuery)
+    if (!trimmedQuery) {
+      setExpandedKeys({})
+    }
   }
 
   useEffect(() => {
@@ -3653,10 +3694,16 @@ export function DisposalSettlementsPage() {
               {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             {settlementDateFilterInput === 'custom' ? (
-              <>
-                <input type="date" value={settlementDateStartInput} onChange={e => setSettlementDateStartInput(e.target.value)} aria-label="월 결산표 시작일 필터" />
-                <input type="date" value={settlementDateEndInput} onChange={e => setSettlementDateEndInput(e.target.value)} aria-label="월 결산표 종료일 필터" />
-              </>
+              <div className="disposal-settlement-custom-date-group">
+                <label className="disposal-settlement-custom-date-field">
+                  <span>시작일</span>
+                  <input type="date" value={settlementDateStartInput} onChange={e => setSettlementDateStartInput(e.target.value)} aria-label="월 결산표 시작일 필터" />
+                </label>
+                <label className="disposal-settlement-custom-date-field">
+                  <span>종료일</span>
+                  <input type="date" value={settlementDateEndInput} onChange={e => setSettlementDateEndInput(e.target.value)} aria-label="월 결산표 종료일 필터" />
+                </label>
+              </div>
             ) : null}
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
@@ -3686,7 +3733,7 @@ export function DisposalSettlementsPage() {
                 {row.cells.map((cell, index) => (
                   <div key={`${row.key}-${index}`} className={index === 10 ? 'toggle-cell' : ''}>
                     {index === 10 ? (
-                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
+                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{effectiveExpandedKeys[row.toggleKey] ? '접기' : '펼치기'}</button>
                     ) : cell}
                   </div>
                 ))}
@@ -3698,7 +3745,7 @@ export function DisposalSettlementsPage() {
                     {index === 4 ? (
                       <button type="button" className="disposal-month-settlement-link-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{cell}</button>
                     ) : index === 10 ? (
-                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{expandedKeys[row.toggleKey] ? '품목접기' : '품목펼치기'}</button>
+                      <button type="button" className="disposal-month-settlement-toggle-button" onClick={(e) => { e.stopPropagation(); toggleRow(row.toggleKey) }}>{effectiveExpandedKeys[row.toggleKey] ? '품목접기' : '품목펼치기'}</button>
                     ) : cell}
                   </div>
                 ))}
