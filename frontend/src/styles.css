@@ -25829,3 +25829,70 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule lane font + left color strip */
+@media (min-width: 769px) {
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane.filled.clickable,
+  .schedule-page .calendar-lane.filled {
+    position: relative !important;
+    background: linear-gradient(to right, var(--lane-color, #dbeafe) 0 10%, #ffffff 10% 100%) !important;
+    background-color: #ffffff !important;
+    color: #111111 !important;
+    padding-left: 12% !important;
+    overflow: hidden !important;
+    align-items: center !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .calendar-lane.filled.clickable span,
+  .schedule-page .calendar-lane.filled span {
+    position: relative !important;
+    z-index: 1 !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    color: #111111 !important;
+    padding-left: 2px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#2563eb"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#2563eb"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#2563eb"],
+  .schedule-page .calendar-lane.filled[style*="#2563eb"] { --lane-color: #2563eb; }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#f59e0b"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#f59e0b"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#f59e0b"],
+  .schedule-page .calendar-lane.filled[style*="#f59e0b"] { --lane-color: #f59e0b; }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#10b981"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#10b981"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#10b981"],
+  .schedule-page .calendar-lane.filled[style*="#10b981"] { --lane-color: #10b981; }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#ef4444"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#ef4444"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#ef4444"],
+  .schedule-page .calendar-lane.filled[style*="#ef4444"] { --lane-color: #ef4444; }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#8b5cf6"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#8b5cf6"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#8b5cf6"],
+  .schedule-page .calendar-lane.filled[style*="#8b5cf6"] { --lane-color: #8b5cf6; }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable[style*="#06b6d4"],
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled[style*="#06b6d4"],
+  .schedule-page .calendar-lane.filled.clickable[style*="#06b6d4"],
+  .schedule-page .calendar-lane.filled[style*="#06b6d4"] { --lane-color: #06b6d4; }
+}
