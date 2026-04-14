@@ -25435,3 +25435,35 @@ button.danger {
     margin: 0 !important;
   }
 }
+
+/* 2026-04-14 desktop schedule selected border removal and natural grid height */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    overflow: visible !important;
+    height: auto !important;
+    align-items: start !important;
+    grid-auto-rows: minmax(126px, auto) !important;
+  }
+
+  .schedule-page .schedule-card {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell {
+    height: auto !important;
+    min-height: 126px !important;
+    overflow: visible !important;
+    align-self: start !important;
+    border: 1px solid #d7dee8 !important;
+    border-top: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.selected {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}
