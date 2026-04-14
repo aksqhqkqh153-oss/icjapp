@@ -2533,8 +2533,9 @@ export function DisposalPreviewPage() {
 }
 
 export 
-function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, onChangeDate, onConfirm, onClose }) {
+function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, reportStatuses = {}, onChangeDate, onChangeReportStatus, onApplyAllDates, onApplyAllReports, onConfirm, onClose }) {
   const initialPaymentDatesRef = useRef({})
+  const initialReportStatusesRef = useRef({})
 
   useEffect(() => {
     if (!open) {
@@ -2544,7 +2545,10 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
     initialPaymentDatesRef.current = Object.fromEntries(
       rows.map(row => [row.key, String(paymentDates?.[row.key] || '')])
     )
-  }, [open, group?.recordId])
+    initialReportStatusesRef.current = Object.fromEntries(
+      rows.map(row => [row.key, !!reportStatuses?.[row.key]])
+    )
+  }, [open, group?.recordId, rows, paymentDates, reportStatuses])
 
   useEffect(() => {
     if (!open) return undefined
@@ -2552,7 +2556,8 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
       if (event.key !== 'Escape') return
       event.preventDefault()
       const initialDates = initialPaymentDatesRef.current || {}
-      const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || ''))
+      const initialReports = initialReportStatusesRef.current || {}
+      const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
       if (!hasChanges) {
         onClose?.()
         return
@@ -2563,13 +2568,14 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, rows, paymentDates, onConfirm, onClose])
+  }, [open, rows, paymentDates, reportStatuses, onConfirm, onClose])
 
   if (!open || !group) return null
   const totalFinalAmount = rows.reduce((sum, row) => sum + safeNumber(row?.finalAmount), 0)
   const handleRequestClose = () => {
     const initialDates = initialPaymentDatesRef.current || {}
-    const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || ''))
+    const initialReports = initialReportStatusesRef.current || {}
+    const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
     if (!hasChanges) {
       onClose?.()
       return
@@ -2614,6 +2620,7 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
             {rows.map(row => {
               const nextValue = String(paymentDates[row.key] || '').trim()
               const isPaid = !!nextValue && nextValue !== UNPAID_PAYMENT_VALUE
+              const isReported = !!reportStatuses?.[row.key]
               return (
                 <div key={`bulk-payment-${row.key}`} className="disposal-bulk-payment-row">
                   <div>{row.itemName || '-'}</div>
@@ -2647,7 +2654,16 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
                     </div>
                   </div>
                   <div>{isPaid ? 'O' : 'X'}</div>
-                  <div>{row.reportDone ? 'O' : 'X'}</div>
+                  <div>
+                    <button
+                      type="button"
+                      className="disposal-bulk-payment-status-button"
+                      onClick={() => onChangeReportStatus?.(row.key, !isReported)}
+                      aria-label={`${row.itemName} 신고 여부 전환`}
+                    >
+                      {isReported ? 'O' : 'X'}
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -2655,9 +2671,59 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, o
               <div>합계</div>
               <div />
               <div>{formatCurrency(totalFinalAmount)}</div>
-              <div />
-              <div />
-              <div />
+              <div>
+                <div className="disposal-bulk-payment-date-control disposal-bulk-payment-date-control-total">
+                  <select
+                    value={rows.every(row => { const value = String(paymentDates[row.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE; }) ? 'date' : 'unpaid'}
+                    onChange={e => {
+                      const nextMode = e.target.value
+                      if (nextMode === 'unpaid') {
+                        const confirmed = window.confirm('미입금으로 입금일시 전체 데이터를 변경하겠습니까?')
+                        if (!confirmed) return
+                        onApplyAllDates?.(UNPAID_PAYMENT_VALUE)
+                        return
+                      }
+                      const fallbackDate = rows.map(row => String(paymentDates[row.key] || '').trim()).find(value => value && value !== UNPAID_PAYMENT_VALUE) || getTodayDateInputValue()
+                      const confirmed = window.confirm(`${fallbackDate}으로 입금일시 전체 데이터를 변경하겠습니까?`)
+                      if (!confirmed) return
+                      onApplyAllDates?.(fallbackDate)
+                    }}
+                    aria-label="합계 행 입금상태 전체 선택"
+                  >
+                    <option value="date">날짜입력</option>
+                    <option value="unpaid">미입금</option>
+                  </select>
+                  <input
+                    type="date"
+                    value={rows.every(row => { const value = String(paymentDates[row.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE; }) ? (rows.map(row => String(paymentDates[row.key] || '').trim()).find(value => value && value !== UNPAID_PAYMENT_VALUE) || '') : ''}
+                    onChange={e => {
+                      const nextDate = e.target.value || ''
+                      if (!nextDate) return
+                      const confirmed = window.confirm(`${nextDate}으로 입금일시 전체 데이터를 변경하겠습니까?`)
+                      if (!confirmed) return
+                      onApplyAllDates?.(nextDate)
+                    }}
+                    aria-label="합계 행 입금일시 전체 입력"
+                    disabled={!rows.every(row => { const value = String(paymentDates[row.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE; })}
+                  />
+                </div>
+              </div>
+              <div>{rows.every(row => { const value = String(paymentDates[row.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE; }) ? 'O' : 'X'}</div>
+              <div>
+                <button
+                  type="button"
+                  className="disposal-bulk-payment-status-button disposal-bulk-payment-status-button-total"
+                  onClick={() => {
+                    const nextValue = rows.every(row => !!reportStatuses?.[row.key]) ? 'X' : 'O'
+                    const confirmed = window.confirm(`(${nextValue})로 신고상태의 전체 데이터를 변경하겠습니까?`)
+                    if (!confirmed) return
+                    onApplyAllReports?.(nextValue === 'O')
+                  }}
+                  aria-label="합계 행 신고상태 전체 변경"
+                >
+                  {rows.every(row => !!reportStatuses?.[row.key]) ? 'O' : 'X'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2688,6 +2754,7 @@ export function DisposalListPage() {
   const [pendingNavigationPath, setPendingNavigationPath] = useState('')
   const [bulkPaymentModal, setBulkPaymentModal] = useState({ open: false, recordId: '', group: null, rows: [] })
   const [bulkPaymentDates, setBulkPaymentDates] = useState({})
+  const [bulkReportStatuses, setBulkReportStatuses] = useState({})
 
   useEffect(() => {
     setRecords(loadRecords())
@@ -2762,10 +2829,13 @@ export function DisposalListPage() {
     const targetGroup = groupedRows.find(group => group.recordId === recordId)
     if (!targetGroup) return
     const defaults = {}
+    const reportDefaults = {}
     targetGroup.rows.forEach(row => {
       defaults[row.key] = getBulkPaymentInputValue(row)
+      reportDefaults[row.key] = !!row.reportDone
     })
     setBulkPaymentDates(defaults)
+    setBulkReportStatuses(reportDefaults)
     setBulkPaymentModal({
       open: true,
       recordId,
@@ -2777,6 +2847,7 @@ export function DisposalListPage() {
   function closeBulkPaymentModal() {
     setBulkPaymentModal({ open: false, recordId: '', group: null, rows: [] })
     setBulkPaymentDates({})
+    setBulkReportStatuses({})
   }
 
   function confirmBulkPaymentDates() {
@@ -2792,6 +2863,7 @@ export function DisposalListPage() {
       return {
         paymentDone: !isUnpaid,
         paymentSettledAt: isUnpaid ? '' : nextDate,
+        reportDone: !!bulkReportStatuses[rowKey],
       }
     })
     closeBulkPaymentModal()
@@ -2813,6 +2885,14 @@ export function DisposalListPage() {
     const targetRow = targetGroup?.rows?.find(row => row.key === rowKey)
     if (!targetRow) return
     updateReportStatus(recordId, rowKey, !targetRow.reportDone)
+  }
+
+  function applyAllBulkPaymentDates(value) {
+    setBulkPaymentDates(prev => Object.fromEntries(Object.keys(prev).map(key => [key, value])))
+  }
+
+  function applyAllBulkReportStatuses(isReported) {
+    setBulkReportStatuses(prev => Object.fromEntries(Object.keys(prev).map(key => [key, !!isReported])))
   }
 
   function confirmBulkStatusChange(recordId, field, checked) {
@@ -2941,14 +3021,16 @@ export function DisposalListPage() {
                       <span className="disposal-meta-location">{group.location}</span>
                     </button>
                     <div className="disposal-meta-row-end-actions">
-                      <button
-                        type="button"
-                        className="ghost disposal-header-action-button disposal-settlement-action-button"
-                        onClick={() => moveToSettlement(group.recordId)}
-                        aria-label={`${group.customerName} 결산처리`}
-                      >
-                        결산처리
-                      </button>
+                      {!isTransferred && (
+                        <button
+                          type="button"
+                          className="ghost disposal-header-action-button disposal-settlement-action-button"
+                          onClick={() => moveToSettlement(group.recordId)}
+                          aria-label={`${group.customerName} 결산처리`}
+                        >
+                          결산처리
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3036,7 +3118,11 @@ export function DisposalListPage() {
         group={bulkPaymentModal?.group}
         rows={bulkPaymentModal?.rows}
         paymentDates={bulkPaymentDates}
+        reportStatuses={bulkReportStatuses}
         onChangeDate={(rowKey, value) => setBulkPaymentDates(prev => ({ ...prev, [rowKey]: value }))}
+        onChangeReportStatus={(rowKey, value) => setBulkReportStatuses(prev => ({ ...prev, [rowKey]: !!value }))}
+        onApplyAllDates={applyAllBulkPaymentDates}
+        onApplyAllReports={applyAllBulkReportStatuses}
         onConfirm={confirmBulkPaymentDates}
         onClose={closeBulkPaymentModal}
       />

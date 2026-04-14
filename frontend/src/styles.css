@@ -23581,3 +23581,24 @@ textarea,
     gap:6px;
   }
 }
+
+.disposal-bulk-payment-status-button {
+  min-width: 42px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.disposal-bulk-payment-status-button-total {
+  width: 100%;
+}
+.disposal-bulk-payment-date-control-total {
+  width: 100%;
+}
+.disposal-bulk-payment-date-control-total select,
+.disposal-bulk-payment-date-control-total input {
+  min-width: 0;
+}
