@@ -25752,3 +25752,45 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule status row spacing and outside-month vertical gap cleanup */
+@media (min-width: 769px){
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row{
+    column-gap: 8px !important;
+    gap: 8px !important;
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+  }
+
+  .schedule-page .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout{
+    gap: 6px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .schedule-page .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row .calendar-day-summary-button.redesigned.split-layout > *{
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell{
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    align-self: stretch !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode{
+    row-gap: 0 !important;
+    gap: 0 !important;
+    grid-auto-rows: auto !important;
+  }
+}
