@@ -25047,3 +25047,82 @@ button.danger {
     margin: 0 !important;
   }
 }
+
+
+/* 2026-04-14 desktop schedule calendar ultra-compact day header/status */
+@media (min-width: 769px) {
+  .schedule-page .schedule-cell.detail-cell {
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    min-height: 24px !important;
+    height: 24px !important;
+    margin-bottom: 0 !important;
+    gap: 3px !important;
+    align-items: stretch !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-date-select {
+    min-height: 24px !important;
+    height: 24px !important;
+    width: 26px !important;
+    min-width: 26px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-date {
+    font-size: 12px !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-top-actions.filled {
+    gap: 3px !important;
+    align-items: stretch !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.filled.schedule-add-band {
+    min-height: 24px !important;
+    height: 24px !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled {
+    min-width: 44px !important;
+    width: 44px !important;
+    padding: 0 4px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.filled.schedule-add-band {
+    min-width: 24px !important;
+    width: 24px !important;
+    padding: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-label.plus-only {
+    font-size: 18px !important;
+    line-height: 1 !important;
+    font-weight: 800 !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    gap: 2px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout {
+    min-width: fit-content !important;
+    width: fit-content !important;
+    padding: 1px 4px !important;
+    border-radius: 0 !important;
+    font-size: 10px !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout span {
+    white-space: nowrap !important;
+  }
+}

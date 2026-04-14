@@ -6861,7 +6861,7 @@ function CalendarPage() {
                           <span className="calendar-day-summary-chip">B:{String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-chip">C:{String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
                         </button>
-                        <div className={`calendar-handless-banner split-layout ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span></div>
+                        <div className={`calendar-handless-banner split-layout ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손' : '일'}</span></div>
                       </div>
                     )}
 
