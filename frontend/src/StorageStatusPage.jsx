@@ -26,7 +26,13 @@ function parseDate(value) {
     if (year < 100) year += 2000
     if (!year || !month || !day) return null
     const parsed = new Date(year, month - 1, day)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) return null
+    return parsed
   }
   const digits = text.replace(/\D/g, '')
   if (digits.length === 6) {
@@ -34,14 +40,26 @@ function parseDate(value) {
     const month = Number(digits.slice(2, 4))
     const day = Number(digits.slice(4, 6))
     const parsed = new Date(year, month - 1, day)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) return null
+    return parsed
   }
   if (digits.length === 8) {
     const year = Number(digits.slice(0, 4))
     const month = Number(digits.slice(4, 6))
     const day = Number(digits.slice(6, 8))
     const parsed = new Date(year, month - 1, day)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) return null
+    return parsed
   }
   return null
 }
@@ -120,13 +138,71 @@ function buildMonthlyRows(rows) {
   }))
 }
 
+function serializeRows(rows) {
+  return JSON.stringify(rows.map(normalizeRow).map(({ id, status, customer_name, manager_name, start_date, end_date, scale }) => ({
+    id,
+    status,
+    customer_name,
+    manager_name,
+    start_date,
+    end_date,
+    scale,
+  })))
+}
+
+function describeRowChanges(previousRow, nextRow) {
+  const labels = {
+    customer_name: '고객명',
+    manager_name: '담당대표',
+    start_date: '시작일',
+    end_date: '종료일',
+    scale: '짐규모',
+    status: '구분',
+  }
+  const changes = []
+  Object.keys(labels).forEach((field) => {
+    const beforeValue = String(previousRow?.[field] || '').trim() || '-'
+    const afterValue = String(nextRow?.[field] || '').trim() || '-'
+    if (beforeValue !== afterValue) {
+      changes.push(`${labels[field]} ${beforeValue} → ${afterValue}`)
+    }
+  })
+  return changes.join(', ')
+}
+
+function getMonthlyCellTone(value) {
+  const amount = parseScale(value)
+  if (!amount) return ''
+  if (amount < 17) return 'is-safe'
+  if (amount < 18) return 'is-warn'
+  return 'is-danger'
+}
+
 export default function StorageStatusPage() {
   const [tab, setTab] = useState('input')
   const [rows, setRows] = useState([])
+  const [baselineRows, setBaselineRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
+
+  const isDirty = useMemo(
+    () => serializeRows(rows) !== serializeRows(baselineRows),
+    [rows, baselineRows],
+  )
+
+
+  useEffect(() => {
+    if (!isDirty) return undefined
+    const handleBeforeUnload = (event) => {
+      event.preventDefault()
+      event.returnValue = ''
+      return ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -135,6 +211,7 @@ export default function StorageStatusPage() {
       const response = await api('/api/storage-status/state')
       const nextRows = Array.isArray(response?.state?.rows) ? response.state.rows.map(normalizeRow) : []
       setRows(nextRows)
+      setBaselineRows(nextRows)
     } catch (err) {
       setError(err?.message || '짐보관현황 데이터를 불러오지 못했습니다.')
     } finally {
@@ -158,27 +235,66 @@ export default function StorageStatusPage() {
     setRows((prev) => [...prev, normalizeRow(EMPTY_ROW())])
   }, [])
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (rowsToSave = rows) => {
     setSaving(true)
     setError('')
     setSavedMessage('')
     try {
-      const payloadRows = rows.map(normalizeRow)
+      const payloadRows = rowsToSave.map(normalizeRow)
       const response = await api('/api/storage-status/state', {
         method: 'POST',
         body: JSON.stringify({ rows: payloadRows }),
       })
-      setRows(Array.isArray(response?.state?.rows) ? response.state.rows.map(normalizeRow) : [])
+      const nextRows = Array.isArray(response?.state?.rows) ? response.state.rows.map(normalizeRow) : []
+      setRows(nextRows)
+      setBaselineRows(nextRows)
       setSavedMessage('저장되었습니다.')
       window.setTimeout(() => setSavedMessage(''), 1500)
+      return true
     } catch (err) {
       setError(err?.message || '짐보관현황 저장에 실패했습니다.')
+      return false
     } finally {
       setSaving(false)
     }
   }, [rows])
 
+  const handleTabChange = useCallback(async (nextTab) => {
+    if (nextTab === tab) return
+    if (tab === 'input' && isDirty) {
+      const changedRow = rows.find((row) => {
+        const previousRow = baselineRows.find((item) => item.id === row.id) || {}
+        return describeRowChanges(previousRow, row)
+      }) || rows[0]
+      const baselineRow = baselineRows.find((row) => row.id === changedRow?.id) || baselineRows[0] || {}
+      const customerName = changedRow?.customer_name || baselineRow?.customer_name || '미지정'
+      const changeSummary = describeRowChanges(baselineRow, changedRow)
+      const confirmed = window.confirm(`${customerName} 고객님의 일정이 ${changeSummary || '변경됨'}으로 변경되었습니다. 저장하시겠습니까?`)
+      if (!confirmed) {
+        setTab('input')
+        return
+      }
+      const saved = await save(rows)
+      if (!saved) return
+    }
+    setTab(nextTab)
+  }, [tab, isDirty, rows, baselineRows, save])
+
   const monthlyRows = useMemo(() => buildMonthlyRows(rows), [rows])
+  const changedCellMap = useMemo(() => {
+    const map = {}
+    rows.forEach((row, index) => {
+      const previousRow = baselineRows.find((item) => item.id === row.id) || baselineRows[index] || {}
+      const changedFields = new Set()
+      ;['customer_name', 'manager_name', 'start_date', 'end_date', 'scale', 'status'].forEach((field) => {
+        if (String(previousRow?.[field] || '').trim() !== String(row?.[field] || '').trim()) {
+          changedFields.add(field)
+        }
+      })
+      map[row.id] = changedFields
+    })
+    return map
+  }, [rows, baselineRows])
 
   return (
     <div className="feature-card storage-status-shell">
@@ -189,7 +305,7 @@ export default function StorageStatusPage() {
               key={item.key}
               type="button"
               className={tab === item.key ? 'ghost settlement-tab active' : 'ghost settlement-tab'}
-              onClick={() => setTab(item.key)}
+              onClick={() => handleTabChange(item.key)}
             >
               {item.title}
             </button>
@@ -198,7 +314,7 @@ export default function StorageStatusPage() {
         {tab === 'input' ? (
           <div className="storage-status-actions">
             <button type="button" className="small ghost" onClick={addRow}>행추가</button>
-            <button type="button" className="small" onClick={save} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
+            <button type="button" className="small" onClick={() => save(rows)} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
         ) : null}
       </div>
@@ -235,12 +351,24 @@ export default function StorageStatusPage() {
                 </tr>
               ) : rows.map((row) => (
                 <tr key={row.id}>
-                  <td><span className={`storage-status-badge is-${row.status || 'empty'}`}>{row.status || '-'}</span></td>
-                  <td><input value={row.customer_name} onChange={(e) => updateRow(row.id, 'customer_name', e.target.value)} placeholder="고객명" /></td>
-                  <td><input value={row.manager_name} onChange={(e) => updateRow(row.id, 'manager_name', e.target.value)} placeholder="담당대표" /></td>
-                  <td><input value={row.start_date} onChange={(e) => updateRow(row.id, 'start_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'start_date', formatDate(e.target.value))} placeholder="26.04.10" /></td>
-                  <td><input value={row.end_date} onChange={(e) => updateRow(row.id, 'end_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'end_date', formatDate(e.target.value))} placeholder="26.04.10" /></td>
-                  <td><input value={row.scale} onChange={(e) => updateRow(row.id, 'scale', e.target.value)} onBlur={(e) => updateRow(row.id, 'scale', formatScale(e.target.value))} placeholder="1" /></td>
+                  <td className={changedCellMap[row.id]?.has('status') ? 'storage-status-cell-changed' : ''}>
+                    <span className={`storage-status-badge is-${row.status || 'empty'}`}>{row.status || '-'}</span>
+                  </td>
+                  <td className={changedCellMap[row.id]?.has('customer_name') ? 'storage-status-cell-changed' : ''}>
+                    <input value={row.customer_name} onChange={(e) => updateRow(row.id, 'customer_name', e.target.value)} placeholder="고객명" />
+                  </td>
+                  <td className={changedCellMap[row.id]?.has('manager_name') ? 'storage-status-cell-changed' : ''}>
+                    <input value={row.manager_name} onChange={(e) => updateRow(row.id, 'manager_name', e.target.value)} placeholder="담당대표" />
+                  </td>
+                  <td className={changedCellMap[row.id]?.has('start_date') ? 'storage-status-cell-changed' : ''}>
+                    <input value={row.start_date} onChange={(e) => updateRow(row.id, 'start_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'start_date', formatDate(e.target.value))} placeholder="26.05.01" />
+                  </td>
+                  <td className={changedCellMap[row.id]?.has('end_date') ? 'storage-status-cell-changed' : ''}>
+                    <input value={row.end_date} onChange={(e) => updateRow(row.id, 'end_date', e.target.value)} onBlur={(e) => updateRow(row.id, 'end_date', formatDate(e.target.value))} placeholder="26.05.01" />
+                  </td>
+                  <td className={changedCellMap[row.id]?.has('scale') ? 'storage-status-cell-changed' : ''}>
+                    <input value={row.scale} onChange={(e) => updateRow(row.id, 'scale', e.target.value)} onBlur={(e) => updateRow(row.id, 'scale', formatScale(e.target.value))} placeholder="1" />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -261,7 +389,9 @@ export default function StorageStatusPage() {
               {monthlyRows.map((row) => (
                 <tr key={row.month}>
                   <th>{row.month}월</th>
-                  {row.days.map((value, index) => <td key={index + 1}>{value}</td>)}
+                  {row.days.map((value, index) => (
+                    <td key={index + 1} className={getMonthlyCellTone(value)}>{value}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
