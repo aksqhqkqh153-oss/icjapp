@@ -25896,3 +25896,110 @@ button.danger {
   .schedule-page .calendar-lane.filled.clickable[style*="#06b6d4"],
   .schedule-page .calendar-lane.filled[style*="#06b6d4"] { --lane-color: #06b6d4; }
 }
+
+/* 2026-04-14 desktop schedule lanes stack border ownership + date button left color strip */
+@media (min-width: 769px){
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes{
+    border: 0 !important;
+    box-shadow: none !important;
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled{
+    border: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #000 !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .calendar-lane:last-child,
+  .schedule-page .calendar-lane.filled:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane:last-child,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled:last-child{
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row{
+    border: 0 !important;
+    border-top: 1px solid #000 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select{
+    position: relative !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    color: #111827 !important;
+    padding-left: 20% !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select::before{
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 20%;
+    background: transparent;
+    z-index: 0;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select .calendar-date,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select .calendar-date{
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-full::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-full::before{
+    background: #111111 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-critical::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-critical::before{
+    background: #b91c1c !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-warning::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-warning::before{
+    background: #facc15 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-normal::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-normal::before{
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-error::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-error::before{
+    background: #f472b6 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-full:hover,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-full:hover,
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-critical:hover,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-critical:hover,
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-warning:hover,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-warning:hover,
+  .schedule-page .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-error:hover,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line button.calendar-date-select.calendar-day-state-error:hover{
+    background: #fff !important;
+  }
+}
