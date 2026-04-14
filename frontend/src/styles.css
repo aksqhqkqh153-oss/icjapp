@@ -25351,3 +25351,87 @@ button.danger {
     justify-self: stretch !important;
   }
 }
+
+/* 2026-04-14 desktop schedule toolbar/header/lane refinement */
+@media (min-width: 769px) {
+  .schedule-page .calendar-toolbar.upgraded.schedule-toolbar-updated {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 28px !important;
+  }
+
+  .schedule-page .schedule-toolbar-main-row.single-line {
+    min-height: 26px !important;
+    align-items: center !important;
+  }
+
+  .schedule-page .schedule-today-button,
+  .schedule-page .schedule-settings-button,
+  .schedule-page .schedule-handless-button,
+  .schedule-page .schedule-add-button,
+  .schedule-page .schedule-month-nav .icon-month-button,
+  .schedule-page .schedule-toolbar-icon-button {
+    min-height: 22px !important;
+    height: 22px !important;
+    padding: 0 5px !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .schedule-month-label {
+    line-height: 1 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line {
+    position: relative !important;
+    z-index: 0 !important;
+    border-top: 1px solid #d7dee8 !important;
+    border-bottom: 1px solid #d7dee8 !important;
+    overflow: visible !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 1px 0 0 #d7dee8, inset -1px 0 0 #d7dee8, inset 0 -1px 0 #d7dee8, inset 0 1px 0 #d7dee8;
+    z-index: 3;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-date-select,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.filled.schedule-add-band {
+    position: relative !important;
+    z-index: 2 !important;
+    box-shadow: inset 1px 0 0 #d7dee8, inset -1px 0 0 #d7dee8, inset 0 -1px 0 #d7dee8, inset 0 1px 0 #d7dee8 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled.clickable {
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout {
+    padding-left: 6px !important;
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    padding-top: 0 !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes {
+    margin-top: 0 !important;
+    align-self: stretch !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    border: 0 !important;
+    margin: 0 !important;
+  }
+}
