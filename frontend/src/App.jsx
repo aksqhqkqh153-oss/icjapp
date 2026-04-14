@@ -8736,6 +8736,23 @@ function ScheduleFormPage({ mode }) {
     setError('')
     const normalizedScheduleType = String(form.schedule_type || '선택')
     const normalizedScheduleGroup = normalizedScheduleType.replace(/[()]/g, '')
+    const normalizedMoveStartDate = normalizeScheduleDateInput(startDateText, form.move_start_date || presetDate)
+    const normalizedMoveEndDate = normalizeScheduleDateInput(endDateText, form.move_end_date || form.move_start_date || presetDate)
+    const normalizedStartTime = normalizeScheduleTimeInput(startTimeText, form.start_time || '미정') || form.start_time || '미정'
+    const normalizedEndTime = normalizeScheduleTimeInput(endTimeText, form.end_time || '미정') || form.end_time || '미정'
+    const normalizedEndStartTime = normalizeScheduleTimeInput(endDateStartTimeText, form.move_end_start_time || '미정') || form.move_end_start_time || '미정'
+    const normalizedEndEndTime = normalizeScheduleTimeInput(endDateEndTimeText, form.move_end_end_time || '미정') || form.move_end_end_time || '미정'
+    const isStorageSchedule = ['짐보관이사 2인 업무', '짐보관이사 3인 이상업무'].includes(String(form.department_info || '').trim())
+    if (isStorageSchedule) {
+      if (!normalizedMoveStartDate || !normalizedMoveEndDate) {
+        setError('짐보관 일정은 시작일과 종료일을 모두 선택해야 합니다.')
+        return
+      }
+      if (!normalizedStartTime) {
+        setError('짐보관 일정은 시작시각을 입력하거나 미정으로 체크해야 합니다.')
+        return
+      }
+    }
     const payload = {
       ...form,
       schedule_type: normalizedScheduleType,
@@ -8743,9 +8760,13 @@ function ScheduleFormPage({ mode }) {
       status_b_count: normalizedScheduleGroup === 'B' ? 1 : 0,
       status_c_count: normalizedScheduleGroup === 'C' ? 1 : 0,
       title: titleLocked ? buildScheduleTitle(form) : (form.title || buildScheduleTitle(form)),
-      event_date: form.move_start_date || presetDate,
-      move_start_date: form.move_start_date || presetDate,
-      move_end_date: form.move_end_date || form.move_start_date || presetDate,
+      event_date: normalizedMoveStartDate || presetDate,
+      move_start_date: normalizedMoveStartDate || presetDate,
+      move_end_date: normalizedMoveEndDate || normalizedMoveStartDate || presetDate,
+      start_time: normalizedStartTime,
+      end_time: normalizedEndTime,
+      move_end_start_time: normalizedEndStartTime,
+      move_end_end_time: normalizedEndEndTime,
       location: form.start_address || '',
       amount2: '',
       amount_item: '',

@@ -41,7 +41,7 @@ from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
 from .soomgo_review_api import router as soomgo_review_router
 from .warehouse_service import get_state as get_warehouse_state, save_state as save_warehouse_state, update_cell as update_warehouse_cell, update_layout as update_warehouse_layout
-from .storage_status_service import get_state as get_storage_status_state, replace_rows as replace_storage_status_rows
+from .storage_status_service import get_state as get_storage_status_state, replace_rows as replace_storage_status_rows, save_state as save_storage_status_state
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -3544,6 +3544,8 @@ def _calendar_event_out(conn, row):
     item["status_b_count"] = int(item.get("status_b_count") or 0)
     item["status_c_count"] = int(item.get("status_c_count") or 0)
     item["image_list"] = _calendar_event_image_list(item.get('image_data'))
+    item["sync_group_id"] = str(item.get('sync_group_id') or '')
+    item["sync_role"] = str(item.get('sync_role') or '')
     return item
 def _can_access_shared_schedule(user: dict | None) -> bool:
     try:
@@ -3599,6 +3601,106 @@ def _calendar_edit_log_summaries(before: dict[str, Any], after: dict[str, Any]) 
         if before_value != after_value:
             changes.append(label)
     return changes
+
+
+STORAGE_SCHEDULE_DEPARTMENTS = {'짐보관이사 2인 업무', '짐보관이사 3인 이상업무'}
+
+
+def _is_storage_schedule_department(value: Any) -> bool:
+    return str(value or '').strip() in STORAGE_SCHEDULE_DEPARTMENTS
+
+
+def _storage_schedule_group_id(event_id: int) -> str:
+    return f"storage-schedule-{int(event_id)}"
+
+
+def _storage_manager_name_from_event(event_data: dict[str, Any]) -> str:
+    reps, _ = _calendar_assignment_names(event_data)
+    if reps and reps != '-':
+        return reps
+    return str(event_data.get('representative1') or '').strip()
+
+
+def _sync_storage_status_with_calendar_group(conn, event_data: dict[str, Any], remove_only: bool = False):
+    if not event_data:
+        return
+    group_id = str(event_data.get('sync_group_id') or _storage_schedule_group_id(int(event_data.get('id') or 0))).strip()
+    if not group_id:
+        return
+    state = get_storage_status_state(conn)
+    rows = list((state or {}).get('rows') or [])
+    matched = [row for row in rows if str((row or {}).get('source_group_id') or '').strip() == group_id]
+    preserved_scale = str((matched[0] or {}).get('scale') or '').strip() if matched else ''
+    next_rows = [row for row in rows if str((row or {}).get('source_group_id') or '').strip() != group_id]
+    if not remove_only and _is_storage_schedule_department(event_data.get('department_info')):
+        next_rows.append({
+            'id': f'storage-row-{group_id}',
+            'customer_name': str(event_data.get('customer_name') or '').strip(),
+            'manager_name': _storage_manager_name_from_event(event_data),
+            'start_date': str(event_data.get('move_start_date') or event_data.get('event_date') or '').strip(),
+            'end_date': str(event_data.get('move_end_date') or event_data.get('move_start_date') or event_data.get('event_date') or '').strip(),
+            'scale': preserved_scale,
+            'source_type': 'calendar_storage_schedule',
+            'source_group_id': group_id,
+            'source_event_id': int(event_data.get('id') or 0),
+            'source_locked': 1,
+        })
+    save_storage_status_state(conn, {'rows': next_rows})
+
+
+def _upsert_storage_schedule_group(conn, base_event: dict[str, Any]):
+    if not base_event:
+        return None
+    base_id = int(base_event.get('id') or 0)
+    if base_id <= 0:
+        return None
+    existing_group_id = str(base_event.get('sync_group_id') or '').strip()
+    group_id = existing_group_id or _storage_schedule_group_id(base_id)
+    primary_row = conn.execute("SELECT * FROM calendar_events WHERE sync_group_id = ? AND sync_role = 'storage_start' AND user_id = ? ORDER BY id LIMIT 1", (group_id, base_event.get('user_id'))).fetchone() if existing_group_id else None
+    primary_id = int(primary_row['id']) if primary_row else base_id
+    is_storage = _is_storage_schedule_department(base_event.get('department_info'))
+    start_date = str(base_event.get('move_start_date') or base_event.get('event_date') or '').strip()
+    end_date = str(base_event.get('move_end_date') or start_date).strip() or start_date
+    conn.execute("UPDATE calendar_events SET title = ?, content = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, color = ?, visit_time = ?, move_start_date = ?, move_end_date = ?, start_address = ?, end_address = ?, platform = ?, customer_name = ?, department_info = ?, schedule_type = ?, status_a_count = ?, status_b_count = ?, status_c_count = ?, amount1 = ?, amount2 = ?, amount_item = ?, deposit_method = ?, deposit_amount = ?, deposit_datetime = ?, reservation_name = ?, reservation_phone = ?, representative1 = ?, representative2 = ?, representative3 = ?, staff1 = ?, staff2 = ?, staff3 = ?, image_data = ?, sync_group_id = ?, sync_role = ? WHERE id = ?", (base_event.get('title') or '', base_event.get('content') or '', start_date or base_event.get('event_date') or '', base_event.get('start_time') or '미정', base_event.get('end_time') or '미정', base_event.get('location') or '', base_event.get('color') or '#2563eb', base_event.get('visit_time') or '미정', start_date, end_date, base_event.get('start_address') or '', base_event.get('end_address') or '', base_event.get('platform') or '', base_event.get('customer_name') or '', base_event.get('department_info') or '', base_event.get('schedule_type') or 'A', int(base_event.get('status_a_count') or 0), int(base_event.get('status_b_count') or 0), int(base_event.get('status_c_count') or 0), base_event.get('amount1') or '', base_event.get('amount2') or '', base_event.get('amount_item') or '', base_event.get('deposit_method') or '', base_event.get('deposit_amount') or '', base_event.get('deposit_datetime') or '', base_event.get('reservation_name') or '', base_event.get('reservation_phone') or '', base_event.get('representative1') or '', base_event.get('representative2') or '', base_event.get('representative3') or '', base_event.get('staff1') or '', base_event.get('staff2') or '', base_event.get('staff3') or '', base_event.get('image_data') or '', group_id if is_storage else '', 'storage_start' if is_storage else '', primary_id))
+    mirror_row = conn.execute("SELECT * FROM calendar_events WHERE sync_group_id = ? AND sync_role = 'storage_end' AND user_id = ? ORDER BY id LIMIT 1", (group_id, base_event.get('user_id'))).fetchone()
+    if not is_storage:
+        if mirror_row:
+            conn.execute("DELETE FROM calendar_events WHERE id = ?", (mirror_row['id'],))
+        _sync_storage_status_with_calendar_group(conn, {**base_event, 'sync_group_id': group_id}, remove_only=True)
+        return None
+    if end_date and end_date != start_date:
+        values = (
+            base_event.get('user_id'), base_event.get('title') or '', base_event.get('content') or '', end_date,
+            base_event.get('move_end_start_time') or base_event.get('start_time') or '미정',
+            base_event.get('move_end_end_time') or base_event.get('end_time') or '미정',
+            base_event.get('end_address') or base_event.get('location') or '',
+            base_event.get('color') or '#2563eb',
+            base_event.get('move_end_start_time') or base_event.get('visit_time') or '미정',
+            start_date, end_date, base_event.get('start_address') or '', base_event.get('end_address') or '',
+            base_event.get('platform') or '', base_event.get('customer_name') or '', base_event.get('department_info') or '', base_event.get('schedule_type') or 'A',
+            int(base_event.get('status_a_count') or 0), int(base_event.get('status_b_count') or 0), int(base_event.get('status_c_count') or 0),
+            base_event.get('amount1') or '', base_event.get('amount2') or '', base_event.get('amount_item') or '', base_event.get('deposit_method') or '', base_event.get('deposit_amount') or '', base_event.get('deposit_datetime') or '',
+            base_event.get('reservation_name') or '', base_event.get('reservation_phone') or '',
+            base_event.get('representative1') or '', base_event.get('representative2') or '', base_event.get('representative3') or '', base_event.get('staff1') or '', base_event.get('staff2') or '', base_event.get('staff3') or '',
+            base_event.get('image_data') or '', group_id, 'storage_end'
+        )
+        if mirror_row:
+            conn.execute(
+                "UPDATE calendar_events SET user_id=?, title=?, content=?, event_date=?, start_time=?, end_time=?, location=?, color=?, visit_time=?, move_start_date=?, move_end_date=?, start_address=?, end_address=?, platform=?, customer_name=?, department_info=?, schedule_type=?, status_a_count=?, status_b_count=?, status_c_count=?, amount1=?, amount2=?, amount_item=?, deposit_method=?, deposit_amount=?, deposit_datetime=?, reservation_name=?, reservation_phone=?, representative1=?, representative2=?, representative3=?, staff1=?, staff2=?, staff3=?, image_data=?, sync_group_id=?, sync_role=? WHERE id = ?",
+                values + (mirror_row['id'],),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO calendar_events(user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address, platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount, deposit_datetime, reservation_name, reservation_phone, representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at, sync_group_id, sync_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                values + (utcnow(),),
+            )
+    else:
+        if mirror_row:
+            conn.execute("DELETE FROM calendar_events WHERE id = ?", (mirror_row['id'],))
+    next_base = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (primary_id,)).fetchone()
+    if next_base:
+        _sync_storage_status_with_calendar_group(conn, row_to_dict(next_base), remove_only=False)
+    return group_id
 
 
 def _calendar_event_image_list(value: Any) -> list[str]:
@@ -3765,21 +3867,24 @@ def create_calendar_event(payload: CalendarEventIn, user=Depends(require_user)):
             INSERT INTO calendar_events(
                 user_id, title, content, event_date, start_time, end_time, location, color, visit_time, move_start_date, move_end_date, start_address, end_address,
                 platform, customer_name, department_info, schedule_type, status_a_count, status_b_count, status_c_count, amount1, amount2, amount_item, deposit_method, deposit_amount, deposit_datetime, reservation_name, reservation_phone,
-                representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at
+                representative1, representative2, representative3, staff1, staff2, staff3, image_data, created_at, sync_group_id, sync_role
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user["id"], payload.title, payload.content, payload.event_date, payload.start_time, payload.end_time,
                 payload.location, payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
                 payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
                 payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime, payload.reservation_name, payload.reservation_phone,
-                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow()
+                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, utcnow(), '', ''
             ),
         )
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
         next_row = conn.execute("SELECT * FROM calendar_events WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user["id"],)).fetchone()
         if next_row:
+            next_data = row_to_dict(next_row)
+            _upsert_storage_schedule_group(conn, next_data)
+            next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (next_row['id'],)).fetchone()
             next_data = row_to_dict(next_row)
             reps, staffs = _calendar_assignment_names(next_data)
             _notify_work_schedule_assignments(
@@ -3801,6 +3906,15 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
         row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+        row_data = row_to_dict(row)
+        update_target_id = event_id
+        group_id = str(row_data.get('sync_group_id') or '').strip()
+        if group_id:
+            primary_row = conn.execute("SELECT * FROM calendar_events WHERE sync_group_id = ? AND sync_role = 'storage_start' ORDER BY id LIMIT 1", (group_id,)).fetchone()
+            if primary_row:
+                update_target_id = int(primary_row['id'])
+                row = primary_row
+                row_data = row_to_dict(primary_row)
         previous_event_date = row["event_date"]
         conn.execute(
             """
@@ -3815,7 +3929,7 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
                 payload.color, payload.visit_time, payload.move_start_date, payload.move_end_date, payload.start_address, payload.end_address,
                 payload.platform, payload.customer_name, payload.department_info, payload.schedule_type, payload.status_a_count, payload.status_b_count, payload.status_c_count,
                 payload.amount1, payload.amount2, payload.amount_item, payload.deposit_method, payload.deposit_amount, payload.deposit_datetime, payload.reservation_name, payload.reservation_phone,
-                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, event_id
+                payload.representative1, payload.representative2, payload.representative3, payload.staff1, payload.staff2, payload.staff3, payload.image_data, update_target_id
             ),
         )
         previous_data = row_to_dict(row)
@@ -3827,7 +3941,10 @@ def update_calendar_event(event_id: int, payload: CalendarEventIn, user=Depends(
             )
         _sync_work_schedule_day_note_counts(conn, user["id"], previous_event_date)
         _sync_work_schedule_day_note_counts(conn, user["id"], payload.event_date)
-        next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+        next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (update_target_id,)).fetchone()
+        if next_row:
+            _upsert_storage_schedule_group(conn, row_to_dict(next_row))
+            next_row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
         if next_row:
             next_data = row_to_dict(next_row)
             reps, staffs = _calendar_assignment_names(next_data)
@@ -3882,12 +3999,25 @@ def replace_calendar_event_department(payload: CalendarDepartmentReplaceIn, user
 def delete_calendar_event(event_id: int, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
     with get_conn() as conn:
-        row = conn.execute("SELECT event_date FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="본인이 등록한 일정만 삭제할 수 있습니다.")
-        conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
-        if row:
-            _sync_work_schedule_day_note_counts(conn, user["id"], row["event_date"])
+        row_data = row_to_dict(row)
+        group_id = str(row_data.get('sync_group_id') or '').strip()
+        touched_dates = {str(row_data.get('event_date') or '')}
+        if group_id:
+            group_rows = conn.execute("SELECT id, event_date FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id)).fetchall()
+            for item in group_rows:
+                touched_dates.add(str(item['event_date'] or ''))
+            conn.execute("DELETE FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id))
+            _sync_storage_status_with_calendar_group(conn, row_data, remove_only=True)
+        else:
+            conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
+            if _is_storage_schedule_department(row_data.get('department_info')):
+                _sync_storage_status_with_calendar_group(conn, {**row_data, 'sync_group_id': _storage_schedule_group_id(event_id)}, remove_only=True)
+        for event_date in touched_dates:
+            if event_date:
+                _sync_work_schedule_day_note_counts(conn, user["id"], event_date)
         return {"ok": True}
 def _schedule_day_title(base_date: date, target_date: date) -> str:
     delta = (target_date - base_date).days

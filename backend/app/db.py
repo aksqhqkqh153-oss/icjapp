@@ -2045,6 +2045,8 @@ CREATE TABLE IF NOT EXISTS calendar_event_comments (
             'staff3': "TEXT DEFAULT ''",
             'deposit_status': "TEXT DEFAULT ''",
             'image_data': "TEXT DEFAULT ''",
+            'sync_group_id': "TEXT DEFAULT ''",
+            'sync_role': "TEXT DEFAULT ''",
         })
         _ensure_columns(conn, 'users', {
             'login_id': "TEXT DEFAULT ''",

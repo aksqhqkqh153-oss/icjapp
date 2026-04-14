@@ -138,6 +138,10 @@ function normalizeRow(row, options = {}) {
     status: getStatus(next.start_date, next.end_date),
     __isNew: Boolean(row?.__isNew),
     __newAt: Number(row?.__newAt || 0),
+    source_type: row?.source_type || '',
+    source_group_id: row?.source_group_id || '',
+    source_event_id: row?.source_event_id || '',
+    source_locked: row?.source_locked || 0,
   }
 }
 
@@ -183,7 +187,7 @@ function isDateWithinRow(targetDate, row) {
 }
 
 function serializeRows(rows) {
-  return JSON.stringify(rows.map(normalizeRow).map(({ id, status, customer_name, manager_name, start_date, end_date, scale }) => ({
+  return JSON.stringify(rows.map(normalizeRow).map(({ id, status, customer_name, manager_name, start_date, end_date, scale, source_type, source_group_id, source_event_id, source_locked }) => ({
     id,
     status,
     customer_name,
@@ -191,6 +195,10 @@ function serializeRows(rows) {
     start_date,
     end_date,
     scale,
+    source_type,
+    source_group_id,
+    source_event_id,
+    source_locked,
   })))
 }
 

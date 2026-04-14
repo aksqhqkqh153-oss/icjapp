@@ -91,7 +91,7 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     row_id = str(row.get('id') or '').strip()
     if not row_id:
         row_id = f"row-{abs(hash((customer_name, manager_name, str(row.get('start_date') or row.get('startDate') or ''), str(row.get('end_date') or row.get('endDate') or ''), str(scale_raw or ''))))}"
-    return {
+    normalized = {
         'id': row_id,
         'status': _status_for(start_date, end_date),
         'customer_name': customer_name,
@@ -100,6 +100,11 @@ def _normalize_row(row: dict[str, Any]) -> dict[str, Any]:
         'end_date': end_date.strftime('%y.%m.%d') if end_date else '',
         'scale': _format_scale(scale_raw),
     }
+    for meta_key in ('source_type', 'source_group_id', 'source_event_id', 'source_locked'):
+        meta_value = row.get(meta_key)
+        if meta_value not in (None, ''):
+            normalized[meta_key] = meta_value
+    return normalized
 
 
 def _normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
