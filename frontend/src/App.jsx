@@ -6,6 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { createPortal } from 'react-dom'
 import WarehousePage from './WarehousePage'
+import StorageStatusPage from './StorageStatusPage'
 import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalPreviewPage, DisposalSettlementsPage } from './DisposalPages'
 import { WORK_SHIFT_TEMPLATE } from './workScheduleTemplate'
 
@@ -18101,7 +18102,7 @@ function App() {
         <Route path="/quotes" element={staffAllowed ? <QuoteFormsPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/operations-dashboard" element={staffAllowed ? <OperationsDashboardPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/quote-forms" element={staffAllowed ? <Navigate to="/quotes" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/storage-status" element={staffAllowed ? <PlaceholderFeaturePage title="짐보관현황" description="짐보관현황 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/storage-status" element={staffAllowed ? <StorageStatusPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/disposal" element={staffAllowed ? <DisposalHubPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/disposal/forms" element={staffAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/disposal/forms/preview" element={staffAllowed ? <DisposalPreviewPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

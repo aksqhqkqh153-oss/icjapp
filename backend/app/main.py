@@ -41,6 +41,7 @@ from .storage import StorageError, save_upload
 from .settlement_sync import settlement_sync_service, _credential_summary, save_auth_state_json, get_auth_session_guide
 from .soomgo_review_api import router as soomgo_review_router
 from .warehouse_service import get_state as get_warehouse_state, save_state as save_warehouse_state, update_cell as update_warehouse_cell, update_layout as update_warehouse_layout
+from .storage_status_service import get_state as get_storage_status_state, replace_rows as replace_storage_status_rows
 
 EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -643,6 +644,8 @@ class WarehouseLayoutUpdateIn(BaseModel):
     sheet_name: str
     col_widths: dict[str, Any] = {}
     row_heights: dict[str, Any] = {}
+class StorageStatusSaveIn(BaseModel):
+    rows: list[dict[str, Any]] = Field(default_factory=list)
 def _bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None

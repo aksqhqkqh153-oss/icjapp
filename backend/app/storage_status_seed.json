@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "id": "seed-1",
+      "customer_name": "강선형",
+      "manager_name": "심진수",
+      "start_date": "26.03.05",
+      "end_date": "26.04.08",
+      "scale": "1"
+    },
+    {
+      "id": "seed-2",
+      "customer_name": "박재우",
+      "manager_name": "박우민",
+      "start_date": "26.04.10",
+      "end_date": "26.04.20",
+      "scale": "2"
+    },
+    {
+      "id": "seed-3",
+      "customer_name": "김소진",
+      "manager_name": "임채영",
+      "start_date": "26.05.05",
+      "end_date": "26.05.25",
+      "scale": "0.5"
+    }
+  ]
+}

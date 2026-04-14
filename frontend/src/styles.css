@@ -23615,3 +23615,154 @@ textarea,
 .disposal-bulk-payment-date-control-total input {
   min-width: 0;
 }
+
+
+.storage-status-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.storage-status-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.storage-status-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.storage-status-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.storage-status-feedback {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.storage-status-feedback.is-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.storage-status-feedback.is-success {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.storage-status-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.storage-status-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.storage-status-table th,
+.storage-status-table td {
+  border-bottom: 1px solid #eef2f7;
+  padding: 10px 10px;
+  text-align: center;
+  font-size: 13px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.storage-status-table thead th {
+  background: #f8fafc;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.storage-status-table tbody tr:last-child td,
+.storage-status-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.storage-status-table input {
+  width: 100%;
+  min-width: 110px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.storage-status-table.is-monthly {
+  min-width: 1500px;
+}
+
+.storage-status-table.is-monthly th,
+.storage-status-table.is-monthly td {
+  min-width: 42px;
+  padding: 8px 6px;
+}
+
+.storage-status-empty {
+  color: #64748b;
+  padding: 22px 14px !important;
+}
+
+.storage-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.storage-status-badge.is-진행 {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.storage-status-badge.is-예정 {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.storage-status-badge.is-종료 {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.storage-status-badge.is-empty {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+button.danger {
+  color: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .storage-status-topbar {
+    align-items: stretch;
+  }
+
+  .storage-status-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
