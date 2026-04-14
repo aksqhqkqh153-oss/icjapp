@@ -25467,3 +25467,37 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+/* 2026-04-14 desktop schedule card/cell border cleanup and weekday seam removal */
+@media (min-width: 769px) {
+  .schedule-page .card.schedule-card,
+  .schedule-page .schedule-card {
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    gap: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-spacing: 0 !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday {
+    margin: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell {
+    gap: 0 !important;
+  }
+}
