@@ -10729,7 +10729,7 @@ function saveLadderSavedList(userKey, items) {
   } catch (_) {}
 }
 
-function createEmptyLadderForm() {
+function createEmptyLadderForm(overrides = {}) {
   return {
     date: '',
     branch: '',
@@ -10738,6 +10738,7 @@ function createEmptyLadderForm() {
     travelTime: '',
     start: createLadderLocationState(),
     end: createLadderLocationState(),
+    ...overrides,
   }
 }
 
@@ -11079,7 +11080,7 @@ function LadderDispatchPage() {
 
   function resetLadderForm() {
     if (!window.confirm('기본정보, 출발지정보, 도착지정보를 모두 초기화하시겠습니까?')) return
-    setForm(createEmptyLadderForm())
+    setForm(prev => createEmptyLadderForm({ date: prev.date || '' }))
     setCopiedTarget('')
   }
 
@@ -11171,7 +11172,11 @@ function LadderDispatchPage() {
                   <input ref={datePickerRef} className="ladder-hidden-date-input" type="date" onChange={e => updateTopField('date', formatLadderDateLabelFromIso(e.target.value))} />
                   <select value={form.branch} onChange={e => updateTopField('branch', e.target.value)}>
                     <option value="">호점선택</option>
-                    {branchNames.map(item => <option key={item} value={item}>{item}</option>)}
+                    {branchNames.map(item => {
+                      const branchInfo = branchDb[item] || { name: '' }
+                      const branchOptionLabel = branchInfo.name ? `${item}(${branchInfo.name})` : item
+                      return <option key={item} value={item}>{branchOptionLabel}</option>
+                    })}
                   </select>
                   <input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="이사시간 ex) 10:00" />
                   <input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="고객명 ex) 홍길동" />
