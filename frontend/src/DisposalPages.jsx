@@ -672,9 +672,45 @@ async function loadCanvasImage(src) {
   })
 }
 
+function getEstimateExportFrame(rawContentWidth, rawContentHeight) {
+  const compactMargin = rawContentHeight > 1400 ? 18 : 24
+  const ratio = rawContentWidth / Math.max(1, rawContentHeight)
+  const nearSquare = Math.abs(1 - ratio) <= 0.22
+
+  let frameWidth = rawContentWidth + compactMargin * 2
+  let frameHeight = rawContentHeight + compactMargin * 2
+
+  if (nearSquare) {
+    const squareSize = Math.max(frameWidth, frameHeight)
+    frameWidth = squareSize
+    frameHeight = squareSize
+  } else if (ratio < 1) {
+    const portraitRatio = 3 / 4
+    frameWidth = Math.max(frameWidth, frameHeight * portraitRatio)
+  } else {
+    const landscapeRatio = 4 / 3
+    frameHeight = Math.max(frameHeight, frameWidth / landscapeRatio)
+  }
+
+  const exportScale = rawContentHeight > 2200
+    ? 1.8
+    : rawContentHeight > 1700
+      ? 2
+      : rawContentHeight > 1200
+        ? 2.2
+        : 2.5
+
+  return {
+    frameWidth: Math.ceil(frameWidth),
+    frameHeight: Math.ceil(frameHeight),
+    offsetX: Math.round((frameWidth - rawContentWidth) / 2),
+    offsetY: Math.round((frameHeight - rawContentHeight) / 2),
+    exportScale,
+  }
+}
+
 async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = '', customerName = '', disposalDate = '', location = '', mode = 'customer' }) {
   const isCompany = mode === 'company'
-  const outerMargin = 36
   const padding = 28
   const titleHeight = isCompany ? 96 : 52
   const subtitleHeight = isCompany ? 0 : 34
@@ -704,25 +740,19 @@ async function buildEstimateQuoteCanvas({ rows = [], totalFinal = 0, platform = 
   const totalSectionHeight = isCompany ? 0 : (totalHeight + 22)
   const rawContentWidth = padding * 2 + tableWidth
   const rawContentHeight = padding * 2 + titleHeight + subtitleHeight + infoHeight + 6 + headerHeight + bodyRows * rowHeight + totalSectionHeight + footerGap
-  const width = 1600
-  const height = 1200
-  const availableWidth = width - outerMargin * 2
-  const availableHeight = height - outerMargin * 2
-  const scale = Math.min(availableWidth / rawContentWidth, availableHeight / rawContentHeight)
-  const contentWidth = rawContentWidth * scale
-  const contentHeight = rawContentHeight * scale
+  const { frameWidth, frameHeight, offsetX, offsetY, exportScale } = getEstimateExportFrame(rawContentWidth, rawContentHeight)
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  canvas.width = Math.max(1, Math.round(frameWidth * exportScale))
+  canvas.height = Math.max(1, Math.round(frameHeight * exportScale))
   const ctx = canvas.getContext('2d')
 
+  ctx.scale(exportScale, exportScale)
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, width, height)
+  ctx.fillRect(0, 0, frameWidth, frameHeight)
   ctx.textBaseline = 'middle'
-  ctx.scale(scale, scale)
 
-  const startX = (width / scale - rawContentWidth) / 2
-  let currentY = (height / scale - rawContentHeight) / 2
+  const startX = offsetX + padding
+  let currentY = offsetY + padding
 
   let logoImage = null
   try {
