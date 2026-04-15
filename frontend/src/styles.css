@@ -28230,3 +28230,51 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+/* 2026-04-15 PC work schedule unified vertical scroll and zero side padding */
+@media (min-width: 769px) {
+  .page-container.work-schedule-wide {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page,
+  .page-container.work-schedule-wide > .work-schedule-page {
+    gap: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    align-content: flex-start !important;
+  }
+
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page > .card.work-schedule-day,
+  .page-container.work-schedule-wide > .work-schedule-page > .card.work-schedule-day,
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page > .work-schedule-day,
+  .page-container.work-schedule-wide > .work-schedule-page > .work-schedule-day,
+  .work-schedule-page .work-schedule-day,
+  .work-schedule-page .card.work-schedule-day {
+    flex: 0 0 auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    border-left-width: 0 !important;
+    border-right-width: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .page-container.work-schedule-wide .work-schedule-mobile-group-shell,
+  .page-container.work-schedule-wide .work-schedule-head,
+  .page-container.work-schedule-wide .work-schedule-main-top,
+  .page-container.work-schedule-wide .work-schedule-section,
+  .page-container.work-schedule-wide .work-exclusion-section,
+  .page-container.work-schedule-wide .work-schedule-list.unified-list,
+  .page-container.work-schedule-wide .work-schedule-entry-form,
+  .page-container.work-schedule-wide .work-schedule-table,
+  .page-container.work-schedule-wide .work-schedule-assignee-table,
+  .page-container.work-schedule-wide .work-notes-form,
+  .page-container.work-schedule-wide .work-day-status-editor {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
