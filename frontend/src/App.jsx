@@ -2635,6 +2635,17 @@ function HomePage() {
     armQuickDrag(quickId)
   }
 
+  function handleQuickMouseRelease(quickId) {
+    clearQuickDragHoldTimer()
+    const currentQuickId = draggingQuickId || dragReadyQuickId || quickTouchStateRef.current.quickId
+    if (currentQuickId && (!quickId || currentQuickId === quickId)) {
+      window.setTimeout(() => {
+        quickDragSuppressClickRef.current = false
+      }, 160)
+      resetQuickDragState()
+    }
+  }
+
   function handleQuickDragEnter(quickId) {
     if (!draggingQuickId || !quickId || draggingQuickId === quickId) return
     setDragOverQuickId(quickId)
@@ -2774,21 +2785,6 @@ function HomePage() {
                         </div>
                       )}
                     </div>
-                    {!employeeRestricted && (
-                      <div className="menu-category-block">
-                        <div className="menu-category-title">시작종료설정</div>
-                        <div className="stack compact">
-                          <div className="muted small-text">'일 시작' 버튼은 더블 클릭으로 시작/종료됩니다.</div>
-                          <label>
-                            <select value={homeSettings.workday.enabled ? '사용' : '미사용'} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, enabled: e.target.value === '사용' } })}>
-                              <option value="사용">사용</option>
-                              <option value="미사용">미사용</option>
-                            </select>
-                          </label>
-                          <label className="check"><input type="checkbox" checked={!!homeSettings.workday.hideOnHome} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, hideOnHome: e.target.checked } })} /> 홈 화면 제외</label>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -2820,31 +2816,6 @@ function HomePage() {
             </div>
           ) : (
             <div className={`quick-check-grid quick-check-grid-layout-${homeSettings.quickLayout || '5x5'}`.trim()}>
-              {homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
-                Number(currentUser?.grade || 6) <= 2 ? (
-                  <button
-                    type="button"
-                    className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
-                    onClick={handleWorkdayDoubleClickLike}
-                    onMouseDown={startHoldAction}
-                    onMouseUp={stopHoldAction}
-                    onMouseLeave={stopHoldAction}
-                    onTouchStart={startHoldAction}
-                    onTouchEnd={stopHoldAction}
-                    onTouchCancel={stopHoldAction}
-                  >
-                    <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
-                    <span>{formatElapsed(elapsedSeconds)}</span>
-                    <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '더블 클릭 시작'}</small>
-                  </button>
-                ) : (
-                  <button type="button" className="quick-check-card quick-check-card-disabled workday-inline-card" disabled>
-                    <strong>준비중</strong>
-                    <span>일 시작</span>
-                    <small>관리자/부관리자 전용</small>
-                  </button>
-                )
-              )}
               {activeQuickItems.map(item => {
                 const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
                 const topText = preparingLocked
@@ -2869,7 +2840,7 @@ function HomePage() {
                     type="button"
                     className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDragReady ? ' drag-ready' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
                     onMouseDown={() => startQuickDragHold(item.id)}
-                    onMouseUp={clearQuickDragHoldTimer}
+                    onMouseUp={() => handleQuickMouseRelease(item.id)}
                     onMouseLeave={clearQuickDragHoldTimer}
                     onDragStart={event => {
                       event.dataTransfer.effectAllowed = 'move'

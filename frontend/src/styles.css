@@ -27811,10 +27811,13 @@ button.danger {
   align-items: center;
   justify-content: space-between;
   border: 0;
-  background: transparent;
-  padding: 0;
+  background: #f3f4f6;
+  padding: 8px 12px;
   cursor: pointer;
   text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
 }
 .menu-category-title-button::after {
   content: "▾";
