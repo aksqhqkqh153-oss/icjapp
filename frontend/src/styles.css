@@ -28570,3 +28570,27 @@ button.danger {
 .page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .upcoming-schedule-list {
   margin-top: 0 !important;
 }
+
+
+/* 2026-04-15 quick check button label responsive enlargement */
+.quick-check-card span {
+  font-size: clamp(0.78rem, 1.65vw, 0.98rem) !important;
+  line-height: 1.18 !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+.quick-check-card strong {
+  font-size: clamp(0.84rem, 1.55vw, 1.04rem) !important;
+}
+
+@media (max-width: 720px) {
+  .quick-check-card span {
+    font-size: clamp(0.68rem, 3.1vw, 0.92rem) !important;
+    line-height: 1.16 !important;
+  }
+
+  .quick-check-card strong {
+    font-size: clamp(0.76rem, 3.2vw, 0.96rem) !important;
+  }
+}
