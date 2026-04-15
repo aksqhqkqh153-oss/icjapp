@@ -2886,7 +2886,7 @@ function HomePage() {
   }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, employeeRestricted, holdProgress, homePrefs.quickListMode, homeSettings, homeSettingsOpen, quickState.active, summary])
 
   return (
-    <div className="stack-page">
+    <div className="stack-page home-page">
       {homeSections}
     </div>
   )

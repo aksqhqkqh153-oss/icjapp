@@ -26964,3 +26964,9 @@ button.danger {
     border-left:1px solid #d4d8dd !important;
   }
 }
+
+
+/* Home page card border unify */
+.home-page > .card {
+  border: 1px solid #000 !important;
+}
