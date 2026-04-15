@@ -187,3 +187,4 @@
     line-height: 1 !important;
   }
 }
+@media (min-width:769px){.work-schedule-page .work-schedule-main-top button,.work-schedule-page .work-schedule-main-top button[type="button"],.work-schedule-page .work-schedule-main-top .work-day-status-button,.work-schedule-page .work-schedule-main-top .work-schedule-nav-button{color:#111!important}.work-schedule-page .work-schedule-line-item.calendar-linked{background:#fff!important;background-color:#fff!important;background-image:none!important}}

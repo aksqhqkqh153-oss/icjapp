@@ -27037,3 +27037,19 @@ button.danger {
     line-height: 1 !important;
   }
 }
+
+/* 2026-04-15: work schedule PC contrast cleanup */
+@media (min-width: 769px) {
+  .work-schedule-page .work-schedule-main-top button,
+  .work-schedule-page .work-schedule-main-top button[type="button"],
+  .work-schedule-page .work-schedule-main-top .work-day-status-button,
+  .work-schedule-page .work-schedule-main-top .work-schedule-nav-button {
+    color: #111111 !important;
+  }
+
+  .work-schedule-page .work-schedule-line-item.calendar-linked {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+  }
+}
