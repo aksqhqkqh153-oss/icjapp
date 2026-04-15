@@ -28278,3 +28278,38 @@ button.danger {
     margin-right: 0 !important;
   }
 }
+
+/* 2026-04-15 friends list item background/shadow removal */
+.friends-page .friend-row-card,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card.friend-card-structured,
+.friends-page .friend-row-card.request-variant,
+.friends-page .friend-row-card.list-variant,
+.friends-page .friend-row-card.add-variant,
+.friends-page .friend-card-content,
+.friends-page .friend-card-head-row,
+.friends-page .friend-card-bottom-row,
+.friends-page .friend-card-profile-button,
+.friends-page .friend-card-title-button,
+.friends-page .friend-avatar-button,
+.friends-page .clickable-profile,
+.friends-page .inline-friend-menu,
+.friends-page .inline-friend-menu.open-inline-menu,
+.friends-page .friend-card-action-slot,
+.friends-page .friend-card-action-slot.request-actions,
+.friends-page .friends-group-list .friend-row-card,
+.friends-page .friends-subpanel .friend-row-card,
+.friends-page .friends-add-results .friend-add-card,
+.friends-page .friends-group-list.grouped-stack .friend-row-card {
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.friends-page .friend-card-profile-button,
+.friends-page .friend-card-title-button,
+.friends-page .friend-avatar-button,
+.friends-page .clickable-profile {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
