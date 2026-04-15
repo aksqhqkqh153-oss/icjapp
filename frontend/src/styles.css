@@ -28361,3 +28361,41 @@ button.danger {
     overflow: auto !important;
   }
 }
+
+/* 2026-04-15 map display2 marker meta labels */
+.branch-marker-wrap {
+  background: transparent !important;
+  border: 0 !important;
+}
+.branch-marker-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 9px;
+}
+.branch-marker-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 2px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.branch-marker-meta-left,
+.branch-marker-meta-right {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.92);
+}
+.branch-marker-meta-left:empty,
+.branch-marker-meta-right:empty {
+  display: none;
+}
+.page-container.page-container-map .map-settings-popover {
+  min-width: 120px;
+}

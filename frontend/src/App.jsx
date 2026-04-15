@@ -85,6 +85,40 @@ function escapePopupHtml(value) {
     .replace(/'/g, '&#39;')
 }
 
+
+function buildMarkerMetaLabel(item, options = {}) {
+  const showName = Boolean(options?.showName)
+  const showBranch = Boolean(options?.showBranch)
+  const showPosition = Boolean(options?.showPosition)
+  const showCustomer = Boolean(options?.showCustomer)
+
+  if (!item) return { left: '', right: '' }
+
+  if (item.type === 'customer-start' || item.type === 'customer-end') {
+    return { left: '', right: showCustomer ? String(item.customerName || '').trim() : '' }
+  }
+
+  if (item.type === 'business-start' || item.type === 'business-end') {
+    const left = showBranch && item.branchNo ? `${item.branchNo}호점` : ''
+    const right = showName ? String(item.accountName || '').trim() : ''
+    return { left, right }
+  }
+
+  if (item.type === 'staff-start' || item.type === 'staff-end') {
+    const left = showPosition ? String(item.positionTitle || '').trim() : ''
+    const right = showName ? String(item.accountName || '').trim() : ''
+    return { left, right }
+  }
+
+  if (item.type === 'moving' || item.type === 'stopped') {
+    const left = showBranch && item.branchNo ? `${item.branchNo}호점` : (showPosition ? String(item.positionTitle || '').trim() : '')
+    const right = showName ? String(item.accountName || '').trim() : ''
+    return { left, right }
+  }
+
+  return { left: '', right: '' }
+}
+
 function openScheduleEditLogPopup(logs = []) {
   const popup = window.open('', 'schedule-edit-logs', 'width=820,height=640,scrollbars=yes,resizable=yes')
   if (!popup) {
@@ -5518,6 +5552,7 @@ async function resolveMapDepartureData(scheduleItems = [], users = []) {
       displayName: user.name || user.nickname || user.display_name || user.email || '미지정',
       nickname: user.nickname || user.name || user.display_name || user.email || '미지정',
       positionTitle: user.position_title || user.position || '',
+      branchNo: user.branch_no || user.branch || user.branchNumber || '',
       address,
       point,
       tone: resolveStaffMarkerTone(user),
@@ -5652,12 +5687,19 @@ function MapPage() {
   const [mapFilterOpen, setMapFilterOpen] = useState(false)
   const [mapSettingsOpen, setMapSettingsOpen] = useState(false)
   const [mapDisplayOpen, setMapDisplayOpen] = useState(false)
+  const [mapDisplay2Open, setMapDisplay2Open] = useState(false)
   const [mapFilter, setMapFilter] = useState('live')
   const [mapDisplayOptions, setMapDisplayOptions] = useState({
     customerStart: true,
     customerEnd: false,
     businessStart: true,
     staffStart: true,
+  })
+  const [mapDisplayLabelOptions, setMapDisplayLabelOptions] = useState({
+    showName: false,
+    showBranch: false,
+    showPosition: false,
+    showCustomer: false,
   })
   const [selectedDate, setSelectedDate] = useState(() => fmtDate(new Date()))
   const [departureData, setDepartureData] = useState({ customerMarkers: [], accountMarkers: [], accountEndMarkers: [], customerList: [] })
@@ -5841,6 +5883,7 @@ function MapPage() {
         lat: item.point?.lat,
         lng: item.point?.lng,
         label: '',
+        customerName: item.title || '고객',
         popup: `<strong>${item.title}</strong><br/>${item.markerKind === 'customer-end' ? '도착지' : '출발지'}<br/>${item.address}`,
       }))
     const accounts = (departureData.accountMarkers || [])
@@ -5855,6 +5898,9 @@ function MapPage() {
         lat: item.point?.lat,
         lng: item.point?.lng,
         label: '',
+        accountName: item.displayName || item.nickname || '',
+        branchNo: item.branchNo || '',
+        positionTitle: item.positionTitle || '',
         popup: `<strong>${item.displayName || item.nickname}</strong><br/>${item.positionTitle || '계정'}<br/>${item.address}`,
       }))
     if (mapFilter === 'departure') {
@@ -5869,6 +5915,9 @@ function MapPage() {
       lat: Number(item.latitude),
       lng: Number(item.longitude),
       label: ENCLOSED_NUMBERS[item.branch_no] || String(item.branch_no || '?'),
+      accountName: item.name || item.nickname || item.display_name || '',
+      branchNo: item.branch_no || '',
+      positionTitle: item.position_title || item.position || item.grade_name || '',
       popup: `<strong>${item.branch_no || '-'}호점</strong><br/>${item.nickname}<br/>${item.vehicle_number || '-'}<br/>${item.region}`,
     })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
   }, [mapFilter, users, departureData, mapDisplayOptions])
@@ -5895,13 +5944,18 @@ function MapPage() {
                     ? 'branch-marker moving'
                     : 'branch-marker stopped'
       const markerSize = item.type === 'moving' || item.type === 'stopped' ? 28 : 9
-      const icon = L.divIcon({ className: 'branch-marker-wrap', html: `<div class="${markerClass}">${item.label}</div>`, iconSize: [markerSize, markerSize], iconAnchor: [markerSize / 2, markerSize / 2] })
+      const metaLabel = buildMarkerMetaLabel(item, mapDisplayLabelOptions)
+      const leftLabelHtml = metaLabel.left ? `<span class="branch-marker-meta-left">${escapePopupHtml(metaLabel.left)}</span>` : ''
+      const rightLabelHtml = metaLabel.right ? `<span class="branch-marker-meta-right">${escapePopupHtml(metaLabel.right)}</span>` : ''
+      const metaHtml = (leftLabelHtml || rightLabelHtml) ? `<div class="branch-marker-meta">${leftLabelHtml}${rightLabelHtml}</div>` : ''
+      const markerHtml = `<div class="branch-marker-stack"><div class="${markerClass}">${item.label}</div>${metaHtml}</div>`
+      const icon = L.divIcon({ className: 'branch-marker-wrap', html: markerHtml, iconSize: [Math.max(markerSize, 96), markerSize + (metaHtml ? 24 : 0)], iconAnchor: [markerSize / 2, markerSize / 2] })
       L.marker([item.lat, item.lng], { icon }).bindPopup(item.popup).addTo(markerLayerRef.current)
       bounds.push([item.lat, item.lng])
     })
     if (bounds.length === 1) leafletRef.current.setView(bounds[0], 12)
     else leafletRef.current.fitBounds(bounds, { padding: [30, 30] })
-  }, [activeMarkers])
+  }, [activeMarkers, mapDisplayLabelOptions])
 
   function handlePickDate(value) {
     if (!value) return
@@ -5910,6 +5964,7 @@ function MapPage() {
     setMapFilterOpen(false)
     setMapSettingsOpen(false)
     setMapDisplayOpen(false)
+    setMapDisplay2Open(false)
   }
 
   function insertTemplateToken(token) {
@@ -5983,7 +6038,7 @@ function MapPage() {
               )}
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button" onClick={() => { setMapDisplayOpen(prev => !prev); setMapFilterOpen(false); setMapSettingsOpen(false) }} aria-label="표기">표기</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapDisplayOpen(prev => !prev); setMapDisplay2Open(false); setMapFilterOpen(false); setMapSettingsOpen(false) }} aria-label="표기1">표기1</button>
               {mapDisplayOpen && (
                 <div className="map-filter-popover map-filter-popover-side map-settings-popover">
                   <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayOptions.customerStart} onChange={e => setMapDisplayOptions(prev => ({ ...prev, customerStart: e.target.checked }))} /> <span className="marker-legend-icon customer-start" /> 고출</label>
@@ -5995,7 +6050,18 @@ function MapPage() {
               )}
             </div>
             <div className="map-filter-wrap">
-              <button type="button" className="map-overlay-button" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false); setMapDisplayOpen(false) }} aria-label="설정">설정</button>
+              <button type="button" className="map-overlay-button" onClick={() => { setMapDisplay2Open(prev => !prev); setMapDisplayOpen(false); setMapFilterOpen(false); setMapSettingsOpen(false) }} aria-label="표기2">표기2</button>
+              {mapDisplay2Open && (
+                <div className="map-filter-popover map-filter-popover-side map-settings-popover">
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayLabelOptions.showName} onChange={e => setMapDisplayLabelOptions(prev => ({ ...prev, showName: e.target.checked }))} /> 이름</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayLabelOptions.showBranch} onChange={e => setMapDisplayLabelOptions(prev => ({ ...prev, showBranch: e.target.checked }))} /> 호점</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayLabelOptions.showPosition} onChange={e => setMapDisplayLabelOptions(prev => ({ ...prev, showPosition: e.target.checked }))} /> 직급</label>
+                  <label className="map-display-check"><input type="checkbox" checked={!!mapDisplayLabelOptions.showCustomer} onChange={e => setMapDisplayLabelOptions(prev => ({ ...prev, showCustomer: e.target.checked }))} /> 고객명</label>
+                </div>
+              )}
+            </div>
+            <div className="map-filter-wrap">
+              <button type="button" className="map-overlay-button" onClick={() => { setMapSettingsOpen(prev => !prev); setMapFilterOpen(false); setMapDisplayOpen(false); setMapDisplay2Open(false) }} aria-label="설정">설정</button>
               {mapSettingsOpen && (
                 <div className="map-filter-popover map-filter-popover-side map-settings-popover">
                   <label className="share-toggle map-share-toggle popover-share-toggle">
