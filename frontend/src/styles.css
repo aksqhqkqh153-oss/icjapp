@@ -3689,7 +3689,17 @@ label { font-size: 14px; color: #4f6f8c; }
     gap: 0;
     border: 1px solid #cfd8e3;
     border-bottom: 0;
-    background: #f7f9fc;
+    background-color: #f7f9fc;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent calc((100% / 7) - 1px),
+      #cfd8e3 calc((100% / 7) - 1px),
+      #cfd8e3 calc(100% / 7)
+    );
   }
 
   .schedule-page .calendar-weekdays .weekday {
@@ -3697,10 +3707,12 @@ label { font-size: 14px; color: #4f6f8c; }
     min-height: 34px;
     font-size: 12px;
     font-weight: 700;
-    border-right: 1px solid #cfd8e3;
+    border-right: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
+    background: transparent;
   }
 
   .schedule-page .calendar-weekdays .weekday:last-child {
@@ -3711,18 +3723,29 @@ label { font-size: 14px; color: #4f6f8c; }
     gap: 0;
     border: 1px solid #cfd8e3;
     border-top: 0;
-    background: #fff;
+    background-color: #fff;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent calc((100% / 7) - 1px),
+      #d7dee8 calc((100% / 7) - 1px),
+      #d7dee8 calc(100% / 7)
+    );
   }
 
   .schedule-page .schedule-cell.detail-cell {
     min-height: 126px;
     padding: 0;
     gap: 0;
-    border-right: 1px solid #d7dee8;
+    border-right: 0;
     border-bottom: 1px solid #d7dee8;
     border-radius: 0;
     box-shadow: none;
     background: #fff;
+    box-sizing: border-box;
   }
 
   .schedule-page .schedule-cell.detail-cell.today {
