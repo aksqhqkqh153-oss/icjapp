@@ -11626,6 +11626,7 @@ function LadderDispatchPage() {
       moveTime: normalizeLadderMoveTime(form.moveTime) || '',
       customerName: String(form.customerName || '').trim(),
       branch: String(form.branch || '').trim(),
+      managerName: String(branchDb?.[form.branch]?.name || '').trim(),
       text,
       createdAt: new Date().toISOString(),
     }
@@ -11658,6 +11659,12 @@ function LadderDispatchPage() {
     } else {
       window.alert('클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.')
     }
+  }
+
+  function getSavedBranchDisplay(item) {
+    const branchLabel = String(item?.branch || '').trim() || '-'
+    const managerName = String(item?.managerName || branchDb?.[item?.branch]?.name || '').trim()
+    return managerName ? `${branchLabel} [${managerName}]` : branchLabel
   }
 
   return (
@@ -11791,7 +11798,7 @@ function LadderDispatchPage() {
                     <span>{item.date || '-'}</span>
                     <span>{item.moveTime || '-'}</span>
                     <span>{item.customerName || '-'}</span>
-                    <span>{item.branch || '-'}</span>
+                    <span>{getSavedBranchDisplay(item)}</span>
                   </button>
                 </div>
               )) : <div className="muted small-text">저장된 목록이 없습니다.</div>}

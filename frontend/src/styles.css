@@ -20529,7 +20529,7 @@ textarea,
 .ladder-saved-item-button {
   width: 100%;
   display: grid;
-  grid-template-columns: 100px 84px minmax(90px, 1fr) 84px;
+  grid-template-columns: 100px 84px minmax(90px, 1fr) minmax(150px, 1.2fr);
   gap: 10px;
   align-items: center;
   border: 0;
@@ -20580,7 +20580,7 @@ textarea,
     min-height: 420px;
   }
   .ladder-saved-item-button {
-    grid-template-columns: 86px 68px minmax(80px, 1fr) 64px;
+    grid-template-columns: 86px 68px minmax(80px, 1fr) minmax(120px, 1.1fr);
     gap: 6px;
     font-size: 12px;
   }
@@ -28592,5 +28592,120 @@ button.danger {
 
   .quick-check-card strong {
     font-size: clamp(0.76rem, 3.2vw, 0.96rem) !important;
+  }
+}
+
+
+/* 2026-04-15 desktop schedule borderless layout */
+@media (min-width: 769px) {
+  .schedule-page .schedule-card {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    gap: 8px;
+    border: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    overflow: visible;
+  }
+
+  .schedule-page .calendar-weekdays .weekday {
+    border: 0 !important;
+    border-radius: 12px;
+    background: #f7f9fc;
+  }
+
+  .schedule-page .schedule-grid.detail-mode {
+    gap: 8px;
+    border: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    overflow: visible;
+  }
+
+  .schedule-page .schedule-cell.detail-cell,
+  .schedule-page .schedule-cell.detail-cell.today,
+  .schedule-page .schedule-cell.detail-cell.weekend,
+  .schedule-page .schedule-cell.detail-cell.selected {
+    border: 0 !important;
+    border-radius: 14px;
+    box-shadow: none !important;
+    background-clip: padding-box;
+  }
+
+  .schedule-page .schedule-cell.detail-cell.selected {
+    background: #f8fbff;
+  }
+
+  .schedule-page .calendar-cell-topline,
+  .schedule-page .calendar-date-select,
+  .schedule-page .calendar-entry-band,
+  .schedule-page .calendar-entry-band.filled,
+  .schedule-page .calendar-entry-band.secondary,
+  .schedule-page .calendar-day-summary-button.redesigned,
+  .schedule-page .calendar-handless-banner,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .calendar-more-indicator.single-plus,
+  .schedule-page .schedule-today-button,
+  .schedule-page .schedule-settings-button,
+  .schedule-page .schedule-handless-button,
+  .schedule-page .schedule-month-nav .icon-month-button,
+  .schedule-page .schedule-add-button {
+    border: 0 !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .calendar-cell-topline,
+  .schedule-page .calendar-day-summary-button.redesigned,
+  .schedule-page .calendar-handless-banner,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled {
+    border-bottom: 0 !important;
+  }
+
+  .schedule-page .calendar-date-select,
+  .schedule-page .calendar-entry-band,
+  .schedule-page .calendar-entry-band.filled,
+  .schedule-page .calendar-entry-band.secondary {
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell.selected .calendar-date-select {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    background: rgba(37, 99, 235, 0.08);
+    border-radius: 10px;
+    margin: 4px 4px 0;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned,
+  .schedule-page .calendar-handless-banner,
+  .schedule-page .calendar-lanes,
+  .schedule-page .calendar-plus-row {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  .schedule-page .calendar-lanes {
+    padding: 0 4px;
+    gap: 4px;
+  }
+
+  .schedule-page .calendar-more-indicator.single-plus {
+    border-radius: 10px;
+    background: #f8fafc;
+  }
+
+  .schedule-page .schedule-today-button,
+  .schedule-page .schedule-settings-button,
+  .schedule-page .schedule-handless-button,
+  .schedule-page .schedule-month-nav .icon-month-button,
+  .schedule-page .schedule-add-button {
+    background: #f8fafc;
   }
 }
