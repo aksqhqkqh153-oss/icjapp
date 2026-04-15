@@ -27382,3 +27382,86 @@ button.danger {
     box-sizing: border-box !important;
   }
 }
+
+
+/* 2026-04-15 chat gap removal + true fixed app chrome */
+:root {
+  --app-topbar-height: 44px;
+  --app-bottom-nav-height: 50px;
+}
+
+.app-shell {
+  position: relative;
+}
+
+.topbar.topbar-fixed {
+  position: fixed !important;
+  top: 0 !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(960px, 100%) !important;
+  z-index: 1000 !important;
+}
+
+.bottom-nav {
+  z-index: 1000 !important;
+}
+
+.page-container {
+  padding-top: calc(var(--app-topbar-height) + 8px) !important;
+  padding-bottom: calc(var(--app-bottom-nav-height) + 18px) !important;
+  box-sizing: border-box;
+}
+
+.page-container.page-container-home,
+.page-container.page-container-map,
+.page-container.page-container-friends,
+.page-container.page-container-chat {
+  padding-top: var(--app-topbar-height) !important;
+  padding-bottom: var(--app-bottom-nav-height) !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box;
+}
+
+.chat-page-layout {
+  gap: 0 !important;
+}
+
+.card.chat-category-shell {
+  margin-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+}
+
+.card.chat-list-card {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --app-topbar-height: 40px;
+    --app-bottom-nav-height: 40px;
+  }
+
+  .page-container {
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+  }
+
+  .page-container.page-container-home,
+  .page-container.page-container-map,
+  .page-container.page-container-friends,
+  .page-container.page-container-chat {
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+  }
+
+  .chat-page-layout {
+    gap: 0 !important;
+  }
+
+  .card.chat-category-shell,
+  .card.chat-list-card {
+    border-radius: 0 !important;
+  }
+}
