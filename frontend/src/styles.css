@@ -28205,3 +28205,28 @@ button.danger {
     min-height: 0 !important;
   }
 }
+
+/* 2026-04-15 desktop schedule remove all borders except app topbar/bottombar */
+@media (min-width: 769px) {
+  .schedule-page .calendar-weekdays,
+  .schedule-page .calendar-weekdays .weekday,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.calendar-day-state-normal.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell *,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row > * {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+}
