@@ -28076,3 +28076,22 @@ button.danger {
   border: 1px solid #000 !important;
   box-shadow: none !important;
 }
+
+/* 2026-04-15 desktop schedule detail-mode lane padding reset */
+@media (min-width: 769px){
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .calendar-grid.schedule-grid.detail-mode .calendar-lanes,
+  .calendar-grid.schedule-grid.detail-mode .calendar-lanes-stack .calendar-lanes{
+    padding: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled{
+    padding: 0 !important;
+  }
+}
