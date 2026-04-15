@@ -3807,8 +3807,17 @@ function FriendsPage() {
           {favorites.length > 0 ? favorites.map(item => <FriendRow key={`fav-${item.id}`} item={item} section="favorite" />) : <div className="muted">즐겨찾기 친구가 없습니다.</div>}
         </div>
 
-        <div className="friends-section-label friends-section-label-with-menu">
-          <span>그룹</span>
+        <div className="friends-section-label friends-section-label-with-menu friends-group-header-inline">
+          <div className="friends-group-title-inline">
+            <span>그룹</span>
+            <div className="friend-group-category-filter friend-group-category-filter-inline">
+              <button type="button" className={selectedGroupCategoryId === 'all' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('all')}>전체</button>
+              {groupCategories.map(category => (
+                <button key={category.id} type="button" className={selectedGroupCategoryId === category.id ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId(category.id)}>{category.name}</button>
+              ))}
+              <button type="button" className={selectedGroupCategoryId === 'uncategorized' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('uncategorized')}>미분류</button>
+            </div>
+          </div>
           <div className="dropdown-wrap friends-group-menu">
             <button type="button" className="ghost small" onClick={() => setGroupSectionMenuOpen(v => !v)}>메뉴</button>
             {groupSectionMenuOpen && (
@@ -3819,13 +3828,6 @@ function FriendsPage() {
               </div>
             )}
           </div>
-        </div>
-        <div className="friend-group-category-filter">
-          <button type="button" className={selectedGroupCategoryId === 'all' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('all')}>전체</button>
-          {groupCategories.map(category => (
-            <button key={category.id} type="button" className={selectedGroupCategoryId === category.id ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId(category.id)}>{category.name}</button>
-          ))}
-          <button type="button" className={selectedGroupCategoryId === 'uncategorized' ? 'small active' : 'small ghost'} onClick={() => setSelectedGroupCategoryId('uncategorized')}>미분류</button>
         </div>
         <div className="friends-group-list grouped-stack">
           {groupedFriendsFiltered.length > 0 ? groupedFriendsFiltered.map(group => (

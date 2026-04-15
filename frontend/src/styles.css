@@ -28038,3 +28038,38 @@ button.danger {
 .page-container.page-container-friends .friends-add-results {
   overflow: auto !important;
 }
+
+
+/* 2026-04-15 friends group inline filter + black row borders */
+.friends-group-header-inline {
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.friends-group-title-inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.friends-group-title-inline > span {
+  flex: 0 0 auto !important;
+}
+
+.friend-group-category-filter.friend-group-category-filter-inline {
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+.friends-page .friend-row-card.upgraded.friend-card-structured.list-variant,
+.friends-page .friend-row-card.friend-card-structured.list-variant,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card {
+  border: 1px solid #000 !important;
+  box-shadow: none !important;
+}
