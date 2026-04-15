@@ -1379,6 +1379,14 @@ const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsB
 const ADMIN_EXTRA_QUICK_ACTION_IDS = ['memoPad', 'ladderDispatch', 'soomgoReviewFinder', 'dailySettlement', 'weeklySettlement', 'monthlySettlement', 'materialSummary']
 const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
 const HOME_HOLD_SECONDS_DEFAULT = 1
+const QUICK_DRAG_HOLD_MS = 500
+const QUICK_LAYOUT_OPTIONS = [
+  { id: '3x3', label: '3*3', columns: 3, previewType: 'grid' },
+  { id: '4x4', label: '4*4', columns: 4, previewType: 'grid' },
+  { id: '5x5', label: '5*5', columns: 5, previewType: 'grid' },
+  { id: '6x6', label: '6*6', columns: 6, previewType: 'grid' },
+  { id: 'list', label: '목록형', columns: 1, previewType: 'list' },
+]
 const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
 
 const QUICK_ACTION_LIMIT = 36
@@ -1412,6 +1420,7 @@ function getHomeSettings(userId) {
   const fallback = {
     sectionOrder: [...HOME_SECTION_ORDER_DEFAULT],
     workday: { holdSeconds: HOME_HOLD_SECONDS_DEFAULT, enabled: true, hideOnHome: false },
+    quickLayout: '5x5',
     activeWorkState: { started: false, updatedAt: '', startTime: '', endTime: '', workDate: '' },
   }
   try {
@@ -1430,6 +1439,7 @@ function getHomeSettings(userId) {
         enabled: workday.enabled !== false,
         hideOnHome: !!workday.hideOnHome,
       },
+      quickLayout: QUICK_LAYOUT_OPTIONS.some(option => option.id === String(parsed?.quickLayout || '')) ? String(parsed.quickLayout) : '5x5',
       activeWorkState: {
         started: !!activeWorkState.started,
         updatedAt: String(activeWorkState.updatedAt || ''),
@@ -2325,10 +2335,13 @@ function HomePage() {
   const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
   const [editingQuick, setEditingQuick] = useState(false)
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
+  const [quickLayoutOpen, setQuickLayoutOpen] = useState(false)
+  const [quickLayoutPreview, setQuickLayoutPreview] = useState('')
   const [homeSettings, setHomeSettings] = useState(() => getHomeSettings(currentUser?.id))
   const [draggingQuickId, setDraggingQuickId] = useState('')
   const [dragOverQuickId, setDragOverQuickId] = useState('')
-  const quickTouchStateRef = useRef({ active: false, quickId: '', moved: false })
+  const [dragReadyQuickId, setDragReadyQuickId] = useState('')
+  const quickTouchStateRef = useRef({ active: false, armed: false, quickId: '', moved: false })
   const quickDragSuppressClickRef = useRef(false)
   const quickCardRefs = useRef(new Map())
   const quickCardPrevRectsRef = useRef(new Map())
@@ -2336,6 +2349,8 @@ function HomePage() {
   const [workdayStatus, setWorkdayStatus] = useState(null)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const holdTimerRef = useRef(null)
+  const quickDragHoldTimerRef = useRef(null)
+  const workdayTapRef = useRef({ lastAt: 0 })
 
 
   useLayoutEffect(() => {
@@ -2412,8 +2427,9 @@ function HomePage() {
         const item = response?.today || null
         setWorkdayStatus(response || null)
         if (item) {
+          const savedHomeSettings = getHomeSettings(currentUser?.id)
           updateHomeSettings({
-            ...getHomeSettings(currentUser?.id),
+            ...savedHomeSettings,
             activeWorkState: {
               started: !!response?.active,
               updatedAt: item.updated_at || item.ended_at || item.started_at || '',
@@ -2464,6 +2480,65 @@ function HomePage() {
     return `${hours}:${minutes}:${seconds}`
   }
 
+  function clearQuickDragHoldTimer() {
+    if (quickDragHoldTimerRef.current) {
+      window.clearTimeout(quickDragHoldTimerRef.current)
+      quickDragHoldTimerRef.current = null
+    }
+  }
+
+  function armQuickDrag(quickId) {
+    if (!quickId) return
+    setDragReadyQuickId(quickId)
+    setDraggingQuickId(quickId)
+    setDragOverQuickId(quickId)
+    quickTouchStateRef.current = { ...quickTouchStateRef.current, active: true, armed: true, quickId }
+    quickDragSuppressClickRef.current = true
+  }
+
+  function startQuickDragHold(quickId) {
+    clearQuickDragHoldTimer()
+    setDragReadyQuickId('')
+    quickDragHoldTimerRef.current = window.setTimeout(() => {
+      armQuickDrag(quickId)
+      quickDragHoldTimerRef.current = null
+    }, QUICK_DRAG_HOLD_MS)
+  }
+
+  async function handleWorkdayToggleAction() {
+    if (!homeSettings.workday.enabled) return
+    const nextAction = homeSettings.activeWorkState?.started ? 'end' : 'start'
+    try {
+      const response = await api('/api/workday/toggle', { method: 'POST', body: JSON.stringify({ action: nextAction }) })
+      const item = response?.item || {}
+      const nextState = {
+        ...homeSettings,
+        activeWorkState: {
+          started: nextAction === 'start',
+          updatedAt: item.updated_at || item.ended_at || item.started_at || new Date().toISOString(),
+          startTime: item.start_time || '',
+          endTime: item.end_time || '',
+          workDate: item.work_date || '',
+        },
+      }
+      updateHomeSettings(nextState)
+      setWorkdayStatus({ active: nextAction === 'start', today: item })
+      window.alert(nextAction === 'start' ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
+    } catch (err) {
+      window.alert(err.message || '일시작/일종료 저장 중 오류가 발생했습니다.')
+    }
+  }
+
+  function handleWorkdayDoubleClickLike() {
+    const now = Date.now()
+    if (now - Number(workdayTapRef.current.lastAt || 0) <= 350) {
+      workdayTapRef.current.lastAt = 0
+      handleWorkdayToggleAction()
+      return
+    }
+    workdayTapRef.current.lastAt = now
+  }
+
   function updateQuickState(nextState) {
     setQuickState(nextState)
     saveQuickActionState(currentUser?.id, nextState)
@@ -2484,41 +2559,10 @@ function HomePage() {
   }
 
   function startHoldAction() {
-    if (!homeSettings.workday.enabled) return
-    const holdMs = Math.max(1, Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)) * 1000
     setHoldProgress(true)
-    holdTimerRef.current = window.setTimeout(async () => {
-      const nextAction = homeSettings.activeWorkState?.started ? 'end' : 'start'
-      try {
-        const response = await api('/api/workday/toggle', { method: 'POST', body: JSON.stringify({ action: nextAction }) })
-        const item = response?.item || {}
-        const nextState = {
-          ...homeSettings,
-          activeWorkState: {
-            started: nextAction === 'start',
-            updatedAt: item.updated_at || item.ended_at || item.started_at || new Date().toISOString(),
-            startTime: item.start_time || '',
-            endTime: item.end_time || '',
-            workDate: item.work_date || '',
-          },
-        }
-        updateHomeSettings(nextState)
-        setWorkdayStatus({ active: nextAction === 'start', today: item })
-        holdTimerRef.current = null
-        window.alert(nextAction === 'start' ? '일시작 처리되었습니다.' : '일종료 처리되었습니다.')
-      } catch (err) {
-        window.alert(err.message || '일시작/일종료 저장 중 오류가 발생했습니다.')
-      } finally {
-        setHoldProgress(false)
-      }
-    }, holdMs)
   }
 
   function stopHoldAction() {
-    if (holdTimerRef.current) {
-      window.clearTimeout(holdTimerRef.current)
-      holdTimerRef.current = null
-    }
     setHoldProgress(false)
   }
 
@@ -2581,14 +2625,15 @@ function HomePage() {
   }
 
   function resetQuickDragState() {
+    clearQuickDragHoldTimer()
     setDraggingQuickId('')
     setDragOverQuickId('')
-    quickTouchStateRef.current = { active: false, quickId: '', moved: false }
+    setDragReadyQuickId('')
+    quickTouchStateRef.current = { active: false, armed: false, quickId: '', moved: false }
   }
 
   function handleQuickDragStart(quickId) {
-    setDraggingQuickId(quickId)
-    setDragOverQuickId(quickId)
+    armQuickDrag(quickId)
   }
 
   function handleQuickDragEnter(quickId) {
@@ -2609,13 +2654,13 @@ function HomePage() {
   function handleQuickTouchStart(event, quickId) {
     quickTouchStateRef.current = {
       active: true,
+      armed: false,
       quickId,
       moved: false,
       startX: event.touches?.[0]?.clientX ?? 0,
       startY: event.touches?.[0]?.clientY ?? 0,
     }
-    setDraggingQuickId(quickId)
-    setDragOverQuickId(quickId)
+    startQuickDragHold(quickId)
   }
 
   function handleQuickTouchMove(event) {
@@ -2625,6 +2670,13 @@ function HomePage() {
     if (!touch) return
     const dx = Math.abs((touch.clientX ?? 0) - (current.startX ?? 0))
     const dy = Math.abs((touch.clientY ?? 0) - (current.startY ?? 0))
+    if (!current.armed && (dx > 6 || dy > 6)) {
+      clearQuickDragHoldTimer()
+      quickTouchStateRef.current = { active: false, armed: false, quickId: '', moved: false }
+      return
+    }
+    if (!current.armed) return
+    event.preventDefault()
     if (dx > 6 || dy > 6) {
       current.moved = true
       quickDragSuppressClickRef.current = true
@@ -2637,7 +2689,8 @@ function HomePage() {
 
   function handleQuickTouchEnd() {
     const current = quickTouchStateRef.current
-    if (current?.moved && current.quickId && dragOverQuickId && current.quickId !== dragOverQuickId) {
+    clearQuickDragHoldTimer()
+    if (current?.armed && current?.moved && current.quickId && dragOverQuickId && current.quickId !== dragOverQuickId) {
       swapQuickActionsById(current.quickId, dragOverQuickId)
     }
     window.setTimeout(() => {
@@ -2647,6 +2700,7 @@ function HomePage() {
   }
 
   function handleQuickTouchCancel() {
+    clearQuickDragHoldTimer()
     window.setTimeout(() => {
       quickDragSuppressClickRef.current = false
     }, 160)
@@ -2695,25 +2749,32 @@ function HomePage() {
                 {homeSettingsOpen && (
                   <div className="dropdown-menu right home-settings-menu">
                     <div className="menu-category-block">
-                      <div className="menu-category-title">홈 구조 변경</div>
-                      <div className="stack compact">
-                        <strong className="small-text">항목위치변경</strong>
-                        {homeSettings.sectionOrder.map(sectionId => (
-                          <div key={`section-order-${sectionId}`} className="quick-edit-row">
-                            <span>{sectionId === 'quick' ? '빠른 확인' : '다가오는 일정'}</span>
-                            <div className="inline-actions wrap end">
-                              <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, -1)}>위로</button>
-                              <button type="button" className="small ghost" onClick={() => moveHomeSection(sectionId, 1)}>아래로</button>
+                      <div className="menu-category-title">배열변경</div>
+                      <button type="button" className="small ghost quick-layout-toggle-button" onClick={() => setQuickLayoutOpen(v => !v)}>{quickLayoutOpen ? '배열변경 닫기' : '배열변경'}</button>
+                      {quickLayoutOpen && (
+                        <div className="stack compact quick-layout-panel">
+                          <div className="quick-layout-group-label">[배열로 변경]</div>
+                          {QUICK_LAYOUT_OPTIONS.filter(option => option.previewType === 'grid').map(option => (
+                            <div key={`layout-option-${option.id}`} className="quick-edit-row quick-layout-row">
+                              <button type="button" className={`small ${homeSettings.quickLayout === option.id ? '' : 'ghost'}`.trim()} onClick={() => updateHomeSettings({ ...homeSettings, quickLayout: option.id })}>[{option.label}]</button>
+                              <button type="button" className="small ghost" onClick={() => setQuickLayoutPreview(option.id)}>미리보기</button>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                          <div className="quick-layout-group-label">[목록형으로 변경]</div>
+                          {QUICK_LAYOUT_OPTIONS.filter(option => option.previewType === 'list').map(option => (
+                            <div key={`layout-option-${option.id}`} className="quick-edit-row quick-layout-row">
+                              <button type="button" className={`small ${homeSettings.quickLayout === option.id ? '' : 'ghost'}`.trim()} onClick={() => updateHomeSettings({ ...homeSettings, quickLayout: option.id })}>[{option.label}]</button>
+                              <button type="button" className="small ghost" onClick={() => setQuickLayoutPreview(option.id)}>미리보기</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {!employeeRestricted && (
                       <div className="menu-category-block">
                         <div className="menu-category-title">시작종료설정</div>
                         <div className="stack compact">
-                          <label>누르는 시간 : <input type="number" min="1" max="10" value={Number(homeSettings.workday.holdSeconds || HOME_HOLD_SECONDS_DEFAULT)} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, holdSeconds: Math.max(1, Math.min(10, Number(e.target.value || HOME_HOLD_SECONDS_DEFAULT))) } })} /></label>
+                          <div className="muted small-text">'일 시작' 버튼은 더블 클릭으로 시작/종료됩니다.</div>
                           <label>
                             <select value={homeSettings.workday.enabled ? '사용' : '미사용'} onChange={e => updateHomeSettings({ ...homeSettings, workday: { ...homeSettings.workday, enabled: e.target.value === '사용' } })}>
                               <option value="사용">사용</option>
@@ -2730,7 +2791,7 @@ function HomePage() {
               <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
             </div>
           </div>
-          {homePrefs.quickListMode ? (
+          {homeSettings.quickLayout === 'list' ? (
             <div className="quick-check-list" role="list">
               {activeQuickItems.map(item => {
                 const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
@@ -2754,12 +2815,13 @@ function HomePage() {
               })}
             </div>
           ) : (
-            <div className="quick-check-grid quick-check-grid-desktop-6">
+            <div className={`quick-check-grid quick-check-grid-layout-${homeSettings.quickLayout || '5x5'}`.trim()}>
               {homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
                 Number(currentUser?.grade || 6) <= 2 ? (
                   <button
                     type="button"
                     className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
+                    onClick={handleWorkdayDoubleClickLike}
                     onMouseDown={startHoldAction}
                     onMouseUp={stopHoldAction}
                     onMouseLeave={stopHoldAction}
@@ -2769,7 +2831,7 @@ function HomePage() {
                   >
                     <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
                     <span>{formatElapsed(elapsedSeconds)}</span>
-                    <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
+                    <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '더블 클릭 시작'}</small>
                   </button>
                 ) : (
                   <button type="button" className="quick-check-card quick-check-card-disabled workday-inline-card" disabled>
@@ -2798,9 +2860,12 @@ function HomePage() {
                       else quickCardRefs.current.delete(item.id)
                     }}
                     data-quick-id={item.id}
-                    draggable
+                    draggable={dragReadyQuickId === item.id}
                     type="button"
                     className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
+                    onMouseDown={() => startQuickDragHold(item.id)}
+                    onMouseUp={clearQuickDragHoldTimer}
+                    onMouseLeave={clearQuickDragHoldTimer}
                     onDragStart={event => {
                       event.dataTransfer.effectAllowed = 'move'
                       event.dataTransfer.setData('text/plain', item.id)
@@ -2833,6 +2898,36 @@ function HomePage() {
                   </button>
                 )
               })}
+            </div>
+          )}
+          {quickLayoutPreview && (
+            <div className="quick-layout-preview-backdrop" onClick={() => setQuickLayoutPreview('')}>
+              <div className="card quick-layout-preview-modal" onClick={event => event.stopPropagation()}>
+                <div className="between">
+                  <strong>{QUICK_LAYOUT_OPTIONS.find(option => option.id === quickLayoutPreview)?.label || '미리보기'}</strong>
+                  <button type="button" className="small ghost" onClick={() => setQuickLayoutPreview('')}>닫기</button>
+                </div>
+                {QUICK_LAYOUT_OPTIONS.find(option => option.id === quickLayoutPreview)?.previewType === 'list' ? (
+                  <div className="quick-layout-preview-list">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div key={`list-preview-${index}`} className="quick-layout-preview-list-row">
+                        <strong>[기능이름]</strong>
+                        <span>[설명]</span>
+                        <em>[비고]</em>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className="quick-layout-preview-grid"
+                    style={{ gridTemplateColumns: `repeat(${QUICK_LAYOUT_OPTIONS.find(option => option.id === quickLayoutPreview)?.columns || 3}, minmax(0, 1fr))` }}
+                  >
+                    {Array.from({ length: Math.pow(QUICK_LAYOUT_OPTIONS.find(option => option.id === quickLayoutPreview)?.columns || 3, 2) }).map((_, index) => (
+                      <div key={`grid-preview-${index}`} className="quick-layout-preview-cell">[버튼]</div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {editingQuick && (
