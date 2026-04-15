@@ -28519,3 +28519,32 @@ button.danger {
 .page-container.page-container-home > .stack-page.home-page > .card > .quick-check-head {
   flex: 0 0 auto !important;
 }
+
+/* 2026-04-15 home page full-height with top/bottom bar safe area and 50:50 split */
+.page-container.page-container-home {
+  box-sizing: border-box !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  padding-top: var(--app-topbar-height) !important;
+  padding-bottom: var(--app-bottom-nav-height) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card {
+  flex: 1 1 50% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
