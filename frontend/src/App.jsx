@@ -1970,7 +1970,7 @@ function Layout({ children, user, onLogout }) {
         </div>
       </header>
       )}
-      <main className={`page-container${location.pathname === '/' ? ' page-container-home' : ''}${location.pathname === '/map' ? ' page-container-map' : ''}${location.pathname === '/friends' ? ' page-container-friends' : ''}${location.pathname.startsWith('/chat') ? ' page-container-chat' : ''}${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
+      <main className={`page-container${location.pathname === '/' ? ' page-container-home' : ''}${location.pathname === '/map' ? ' page-container-map' : ''}${location.pathname === '/friends' ? ' page-container-friends' : ''}${location.pathname.startsWith('/chat') ? ' page-container-chat' : ''}${(location.pathname.startsWith('/chats/direct/') || location.pathname.startsWith('/chats/group/')) ? ' page-container-chat-room' : ''}${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
           <Link key={to} className={isBottomActive(to) ? 'bottom-nav-item active' : 'bottom-nav-item'} to={to}>
