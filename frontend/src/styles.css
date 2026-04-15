@@ -27931,7 +27931,7 @@ button.danger {
   .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
   .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-columns: 30px minmax(0, 1fr) !important;
     align-items: stretch !important;
     padding: 0 !important;
     border-radius: 0 !important;
