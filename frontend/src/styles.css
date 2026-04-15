@@ -27802,3 +27802,75 @@ button.danger {
     padding-bottom: var(--app-bottom-nav-height) !important;
   }
 }
+
+
+/* 2026-04-15 home quick drag hold + square quick cards + layout title toggle */
+.menu-category-title-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.menu-category-title-button::after {
+  content: "▾";
+  font-size: 12px;
+  color: #64748b;
+  transition: transform 0.16s ease;
+}
+.menu-category-title-button.is-open::after {
+  transform: rotate(180deg);
+}
+.quick-check-grid {
+  align-items: stretch;
+}
+.quick-check-card {
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+.quick-check-card strong {
+  font-size: clamp(0.82rem, 1.5vw, 1.02rem);
+  max-width: 100%;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-check-card span {
+  max-width: 100%;
+  font-size: clamp(0.68rem, 1.35vw, 0.88rem);
+  line-height: 1.22;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.quick-check-card small {
+  font-size: clamp(0.58rem, 1.15vw, 0.72rem);
+  line-height: 1.15;
+}
+.quick-check-draggable.drag-ready, .quick-check-draggable.is-dragging {
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.18), 0 10px 24px rgba(37, 99, 235, 0.14);
+}
+@media (max-width: 720px) {
+  .quick-check-card {
+    aspect-ratio: 1 / 1;
+    padding: 8px 6px;
+  }
+  .quick-check-card strong {
+    font-size: clamp(0.72rem, 2.9vw, 0.9rem);
+  }
+  .quick-check-card span {
+    font-size: clamp(0.58rem, 2.4vw, 0.76rem);
+  }
+  .quick-check-card small {
+    font-size: clamp(0.52rem, 2vw, 0.64rem);
+  }
+}

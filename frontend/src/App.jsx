@@ -2748,8 +2748,13 @@ function HomePage() {
                 {homeSettingsOpen && (
                   <div className="dropdown-menu right home-settings-menu">
                     <div className="menu-category-block">
-                      <div className="menu-category-title">배열변경</div>
-                      <button type="button" className="small ghost quick-layout-toggle-button" onClick={() => setQuickLayoutOpen(v => !v)}>{quickLayoutOpen ? '배열변경 닫기' : '배열변경'}</button>
+                      <button
+                        type="button"
+                        className={`menu-category-title menu-category-title-button ${quickLayoutOpen ? 'is-open' : ''}`.trim()}
+                        onClick={() => setQuickLayoutOpen(v => !v)}
+                      >
+                        배열변경
+                      </button>
                       {quickLayoutOpen && (
                         <div className="stack compact quick-layout-panel">
                           <div className="quick-layout-group-label">[배열로 변경]</div>
@@ -2851,6 +2856,7 @@ function HomePage() {
                 const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
                 const isDraggingCard = draggingQuickId === item.id
                 const isDropTarget = dragOverQuickId === item.id && draggingQuickId && draggingQuickId !== item.id
+                const isDragReady = dragReadyQuickId === item.id
                 return (
                   <button
                     key={item.id}
@@ -2861,7 +2867,7 @@ function HomePage() {
                     data-quick-id={item.id}
                     draggable={dragReadyQuickId === item.id}
                     type="button"
-                    className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
+                    className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDragReady ? ' drag-ready' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
                     onMouseDown={() => startQuickDragHold(item.id)}
                     onMouseUp={clearQuickDragHoldTimer}
                     onMouseLeave={clearQuickDragHoldTimer}
