@@ -28450,3 +28450,72 @@ button.danger {
     min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
   }
 }
+
+/* 2026-04-15 home header compact heights */
+.quick-check-head {
+  min-height: 60px !important;
+  height: 60px !important;
+  margin-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.card.home-upcoming-card > .between:first-child {
+  min-height: 60px !important;
+  height: 60px !important;
+  display: flex !important;
+  align-items: center !important;
+  margin-bottom: 0 !important;
+}
+
+.card.home-upcoming-card > .between:first-child h2 {
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+/* 2026-04-15 home cards split 50:50 with no gap */
+.page-container.page-container-home {
+  height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+  min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+  overflow: hidden !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page {
+  height: 100% !important;
+  min-height: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card + .card {
+  margin-top: 0 !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card {
+  margin-top: 0 !important;
+  flex: 1 1 0 !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .list,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .upcoming-schedule-list,
+.page-container.page-container-home > .stack-page.home-page > .card .quick-check-list,
+.page-container.page-container-home > .stack-page.home-page > .card .quick-check-grid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card > .between:first-child,
+.page-container.page-container-home > .stack-page.home-page > .card > .quick-check-head {
+  flex: 0 0 auto !important;
+}
