@@ -11536,7 +11536,8 @@ function LadderDispatchPage() {
         }
         const provider = response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '예상치'
         const approximate = response?.approximate ? ' · 추정값' : ''
-        setTravelTimeStatus({ state: 'done', message: `${provider} 기준 ${nextTravelTime || '-'}${approximate}` })
+        const normalizedApplied = response?.normalized_start_address || response?.normalized_end_address ? ' · 정리주소 적용' : ''
+        setTravelTimeStatus({ state: 'done', message: `${provider} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}` })
       } catch (error) {
         setTravelTimeStatus({ state: 'error', message: error instanceof Error ? error.message : '이동시간 계산에 실패했습니다.' })
       }

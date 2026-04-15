@@ -3321,22 +3321,23 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
     normalized = str(address or '').strip()
     if not normalized:
         raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
+    route_normalized = _normalize_route_address(normalized)
     now_ts = time.time()
-    cached = GEOCODE_CACHE.get(normalized)
+    cached = GEOCODE_CACHE.get(route_normalized)
     if cached and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
         return {
             'lat': cached['lat'],
             'lng': cached['lng'],
-            'label': normalized,
+            'label': route_normalized,
             'cached': True,
             'approximate': bool(cached.get('approximate')),
             'provider': str(cached.get('provider') or 'cache'),
         }
 
     try:
-        kakao_point = _lookup_kakao_geocode(normalized)
+        kakao_point = _lookup_kakao_geocode(route_normalized)
         if kakao_point:
-            GEOCODE_CACHE[normalized] = {
+            GEOCODE_CACHE[route_normalized] = {
                 'lat': float(kakao_point['lat']),
                 'lng': float(kakao_point['lng']),
                 'stored_at': now_ts,
@@ -3345,13 +3346,13 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
             }
             return kakao_point
     except Exception as exc:
-        logger.warning('kakao geocode lookup failed for %s: %s', normalized, exc)
+        logger.warning('kakao geocode lookup failed for %s -> %s: %s', normalized, route_normalized, exc)
 
     url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
         'format': 'jsonv2',
         'limit': 1,
         'countrycodes': 'kr',
-        'q': normalized,
+        'q': route_normalized,
     })
     request = urllib.request.Request(url, headers={
         'User-Agent': 'icj2424app-backend/1.0 (contact: admin@icj2424app.com)',
@@ -3369,20 +3370,20 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
                 'approximate': False,
                 'provider': 'nominatim',
             }
-            GEOCODE_CACHE[normalized] = point
+            GEOCODE_CACHE[route_normalized] = point
             return {
                 'lat': point['lat'],
                 'lng': point['lng'],
-                'label': normalized,
+                'label': route_normalized,
                 'cached': False,
                 'approximate': False,
                 'provider': 'nominatim',
             }
     except Exception as exc:
-        logger.warning('geocode lookup failed for %s: %s', normalized, exc)
-    fallback = _derive_fallback_geocode(normalized)
+        logger.warning('geocode lookup failed for %s -> %s: %s', normalized, route_normalized, exc)
+    fallback = _derive_fallback_geocode(route_normalized)
     if fallback:
-        GEOCODE_CACHE[normalized] = {
+        GEOCODE_CACHE[route_normalized] = {
             'lat': float(fallback['lat']),
             'lng': float(fallback['lng']),
             'stored_at': now_ts,
@@ -3394,17 +3395,61 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
 
 
 def _resolve_geocode_point(address: str) -> dict[str, Any]:
-    normalized = str(address or '').strip()
-    if not normalized:
+    raw = str(address or '').strip()
+    if not raw:
         raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
+    normalized = _normalize_route_address(raw)
     result = geocode_address(normalized)
     return {
         'lat': float(result['lat']),
         'lng': float(result['lng']),
-        'label': normalized,
+        'label': str(result.get('label') or normalized),
+        'input_label': raw,
+        'normalized_label': normalized,
+        'provider': str(result.get('provider') or ''),
         'approximate': bool(result.get('approximate')),
     }
 
+
+
+
+def _normalize_route_address(address: str) -> str:
+    raw = str(address or '').strip()
+    if not raw:
+        return ''
+
+    normalized = raw.replace('\r', '\n')
+    normalized = re.sub(r'\s*\n\s*', '\n', normalized)
+    parts = [part.strip() for part in normalized.split('\n') if part.strip()]
+    joined = ' '.join(parts)
+    joined = re.sub(r'\s+', ' ', joined).strip()
+
+    # Keep the road/jibun core address, but remove detailed residence info that often
+    # shifts geocoding away from the representative building address.
+    detail_patterns = [
+        r'\b\d{1,3}층\b',
+        r'\b지하\s*\d{1,2}층\b',
+        r'\b옥탑\b',
+        r'\b\d{1,4}호\b',
+        r'\b\d{1,4}동\b',
+        r'\b[A-Za-z]동\b',
+        r'\b[A-Za-z]호\b',
+    ]
+    for pattern in detail_patterns:
+        joined = re.sub(pattern, ' ', joined)
+
+    # Remove trailing parenthetical unit/building details while preserving the core address.
+    joined = re.sub(r'\(([^)]*(동|호|층)[^)]*)\)', ' ', joined)
+
+    # If apartment/building name appears after a complete numeric address, trim the tail.
+    tail_cut = re.search(r'^(.*?\d)(?:\s+[가-힣A-Za-z][^,]*)$', joined)
+    if tail_cut:
+        candidate = re.sub(r'\s+', ' ', tail_cut.group(1)).strip()
+        if re.search(r'\d', candidate):
+            joined = candidate
+
+    joined = re.sub(r'\s+', ' ', joined).strip(' ,')
+    return joined or raw
 
 def _haversine_distance_m(start_lat: float, start_lng: float, end_lat: float, end_lng: float) -> float:
     radius_m = 6371000.0
@@ -3579,6 +3624,8 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
                     'duration_text': result['duration_text'],
                     'approximate': bool(result.get('approximate')),
                     'attempts': attempts,
+                    'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
+                    'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
                 }
         except Exception as exc:
             logger.warning('travel time lookup failed via %s: %s', provider_name, exc)
@@ -3595,6 +3642,8 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         'attempts': attempts,
         'fallback_reason': 'real-route-unavailable',
         'errors': errors,
+        'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
+        'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
     }
 
 @app.get("/api/map-users")
