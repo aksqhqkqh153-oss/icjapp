@@ -26970,3 +26970,14 @@ button.danger {
 .home-page > .card {
   border: 1px solid #000 !important;
 }
+
+/* 2026-04-15: desktop schedule calendar-lanes-stack border reset */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.weekend .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell .calendar-lanes-stack {
+    border: 0 !important;
+  }
+}
