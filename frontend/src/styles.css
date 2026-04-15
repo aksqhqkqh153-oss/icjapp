@@ -26418,26 +26418,3 @@ button.danger {
   min-height:18px !important;
 }
 
-@media (max-width: 768px){
-  .schedule-page .calendar-weekdays .weekday{
-    padding:6px 2px !important;
-  }
-
-  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
-  .schedule-page .calendar-grid.schedule-grid.detail-mode > .schedule-cell.detail-cell,
-  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.empty,
-  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.outside-month-cell,
-  .schedule-page .calendar-grid.schedule-grid.detail-mode > .schedule-cell.detail-cell.outside-month-cell{
-    min-height:var(--schedule-cell-minh-mobile) !important;
-    padding:var(--schedule-cell-pad-mobile) !important;
-    gap:3px !important;
-  }
-
-  .schedule-page .calendar-cell-topline.schedule-header-line{
-    min-height:22px !important;
-  }
-
-  .schedule-page .calendar-date-select{
-    min-height:22px !important;
-  }
-}
