@@ -1846,7 +1846,6 @@ function Layout({ children, user, onLogout }) {
           <div className="dropdown-wrap" ref={menuRef}>
             <button type="button" className="ghost icon-button topbar-icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)} aria-label="메뉴">
               <MenuIcon className="topbar-icon-svg" />
-              {Number(badges.menu_count || 0) > 0 && <span className="notification-badge menu-badge">{badges.menu_count > 99 ? '99+' : badges.menu_count}</span>}
             </button>
             {menuOpen && (
               <div className="dropdown-menu left menu-category-dropdown">
