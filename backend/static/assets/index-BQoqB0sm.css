@@ -188,3 +188,43 @@
   }
 }
 @media (min-width:769px){.work-schedule-page .work-schedule-main-top button,.work-schedule-page .work-schedule-main-top button[type="button"],.work-schedule-page .work-schedule-main-top .work-day-status-button,.work-schedule-page .work-schedule-main-top .work-schedule-nav-button{color:#111!important}.work-schedule-page .work-schedule-line-item.calendar-linked{background:#fff!important;background-color:#fff!important;background-image:none!important}}
+
+
+/* 2026-04-15: PC schedule empty-day border + calendar lanes padding/gap removal */
+@media (min-width: 1024px) {
+  .schedule-page .card.work-schedule-day.empty-day {
+    border: 1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes {
+    padding: 0 !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .schedule-page .calendar-lane + .calendar-lane,
+  .schedule-page .calendar-lane.filled + .calendar-lane,
+  .schedule-page .calendar-lane + .calendar-lane.filled,
+  .schedule-page .calendar-lane.filled + .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane + .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled + .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane + .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled + .calendar-lane.filled {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    border-top-width: 0 !important;
+  }
+}
