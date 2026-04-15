@@ -20309,7 +20309,11 @@ textarea,
 .ladder-location-grid input,
 .ladder-location-grid textarea,
 .ladder-location-grid select,
-
+.ladder-travel-time-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+}
 .ladder-address-input {
   width: 100%;
   min-height: 52px;
@@ -20317,6 +20321,26 @@ textarea,
   padding: 10px 12px;
   line-height: 1.4;
   white-space: pre-wrap;
+}
+.ladder-travel-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ladder-travel-time-hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #64748b;
+  padding-left: 2px;
+}
+.ladder-travel-time-hint.loading {
+  color: #1d4ed8;
+}
+.ladder-travel-time-hint.done {
+  color: #0f766e;
+}
+.ladder-travel-time-hint.error {
+  color: #b91c1c;
 }
 .ladder-picker-button {
   width: 100%;

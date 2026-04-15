@@ -2,6 +2,8 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
+import os
 import random
 import re
 import time
@@ -3356,6 +3358,163 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
         }
         return fallback
     raise HTTPException(status_code=404, detail='주소 좌표를 찾을 수 없습니다.')
+
+
+def _resolve_geocode_point(address: str) -> dict[str, Any]:
+    normalized = str(address or '').strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
+    result = geocode_address(normalized)
+    return {
+        'lat': float(result['lat']),
+        'lng': float(result['lng']),
+        'label': normalized,
+        'approximate': bool(result.get('approximate')),
+    }
+
+
+def _haversine_distance_m(start_lat: float, start_lng: float, end_lat: float, end_lng: float) -> float:
+    radius_m = 6371000.0
+    lat1 = math.radians(start_lat)
+    lat2 = math.radians(end_lat)
+    dlat = math.radians(end_lat - start_lat)
+    dlng = math.radians(end_lng - start_lng)
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_m * c
+
+
+def _format_duration_label(total_seconds: int) -> str:
+    seconds = max(0, int(total_seconds or 0))
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+    if hours and minutes:
+        return f'{hours}시간 {minutes}분'
+    if hours:
+        return f'{hours}시간'
+    if minutes:
+        return f'{minutes}분'
+    return '1분 미만'
+
+
+def _fetch_json_request(url: str, headers: dict[str, str], timeout: int = 8) -> Any:
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        charset = response.headers.get_content_charset() or 'utf-8'
+        return json.loads(response.read().decode(charset))
+
+
+def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = str(os.getenv('KAKAO_MOBILITY_REST_API_KEY') or os.getenv('KAKAO_REST_API_KEY') or '').strip()
+    if not api_key:
+        return None
+    url = 'https://apis-navi.kakaomobility.com/v1/directions?' + urllib.parse.urlencode({
+        'origin': f"{start_point['lng']},{start_point['lat']}",
+        'destination': f"{end_point['lng']},{end_point['lat']}",
+        'priority': 'RECOMMEND',
+    })
+    payload = _fetch_json_request(url, {
+        'Authorization': f'KakaoAK {api_key}',
+        'Accept': 'application/json',
+    })
+    routes = payload.get('routes') if isinstance(payload, dict) else None
+    summary = routes[0].get('summary') if isinstance(routes, list) and routes else None
+    duration_seconds = int(round(float(summary.get('duration') or 0) / 1000.0)) if summary else 0
+    distance_m = int(summary.get('distance') or 0) if summary else 0
+    if duration_seconds <= 0:
+        return None
+    return {
+        'provider': 'kakao',
+        'distance_m': distance_m,
+        'duration_seconds': duration_seconds,
+        'duration_text': _format_duration_label(duration_seconds),
+        'approximate': bool(start_point.get('approximate') or end_point.get('approximate')),
+    }
+
+
+def _lookup_naver_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
+    client_id = str(os.getenv('NAVER_MAPS_CLIENT_ID') or os.getenv('NCP_MAPS_CLIENT_ID') or '').strip()
+    client_secret = str(os.getenv('NAVER_MAPS_CLIENT_SECRET') or os.getenv('NCP_MAPS_CLIENT_SECRET') or '').strip()
+    if not client_id or not client_secret:
+        return None
+    url = 'https://naveropenapi.apigw-pub.fin-ntruss.com/map-direction-15/v1/driving?' + urllib.parse.urlencode({
+        'start': f"{start_point['lng']},{start_point['lat']}",
+        'goal': f"{end_point['lng']},{end_point['lat']}",
+        'option': 'traoptimal',
+        'lang': 'ko',
+    })
+    payload = _fetch_json_request(url, {
+        'X-NCP-APIGW-API-KEY-ID': client_id,
+        'X-NCP-APIGW-API-KEY': client_secret,
+        'Accept': 'application/json',
+    })
+    route = payload.get('route') if isinstance(payload, dict) else None
+    candidates = route.get('traoptimal') if isinstance(route, dict) else None
+    first = candidates[0].get('summary') if isinstance(candidates, list) and candidates else None
+    duration_seconds = int(round(float(first.get('duration') or 0) / 1000.0)) if first else 0
+    distance_m = int(first.get('distance') or 0) if first else 0
+    if duration_seconds <= 0:
+        return None
+    return {
+        'provider': 'naver',
+        'distance_m': distance_m,
+        'duration_seconds': duration_seconds,
+        'duration_text': _format_duration_label(duration_seconds),
+        'approximate': bool(start_point.get('approximate') or end_point.get('approximate')),
+    }
+
+
+def _estimate_travel_from_distance(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any]:
+    straight_distance_m = _haversine_distance_m(start_point['lat'], start_point['lng'], end_point['lat'], end_point['lng'])
+    road_distance_m = max(1000, int(round(straight_distance_m * 1.28)))
+    avg_speed_mps = 28000 / 3600
+    duration_seconds = max(60, int(round(road_distance_m / avg_speed_mps)))
+    return {
+        'provider': 'estimate',
+        'distance_m': road_distance_m,
+        'duration_seconds': duration_seconds,
+        'duration_text': _format_duration_label(duration_seconds),
+        'approximate': True,
+    }
+
+
+@app.get('/api/travel-time')
+def travel_time_lookup(start_address: str = Query(..., min_length=2), end_address: str = Query(..., min_length=2), user=Depends(require_user)):
+    start_point = _resolve_geocode_point(start_address)
+    end_point = _resolve_geocode_point(end_address)
+    attempts: list[str] = []
+    errors: list[str] = []
+    for provider_name, resolver in (('kakao', _lookup_kakao_travel), ('naver', _lookup_naver_travel)):
+        attempts.append(provider_name)
+        try:
+            result = resolver(start_point, end_point)
+            if result:
+                return {
+                    'start': start_point,
+                    'end': end_point,
+                    'provider': result['provider'],
+                    'distance_m': result['distance_m'],
+                    'duration_seconds': result['duration_seconds'],
+                    'duration_text': result['duration_text'],
+                    'approximate': bool(result.get('approximate')),
+                    'attempts': attempts,
+                }
+        except Exception as exc:
+            logger.warning('travel time lookup failed via %s: %s', provider_name, exc)
+            errors.append(f'{provider_name}:{exc}')
+    estimated = _estimate_travel_from_distance(start_point, end_point)
+    return {
+        'start': start_point,
+        'end': end_point,
+        'provider': estimated['provider'],
+        'distance_m': estimated['distance_m'],
+        'duration_seconds': estimated['duration_seconds'],
+        'duration_text': estimated['duration_text'],
+        'approximate': True,
+        'attempts': attempts,
+        'fallback_reason': 'real-route-unavailable',
+        'errors': errors,
+    }
 
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):

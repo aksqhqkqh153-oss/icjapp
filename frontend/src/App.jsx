@@ -11224,6 +11224,7 @@ function LadderDispatchPage() {
   const branchNames = useMemo(() => Object.keys(branchDb), [branchDb])
   const [branchEditorForm, setBranchEditorForm] = useState({ branch: '1호점', name: '', phone: '' })
   const [templateDraft, setTemplateDraft] = useState(templateText)
+  const [travelTimeStatus, setTravelTimeStatus] = useState({ state: 'idle', message: '' })
 
   useEffect(() => {
     saveLadderBranchDb(userKey, branchDb)
@@ -11245,6 +11246,30 @@ function LadderDispatchPage() {
       return { branch: selected, name: data.name || '', phone: data.phone || '' }
     })
   }, [branchDb, branchNames])
+  useEffect(() => {
+    const startAddress = String(form.start?.addr || '').trim()
+    const endAddress = String(form.end?.addr || '').trim()
+    if (!startAddress || !endAddress) {
+      setTravelTimeStatus(prev => prev.state === 'idle' && !prev.message ? prev : { state: 'idle', message: '' })
+      return
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        setTravelTimeStatus({ state: 'loading', message: '이동시간 계산중...' })
+        const response = await api(`/api/travel-time?start_address=${encodeURIComponent(startAddress)}&end_address=${encodeURIComponent(endAddress)}`, { icjCache: { skip: true } })
+        const nextTravelTime = String(response?.duration_text || '').trim()
+        if (nextTravelTime) {
+          setForm(prev => prev.travelTime === nextTravelTime ? prev : { ...prev, travelTime: nextTravelTime })
+        }
+        const provider = response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '예상치'
+        const approximate = response?.approximate ? ' · 추정값' : ''
+        setTravelTimeStatus({ state: 'done', message: `${provider} 기준 ${nextTravelTime || '-'}${approximate}` })
+      } catch (error) {
+        setTravelTimeStatus({ state: 'error', message: error instanceof Error ? error.message : '이동시간 계산에 실패했습니다.' })
+      }
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [form.start?.addr, form.end?.addr])
 
   const previewModel = useMemo(() => getLadderPreviewModel(form, { branchDb, template: templateText }), [branchDb, form, templateText])
   const messagePreview = previewModel.text
@@ -11420,7 +11445,10 @@ function LadderDispatchPage() {
                   </select>
                   <input type="text" value={form.moveTime} onChange={e => updateTopField('moveTime', e.target.value)} placeholder="이사시간 ex) 10:00" />
                   <input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="고객명 ex) 홍길동" />
-                  <input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="이동시간 ex) 1시간 23분" />
+                  <div className="ladder-travel-time-field">
+                    <input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="이동시간 ex) 1시간 23분" />
+                    {travelTimeStatus.message && <div className={`ladder-travel-time-hint ${travelTimeStatus.state}`}>{travelTimeStatus.message}</div>}
+                  </div>
                 </div>
               </section>
               {['start', 'end'].map(section => {
