@@ -55,3 +55,71 @@
     margin:0 !important;
   }
 }
+
+
+/* 2026-04-15 desktop schedule single-line grid cleanup for lanes/header/status */
+@media (min-width: 769px){
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell{
+    overflow:hidden !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes-stack{
+    border-top:1px solid #000 !important;
+    border-bottom:1px solid #000 !important;
+    border-left:0 !important;
+    border-right:0 !important;
+    width:100% !important;
+    min-width:0 !important;
+    margin:0 !important;
+    padding:0 !important;
+    box-sizing:border-box !important;
+    position:relative !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:not(:last-child) .calendar-lanes-stack{
+    border-right:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:first-child .calendar-lanes-stack{
+    border-left:0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-day-status-row{
+    border-left:0 !important;
+    border-right:0 !important;
+    box-sizing:border-box !important;
+    position:relative !important;
+    background:#fff !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-cell-topline.schedule-header-line{
+    border-top:1px solid #000 !important;
+    border-bottom:1px solid #d4d8dd !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-day-status-row{
+    border-top:0 !important;
+    border-bottom:1px solid #d4d8dd !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:not(:last-child) .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:not(:last-child) .calendar-day-status-row{
+    border-right:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-day-status-row > *,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-cell-topline.schedule-header-line > *{
+    box-sizing:border-box !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-day-status-row > *:last-child,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-cell-topline.schedule-header-line > *:last-child{
+    border-right:0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-day-status-row > * + *,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-cell-topline.schedule-header-line > * + *{
+    border-left:1px solid #d4d8dd !important;
+  }
+}
