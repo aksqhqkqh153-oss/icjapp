@@ -4251,7 +4251,10 @@ function ChatsPage() {
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sortMode, setSortMode] = useState('recent')
   const [pinArrangeOpen, setPinArrangeOpen] = useState(false)
+  const roomPressTimerRef = useRef(null)
+  const roomPressHandledRef = useRef(null)
   const [pinOrder, setPinOrder] = useState(() => loadChatPinnedOrder(currentUser?.id))
   const chatCustomCategoryKey = useMemo(() => `icj_chat_custom_categories_${currentUser?.id || 'guest'}`, [currentUser?.id])
   const chatRoomCategoryKey = useMemo(() => `icj_chat_room_categories_${currentUser?.id || 'guest'}`, [currentUser?.id])
@@ -4498,14 +4501,17 @@ ${guide}`)
         const bRank = pinRankMap.has(b.id) ? pinRankMap.get(b.id) : Number.MAX_SAFE_INTEGER
         if (aRank !== bRank) return aRank - bRank
       }
-      return String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+      if (sortMode === 'name') {
+        return String(a.title || a.target_user?.nickname || '').localeCompare(String(b.title || b.target_user?.nickname || ''), 'ko')
+      }
+      return String(b.updated_at || b.last_message_at || '').localeCompare(String(a.updated_at || a.last_message_at || ''))
     })
     let categoryFiltered = ordered
     if (category === 'favorite') categoryFiltered = ordered.filter(room => room.favorite)
     else if (category !== 'all') categoryFiltered = ordered.filter(room => String(roomCategoryMap?.[room.id] || '') === String(category))
     if (!q) return categoryFiltered
     return categoryFiltered.filter(room => [room.title, room.subtitle, room.target_user?.nickname].join(' ').toLowerCase().includes(q))
-  }, [rooms, query, pinOrder, category, roomCategoryMap])
+  }, [rooms, query, pinOrder, category, roomCategoryMap, sortMode])
 
   const pinnedRooms = useMemo(() => filteredRooms.filter(room => room.pinned), [filteredRooms])
 
@@ -4522,6 +4528,42 @@ ${guide}`)
       return clone
     })
   }
+
+  function clearRoomPressTimer() {
+    if (roomPressTimerRef.current) {
+      window.clearTimeout(roomPressTimerRef.current)
+      roomPressTimerRef.current = null
+    }
+  }
+
+  function handleRoomPressStart(room) {
+    clearRoomPressTimer()
+    roomPressTimerRef.current = window.setTimeout(() => {
+      roomPressHandledRef.current = room.id
+      setActionRoom(room)
+    }, 500)
+  }
+
+  function handleRoomPressEnd() {
+    clearRoomPressTimer()
+  }
+
+  function handleRoomActivate(event, room) {
+    if (roomPressHandledRef.current === room.id) {
+      roomPressHandledRef.current = null
+      event.preventDefault()
+      return
+    }
+    navigate(buildRoomPath(room))
+  }
+
+  function handleRoomContextMenu(event, room) {
+    event.preventDefault()
+    clearRoomPressTimer()
+    roomPressHandledRef.current = room.id
+    setActionRoom(room)
+  }
+
 
   const roomActions = actionRoom ? [
     { label: '채팅방 이름변경', onClick: async () => {
@@ -4610,7 +4652,13 @@ ${guide}`)
         <div className="chat-list-toolbar chat-list-toolbar-separated">
           <div className="chat-list-toolbar-top chat-list-toolbar-top-right">
             <div className="chat-search-trigger chat-search-trigger-top-right chat-search-inline-row">
-              <button type="button" className="ghost chat-list-filter-button" aria-label="필터">필터</button>
+              <label className="chat-list-filter-dropdown" aria-label="정렬 필터">
+                <span className="chat-list-filter-label">필터</span>
+                <select value={sortMode} onChange={e => setSortMode(e.target.value)} className="chat-list-filter-select">
+                  <option value="name">이름순</option>
+                  <option value="recent">최근등록순</option>
+                </select>
+              </label>
               <div className={`chat-list-search-inline-wrap${searchOpen ? ' open' : ''}`}>
                 {searchOpen && (
                   <input value={query} onChange={e => setQuery(e.target.value)} placeholder="채팅방 검색" aria-label="채팅방 검색" className="chat-list-search-inline-input" />
@@ -4636,16 +4684,25 @@ ${guide}`)
         {loading ? <div className="muted">불러오는 중...</div> : (
           <div className="chat-room-list chat-room-list-spaced">
             {filteredRooms.map(room => (
-              <button key={`${room.room_type}-${room.room_ref}`} type="button" className="chat-room-row" onClick={() => navigate(buildRoomPath(room))}>
+              <button
+                key={`${room.room_type}-${room.room_ref}`}
+                type="button"
+                className="chat-room-row"
+                onClick={(event) => handleRoomActivate(event, room)}
+                onMouseDown={() => handleRoomPressStart(room)}
+                onMouseUp={handleRoomPressEnd}
+                onMouseLeave={handleRoomPressEnd}
+                onTouchStart={() => handleRoomPressStart(room)}
+                onTouchEnd={handleRoomPressEnd}
+                onTouchCancel={handleRoomPressEnd}
+                onContextMenu={(event) => handleRoomContextMenu(event, room)}
+              >
                 <RoomAvatar room={room} />
                 <div className="chat-room-body-single">
                   <div className="chat-room-topline">
                     <strong className="chat-room-name-single">{room.title}</strong>
                     {room.pinned && <span className="chat-pin-indicator" aria-label="고정">📌</span>}
                     <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
-                    <button type="button" className="ghost icon-button chat-room-menu-button" aria-label="채팅방 메뉴" onClick={(event) => { event.stopPropagation(); setActionRoom(room) }}>
-                      <MenuIcon className="topbar-icon-svg" />
-                    </button>
                   </div>
                   <div className="chat-room-subtitle-two-line">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
                 </div>
