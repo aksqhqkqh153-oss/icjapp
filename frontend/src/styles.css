@@ -28709,3 +28709,45 @@ button.danger {
     background: #f8fafc;
   }
 }
+
+
+/* 2026-04-15: PC 일정 화면 실선 border 제거 */
+@media (min-width: 1024px) {
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    border: 0 !important;
+    border-top: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line::before,
+  .schedule-page .calendar-cell-topline.schedule-header-line::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line::after,
+  .schedule-page .calendar-day-status-row::before,
+  .schedule-page .calendar-day-status-row::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row::after {
+    display: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    content: none !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line > *,
+  .schedule-page .calendar-day-status-row > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row > * {
+    border-right: 0 !important;
+    border-left: 0 !important;
+    box-shadow: none !important;
+  }
+}
