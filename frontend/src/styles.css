@@ -26274,3 +26274,264 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+/* 2026-04-15 friends page align with home card layout + desktop schedule grid unify */
+.friends-page .friends-shell {
+  background: #ffffff !important;
+  border: 1px solid #000 !important;
+  padding: 14px !important;
+  gap: 12px !important;
+}
+
+.friends-page .friends-topbar,
+.friends-page .friends-add-top-row,
+.friends-page .group-card-header-line,
+.friends-page .friend-card-head-row,
+.friends-page .friend-card-bottom-row {
+  gap: 10px !important;
+}
+
+.friends-page .friends-section-label {
+  border-top: 1px solid #000 !important;
+  padding-top: 10px !important;
+  margin-top: 2px !important;
+  color: #111111 !important;
+}
+
+.friends-page .friends-group-list,
+.friends-page .friends-add-results,
+.friends-page .friends-group-list.grouped-stack {
+  gap: 10px !important;
+}
+
+.friends-page .friends-subpanel,
+.friends-page .friends-add-panel,
+.friends-page .group-card-block,
+.friends-page .my-profile-card,
+.friends-page .friend-row-card,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card.friend-card-structured,
+.friends-page .friend-row-card.request-variant,
+.friends-page .friend-row-card.list-variant,
+.friends-page .friend-row-card.add-variant {
+  background: #ffffff !important;
+  border: 1px solid #000 !important;
+  box-shadow: none !important;
+}
+
+.friends-page .friends-subpanel,
+.friends-page .friends-add-panel,
+.friends-page .group-card-block {
+  padding: 12px !important;
+}
+
+.friends-page .my-profile-card,
+.friends-page .friend-row-card,
+.friends-page .friend-row-card.upgraded,
+.friends-page .friend-row-card.friend-card-structured,
+.friends-page .friend-row-card.request-variant,
+.friends-page .friend-row-card.list-variant,
+.friends-page .friend-row-card.add-variant {
+  padding: 12px !important;
+}
+
+.friends-page .friend-card-content,
+.friends-page .friend-card-head-row,
+.friends-page .friend-card-bottom-row {
+  background: transparent !important;
+}
+
+.friends-page .friends-search-input,
+.friends-page .friend-add-search-input {
+  margin-top: 0 !important;
+  border: 1px solid #000 !important;
+  background: #fff !important;
+}
+
+.friends-page .group-category-chip,
+.friends-page .friend-primary-badge {
+  color: #111111 !important;
+}
+
+@media (min-width: 769px) {
+  .schedule-page .calendar-weekdays,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    border-left: 1px solid #000 !important;
+    border-top: 1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 8px 6px !important;
+    min-height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #ffffff !important;
+    border-right: 1px solid #000 !important;
+    border-bottom: 1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    border-left: 1px solid #000 !important;
+    border-top: 1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 166px !important;
+    border-right: 1px solid #000 !important;
+    border-bottom: 1px solid #000 !important;
+    border-top: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-self: stretch !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.empty,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell {
+    min-height: 166px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.empty {
+    background: #ffffff !important;
+    opacity: 1 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell,
+  .schedule-page .schedule-cell.detail-cell.today,
+  .schedule-page .schedule-cell.detail-cell.weekend,
+  .schedule-page .schedule-cell.detail-cell.outside-month-cell {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 166px !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell.selected {
+    box-shadow: inset 0 0 0 1px #2563eb !important;
+    border-color: #000 !important;
+  }
+
+  .schedule-page .calendar-cell-topline,
+  .schedule-page .schedule-header-line {
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-bottom: 1px solid #000 !important;
+    background: #ffffff !important;
+    align-items: stretch !important;
+  }
+
+  .schedule-page .calendar-date-select,
+  .schedule-page .calendar-entry-band,
+  .schedule-page .calendar-top-actions,
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .calendar-lanes,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-more-indicator {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  .schedule-page .calendar-date-select {
+    min-height: 32px !important;
+    padding: 6px 8px !important;
+    border-right: 1px solid #000 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-top-actions {
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-entry-band {
+    min-width: 0 !important;
+    padding: 6px 8px !important;
+    border-left: 1px solid #000 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-day-status-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 0 !important;
+    border-bottom: 1px solid #000 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned.split-layout {
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    border-right: 1px solid #000 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-handless-banner.split-layout {
+    min-width: 32px !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .schedule-page .calendar-lanes-stack {
+    flex: 1 1 auto !important;
+    gap: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-lanes {
+    flex: 1 1 auto !important;
+    padding: 6px !important;
+    gap: 4px !important;
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .schedule-page .calendar-lane {
+    border: 1px solid #000 !important;
+    background: #ffffff !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .calendar-lane.filled {
+    border: 1px solid #000 !important;
+    background: #ffffff !important;
+    padding: 0 8px !important;
+    min-height: 0 !important;
+  }
+
+  .schedule-page .calendar-more-indicator {
+    margin: 0 6px 6px auto !important;
+    border: 1px solid #000 !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    border-radius: 0 !important;
+  }
+}
