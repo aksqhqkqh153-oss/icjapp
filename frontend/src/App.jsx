@@ -4610,10 +4610,16 @@ ${guide}`)
       <section className="card chat-list-card">
         <div className="chat-list-toolbar chat-list-toolbar-separated">
           <div className="chat-list-toolbar-top chat-list-toolbar-top-right">
-            <div className="chat-search-trigger chat-search-trigger-top-right">
-              <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setSearchOpen(v => !v)} aria-label="검색">
-                <SearchIcon className="topbar-icon-svg" />
-              </button>
+            <div className="chat-search-trigger chat-search-trigger-top-right chat-search-inline-row">
+              <button type="button" className="ghost chat-list-filter-button" aria-label="필터">필터</button>
+              <div className={`chat-list-search-inline-wrap${searchOpen ? ' open' : ''}`}>
+                {searchOpen && (
+                  <input value={query} onChange={e => setQuery(e.target.value)} placeholder="채팅방 검색" aria-label="채팅방 검색" className="chat-list-search-inline-input" />
+                )}
+                <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setSearchOpen(v => !v)} aria-label="검색">
+                  <SearchIcon className="topbar-icon-svg" />
+                </button>
+              </div>
               <div className="dropdown-wrap">
                 <button type="button" className="ghost icon-button chat-list-icon-button" onClick={() => setMenuOpen(v => !v)} aria-label="메뉴">
                   <MenuIcon className="topbar-icon-svg" />
@@ -4628,11 +4634,6 @@ ${guide}`)
             </div>
           </div>
         </div>
-        {searchOpen && (
-          <div className="chat-list-searchbar">
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="채팅방 검색" />
-          </div>
-        )}
         {loading ? <div className="muted">불러오는 중...</div> : (
           <div className="chat-room-list chat-room-list-spaced">
             {filteredRooms.map(room => (
