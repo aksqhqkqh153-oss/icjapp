@@ -7111,7 +7111,8 @@ function CalendarPage() {
                                 navigate(`/schedule/${item.id}`)
                               }}
                             >
-                              <span>{item.title}</span>
+                              <span className="calendar-lane-color-block" aria-hidden="true" style={{ background: item.color || '#2563eb' }} />
+                              <span className="calendar-lane-title">{item.title}</span>
                             </button>
                           ))}
                           {Array.from({ length: Math.max(visibleLaneCount - visibleItems.length, 0) }).map((_, laneIndex) => (
