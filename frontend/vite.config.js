@@ -7,5 +7,22 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:8000'
     }
-  }
+  },
+  build: {
+    target: 'es2020',
+    sourcemap: false,
+    reportCompressedSize: true,
+    cssCodeSplit: true,
+    modulePreload: { polyfill: false },
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom')) return 'vendor-react-dom'
+          if (id.includes('node_modules/react-router-dom')) return 'vendor-router'
+          if (id.includes('node_modules/react')) return 'vendor-react'
+          if (id.includes('node_modules/leaflet')) return 'vendor-leaflet'
+        },
+      },
+    },
+  },
 })

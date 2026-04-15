@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from openpyxl import Workbook
@@ -109,6 +110,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 app.include_router(soomgo_review_router)
 
 ALLOWED_GENDERS = {'남성', '여성'}
@@ -6965,6 +6967,22 @@ def _frontend_file(path: str) -> Optional[Path]:
     if Path(path).suffix:
         return None
     return FRONTEND_DIST_DIR / "index.html"
+
+
+def _frontend_response(file_path: Path) -> FileResponse:
+    response = FileResponse(file_path)
+    suffix = file_path.suffix.lower()
+    name = file_path.name.lower()
+    is_asset = '/assets/' in file_path.as_posix() or file_path.parent.name == 'assets'
+    if name == 'index.html':
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    elif is_asset and suffix in {'.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.woff', '.woff2'}:
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    elif suffix in {'.json', '.webmanifest'}:
+        response.headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400'
+    else:
+        response.headers['Cache-Control'] = 'public, max-age=600, stale-while-revalidate=3600'
+    return response
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
 def serve_chrome_devtools_probe():
     return {}
@@ -6991,14 +7009,14 @@ def serve_local_upload(file_path: str):
     requested = (settings.upload_root / file_path).resolve()
     if not requested.exists() or not str(requested).startswith(str(settings.upload_root.resolve())):
         raise HTTPException(status_code=404, detail="Not Found")
-    return FileResponse(requested)
+    return _frontend_response(requested)
 
 
 @app.get("/", include_in_schema=False)
 def serve_root():
     index_file = FRONTEND_DIST_DIR / "index.html"
     if index_file.exists():
-        return FileResponse(index_file)
+        return _frontend_response(index_file)
     return {
         "message": "이청잘 API 서버 실행중",
         "docs": "/docs",
@@ -7017,4 +7035,4 @@ def serve_frontend(full_path: str):
     requested = _frontend_file(full_path) if full_path else index_file
     if requested is None or not requested.exists():
         raise HTTPException(status_code=404, detail="Not Found")
-    return FileResponse(requested)
+    return _frontend_response(requested)
