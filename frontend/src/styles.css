@@ -27964,3 +27964,77 @@ button.danger {
     line-height: 1.1 !important;
   }
 }
+
+/* 2026-04-15 friends shell outline + map/friends viewport fill */
+.stack-page.friends-page {
+  border: 1px solid #000 !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+}
+
+.friends-page .card.friends-shell,
+.friends-page .friends-shell {
+  border: 1px solid #000 !important;
+}
+
+.page-container.page-container-map,
+.page-container.page-container-friends {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding-top: var(--app-topbar-height) !important;
+  padding-bottom: var(--app-bottom-nav-height) !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.page-container.page-container-map > .stack-page,
+.page-container.page-container-friends > .stack-page {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  gap: 0 !important;
+}
+
+.page-container.page-container-map > .stack-page > .card.map-card.enhanced-map-card,
+.page-container.page-container-friends > .stack-page.friends-page > .card.friends-shell {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+}
+
+.page-container.page-container-map .real-map-canvas,
+.page-container.page-container-friends .friends-list-shell,
+.page-container.page-container-friends .friends-subpanel,
+.page-container.page-container-friends .friends-group-list,
+.page-container.page-container-friends .friends-add-results {
+  min-height: 0 !important;
+}
+
+.page-container.page-container-map .real-map-canvas {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.page-container.page-container-map .vehicle-list-panel,
+.page-container.page-container-friends .friends-shell {
+  flex: 0 0 auto;
+}
+
+.page-container.page-container-friends .friends-shell {
+  padding-bottom: 0 !important;
+}
+
+.page-container.page-container-friends .friends-subpanel,
+.page-container.page-container-friends .friends-add-panel,
+.page-container.page-container-friends .friends-group-list,
+.page-container.page-container-friends .friends-add-results {
+  overflow: auto !important;
+}
