@@ -27732,3 +27732,19 @@ button.danger {
     width: min(150px, 42vw);
   }
 }
+
+
+/* 2026-04-15 friends card white background + light gray shell border */
+.friends-page .friend-card-head-row,
+.friends-page .friend-card-content {
+  background: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.friends-page .card.friends-shell,
+.friends-page .friends-shell {
+  background: #ffffff !important;
+  border: 1px solid #d9d9d9 !important;
+  box-shadow: none !important;
+}
