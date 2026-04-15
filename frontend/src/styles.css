@@ -27093,3 +27093,90 @@ button.danger {
     border-top-width: 0 !important;
   }
 }
+
+/* 2026-04-15 desktop schedule lanes stack actual-content height cleanup */
+@media (min-width: 769px){
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack{
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:flex-start !important;
+    align-items:stretch !important;
+    gap:0 !important;
+    flex:0 0 auto !important;
+    height:auto !important;
+    min-height:0 !important;
+    max-height:none !important;
+    padding:0 !important;
+    margin:0 !important;
+    overflow:hidden !important;
+    border:0 !important;
+    box-shadow:none !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes{
+    display:grid !important;
+    grid-template-rows:none !important;
+    grid-auto-rows:minmax(18px, auto) !important;
+    align-content:start !important;
+    justify-content:stretch !important;
+    gap:0 !important;
+    row-gap:0 !important;
+    column-gap:0 !important;
+    flex:0 0 auto !important;
+    height:auto !important;
+    min-height:0 !important;
+    max-height:none !important;
+    padding:0 !important;
+    margin:0 !important;
+    overflow:hidden !important;
+    border:0 !important;
+    box-shadow:none !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled{
+    margin:0 !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+    flex:0 0 auto !important;
+    min-height:18px !important;
+    height:18px !important;
+    max-height:18px !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+    box-shadow:none !important;
+  }
+
+  .schedule-page .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-plus-row .single-plus,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .single-plus{
+    margin:0 !important;
+    padding:0 !important;
+    min-height:18px !important;
+    height:18px !important;
+    line-height:18px !important;
+    border:0 !important;
+    box-shadow:none !important;
+  }
+
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell{
+    align-content:start !important;
+    justify-content:flex-start !important;
+  }
+}
