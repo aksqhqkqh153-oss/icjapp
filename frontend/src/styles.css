@@ -26508,7 +26508,7 @@ button.danger {
 
   .schedule-page .calendar-lanes {
     flex: 1 1 auto !important;
-    padding: 6px !important;
+    padding: 0 !important;
     gap: 4px !important;
     border: 0 !important;
     background: #ffffff !important;
@@ -26522,8 +26522,10 @@ button.danger {
 
   .schedule-page .calendar-lane.filled {
     border: 1px solid #000 !important;
-    background: #ffffff !important;
-    padding: 0 8px !important;
+    background: linear-gradient(to right, var(--lane-color-strong, #2563eb) 0 7%, #ffffff 7% 100%) !important;
+    background-color: #ffffff !important;
+    color: #111111 !important;
+    padding: 0 8px 0 6% !important;
     min-height: 0 !important;
   }
 
