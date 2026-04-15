@@ -5311,6 +5311,9 @@ const KOREA_ADDRESS_FALLBACK_CENTERS = {
   '경기 김포시': { lat: 37.6152, lng: 126.7156 },
   '경기 시흥시': { lat: 37.3803, lng: 126.8029 },
   '경기 안산시': { lat: 37.3219, lng: 126.8309 },
+  '경기 여주시': { lat: 37.2982, lng: 127.6376 },
+  '경기 이천시': { lat: 37.2722, lng: 127.4350 },
+  '경기 양평군': { lat: 37.4918, lng: 127.4876 },
   '인천 부평구': { lat: 37.5070, lng: 126.7219 },
   '인천 계양구': { lat: 37.5371, lng: 126.7378 },
   '인천 서구': { lat: 37.5453, lng: 126.6758 },
@@ -5350,18 +5353,18 @@ function normalizeAdministrativeAddress(address) {
 function deriveFallbackPointFromAddress(address) {
   const normalized = normalizeAdministrativeAddress(address)
   if (!normalized) return null
-  const keys = Object.keys(KOREA_ADDRESS_FALLBACK_CENTERS)
-  const directKey = keys.find(key => normalized.startsWith(key))
-  if (directKey) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[directKey], label: normalized, approximate: true }
+  const keys = Object.keys(KOREA_ADDRESS_FALLBACK_CENTERS).sort((a, b) => b.length - a.length)
   const tokens = normalized.split(' ').filter(Boolean)
-  if (tokens.length >= 2) {
-    const key2 = `${tokens[0]} ${tokens[1]}`
-    if (KOREA_ADDRESS_FALLBACK_CENTERS[key2]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key2], label: normalized, approximate: true }
-  }
   if (tokens.length >= 3) {
     const key3 = `${tokens[0]} ${tokens[1]} ${tokens[2]}`
     if (KOREA_ADDRESS_FALLBACK_CENTERS[key3]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key3], label: normalized, approximate: true }
   }
+  if (tokens.length >= 2) {
+    const key2 = `${tokens[0]} ${tokens[1]}`
+    if (KOREA_ADDRESS_FALLBACK_CENTERS[key2]) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[key2], label: normalized, approximate: true }
+  }
+  const directKey = keys.find(key => normalized === key || normalized.startsWith(`${key} `))
+  if (directKey) return { ...KOREA_ADDRESS_FALLBACK_CENTERS[directKey], label: normalized, approximate: true }
   const compact = normalized.replace(/\s+/g, ' ').trim()
   const provinceOnlyMap = {
     '서울': '서울 종로구',
