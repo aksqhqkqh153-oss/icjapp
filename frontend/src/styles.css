@@ -28146,3 +28146,62 @@ button.danger {
     outline: 0 !important;
   }
 }
+
+/* 2026-04-15: friends border cleanup + desktop work schedule height fit */
+.stack-page.friends-page {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+@media (min-width: 769px) {
+  .page-container.work-schedule-wide {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page,
+  .page-container.work-schedule-wide > .work-schedule-page {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+  }
+
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page > .card.work-schedule-day,
+  .page-container.work-schedule-wide > .work-schedule-page > .card.work-schedule-day,
+  .page-container.work-schedule-wide > .stack-page.work-schedule-page > .work-schedule-day,
+  .page-container.work-schedule-wide > .work-schedule-page > .work-schedule-day {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: auto !important;
+    margin: 0 !important;
+  }
+
+  .page-container.work-schedule-wide .work-schedule-head,
+  .page-container.work-schedule-wide .work-schedule-main-top,
+  .page-container.work-schedule-wide .work-exclusion-section,
+  .page-container.work-schedule-wide .work-schedule-section,
+  .page-container.work-schedule-wide .work-schedule-list.unified-list,
+  .page-container.work-schedule-wide .work-schedule-exclusion,
+  .page-container.work-schedule-wide .work-notes-form,
+  .page-container.work-schedule-wide .work-day-status-editor,
+  .page-container.work-schedule-wide .work-schedule-entry-form,
+  .page-container.work-schedule-wide .work-schedule-assignee-table,
+  .page-container.work-schedule-wide .work-schedule-table {
+    min-height: 0 !important;
+  }
+}
