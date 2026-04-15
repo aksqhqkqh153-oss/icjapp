@@ -27278,3 +27278,35 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+
+/* 2026-04-15 mobile schedule detail panel expand/collapse behavior */
+@media (max-width: 768px) {
+  .schedule-page.mobile .schedule-card {
+    overflow: hidden;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel {
+    flex: 0 0 auto;
+    padding-top: 8px;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel:not(.collapsed) {
+    min-height: 0;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel.collapsed {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .schedule-page.mobile .mobile-schedule-detail-panel.collapsed .schedule-popup-list.embedded {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin-top: 8px;
+    padding-bottom: 8px;
+  }
+}

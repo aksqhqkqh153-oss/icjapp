@@ -6985,20 +6985,22 @@ function CalendarPage() {
                 </div>
               </div>
             </div>
-            <div className="schedule-popup-list embedded">
-              {detailItems.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="detail-schedule-item popup-item colorized"
-                  style={{ background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') }}
-                  onClick={() => openScheduleDetailPopup(item)}
-                >
-                  <ScheduleCardLine item={item} colorized={false} />
-                </button>
-              ))}
-              {detailItems.length === 0 && <div className="muted">등록된 일정이 없습니다.</div>}
-            </div>
+            {mobileCalendarCollapsed && (
+              <div className="schedule-popup-list embedded">
+                {detailItems.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="detail-schedule-item popup-item colorized"
+                    style={{ background: applyAlphaToHex(item.color, '24'), borderColor: applyAlphaToHex(item.color, '88') }}
+                    onClick={() => openScheduleDetailPopup(item)}
+                  >
+                    <ScheduleCardLine item={item} colorized={false} />
+                  </button>
+                ))}
+                {detailItems.length === 0 && <div className="muted">등록된 일정이 없습니다.</div>}
+              </div>
+            )}
           </div>
         )}
       </section>
