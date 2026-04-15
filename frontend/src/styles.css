@@ -26632,3 +26632,28 @@ button.danger {
   .quick-check-list-detail { grid-area: detail; white-space: normal; }
   .quick-check-list-badge { grid-area: badge; align-self: center; }
 }
+
+/* 2026-04-15 desktop schedule lanes stack full-width + top/bottom borders */
+@media (min-width: 769px){
+  .schedule-page .calendar-cell.schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.calendar-day-state-normal.outside-month-cell .calendar-lanes-stack{
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    align-self: stretch !important;
+    flex: 1 1 auto !important;
+    box-sizing: border-box !important;
+    border-top: 1px solid #d9e1ea !important;
+    border-bottom: 1px solid #d9e1ea !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    overflow: hidden !important;
+  }
+}
