@@ -28751,3 +28751,53 @@ button.danger {
     box-shadow: none !important;
   }
 }
+
+/* 2026-04-15 map desktop overlay position + card split line + vertical padding cleanup */
+@media (min-width: 769px) {
+  .page-container.page-container-map > .stack-page > .card.map-card.enhanced-map-card,
+  .page-container.page-container-map .card.map-card.enhanced-map-card {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .page-container.page-container-map .map-card-head {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    left: auto !important;
+    margin: 0 !important;
+    z-index: 120 !important;
+    pointer-events: none !important;
+  }
+
+  .page-container.page-container-map .map-overlay-controls {
+    justify-content: flex-end !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    margin-left: 0 !important;
+    flex-wrap: wrap !important;
+    max-width: calc(100% - 24px) !important;
+    pointer-events: auto !important;
+  }
+
+  .page-container.page-container-map .map-filter-wrap,
+  .page-container.page-container-map .map-filter-date-wrap {
+    position: relative !important;
+  }
+
+  .page-container.page-container-map .map-filter-popover,
+  .page-container.page-container-map .map-filter-popover-side,
+  .page-container.page-container-map .map-settings-popover {
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  .page-container.page-container-map .real-map-canvas {
+    border-bottom: 0 !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-panel {
+    border-top: 1px solid #000 !important;
+    padding-top: 10px !important;
+  }
+}
