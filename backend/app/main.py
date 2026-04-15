@@ -3324,7 +3324,29 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
     now_ts = time.time()
     cached = GEOCODE_CACHE.get(normalized)
     if cached and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
-        return {'lat': cached['lat'], 'lng': cached['lng'], 'label': normalized, 'cached': True, 'approximate': bool(cached.get('approximate'))}
+        return {
+            'lat': cached['lat'],
+            'lng': cached['lng'],
+            'label': normalized,
+            'cached': True,
+            'approximate': bool(cached.get('approximate')),
+            'provider': str(cached.get('provider') or 'cache'),
+        }
+
+    try:
+        kakao_point = _lookup_kakao_geocode(normalized)
+        if kakao_point:
+            GEOCODE_CACHE[normalized] = {
+                'lat': float(kakao_point['lat']),
+                'lng': float(kakao_point['lng']),
+                'stored_at': now_ts,
+                'approximate': False,
+                'provider': 'kakao-local',
+            }
+            return kakao_point
+    except Exception as exc:
+        logger.warning('kakao geocode lookup failed for %s: %s', normalized, exc)
+
     url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
         'format': 'jsonv2',
         'limit': 1,
@@ -3345,9 +3367,17 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
                 'lng': float(first.get('lon')),
                 'stored_at': now_ts,
                 'approximate': False,
+                'provider': 'nominatim',
             }
             GEOCODE_CACHE[normalized] = point
-            return {'lat': point['lat'], 'lng': point['lng'], 'label': normalized, 'cached': False, 'approximate': False}
+            return {
+                'lat': point['lat'],
+                'lng': point['lng'],
+                'label': normalized,
+                'cached': False,
+                'approximate': False,
+                'provider': 'nominatim',
+            }
     except Exception as exc:
         logger.warning('geocode lookup failed for %s: %s', normalized, exc)
     fallback = _derive_fallback_geocode(normalized)
@@ -3357,8 +3387,9 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
             'lng': float(fallback['lng']),
             'stored_at': now_ts,
             'approximate': True,
+            'provider': 'fallback',
         }
-        return fallback
+        return {**fallback, 'provider': 'fallback'}
     raise HTTPException(status_code=404, detail='주소 좌표를 찾을 수 없습니다.')
 
 
@@ -3404,6 +3435,40 @@ def _fetch_json_request(url: str, headers: dict[str, str], timeout: int = 8) -> 
     with urllib.request.urlopen(request, timeout=timeout) as response:
         charset = response.headers.get_content_charset() or 'utf-8'
         return json.loads(response.read().decode(charset))
+
+
+def _lookup_kakao_geocode(address: str) -> dict[str, Any] | None:
+    api_key = str(os.getenv('KAKAO_REST_API_KEY') or os.getenv('KAKAO_MOBILITY_REST_API_KEY') or '').strip()
+    if not api_key:
+        return None
+    url = 'https://dapi.kakao.com/v2/local/search/address.json?' + urllib.parse.urlencode({
+        'query': str(address or '').strip(),
+        'analyze_type': 'similar',
+        'size': 1,
+    })
+    payload = _fetch_json_request(url, {
+        'Authorization': f'KakaoAK {api_key}',
+        'Accept': 'application/json',
+    })
+    documents = payload.get('documents') if isinstance(payload, dict) else None
+    first = documents[0] if isinstance(documents, list) and documents else None
+    if not first:
+        return None
+    road = first.get('road_address') if isinstance(first.get('road_address'), dict) else None
+    address_obj = first.get('address') if isinstance(first.get('address'), dict) else None
+    target = road or address_obj or first
+    x = target.get('x')
+    y = target.get('y')
+    if x in (None, '') or y in (None, ''):
+        return None
+    return {
+        'lat': float(y),
+        'lng': float(x),
+        'label': str((road or address_obj or {}).get('address_name') or address or '').strip(),
+        'cached': False,
+        'approximate': False,
+        'provider': 'kakao-local',
+    }
 
 
 def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool:
