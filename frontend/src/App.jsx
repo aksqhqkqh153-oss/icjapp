@@ -8187,15 +8187,19 @@ function WorkSchedulePage() {
             <div className={`work-schedule-mobile-group-shell${isMobile ? ' mobile' : ''}`}>
               <div className={`between work-schedule-head${isMobile ? ' work-schedule-mobile-block' : ''}`}>
                 {index === 0 ? (
-                  <div className="work-schedule-headline work-schedule-headline-with-nav">
-                    <button type="button" className="ghost small work-schedule-today-button" onClick={goTodaySchedule}>오늘</button>
-                    <div className="work-schedule-headline-center">
-                      <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(-1)} aria-label="이전 날짜">◀</button>
-                      <div className="work-schedule-heading-copy">
-                        <strong>{workScheduleHeading(index)}</strong>
-                        <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+                  <div className="work-schedule-headline work-schedule-headline-with-nav work-schedule-headline-two-row">
+                    <div className="work-schedule-heading-title-row">
+                      <strong>{workScheduleHeading(index)}</strong>
+                    </div>
+                    <div className="work-schedule-heading-sub-row">
+                      <button type="button" className="ghost small work-schedule-today-button" onClick={goTodaySchedule}>오늘</button>
+                      <div className="work-schedule-headline-center">
+                        <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(-1)} aria-label="이전 날짜">◀</button>
+                        <div className="work-schedule-heading-copy work-schedule-heading-copy-date-only">
+                          <span className="muted work-schedule-date-inline">{workScheduleDateLine(day.date)}</span>
+                        </div>
+                        {canMoveToNextDate ? <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(1)} aria-label="다음 날짜">▶</button> : <span className="work-schedule-nav-spacer" aria-hidden="true" />}
                       </div>
-                      {canMoveToNextDate ? <button type="button" className="ghost small work-schedule-nav-button" onClick={() => moveScheduleWindow(1)} aria-label="다음 날짜">▶</button> : <span className="work-schedule-nav-spacer" aria-hidden="true" />}
                     </div>
                   </div>
                 ) : (
