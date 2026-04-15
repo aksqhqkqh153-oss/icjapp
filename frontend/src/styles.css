@@ -23914,6 +23914,7 @@ textarea,
   display: inline-block;
   min-width: 100%;
   background: #ffffff;
+  padding: 6px;
 }
 
 .storage-status-table-wrap {
@@ -24030,14 +24031,19 @@ textarea,
 .storage-status-table.is-monthly td {
   min-width: 0;
   width: calc((100% - 40px) / 31);
-  padding: 5px 1px;
-  font-size: 11px;
-  letter-spacing: -0.25px;
-  font-weight: 400;
+  padding: 6px 2px;
+  font-size: 12.5px;
+  line-height: 1.15;
+  letter-spacing: 0;
+  font-weight: 800;
+  color: #0b1220;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
 
 .storage-status-table.is-monthly td {
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .storage-status-table-monthly thead th:first-child,
@@ -24047,8 +24053,8 @@ textarea,
   z-index: 4;
   width: 40px;
   min-width: 40px;
-  background: #f1f5f9;
-  box-shadow: 1px 0 0 #e5e7eb;
+  background: #eef2f7;
+  box-shadow: 1px 0 0 #cbd5e1;
 }
 
 .storage-status-table-monthly tbody th:first-child {
@@ -24060,21 +24066,21 @@ textarea,
 }
 
 .storage-status-table-monthly td.is-safe {
-  background: #ccf4da;
-  color: #111111;
-  font-weight: 700;
+  background: #c8f1d6;
+  color: #0f172a;
+  font-weight: 800;
 }
 
 .storage-status-table-monthly td.is-warn {
-  background: #ffe1be;
-  color: #111111;
-  font-weight: 700;
+  background: #ffdcb2;
+  color: #0f172a;
+  font-weight: 800;
 }
 
 .storage-status-table-monthly td.is-danger {
-  background: #ffd0d0;
-  color: #111111;
-  font-weight: 700;
+  background: #ffcaca;
+  color: #0f172a;
+  font-weight: 800;
 }
 
 .storage-status-empty {
@@ -24120,9 +24126,9 @@ button.danger {
 @media (max-width: 1024px) {
   .storage-status-table.is-monthly th,
   .storage-status-table.is-monthly td {
-    font-size: 10px;
-    padding: 4px 1px;
-    font-weight: 400;
+    font-size: 11px;
+    padding: 5px 2px;
+    font-weight: 800;
   }
 
   .storage-status-table-monthly thead th:first-child,
@@ -24270,9 +24276,10 @@ button.danger {
   .storage-status-table-wrap-monthly .storage-status-table.is-monthly td {
     width: calc((100vw - 64px) / 10);
     min-width: calc((100vw - 64px) / 10);
-    font-size: 9px;
-    font-weight: 700;
-    padding: 4px 1px;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.1;
+    padding: 5px 2px;
   }
 
   .storage-status-table-monthly thead th:first-child,
@@ -24473,8 +24480,18 @@ button.danger {
 }
 
 
+.storage-status-table-monthly th,
 .storage-status-table-monthly td {
-  box-shadow: inset 0 0 0 1px #e5e7eb;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+
+.storage-status-table-monthly thead th {
+  background: #eef2f7;
+  color: #0b1220;
+}
+
+.storage-status-table-monthly tbody th {
+  color: #0b1220;
 }
 
 .storage-status-table-monthly td.is-clickable {
