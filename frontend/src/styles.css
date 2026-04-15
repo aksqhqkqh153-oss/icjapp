@@ -28095,3 +28095,54 @@ button.danger {
     padding: 0 !important;
   }
 }
+
+/* 2026-04-15 desktop schedule keep only topbar/bottombar borders */
+@media (min-width: 769px) {
+  .schedule-page .calendar-weekdays {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday {
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode * {
+    box-shadow: none !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    border: 0 !important;
+    outline: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell.schedule-cell.detail-cell.weekend.outside-month-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-cell-topline,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-date-select,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-more-indicator,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-handless-pill,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row > * {
+    border: 0 !important;
+    outline: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+  }
+}
