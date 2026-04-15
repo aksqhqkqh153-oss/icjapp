@@ -26535,3 +26535,100 @@ button.danger {
     border-radius: 0 !important;
   }
 }
+
+
+.settings-home-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dbe7f3;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+.settings-toggle-button {
+  min-width: 72px;
+  height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 700;
+}
+.settings-toggle-button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+.quick-check-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d9e6f2;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.quick-check-list-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  text-align: left;
+}
+.quick-check-list-row:last-child {
+  border-bottom: 0;
+}
+.quick-check-list-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+.quick-check-list-detail {
+  min-width: 0;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quick-check-list-badge {
+  justify-self: end;
+  min-width: 40px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  text-align: center;
+}
+.quick-check-list-row.quick-check-card-disabled {
+  background: #f3f4f6;
+}
+.quick-check-list-row.quick-check-card-disabled .quick-check-list-title,
+.quick-check-list-row.quick-check-card-disabled .quick-check-list-detail,
+.quick-check-list-row.quick-check-card-disabled .quick-check-list-badge {
+  color: #6b7280;
+}
+.quick-check-list-row.quick-check-card-disabled .quick-check-list-badge {
+  background: #e5e7eb;
+}
+@media (max-width: 768px) {
+  .settings-home-toggle-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .quick-check-list-row {
+    grid-template-columns: minmax(0, 1fr) 56px;
+    grid-template-areas:
+      'title badge'
+      'detail badge';
+    gap: 6px 12px;
+    padding: 12px 14px;
+  }
+  .quick-check-list-title { grid-area: title; }
+  .quick-check-list-detail { grid-area: detail; white-space: normal; }
+  .quick-check-list-badge { grid-area: badge; align-self: center; }
+}

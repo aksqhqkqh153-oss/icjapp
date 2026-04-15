@@ -1495,6 +1495,42 @@ function saveQuickActionState(userId, nextState) {
   localStorage.setItem(quickActionStorageKey(userId), JSON.stringify(nextState))
 }
 
+function getQuickActionListBadgeCount(item, summary) {
+  if (!item) return 0
+  if (item.kind === 'metric') return Math.max(0, Number(summary?.[item.metricKey] ?? 0) || 0)
+  return 0
+}
+
+function getQuickActionListDetail(item, summary, user) {
+  if (!item) return ''
+  if (item.kind === 'metric') {
+    const count = getQuickActionListBadgeCount(item, summary)
+    return count > 0 ? `확인 필요 ${count}건` : '확인할 알림이 없습니다.'
+  }
+  if (item.kind === 'placeholder') return '준비중'
+  if (item.adminOnly && Number(user?.grade || 6) > 2) return '관리자 전용'
+  const detailMap = {
+    materials: '내 자재 신청 현황 확인',
+    materialsBuy: '자재 구매 화면으로 이동',
+    materialsRequesters: '신청목록 화면으로 이동',
+    materialsSettlement: '구매결산 화면으로 이동',
+    storageStatus: '준비중',
+    memoPad: '메모장 화면으로 이동',
+    ladderDispatch: '사다리배차 화면으로 이동',
+    soomgoReviewFinder: '숨고리뷰찾기 화면으로 이동',
+    dailySettlement: '일일결산 화면으로 이동',
+    weeklySettlement: '주간결산 화면으로 이동',
+    monthlySettlement: '월간결산 화면으로 이동',
+    materialSummary: '자재결산 화면으로 이동',
+    settlements: '결산자료 화면으로 이동',
+    operationsDashboard: '대쉬보드 화면으로 이동',
+    point: '준비중',
+    warehouse: '준비중',
+  }
+  return detailMap[item.id] || '바로가기'
+}
+
+
 function getFriendGroupState(userId) {
   const fallback = { categories: [], groups: [], assignments: {} }
   try {
@@ -2285,6 +2321,7 @@ function HomePage() {
   const menuLocks = useMemo(() => normalizeMenuLocks(currentUser?.permission_config?.menu_locks_json), [currentUser?.permission_config?.menu_locks_json])
   const employeeRestricted = isEmployeeRestrictedUser(currentUser)
   const [summary, setSummary] = useState(null)
+  const [homePrefs, setHomePrefs] = useState({ quickListMode: false })
   const [quickState, setQuickState] = useState(() => getQuickActionState(currentUser?.id))
   const [editingQuick, setEditingQuick] = useState(false)
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
@@ -2335,9 +2372,10 @@ function HomePage() {
 
   useEffect(() => {
     async function load() {
-      const [friends, upcoming] = await Promise.all([
+      const [friends, upcoming, prefs] = await Promise.all([
         api('/api/friends'),
         api('/api/home/upcoming-schedules?days=5'),
+        api('/api/preferences').catch(() => ({})),
       ])
       let pendingMaterialsRequesterCount = 0
       try {
@@ -2346,6 +2384,7 @@ function HomePage() {
           pendingMaterialsRequesterCount = Array.isArray(materials?.pending_requests) ? materials.pending_requests.length : 0
         }
       } catch (_) {}
+      setHomePrefs({ quickListMode: !!prefs?.quickListMode })
       setSummary({
         friendCount: friends.friends.length,
         requestCount: friends.received_requests.length,
@@ -2361,6 +2400,7 @@ function HomePage() {
   useEffect(() => {
     setQuickState(getQuickActionState(currentUser?.id))
     setHomeSettings(getHomeSettings(currentUser?.id))
+    setHomePrefs({ quickListMode: false })
   }, [currentUser?.id])
 
   useEffect(() => {
@@ -2690,86 +2730,111 @@ function HomePage() {
               <button type="button" className="small ghost" onClick={() => setEditingQuick(v => !v)}>{editingQuick ? '편집닫기' : '편집'}</button>
             </div>
           </div>
-          <div className="quick-check-grid quick-check-grid-desktop-6">
-            {homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
-              Number(currentUser?.grade || 6) <= 2 ? (
-                <button
-                  type="button"
-                  className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
-                  onMouseDown={startHoldAction}
-                  onMouseUp={stopHoldAction}
-                  onMouseLeave={stopHoldAction}
-                  onTouchStart={startHoldAction}
-                  onTouchEnd={stopHoldAction}
-                  onTouchCancel={stopHoldAction}
-                >
-                  <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
-                  <span>{formatElapsed(elapsedSeconds)}</span>
-                  <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
-                </button>
-              ) : (
-                <button type="button" className="quick-check-card quick-check-card-disabled workday-inline-card" disabled>
-                  <strong>준비중</strong>
-                  <span>일 시작</span>
-                  <small>관리자/부관리자 전용</small>
-                </button>
-              )
-            )}
-            {activeQuickItems.map(item => {
-              const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
-              const topText = preparingLocked
-                ? '준비중'
-                : item.kind === 'metric'
-                  ? String(summary?.[item.metricKey] ?? 0)
-                  : (item.kind === 'placeholder' ? '준비중' : '')
-              const isDisabled = item.kind === 'placeholder' || preparingLocked
-              const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
-              const isDraggingCard = draggingQuickId === item.id
-              const isDropTarget = dragOverQuickId === item.id && draggingQuickId && draggingQuickId !== item.id
-              return (
-                <button
-                  key={item.id}
-                  ref={node => {
-                    if (node) quickCardRefs.current.set(item.id, node)
-                    else quickCardRefs.current.delete(item.id)
-                  }}
-                  data-quick-id={item.id}
-                  draggable
-                  type="button"
-                  className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
-                  onDragStart={event => {
-                    event.dataTransfer.effectAllowed = 'move'
-                    event.dataTransfer.setData('text/plain', item.id)
-                    handleQuickDragStart(item.id)
-                  }}
-                  onDragEnter={() => handleQuickDragEnter(item.id)}
-                  onDragOver={event => {
-                    event.preventDefault()
-                    event.dataTransfer.dropEffect = 'move'
-                    handleQuickDragEnter(item.id)
-                  }}
-                  onDrop={event => {
-                    event.preventDefault()
-                    handleQuickDrop(item.id)
-                  }}
-                  onDragEnd={resetQuickDragState}
-                  onTouchStart={event => handleQuickTouchStart(event, item.id)}
-                  onTouchMove={handleQuickTouchMove}
-                  onTouchEnd={handleQuickTouchEnd}
-                  onTouchCancel={handleQuickTouchCancel}
-                  onClick={() => {
-                    if (quickDragSuppressClickRef.current) return
-                    handleQuickActionClick(item)
-                  }}
-                  disabled={isDisabled}
-                >
-                  <span className="quick-check-drag-badge" aria-hidden="true">⋮⋮</span>
-                  {topText ? <strong>{topText}</strong> : null}
-                  <span style={item.multiline || labelText.includes('\n') ? { whiteSpace: 'pre-line' } : undefined}>{labelText}</span>
-                </button>
-              )
-            })}
-          </div>
+          {homePrefs.quickListMode ? (
+            <div className="quick-check-list" role="list">
+              {activeQuickItems.map(item => {
+                const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
+                const isDisabled = item.kind === 'placeholder' || preparingLocked
+                const badgeCount = preparingLocked ? 0 : getQuickActionListBadgeCount(item, summary)
+                const labelText = String((item.id === 'materials' ? '자재 신청현황' : item.label) || '').replace(/\n/g, ' ')
+                const detailText = preparingLocked ? '준비중' : getQuickActionListDetail(item, summary, currentUser)
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`quick-check-list-row ${isDisabled ? 'quick-check-card-disabled' : ''}`.trim()}
+                    onClick={() => handleQuickActionClick(item)}
+                    disabled={isDisabled}
+                  >
+                    <span className="quick-check-list-title">{labelText}</span>
+                    <span className="quick-check-list-detail">{detailText}</span>
+                    <strong className="quick-check-list-badge">{badgeCount}</strong>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="quick-check-grid quick-check-grid-desktop-6">
+              {homeSettings.workday.enabled && !homeSettings.workday.hideOnHome && (
+                Number(currentUser?.grade || 6) <= 2 ? (
+                  <button
+                    type="button"
+                    className={`quick-check-card workday-inline-card ${holdProgress ? 'holding' : ''} ${homeSettings.activeWorkState?.started ? 'workday-active' : 'workday-idle'}`.trim()}
+                    onMouseDown={startHoldAction}
+                    onMouseUp={stopHoldAction}
+                    onMouseLeave={stopHoldAction}
+                    onTouchStart={startHoldAction}
+                    onTouchEnd={stopHoldAction}
+                    onTouchCancel={stopHoldAction}
+                  >
+                    <strong>{homeSettings.activeWorkState?.started ? '일 종료' : '일 시작'}</strong>
+                    <span>{formatElapsed(elapsedSeconds)}</span>
+                    <small>{homeSettings.activeWorkState?.started ? '근무시간 진행중' : '길게 눌러 시작'}</small>
+                  </button>
+                ) : (
+                  <button type="button" className="quick-check-card quick-check-card-disabled workday-inline-card" disabled>
+                    <strong>준비중</strong>
+                    <span>일 시작</span>
+                    <small>관리자/부관리자 전용</small>
+                  </button>
+                )
+              )}
+              {activeQuickItems.map(item => {
+                const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
+                const topText = preparingLocked
+                  ? '준비중'
+                  : item.kind === 'metric'
+                    ? String(summary?.[item.metricKey] ?? 0)
+                    : (item.kind === 'placeholder' ? '준비중' : '')
+                const isDisabled = item.kind === 'placeholder' || preparingLocked
+                const labelText = item.id === 'materials' ? '자재\n신청현황' : String(item.label || '')
+                const isDraggingCard = draggingQuickId === item.id
+                const isDropTarget = dragOverQuickId === item.id && draggingQuickId && draggingQuickId !== item.id
+                return (
+                  <button
+                    key={item.id}
+                    ref={node => {
+                      if (node) quickCardRefs.current.set(item.id, node)
+                      else quickCardRefs.current.delete(item.id)
+                    }}
+                    data-quick-id={item.id}
+                    draggable
+                    type="button"
+                    className={`quick-check-card quick-check-draggable ${isDisabled ? 'quick-check-card-disabled' : ''}${isDraggingCard ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`.trim()}
+                    onDragStart={event => {
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', item.id)
+                      handleQuickDragStart(item.id)
+                    }}
+                    onDragEnter={() => handleQuickDragEnter(item.id)}
+                    onDragOver={event => {
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                      handleQuickDragEnter(item.id)
+                    }}
+                    onDrop={event => {
+                      event.preventDefault()
+                      handleQuickDrop(item.id)
+                    }}
+                    onDragEnd={resetQuickDragState}
+                    onTouchStart={event => handleQuickTouchStart(event, item.id)}
+                    onTouchMove={handleQuickTouchMove}
+                    onTouchEnd={handleQuickTouchEnd}
+                    onTouchCancel={handleQuickTouchCancel}
+                    onClick={() => {
+                      if (quickDragSuppressClickRef.current) return
+                      handleQuickActionClick(item)
+                    }}
+                    disabled={isDisabled}
+                  >
+                    <span className="quick-check-drag-badge" aria-hidden="true">⋮⋮</span>
+                    {topText ? <strong>{topText}</strong> : null}
+                    <span style={item.multiline || labelText.includes('\n') ? { whiteSpace: 'pre-line' } : undefined}>{labelText}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {editingQuick && (
             <div className="quick-check-editor card inset-card">
               <strong>빠른 확인 편집</strong>
@@ -2818,7 +2883,7 @@ function HomePage() {
       ),
     }
     return homeSettings.sectionOrder.map(sectionId => sections[sectionId]).filter(Boolean)
-  }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, employeeRestricted, holdProgress, homeSettings, homeSettingsOpen, quickState.active, summary])
+  }, [activeQuickItems, archivedQuickItems, currentUser?.grade, editingQuick, employeeRestricted, holdProgress, homePrefs.quickListMode, homeSettings, homeSettingsOpen, quickState.active, summary])
 
   return (
     <div className="stack-page">
@@ -13118,6 +13183,7 @@ function SettingsPage({ onLogout }) {
         <div className="settings-category-row">
           <button type="button" className={category === 'theme' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('theme')}>테마변경</button>
           <button type="button" className={category === 'notifications' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('notifications')}>알림설정</button>
+          <button type="button" className={category === 'home' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('home')}>목록형전환</button>
           <button type="button" className={category === 'blocked' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('blocked')}>차단목록</button>
           <button type="button" className={category === 'inquiry' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('inquiry')}>문의접수</button>
           <button type="button" className={category === 'account' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('account')}>계정관리</button>
@@ -13144,6 +13210,31 @@ function SettingsPage({ onLogout }) {
           <label className="check"><input type="checkbox" checked={!!prefs.groupChatNotifications} onChange={e => setPrefs({ ...prefs, groupChatNotifications: e.target.checked })} /> 그룹채팅 알림</label>
           <label className="check"><input type="checkbox" checked={!!prefs.directChatNotifications} onChange={e => setPrefs({ ...prefs, directChatNotifications: e.target.checked })} /> 1:1 채팅 알림</label>
           <label className="check"><input type="checkbox" checked={!!prefs.likeNotifications} onChange={e => setPrefs({ ...prefs, likeNotifications: e.target.checked })} /> 좋아요 알림</label>
+          <div className="inline-actions wrap">
+            <button type="button" onClick={savePrefs}>설정 저장</button>
+          </div>
+          {message ? <div className="success">{message}</div> : null}
+        </section>
+      ) : null}
+
+
+      {category === 'home' ? (
+        <section className="card settings-theme-card">
+          <h3>목록형전환</h3>
+          <div className="settings-home-toggle-card">
+            <div>
+              <strong>빠른 확인 목록형전환</strong>
+              <div className="muted small-text">ON으로 바꾸면 홈의 빠른 확인이 제목 / 세부내용 / 알림수 목록형으로 표시됩니다.</div>
+            </div>
+            <button
+              type="button"
+              className={prefs.quickListMode ? 'settings-toggle-button active' : 'settings-toggle-button'}
+              onClick={() => setPrefs({ ...prefs, quickListMode: !prefs.quickListMode })}
+              aria-pressed={!!prefs.quickListMode}
+            >
+              {prefs.quickListMode ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <div className="inline-actions wrap">
             <button type="button" onClick={savePrefs}>설정 저장</button>
           </div>
