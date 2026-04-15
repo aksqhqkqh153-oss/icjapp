@@ -11280,8 +11280,9 @@ function buildLadderTemplateOutput(template, values) {
 }
 
 function formatLadderDefaultDate() {
-  const now = new Date()
-  return `${now.getMonth() + 1}월 ${now.getDate()}일`
+  const next = new Date()
+  next.setDate(next.getDate() + 1)
+  return `${next.getMonth() + 1}월 ${next.getDate()}일`
 }
 
 function createLadderLocationState() {
@@ -11484,7 +11485,7 @@ function LadderDispatchPage() {
   const datePickerRef = useRef(null)
   const [branchDb, setBranchDb] = useState(() => readLadderBranchDb(userKey))
   const [templateText, setTemplateText] = useState(() => readLadderTemplate(userKey))
-  const [form, setForm] = useState(() => createEmptyLadderForm())
+  const [form, setForm] = useState(() => createEmptyLadderForm({ date: formatLadderDefaultDate() }))
   const [copiedTarget, setCopiedTarget] = useState('')
   const [savedList, setSavedList] = useState(() => readLadderSavedList(userKey))
   const [savedListOpen, setSavedListOpen] = useState(false)
