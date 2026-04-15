@@ -3404,6 +3404,19 @@ def _fetch_json_request(url: str, headers: dict[str, str], timeout: int = 8) -> 
         return json.loads(response.read().decode(charset))
 
 
+def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool:
+    distance_m = int(distance_m or 0)
+    duration_seconds = int(duration_seconds or 0)
+    if distance_m <= 0 or duration_seconds <= 0:
+        return False
+    speed_kmh = (distance_m / max(duration_seconds, 1)) * 3.6
+    if speed_kmh > 130:
+        return False
+    if distance_m >= 3000 and speed_kmh < 3:
+        return False
+    return True
+
+
 def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
     api_key = str(os.getenv('KAKAO_MOBILITY_REST_API_KEY') or os.getenv('KAKAO_REST_API_KEY') or '').strip()
     if not api_key:
@@ -3419,9 +3432,10 @@ def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any])
     })
     routes = payload.get('routes') if isinstance(payload, dict) else None
     summary = routes[0].get('summary') if isinstance(routes, list) and routes else None
-    duration_seconds = int(round(float(summary.get('duration') or 0) / 1000.0)) if summary else 0
+    # Kakao Mobility Directions summary.duration is already returned in seconds.
+    duration_seconds = int(round(float(summary.get('duration') or 0))) if summary else 0
     distance_m = int(summary.get('distance') or 0) if summary else 0
-    if duration_seconds <= 0:
+    if not _is_route_duration_plausible(distance_m, duration_seconds):
         return None
     return {
         'provider': 'kakao',
@@ -3453,7 +3467,7 @@ def _lookup_naver_travel(start_point: dict[str, Any], end_point: dict[str, Any])
     first = candidates[0].get('summary') if isinstance(candidates, list) and candidates else None
     duration_seconds = int(round(float(first.get('duration') or 0) / 1000.0)) if first else 0
     distance_m = int(first.get('distance') or 0) if first else 0
-    if duration_seconds <= 0:
+    if not _is_route_duration_plausible(distance_m, duration_seconds):
         return None
     return {
         'provider': 'naver',
