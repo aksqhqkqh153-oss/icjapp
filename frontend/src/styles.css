@@ -28548,3 +28548,25 @@ button.danger {
   min-height: 0 !important;
   max-height: none !important;
 }
+
+/* 2026-04-15 home card wrapper compact + top-attached sections */
+.page-container.page-container-home > .stack-page.home-page > .card,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  justify-content: flex-start !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card > .between:first-child,
+.page-container.page-container-home > .stack-page.home-page > .card > .quick-check-head,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .between:first-child {
+  margin-top: 0 !important;
+  align-self: stretch !important;
+}
+
+.page-container.page-container-home > .stack-page.home-page > .card .quick-check-list,
+.page-container.page-container-home > .stack-page.home-page > .card .quick-check-grid,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .list,
+.page-container.page-container-home > .stack-page.home-page > .card.home-upcoming-card > .upcoming-schedule-list {
+  margin-top: 0 !important;
+}
