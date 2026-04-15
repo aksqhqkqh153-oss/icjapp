@@ -27180,3 +27180,31 @@ button.danger {
     justify-content:flex-start !important;
   }
 }
+
+/* 2026-04-15 global topbar/bottom-nav black border unify */
+.topbar,
+.topbar-fixed,
+.friends-topbar,
+.schedule-form-topbar,
+.chat-list-topbar,
+.quote-form-flow-topbar,
+.notification-page-topbar,
+.notification-settings-header,
+.work-schedule-main-top,
+.chat-room-topbar-section,
+.quote-guest-intro-topbar,
+[class*="topbar"] {
+  border: 1px solid #000 !important;
+  box-sizing: border-box;
+}
+
+.bottom-nav,
+.chat-room-compose-section,
+.chat-bottom-sheet,
+.materials-actions-bottom,
+.materials-myrequest-actions-bottom,
+.settlement-day-nav,
+[class*="bottom-nav"] {
+  border: 1px solid #000 !important;
+  box-sizing: border-box;
+}
