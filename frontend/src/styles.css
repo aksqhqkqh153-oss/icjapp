@@ -28313,3 +28313,51 @@ button.danger {
   border-color: transparent !important;
   box-shadow: none !important;
 }
+
+/* 2026-04-15 map desktop 5:5 split layout */
+@media (min-width: 769px) {
+  .page-container.page-container-map > .stack-page > .card.map-card.enhanced-map-card {
+    gap: 0 !important;
+  }
+
+  .page-container.page-container-map .map-card-head,
+  .page-container.page-container-map .map-toast-notice {
+    flex: 0 0 auto;
+  }
+
+  .page-container.page-container-map .real-map-canvas,
+  .page-container.page-container-map .vehicle-list-panel {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: 50% !important;
+    max-height: none !important;
+  }
+
+  .page-container.page-container-map .real-map-canvas {
+    margin: 0 !important;
+    border-top: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-panel {
+    margin: 0 !important;
+    padding-top: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-title {
+    flex: 0 0 auto;
+    padding: 10px 0 8px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-items {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+  }
+}
