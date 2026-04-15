@@ -26657,3 +26657,11 @@ button.danger {
     overflow: hidden !important;
   }
 }
+
+/* 2026-04-15 home/map/chat card black outline */
+.card.home-upcoming-card,
+.card.map-card.enhanced-map-card,
+.card.chat-category-shell,
+.card.chat-list-card {
+  border: 1px solid #000 !important;
+}

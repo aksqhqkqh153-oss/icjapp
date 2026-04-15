@@ -1,0 +1,4 @@
+
+> ichungjal-app-frontend@1.0.0 build
+> node ./node_modules/vite/dist/node/cli.js build
+
