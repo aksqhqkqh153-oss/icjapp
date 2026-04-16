@@ -9817,6 +9817,71 @@ a:focus-visible {
   gap: 8px;
 }
 
+
+.disposal-admin-alert-card {
+  width: min(920px, calc(100vw - 32px));
+}
+
+.disposal-admin-alert-header {
+  grid-template-columns: 1fr;
+}
+
+.disposal-admin-alert-title {
+  white-space: nowrap;
+}
+
+.disposal-admin-alert-list {
+  width: 100%;
+}
+
+.disposal-admin-alert-item {
+  width: 100%;
+  padding: 14px 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.disposal-admin-alert-message,
+.disposal-admin-alert-note {
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: left;
+}
+
+.disposal-admin-alert-message {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.disposal-admin-alert-note {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+@media (max-width: 768px) {
+  .disposal-admin-alert-card {
+    width: min(100%, calc(100vw - 16px));
+  }
+
+  .disposal-admin-alert-title {
+    font-size: 17px;
+  }
+
+  .disposal-admin-alert-item {
+    padding: 12px 14px;
+  }
+
+  .disposal-admin-alert-message {
+    font-size: 13px;
+  }
+
+  .disposal-admin-alert-note {
+    font-size: 12px;
+  }
+}
+
 .disposal-customer-group-actions {
   display: flex;
   align-items: center;

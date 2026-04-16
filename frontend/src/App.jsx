@@ -1647,15 +1647,14 @@ function DisposalAdminAlertModal({ open, items = [], onClose, onOpenSettlements 
       onClose?.()
     }}>
       <div className="disposal-confirm-card disposal-admin-alert-card">
-        <div className="disposal-bulk-payment-header">
-          <div className="disposal-bulk-payment-title">폐기 신고 미접수 알림</div>
+        <div className="disposal-bulk-payment-header disposal-admin-alert-header">
+          <div className="disposal-bulk-payment-title disposal-admin-alert-title">폐기신고 미접수알림</div>
         </div>
-        <div className="stack" style={{ gap: 10 }}>
+        <div className="stack disposal-admin-alert-list" style={{ gap: 10 }}>
           {items.map((item) => (
-            <div key={item.key} className="card" style={{ padding: '12px 14px' }}>
-              <strong>{item.disposalDate}</strong>
-              <div style={{ marginTop: 6 }}>{item.customerName}</div>
-              <div className="muted small-text" style={{ marginTop: 6 }}>{item.message}</div>
+            <div key={item.key} className="card disposal-admin-alert-item">
+              <div className="disposal-admin-alert-message">[{item.disposalDate}] 폐기예정인 {item.customerName} 고객님의 폐기 신고접수가 되어 있지 않습니다.</div>
+              <div className="disposal-admin-alert-note">* 폐기 신고 날짜 전으로, 날짜가 가까워 지면 신고 처리를 진행해주세요</div>
             </div>
           ))}
         </div>
