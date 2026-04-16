@@ -3006,10 +3006,13 @@ function HomePage() {
 }
 
 function ProfilePage({ onUserUpdate }) {
+  const currentUser = getStoredUser()
   const [form, setForm] = useState(null)
   const [originalForm, setOriginalForm] = useState(null)
   const [message, setMessage] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [coverUrl, setCoverUrl] = useState(() => loadProfileCover(currentUser?.id))
   const branchOptions = BRANCH_NUMBER_OPTIONS
 
   useEffect(() => {
@@ -3017,6 +3020,7 @@ function ProfilePage({ onUserUpdate }) {
       const nextForm = { ...data.user, new_password: '' }
       setForm(nextForm)
       setOriginalForm(nextForm)
+      setCoverUrl(loadProfileCover(data?.user?.id || currentUser?.id))
     })
   }, [])
 
@@ -3127,6 +3131,7 @@ function ProfilePage({ onUserUpdate }) {
     const nextForm = { ...data.user, new_password: '' }
     setForm(nextForm)
     setOriginalForm(nextForm)
+    saveProfileCover(data?.user?.id || currentUser?.id, coverUrl || '')
     onUserUpdate(data.user)
     setMessage('프로필이 저장되었습니다.')
   }
@@ -3158,6 +3163,25 @@ function ProfilePage({ onUserUpdate }) {
     }
   }
 
+  async function handleProfileCoverUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingCover(true)
+    setMessage('')
+    try {
+      const uploaded = await uploadFile(file, 'profile-cover')
+      const nextUrl = uploaded?.url || ''
+      setCoverUrl(nextUrl)
+      saveProfileCover(form?.id || currentUser?.id, nextUrl)
+      setMessage('배경 이미지가 업로드되었습니다. 저장 버튼을 눌러 반영하세요.')
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setUploadingCover(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="card profile-page-card">
       <div className="profile-header">
@@ -3180,8 +3204,18 @@ function ProfilePage({ onUserUpdate }) {
           <h3>프로필정보</h3>
           <div className="profile-section-divider" />
           <div className="profile-profile-grid">
-            <div className="profile-photo-panel">
-              <button type="button" className="profile-photo-hero-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
+            <div className="profile-photo-panel profile-cover-stack">
+              <button
+                type="button"
+                className="profile-cover-editor"
+                style={coverUrl ? { backgroundImage: `url(${coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+                onClick={() => document.getElementById('profile-page-cover-input')?.click()}
+                disabled={uploadingCover}
+              >
+                <span className="profile-cover-editor-label">배경화면 클릭 후 변경</span>
+              </button>
+              <input id="profile-page-cover-input" type="file" accept="image/*" hidden onChange={handleProfileCoverUpload} />
+              <button type="button" className="profile-photo-hero-button profile-cover-avatar-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
                 <AvatarCircle src={form.photo_url} label={form.nickname || form.login_id} size={108} className="profile-photo-hero-avatar" />
               </button>
               <input id="profile-page-photo-input" type="file" accept="image/*" hidden onChange={handleProfilePhotoUpload} />
@@ -3205,6 +3239,14 @@ function ProfilePage({ onUserUpdate }) {
             <label className="field-block profile-span-all">
               <span>프로필 이미지 업로드</span>
               <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>배경 이미지 URL</span>
+              <input value={coverUrl || ''} onChange={e => { const next = e.target.value; setCoverUrl(next); saveProfileCover(form?.id || currentUser?.id, next) }} placeholder="배경 이미지 URL" />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>배경 이미지 업로드</span>
+              <input type="file" accept="image/*" onChange={handleProfileCoverUpload} disabled={uploadingCover} />
             </label>
             <div className="profile-grid two profile-span-all">
               <label className="field-block">
@@ -4075,7 +4117,7 @@ function FriendsPage() {
       {previewFriend && profilePreview.mode === 'card' && (
         <div className="profile-preview-backdrop" onClick={() => setProfilePreview({ mode: '', friend: null, section: '' })}>
           <div className="profile-preview-card" onClick={e => e.stopPropagation()}>
-            <div className="profile-preview-cover" style={previewFriend.cover_url ? { backgroundImage: `url(${previewFriend.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+            <button type="button" className="profile-preview-cover profile-preview-cover-button" style={previewFriend.cover_url ? { backgroundImage: `url(${previewFriend.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} onClick={() => previewFriend.cover_url && setProfilePreview(prev => ({ ...prev, mode: 'cover-image' }))}>
               {profilePreview.section === 'me' && (
                 <div className="dropdown-wrap profile-preview-menu">
                   <button type="button" className="small ghost" onClick={e => { e.stopPropagation(); setOpenFriendMenuId(prev => prev === 'my-profile-preview' ? null : 'my-profile-preview') }}>메뉴</button>
@@ -4084,9 +4126,12 @@ function FriendsPage() {
                   </div>
                 </div>
               )}
-            </div>
+              {!previewFriend.cover_url && <span className="profile-preview-cover-empty">기본 배경화면</span>}
+            </button>
             <div className="profile-preview-main">
-              <AvatarCircle src={previewFriend.photo_url} label={previewFriend.nickname} size={88} className="profile-preview-avatar" />
+              <button type="button" className="profile-preview-avatar-button" onClick={() => previewFriend.photo_url && setProfilePreview(prev => ({ ...prev, mode: 'image' }))}>
+                <AvatarCircle src={previewFriend.photo_url} label={previewFriend.nickname} size={88} className="profile-preview-avatar" />
+              </button>
               <div className="profile-preview-name">{previewFriend.nickname || '회원'}</div>
               <div className="profile-preview-oneliner">{previewFriend.one_liner || previewFriend.bio || previewFriend.region || '한줄소개가 없습니다.'}</div>
               <div className="inline-actions wrap center profile-preview-actions">
@@ -4100,6 +4145,14 @@ function FriendsPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {previewFriend && profilePreview.mode === 'cover-image' && (
+        <div className="profile-preview-backdrop" onClick={() => setProfilePreview(prev => ({ ...prev, mode: 'card' }))}>
+          <div className="profile-image-viewer" onClick={e => e.stopPropagation()}>
+            <img src={previewFriend.cover_url} alt="배경화면 원본" className="profile-image-viewer-full" />
           </div>
         </div>
       )}
@@ -4801,6 +4854,7 @@ function ChatRoomPage({ roomType }) {
   const [plusMenuOpen, setPlusMenuOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
   const [memberProfilePreview, setMemberProfilePreview] = useState(null)
+  const [memberProfileImageViewer, setMemberProfileImageViewer] = useState(null)
   const [hiddenMessageIds, setHiddenMessageIds] = useState(() => new Set())
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState(() => new Set())
   const imageInputRef = useRef(null)
@@ -4830,6 +4884,25 @@ function ChatRoomPage({ roomType }) {
       api(`/api/chat-mentions/${item.id}/seen`, { method: 'POST' }).catch(() => {})
     })
   }, [roomData?.pending_mentions])
+
+  useEffect(() => {
+    if (!roomData) return
+    api('/api/notifications').then(items => {
+      const list = Array.isArray(items) ? items : []
+      const roomTitleText = String(roomData?.room?.title || roomData?.target_user?.nickname || '').trim()
+      const senderNickname = String(roomData?.target_user?.nickname || '').trim()
+      const targetTypes = new Set(['direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention'])
+      const matched = list.filter(item => {
+        if (!item || Number(item.is_read) === 1 || !targetTypes.has(String(item.type || ''))) return false
+        const haystack = `${item.title || ''} ${item.message || ''}`
+        if (roomType === 'direct') return senderNickname ? haystack.includes(senderNickname) : false
+        return roomTitleText ? haystack.includes(roomTitleText) || String(item.type || '') === 'chat_mention' || String(item.type || '') === 'group_invite' : false
+      })
+      matched.forEach(item => {
+        api(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(() => {})
+      })
+    }).catch(() => {})
+  }, [roomData, roomType])
 
   async function handleSend(event) {
     event?.preventDefault?.()
@@ -5104,7 +5177,11 @@ function ChatRoomPage({ roomType }) {
               const longPressHandlers = isMobile ? useLongPress(() => openMessageActions(item), 500) : {}
               return (
                 <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`} {...longPressHandlers}>
-                  {!mine && !groupedWithPrevious && <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />}
+                  {!mine && !groupedWithPrevious && (
+                    <button type="button" className="chat-message-avatar-button" onClick={() => openMemberProfile(item.sender || {})}>
+                      <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />
+                    </button>
+                  )}
                   {!mine && groupedWithPrevious && <div className="chat-message-avatar-spacer" aria-hidden="true" />}
                   <div className={`chat-message-content${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`}>
                     {!mine && !groupedWithPrevious && (
@@ -5243,12 +5320,35 @@ function ChatRoomPage({ roomType }) {
         </div>
       )}
 
+      {memberProfileImageViewer && (
+        <div className="profile-preview-backdrop" onClick={() => setMemberProfileImageViewer(null)}>
+          <div className="profile-image-viewer" onClick={e => e.stopPropagation()}>
+            {memberProfileImageViewer.kind === 'cover'
+              ? <img src={memberProfileImageViewer.src} alt="배경화면 원본" className="profile-image-viewer-full" />
+              : <img src={memberProfileImageViewer.src} alt="프로필 원본" className="profile-image-viewer-full profile-image-viewer-avatar" />}
+          </div>
+        </div>
+      )}
+
       {memberProfilePreview && (
         <div className="profile-preview-backdrop" onClick={() => setMemberProfilePreview(null)}>
           <div className="profile-preview-card" onClick={e => e.stopPropagation()}>
-            <div className="profile-preview-cover" style={memberProfilePreview.cover_url ? { backgroundImage: `url(${memberProfilePreview.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} />
+            <button
+              type="button"
+              className="profile-preview-cover profile-preview-cover-button"
+              style={memberProfilePreview.cover_url ? { backgroundImage: `url(${memberProfilePreview.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+              onClick={() => memberProfilePreview.cover_url && setMemberProfileImageViewer({ kind: 'cover', src: memberProfilePreview.cover_url })}
+            >
+              {!memberProfilePreview.cover_url && <span className="profile-preview-cover-empty">기본 배경화면</span>}
+            </button>
             <div className="profile-preview-main">
-              <AvatarCircle src={memberProfilePreview.photo_url} label={memberProfilePreview.nickname} size={88} className="profile-preview-avatar" />
+              <button
+                type="button"
+                className="profile-preview-avatar-button"
+                onClick={() => memberProfilePreview.photo_url && setMemberProfileImageViewer({ kind: 'photo', src: memberProfilePreview.photo_url })}
+              >
+                <AvatarCircle src={memberProfilePreview.photo_url} label={memberProfilePreview.nickname} size={88} className="profile-preview-avatar" />
+              </button>
               <div className="profile-preview-name">{memberProfilePreview.nickname || '회원'}</div>
               <div className="profile-preview-oneliner">{memberProfilePreview.one_liner || memberProfilePreview.bio || memberProfilePreview.region || '한줄소개가 없습니다.'}</div>
               <div className="inline-actions wrap center profile-preview-actions">
