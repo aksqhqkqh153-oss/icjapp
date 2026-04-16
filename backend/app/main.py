@@ -235,6 +235,7 @@ class ProfileIn(BaseModel):
     one_liner: str = ""
     interests: list[str] = []
     photo_url: str = ""
+    cover_url: str = ""
     phone: str = ""
     recovery_email: str = ""
     gender: str = ""
@@ -2653,6 +2654,7 @@ def update_profile(payload: ProfileIn, user=Depends(require_user)):
             ("one_liner", payload.one_liner.strip()),
             ("interests", json.dumps(payload.interests, ensure_ascii=False)),
             ("photo_url", payload.photo_url.strip()),
+            ("cover_url", payload.cover_url.strip()),
             ("phone", payload.phone.strip()),
             ("recovery_email", payload.recovery_email.strip()),
             ("gender", _validate_gender_value(payload.gender, allow_empty=True)),

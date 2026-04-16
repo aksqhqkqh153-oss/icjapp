@@ -29331,3 +29331,21 @@ button.danger {
     padding: 9px 10px calc(9px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+
+/* 2026-04-16 profile page top media/server cover/mobile same layout */
+.profile-page-card .profile-cover-avatar-button{left:50% !important;bottom:18px;transform:translate(-50%,0);transform-origin:center center}
+.profile-page-card .profile-photo-prank-text{left:calc(50% + 84px) !important}
+.profile-page-card .profile-cover-stack{min-height:188px}
+.profile-page-card .profile-cover-editor{min-height:188px;align-items:flex-start;justify-content:flex-end}
+@media (max-width: 900px){
+  .profile-page-card .profile-grid.two{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+  .profile-page-card .profile-grid.three,.profile-page-card .profile-grid-three-compact{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
+  .profile-page-card .profile-grid.four{grid-template-columns:repeat(4,minmax(0,1fr)) !important;}
+}
+@media (max-width: 640px){
+  .profile-page-card .profile-section-heading-row{align-items:center !important;}
+  .profile-page-card .profile-save-inline{width:auto !important;min-width:120px !important;}
+  .profile-page-card .profile-cover-avatar-button{left:50% !important;}
+  .profile-page-card .profile-photo-prank-text{left:calc(50% + 72px) !important;}
+}

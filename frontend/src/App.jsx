@@ -1499,8 +1499,13 @@ function profileCoverStorageKey(userId) {
   return `icj_profile_cover_${userId || 'guest'}`
 }
 
-function loadProfileCover(userId) {
-  try { return resolveMediaUrl(localStorage.getItem(profileCoverStorageKey(userId)) || '') } catch { return '' }
+function loadProfileCover(userId, fallback = '') {
+  try {
+    const stored = localStorage.getItem(profileCoverStorageKey(userId)) || ''
+    return resolveMediaUrl(fallback || stored || '')
+  } catch {
+    return resolveMediaUrl(fallback || '')
+  }
 }
 
 function saveProfileCover(userId, value) {
@@ -3015,7 +3020,7 @@ function ProfilePage({ onUserUpdate }) {
   const [message, setMessage] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
-  const [coverUrl, setCoverUrl] = useState(() => loadProfileCover(currentUser?.id))
+  const [coverUrl, setCoverUrl] = useState(() => loadProfileCover(currentUser?.id, currentUser?.cover_url))
   const [liveCoords, setLiveCoords] = useState({ latitude: '', longitude: '' })
   const [photoPrankAttempts, setPhotoPrankAttempts] = useState(0)
   const [photoPrankOffset, setPhotoPrankOffset] = useState({ x: 0, y: 0 })
@@ -3028,7 +3033,7 @@ function ProfilePage({ onUserUpdate }) {
       const nextForm = { ...data.user, new_password: '' }
       setForm(nextForm)
       setOriginalForm(nextForm)
-      setCoverUrl(loadProfileCover(data?.user?.id || currentUser?.id))
+      setCoverUrl(loadProfileCover(data?.user?.id || currentUser?.id, data?.user?.cover_url || ''))
     })
   }, [])
 
@@ -3092,6 +3097,7 @@ function ProfilePage({ onUserUpdate }) {
       ['one_liner', '한줄소개'],
       ['bio', '프로필소개'],
       ['photo_url', '프로필이미지URL'],
+      ['cover_url', '배경이미지URL'],
       ['interests', '관심사'],
     ]
     for (const [key, label] of fieldLabels) {
@@ -3139,6 +3145,52 @@ function ProfilePage({ onUserUpdate }) {
     document.getElementById('profile-page-photo-input')?.click()
   }
 
+  async function persistProfileMediaPatch(patch = {}, successMessage = '') {
+    const base = form || {}
+    const payload = {
+      login_id: normalizeFlexibleLoginId(base.login_id || ''),
+      email: normalizeFlexibleLoginId(base.login_id || ''),
+      nickname: base.nickname || '',
+      region: base.region || '서울',
+      bio: base.bio || '',
+      one_liner: base.one_liner || '',
+      interests: Array.isArray(base.interests) ? base.interests : String(base.interests || '').split(',').map(v => v.trim()).filter(Boolean),
+      photo_url: patch.photo_url ?? base.photo_url ?? '',
+      cover_url: patch.cover_url ?? coverUrl ?? base.cover_url ?? '',
+      latitude: liveCoords.latitude || base.latitude || '',
+      longitude: liveCoords.longitude || base.longitude || '',
+      phone: base.phone || '',
+      recovery_email: base.recovery_email || '',
+      gender: base.gender || '',
+      birth_year: Number(base.birth_year || 1990),
+      vehicle_number: base.vehicle_number || '',
+      branch_no: normalizeBranchNo(base.branch_no),
+      marital_status: base.marital_status || '',
+      resident_address: base.resident_address || '',
+      business_name: base.business_name || '',
+      business_number: base.business_number || '',
+      business_type: base.business_type || '',
+      business_item: base.business_item || '',
+      business_address: base.business_address || '',
+      bank_account: base.bank_account || '',
+      bank_name: base.bank_name || '',
+      mbti: base.mbti || '',
+      google_email: base.google_email || '',
+      resident_id: base.resident_id || '',
+      new_password: '',
+    }
+    const data = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
+    const nextForm = { ...data.user, new_password: '' }
+    setForm(nextForm)
+    setOriginalForm(nextForm)
+    const nextCover = data?.user?.cover_url || payload.cover_url || ''
+    setCoverUrl(nextCover)
+    saveProfileCover(data?.user?.id || currentUser?.id, nextCover)
+    onUserUpdate(data.user)
+    if (successMessage) setMessage(successMessage)
+    return data
+  }
+
   async function save(e) {
     e.preventDefault()
     const payload = {
@@ -3152,6 +3204,7 @@ function ProfilePage({ onUserUpdate }) {
         ? form.interests
         : String(form.interests || '').split(',').map(v => v.trim()).filter(Boolean),
       photo_url: form.photo_url || '',
+      cover_url: coverUrl || form.cover_url || '',
       latitude: liveCoords.latitude || form.latitude || '',
       longitude: liveCoords.longitude || form.longitude || '',
       phone: form.phone || '',
@@ -3185,7 +3238,8 @@ function ProfilePage({ onUserUpdate }) {
     const nextForm = { ...data.user, new_password: '' }
     setForm(nextForm)
     setOriginalForm(nextForm)
-    saveProfileCover(data?.user?.id || currentUser?.id, coverUrl || '')
+    saveProfileCover(data?.user?.id || currentUser?.id, data?.user?.cover_url || coverUrl || '')
+    setCoverUrl(data?.user?.cover_url || coverUrl || '')
     onUserUpdate(data.user)
     setMessage('프로필이 저장되었습니다.')
   }
@@ -3198,8 +3252,9 @@ function ProfilePage({ onUserUpdate }) {
     setMessage('')
     try {
       const uploaded = await uploadFile(file, 'profile')
-      setForm(prev => ({ ...prev, photo_url: uploaded.url }))
-      setMessage('프로필 이미지가 업로드되었습니다. 저장 버튼을 눌러 반영하세요.')
+      const nextUrl = uploaded?.url || ''
+      setForm(prev => ({ ...prev, photo_url: nextUrl }))
+      await persistProfileMediaPatch({ photo_url: nextUrl }, '프로필 이미지가 서버에 저장되었습니다.')
     } catch (err) {
       setMessage(err.message)
     } finally {
@@ -3217,8 +3272,9 @@ function ProfilePage({ onUserUpdate }) {
       const uploaded = await uploadFile(file, 'profile-cover')
       const nextUrl = uploaded?.url || ''
       setCoverUrl(nextUrl)
+      setForm(prev => ({ ...prev, cover_url: nextUrl }))
       saveProfileCover(form?.id || currentUser?.id, nextUrl)
-      setMessage('배경 이미지가 업로드되었습니다. 저장 버튼을 눌러 반영하세요.')
+      await persistProfileMediaPatch({ cover_url: nextUrl }, '배경 이미지가 서버에 저장되었습니다.')
     } catch (err) {
       setMessage(err.message)
     } finally {
@@ -3278,22 +3334,6 @@ function ProfilePage({ onUserUpdate }) {
             <label className="field-block profile-span-all">
               <span>관심사</span>
               <input value={Array.isArray(form.interests) ? form.interests.join(', ') : form.interests || ''} onChange={e => updateField('interests', e.target.value)} placeholder="관심사 (쉼표로 구분)" />
-            </label>
-            <label className="field-block profile-span-all">
-              <span>프로필 이미지 URL</span>
-              <input value={form.photo_url || ''} onChange={e => updateField('photo_url', e.target.value)} placeholder="프로필 이미지 URL" />
-            </label>
-            <label className="field-block profile-span-all">
-              <span>프로필 이미지 업로드</span>
-              <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
-            </label>
-            <label className="field-block profile-span-all">
-              <span>배경 이미지 URL</span>
-              <input value={coverUrl || ''} onChange={e => { const next = e.target.value; setCoverUrl(next); saveProfileCover(form?.id || currentUser?.id, next) }} placeholder="배경 이미지 URL" />
-            </label>
-            <label className="field-block profile-span-all">
-              <span>배경 이미지 업로드</span>
-              <input type="file" accept="image/*" onChange={handleProfileCoverUpload} disabled={uploadingCover} />
             </label>
           </div>
         </section>
@@ -3731,7 +3771,7 @@ function FriendsPage() {
     try {
       const data = await api('/api/profile')
       const me = data?.user || profile
-      setProfilePreview({ mode: 'card', friend: { ...me, cover_url: loadProfileCover(me?.id) }, section: 'me' })
+      setProfilePreview({ mode: 'card', friend: { ...me, cover_url: loadProfileCover(me?.id, me?.cover_url) }, section: 'me' })
     } catch (error) {
       window.alert(error.message)
     }
@@ -3749,7 +3789,7 @@ function FriendsPage() {
       one_liner: me.one_liner || '',
       interests: Array.isArray(me.interests) ? me.interests : [],
       photo_url: me.photo_url || '',
-      cover_url: loadProfileCover(me.id || profile?.id),
+      cover_url: loadProfileCover(me.id || profile?.id, me?.cover_url || profile?.cover_url),
       phone: me.phone || '',
       recovery_email: me.recovery_email || '',
       gender: me.gender || '',
@@ -3778,7 +3818,7 @@ function FriendsPage() {
     const base = latest?.user || profile
     const payload = {
       email: base?.email || '', nickname: base?.nickname || '', position_title: base?.position_title || '', region: base?.region || '서울',
-      bio: base?.bio || '', one_liner: base?.one_liner || '', interests: Array.isArray(base?.interests) ? base.interests : [], photo_url: base?.photo_url || '',
+      bio: base?.bio || '', one_liner: base?.one_liner || '', interests: Array.isArray(base?.interests) ? base.interests : [], photo_url: base?.photo_url || '', cover_url: base?.cover_url || loadProfileCover(base?.id, base?.cover_url),
       phone: base?.phone || '', recovery_email: base?.recovery_email || '', gender: base?.gender || '', birth_year: Number(base?.birth_year || 1990),
       vehicle_number: base?.vehicle_number || '', branch_no: base?.branch_no ?? null, marital_status: base?.marital_status || '', resident_address: base?.resident_address || '',
       business_name: base?.business_name || '', business_number: base?.business_number || '', business_type: base?.business_type || '', business_item: base?.business_item || '', business_address: base?.business_address || '',
@@ -3804,19 +3844,20 @@ function FriendsPage() {
     if (updatedUser) {
       setProfile(updatedUser)
       setProfileEditForm(prev => prev ? { ...prev, photo_url: updatedUser.photo_url || '' } : prev)
-      setProfilePreview(prev => prev?.friend ? { ...prev, friend: { ...updatedUser, cover_url: loadProfileCover(updatedUser.id) } } : prev)
+      setProfilePreview(prev => prev?.friend ? { ...prev, friend: { ...updatedUser, cover_url: loadProfileCover(updatedUser.id, updatedUser?.cover_url) } } : prev)
     }
   }
 
   async function saveMyProfileEditor() {
     if (!profileEditForm) return
-    const { cover_url, ...payload } = profileEditForm
+    const payload = { ...profileEditForm, cover_url: profileEditForm.cover_url || '' }
     const result = await api('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
+    const cover_url = payload.cover_url || ''
     saveProfileCover(profile?.id, cover_url || '')
     setMyCoverUrl(cover_url || '')
     if (result?.user) {
       setProfile(result.user)
-      setProfilePreview({ mode: 'card', friend: { ...result.user, cover_url: cover_url || '' }, section: 'me' })
+      setProfilePreview({ mode: 'card', friend: { ...result.user, cover_url: result?.user?.cover_url || cover_url || '' }, section: 'me' })
       setProfileEditForm(null)
     }
   }
@@ -5188,7 +5229,7 @@ function ChatRoomPage({ roomType }) {
   }
 
   function openMemberProfile(member) {
-    setMemberProfilePreview({ ...member, cover_url: resolveMediaUrl(member?.cover_url || loadProfileCover(member?.id)) })
+    setMemberProfilePreview({ ...member, cover_url: resolveMediaUrl(member?.cover_url || loadProfileCover(member?.id, member?.cover_url)) })
   }
 
   function goDirectChatWithUser(targetId) {

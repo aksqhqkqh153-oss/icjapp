@@ -232,6 +232,7 @@ CREATE TABLE IF NOT EXISTS users (
     interests TEXT DEFAULT '[]',
     tendencies TEXT DEFAULT '[]',
     photo_url TEXT DEFAULT '',
+    cover_url TEXT DEFAULT '',
     latitude REAL DEFAULT 37.5665,
     longitude REAL DEFAULT 126.9780,
     phone TEXT DEFAULT '',
@@ -2050,6 +2051,7 @@ CREATE TABLE IF NOT EXISTS calendar_event_comments (
         })
         _ensure_columns(conn, 'users', {
             'login_id': "TEXT DEFAULT ''",
+            'cover_url': "TEXT DEFAULT ''",
             'vehicle_number': "TEXT DEFAULT ''",
             'branch_no': 'INTEGER',
             'grade': 'INTEGER NOT NULL DEFAULT 6',
@@ -2631,6 +2633,7 @@ def user_public_dict(row: sqlite3.Row) -> dict:
         'one_liner': row['one_liner'],
         'interests': json_loads(row['interests'], []),
         'photo_url': row['photo_url'],
+        'cover_url': row['cover_url'] if 'cover_url' in row.keys() else '',
         'latitude': row['latitude'],
         'longitude': row['longitude'],
         'phone': row['phone'],
