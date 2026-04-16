@@ -3872,17 +3872,7 @@ function FriendsPage() {
       ? actions
       : variant === 'add'
         ? actions
-        : (
-        <button
-          type="button"
-          className={isFavorite ? 'favorite-friend-button friend-card-favorite is-active' : 'favorite-friend-button friend-card-favorite'}
-          onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}
-          aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-          title={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-        >
-          {isFavorite ? '★' : '☆'}
-        </button>
-      )
+        : null
     return (
       <div className={`friend-row-card upgraded friend-card-structured ${variant === 'request' ? 'request-variant' : variant === 'add' ? 'add-variant' : 'list-variant'}`}>
         <button type="button" className="friend-avatar-button" onClick={() => setProfilePreview({ mode: 'image', friend: item, section })}>
@@ -3897,6 +3887,7 @@ function FriendsPage() {
             <div className="dropdown-wrap friend-inline-wrap top-menu">
               <button type="button" className="small ghost" onClick={() => setOpenFriendMenuId(prev => prev === menuId ? null : menuId)}>메뉴</button>
               <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === menuId ? 'open-inline-menu' : ''}`}>
+                {variant === 'friend' && <button type="button" className="dropdown-item" onClick={() => toggleFavorite(item).catch(err => window.alert(err.message))}>{isFavorite ? '즐겨찾기 해제' : '즐겨찾기추가'}</button>}
                 {variant === 'friend' && <button type="button" className="dropdown-item" onClick={() => openGroupPicker(item)}>그룹설정</button>}
                 {variant === 'friend' && <button type="button" className="dropdown-item" onClick={() => removeFriend(item).catch(err => window.alert(err.message))}>친구삭제</button>}
                 <button type="button" className="dropdown-item danger-text" onClick={() => blockFriend(item).catch(err => window.alert(err.message))}>{variant === 'request' ? '차단' : variant === 'add' ? '계정차단' : '친구차단'}</button>
@@ -4870,6 +4861,7 @@ ${guide}`)
                 onTouchStart={() => handleRoomPressStart(room)}
                 onTouchEnd={handleRoomPressEnd}
                 onTouchCancel={handleRoomPressEnd}
+                onContextMenuCapture={(event) => handleRoomContextMenu(event, room)}
                 onContextMenu={(event) => handleRoomContextMenu(event, room)}
               >
                 <RoomAvatar room={room} />
