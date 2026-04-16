@@ -11014,8 +11014,17 @@ function QuoteFormsPage({ user, guestMode = false }) {
     }
     return merged
   }, [importedAdminItems, adminItems])
-  const ITEMS_PER_PAGE = 10
+  const [listPageSize, setListPageSize] = useState(() => {
+    try {
+      const raw = Number(localStorage.getItem('icj_quote_list_page_size') || 10)
+      return [10, 20, 30, 50, 100].includes(raw) ? raw : 10
+    } catch (_) {
+      return 10
+    }
+  })
   const [currentListPage, setCurrentListPage] = useState(1)
+  const [listSettingsOpen, setListSettingsOpen] = useState(false)
+  const [listCountMenuOpen, setListCountMenuOpen] = useState(false)
 
   useEffect(() => {
     if (pageTab === 'list' && isAdminUser) loadAdminList()
@@ -11029,7 +11038,15 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   useEffect(() => {
     setCurrentListPage(1)
+    setListSettingsOpen(false)
+    setListCountMenuOpen(false)
   }, [listTypeTab, pageTab])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('icj_quote_list_page_size', String(listPageSize))
+    } catch (_) {}
+  }, [listPageSize])
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -11260,10 +11277,13 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const currentDesiredLabel = detailItem?.form_type === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
   const adminDetailPayload = detailItem?.payload || {}
   const filteredAdminItems = mergedAdminItems.filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
-  const totalListPages = Math.max(1, Math.ceil(filteredAdminItems.length / ITEMS_PER_PAGE))
+  const totalListPages = Math.max(1, Math.ceil(filteredAdminItems.length / listPageSize))
   const safeCurrentListPage = Math.min(currentListPage, totalListPages)
-  const pagedAdminItems = filteredAdminItems.slice((safeCurrentListPage - 1) * ITEMS_PER_PAGE, safeCurrentListPage * ITEMS_PER_PAGE)
+  const pagedAdminItems = filteredAdminItems.slice((safeCurrentListPage - 1) * listPageSize, safeCurrentListPage * listPageSize)
   const allSelected = filteredAdminItems.length > 0 && filteredAdminItems.every(item => selectedIds.includes(item.id))
+  const paginationStart = Math.max(1, safeCurrentListPage - 5)
+  const paginationEnd = Math.min(totalListPages, safeCurrentListPage + 5)
+  const paginationPages = Array.from({ length: paginationEnd - paginationStart + 1 }, (_, index) => paginationStart + index)
 
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
@@ -11482,7 +11502,18 @@ function QuoteFormsPage({ user, guestMode = false }) {
               <button type="button" className={listTypeTab === 'same_day' ? 'quote-list-type-button active' : 'quote-list-type-button'} onClick={() => setListTypeTab('same_day')}>당일이사</button>
               <button type="button" className={listTypeTab === 'storage' ? 'quote-list-type-button active' : 'quote-list-type-button'} onClick={() => setListTypeTab('storage')}>짐보관이사</button>
             </div>
-            <button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button>
+            <div className="quote-list-toolbar-actions">
+              <button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button>
+              <div className="quote-list-settings-wrap">
+                <button type="button" className="ghost small" onClick={() => { setListSettingsOpen(prev => !prev); setListCountMenuOpen(false) }}>설정</button>
+                {listSettingsOpen && <div className="quote-list-settings-popover">
+                  <button type="button" className="quote-list-settings-item" onClick={() => setListCountMenuOpen(prev => !prev)}>목록개수</button>
+                  {listCountMenuOpen && <div className="quote-list-settings-submenu">
+                    {[10, 20, 30, 50, 100].map(size => <button key={size} type="button" className={listPageSize === size ? 'quote-list-settings-item active' : 'quote-list-settings-item'} onClick={() => { setListPageSize(size); setCurrentListPage(1); setListCountMenuOpen(false); setListSettingsOpen(false) }}>{size}개</button>)}
+                  </div>}
+                </div>}
+              </div>
+            </div>
           </div>
 
           <div className="quote-list-table-wrapper">
@@ -11519,7 +11550,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
             </table>
           </div>
           {totalListPages > 1 && <div className="quote-pagination" aria-label="견적목록 페이지네이션">
-            {Array.from({ length: totalListPages }, (_, index) => index + 1).map(page => <button key={page} type="button" className={page === safeCurrentListPage ? 'quote-page-number active' : 'quote-page-number'} onClick={() => setCurrentListPage(page)}>{page}</button>)}
+            <button type="button" className="quote-page-nav" onClick={() => setCurrentListPage(prev => Math.max(1, prev - 1))} disabled={safeCurrentListPage <= 1}>이전</button>
+            {paginationPages.map(page => <button key={page} type="button" className={page === safeCurrentListPage ? 'quote-page-number active' : 'quote-page-number'} onClick={() => setCurrentListPage(page)}>{page}</button>)}
+            {paginationEnd < totalListPages && <span className="quote-page-ellipsis">...</span>}
+            <button type="button" className="quote-page-nav" onClick={() => setCurrentListPage(prev => Math.min(totalListPages, prev + 1))} disabled={safeCurrentListPage >= totalListPages}>다음</button>
           </div>}
         </section>
       </div>}

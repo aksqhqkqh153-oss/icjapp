@@ -30180,3 +30180,65 @@ button.danger {
     grid-template-columns: 1fr;
   }
 }
+
+
+.quote-list-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quote-list-settings-wrap {
+  position: relative;
+}
+.quote-list-settings-popover,
+.quote-list-settings-submenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 112px;
+  padding: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  z-index: 30;
+}
+.quote-list-settings-submenu {
+  top: 0;
+  right: calc(100% + 6px);
+}
+.quote-list-settings-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.quote-list-settings-item:hover,
+.quote-list-settings-item.active {
+  background: #f3f4f6;
+}
+.quote-page-nav {
+  min-width: 48px;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #111827;
+  border-radius: 10px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+.quote-page-nav:disabled {
+  opacity: 0.45;
+}
+.quote-page-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  color: #6b7280;
+  font-weight: 700;
+}
