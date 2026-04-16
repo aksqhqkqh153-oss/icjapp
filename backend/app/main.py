@@ -3052,6 +3052,7 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
             if key not in mentions:
                 mentions[key] = row_to_dict(row)
         items = []
+        unread_notifications = conn.execute("SELECT * FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY id DESC", (user["id"],)).fetchall()
         direct_rows = conn.execute("SELECT * FROM dm_messages ORDER BY id DESC").fetchall()
         seen_direct = set()
         for row in direct_rows:
@@ -3068,6 +3069,12 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
             other = user_basic(conn, other_id)
             mention = mentions.get(("direct", str(other_id)))
             subtitle = f"{user_basic(conn, mention['sender_id'])['nickname']}님이 나를 태그했습니다." if mention else room_preview_text(row_to_dict(row))
+            direct_unread_count = sum(
+                1 for note in unread_notifications
+                if str(note["type"] or "") in {"direct_chat", "direct_chat_request", "chat_mention"}
+                and other["nickname"]
+                and other["nickname"] in f"{note['title'] or ''} {note['message'] or ''}"
+            )
             items.append({
                 "id": f"direct-{other_id}",
                 "room_type": "direct",
@@ -3079,7 +3086,8 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
                 "favorite": bool(setting.get("favorite", 0)),
                 "muted": bool(setting.get("muted", 0)),
                 "target_user": other,
-                "unread_tag": bool(mention),
+                "unread_tag": bool(mention) or direct_unread_count > 0,
+                "unread_count": int(direct_unread_count or (1 if mention else 0)),
             })
         group_rows = conn.execute(
             """
@@ -3097,6 +3105,14 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
             last_row = conn.execute("SELECT * FROM group_room_messages WHERE room_id = ? ORDER BY id DESC LIMIT 1", (room["id"],)).fetchone()
             mention = mentions.get(("group", str(room["id"])))
             subtitle = f"{user_basic(conn, mention['sender_id'])['nickname']}님이 나를 태그했습니다." if mention else (room_preview_text(row_to_dict(last_row)) if last_row else room["description"])
+            group_unread_count = sum(
+                1 for note in unread_notifications
+                if str(note["type"] or "") == "chat_mention"
+                and room["title"]
+                and room["title"] in f"{note['title'] or ''} {note['message'] or ''}"
+            )
+            if not group_unread_count and mention:
+                group_unread_count = 1
             items.append({
                 "id": f"group-{room['id']}",
                 "room_type": "group",
@@ -3108,7 +3124,8 @@ def chat_list(category: str = Query(default="general"), user=Depends(require_use
                 "favorite": bool(setting.get("favorite", 0)),
                 "muted": bool(setting.get("muted", 0)),
                 "room": {**row_to_dict(room), "creator": user_basic(conn, room["creator_id"]), "can_manage": can_manage_group_room(user)},
-                "unread_tag": bool(mention),
+                "unread_tag": bool(mention) or group_unread_count > 0,
+                "unread_count": int(group_unread_count or (1 if mention else 0)),
             })
         if category == 'general':
             items = [item for item in items if item['room_type'] == 'direct']
@@ -4165,7 +4182,7 @@ def badges_summary(user=Depends(require_user)):
     with get_conn() as conn:
         notification_count = conn.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (user['id'],)).fetchone()[0] or 0
         chat_count = conn.execute(
-            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND type IN ('direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention', 'work_schedule_assignment')",
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND type IN ('direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention')",
             (user['id'],),
         ).fetchone()[0] or 0
         friend_request_count = conn.execute(

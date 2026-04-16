@@ -59,6 +59,47 @@ export function getApiBase() {
   return API_BASE
 }
 
+function resolveApiOrigin() {
+  const base = String(API_BASE || '').trim()
+  if (!base) {
+    if (typeof window !== 'undefined') return window.location.origin
+    return ''
+  }
+  try {
+    return new URL(base, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').origin
+  } catch {
+    return ''
+  }
+}
+
+export function resolveMediaUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^(data:|blob:|https?:|\/\/)/i.test(raw)) return raw
+  if (raw.startsWith('/')) {
+    const origin = resolveApiOrigin()
+    return origin ? `${origin}${raw}` : raw
+  }
+  return raw
+}
+
+function normalizeMediaPayload(input, seen = new WeakMap()) {
+  if (Array.isArray(input)) return input.map(item => normalizeMediaPayload(item, seen))
+  if (!input || typeof input !== 'object') return input
+  if (seen.has(input)) return seen.get(input)
+  const next = {}
+  seen.set(input, next)
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === 'string' && (key === 'url' || key.endsWith('_url') || key in { photo:1, cover:1, avatar:1, image:1 })) {
+      next[key] = resolveMediaUrl(value)
+    } else {
+      next[key] = normalizeMediaPayload(value, seen)
+    }
+  }
+  return next
+}
+
+
 export function getRememberedLogin() {
   const saved = localStorage.getItem(REMEMBER_KEY)
   return saved === null ? true : saved === '1'
@@ -195,7 +236,7 @@ function writeCacheEntry(path, data, ttlMs) {
   }
   memoryCache.set(key, entry)
   writeStorageCache(key, entry)
-  return data
+  return normalizeMediaPayload(data)
 }
 
 function invalidateByPrefixes(prefixes = []) {
@@ -366,7 +407,7 @@ export async function uploadFile(file, category = 'general') {
     throw new Error(data.detail || `파일 업로드 중 오류가 발생했습니다. (${res.status})`)
   }
   invalidateApiCache(['/api/profile'])
-  return data
+  return normalizeMediaPayload(data)
 }
 
 export { AUTH_EXPIRED_EVENT }

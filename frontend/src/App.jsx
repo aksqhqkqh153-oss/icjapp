@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AUTH_EXPIRED_EVENT, api, clearSession, getApiBase, getRememberedLogin, getStoredUser, setSession, uploadFile } from './api'
+import { AUTH_EXPIRED_EVENT, api, clearSession, getApiBase, getRememberedLogin, getStoredUser, resolveMediaUrl, setSession, uploadFile } from './api'
 import { SETTLEMENT_DATA } from './settlementData'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -1500,13 +1500,13 @@ function profileCoverStorageKey(userId) {
 }
 
 function loadProfileCover(userId) {
-  try { return localStorage.getItem(profileCoverStorageKey(userId)) || '' } catch { return '' }
+  try { return resolveMediaUrl(localStorage.getItem(profileCoverStorageKey(userId)) || '') } catch { return '' }
 }
 
 function saveProfileCover(userId, value) {
   try {
     if (!value) localStorage.removeItem(profileCoverStorageKey(userId))
-    else localStorage.setItem(profileCoverStorageKey(userId), value)
+    else localStorage.setItem(profileCoverStorageKey(userId), resolveMediaUrl(value))
   } catch {}
 }
 
@@ -2001,7 +2001,7 @@ function Layout({ children, user, onLogout }) {
           </button>
           <button type="button" className={location.pathname === '/notifications' ? 'ghost icon-button topbar-icon-button active-icon notification-icon-button' : 'ghost icon-button topbar-icon-button notification-icon-button'} onClick={() => navigate('/notifications')} aria-label="알림">
             <BellIcon className="topbar-icon-svg" />
-            {Number(badges.notification_count || 0) > 0 && <span className="notification-badge">{badges.notification_count > 99 ? '99+' : badges.notification_count}</span>}
+            {Math.max(0, Number(badges.notification_count || 0) - Number(badges.chat_count || 0)) > 0 && <span className="notification-badge">{(Math.max(0, Number(badges.notification_count || 0) - Number(badges.chat_count || 0))) > 99 ? '99+' : Math.max(0, Number(badges.notification_count || 0) - Number(badges.chat_count || 0))}</span>}
           </button>
           <div className="dropdown-wrap" ref={settingsRef}>
             <button type="button" className={location.pathname === '/settings' ? 'ghost icon-button topbar-icon-button active-icon' : 'ghost icon-button topbar-icon-button'} onClick={() => setSettingsOpen(v => !v)} aria-label="설정">
@@ -4755,7 +4755,6 @@ ${guide}`)
           <div className="chat-list-toolbar-top chat-list-toolbar-top-right">
             <div className="chat-search-trigger chat-search-trigger-top-right chat-search-inline-row">
               <label className="chat-list-filter-dropdown" aria-label="정렬 필터">
-                <span className="chat-list-filter-label">필터</span>
                 <select value={sortMode} onChange={e => setSortMode(e.target.value)} className="chat-list-filter-select">
                   <option value="name">이름순</option>
                   <option value="recent">최근등록순</option>
@@ -4806,7 +4805,10 @@ ${guide}`)
                     {room.pinned && <span className="chat-pin-indicator" aria-label="고정">📌</span>}
                     <span className="muted chat-room-datetime">{formatChatUpdatedAt(room.updated_at || room.last_message_at || '')}</span>
                   </div>
-                  <div className="chat-room-subtitle-two-line">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
+                  <div className="chat-room-bottomline">
+                    <div className="chat-room-subtitle-two-line">{room.subtitle || room.last_message || '대화를 시작해 보세요.'}</div>
+                    {Number(room.unread_count || 0) > 0 && <span className="chat-room-inline-badge">{room.unread_count > 99 ? '99+' : room.unread_count}</span>}
+                  </div>
                 </div>
               </button>
             ))}
@@ -4909,21 +4911,24 @@ function ChatRoomPage({ roomType }) {
     if (sending) return
     const trimmed = message.trim()
     if (!trimmed && !selectedFile) return
+    const currentText = trimmed
+    const currentFile = selectedFile
+    const currentReplyTarget = replyTarget
     setSending(true)
     try {
       let attachmentPayload = {}
-      if (selectedFile) {
-        const uploaded = await uploadFile(selectedFile, 'chat')
-        const isImage = String(selectedFile.type || '').startsWith('image/')
+      if (currentFile) {
+        const uploaded = await uploadFile(currentFile, 'chat')
+        const isImage = String(currentFile.type || '').startsWith('image/')
         attachmentPayload = {
-          attachment_name: uploaded.original_name || selectedFile.name,
+          attachment_name: uploaded.original_name || currentFile.name,
           attachment_url: uploaded.url,
           attachment_type: isImage ? 'image' : 'file',
         }
       }
       const payload = {
-        message: trimmed,
-        reply_to_id: replyTarget?.id || null,
+        message: currentText,
+        reply_to_id: currentReplyTarget?.id || null,
         mention_user_id: null,
         ...attachmentPayload,
       }
@@ -4932,10 +4937,23 @@ function ChatRoomPage({ roomType }) {
       } else {
         await api(`/api/chat/${roomId}`, { method: 'POST', body: JSON.stringify(payload) })
       }
+      const optimisticMessage = {
+        id: `local-${Date.now()}`,
+        sender_id: currentUser?.id,
+        sender: currentUser,
+        message: currentText || (attachmentPayload.attachment_type === 'image' ? '사진을 보냈습니다.' : attachmentPayload.attachment_type === 'file' ? '파일을 보냈습니다.' : ''),
+        attachment_name: attachmentPayload.attachment_name || '',
+        attachment_url: attachmentPayload.attachment_url || '',
+        attachment_type: attachmentPayload.attachment_type || '',
+        reply_to: currentReplyTarget ? { ...currentReplyTarget } : null,
+        reaction_summary: [],
+        created_at: new Date().toISOString(),
+      }
+      setRoomData(prev => prev ? { ...prev, messages: [...(prev.messages || []), optimisticMessage] } : prev)
       setMessage('')
       setSelectedFile(null)
       setReplyTarget(null)
-      await loadRoom()
+      window.setTimeout(() => { loadRoom().catch(() => {}) }, 120)
     } finally {
       setSending(false)
     }
@@ -5137,7 +5155,7 @@ function ChatRoomPage({ roomType }) {
   }
 
   function openMemberProfile(member) {
-    setMemberProfilePreview({ ...member, cover_url: loadProfileCover(member?.id) })
+    setMemberProfilePreview({ ...member, cover_url: resolveMediaUrl(member?.cover_url || loadProfileCover(member?.id)) })
   }
 
   function goDirectChatWithUser(targetId) {
@@ -5274,7 +5292,7 @@ function ChatRoomPage({ roomType }) {
               placeholder="메시지를 입력하세요"
               className="chat-message-input"
             />
-            <button type="submit" className="chat-send-button" disabled={sending}>{sending ? '전송중' : '전송'}</button>
+            <button type="button" className="chat-send-button" disabled={sending} onClick={handleSend}>{sending ? '전송중' : '전송'}</button>
           </form>
         </div>
       </section>
@@ -10012,7 +10030,8 @@ function NotificationsPage({ user }) {
 
   async function load() {
     const [n, p] = await Promise.all([api('/api/notifications'), api('/api/preferences')])
-    const serverItems = (n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || '')))
+    const hiddenTypes = new Set(['follow', 'favorite', 'direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention'])
+    const serverItems = (n || []).filter(item => !hiddenTypes.has(String(item?.type || '')))
     const localAlertItems = Number(user?.grade || 6) <= 2 ? buildDisposalAdminNotificationItems(loadDisposalAdminAlertItems()) : []
     setItems([...localAlertItems, ...serverItems])
     setPrefs(p || {})
