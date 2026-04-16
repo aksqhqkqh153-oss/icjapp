@@ -29512,3 +29512,113 @@ button.danger {
   writing-mode: horizontal-tb !important;
   line-height: 1 !important;
 }
+
+
+/* 2026-04-16 chat room hover actions + reaction circle + friends topbar icons */
+.chat-message-avatar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.chat-message-avatar-button {
+  background: transparent !important;
+  border: none !important;
+}
+.chat-message-tools.inline {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(4px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.chat-message-row.hovered .chat-message-tools.inline,
+.chat-message-tools.inline.visible,
+.chat-message-row:focus-within .chat-message-tools.inline {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0);
+}
+.reaction-pill.reaction-pill-circle {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(15,23,42,.08);
+}
+.reaction-pill-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+.reaction-pill-count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 9px;
+  line-height: 14px;
+  font-weight: 700;
+}
+.friends-page .friends-top-actions.friends-top-actions-icons {
+  gap: 6px !important;
+}
+.friends-page .friends-top-icon-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.friends-page .friends-section-label:first-of-type {
+  border-top: 0 !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+.friends-group-create-backdrop {
+  align-items: flex-start !important;
+  justify-content: center !important;
+  padding-top: calc(var(--app-topbar-height, 60px) + 8px) !important;
+  padding-bottom: calc(var(--app-bottom-nav-height, 72px) + 8px) !important;
+}
+.friends-group-create-sheet {
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--app-topbar-height, 60px) - var(--app-bottom-nav-height, 72px) - 16px);
+  overflow: auto;
+  animation: friendsGroupCreateSlideDown .18s ease-out;
+}
+@keyframes friendsGroupCreateSlideDown {
+  from { opacity: 0; transform: translateY(-18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.friends-group-create-inline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 220px);
+  gap: 10px;
+  align-items: center;
+}
+.friends-group-create-stack {
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .friends-group-create-sheet {
+    width: calc(100vw - 16px);
+  }
+  .friends-group-create-inline-row {
+    grid-template-columns: minmax(0,1fr) minmax(110px, 38%);
+    gap: 8px;
+  }
+}

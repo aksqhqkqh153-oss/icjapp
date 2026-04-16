@@ -711,6 +711,15 @@ function SearchIcon({ className = '' }) {
   )
 }
 
+function PlusIcon({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  )
+}
+
 const DEFAULT_ALERT_SETTINGS = {
   mobileEnabled: true,
   appEnabled: true,
@@ -3925,11 +3934,11 @@ function FriendsPage() {
       <section className="card friends-shell">
         <div className="friends-topbar">
           <div></div>
-          <div className="friends-top-actions">
-            <button type="button" className="ghost icon-button" onClick={() => setSearchOpen(v => !v)}>검색</button>
-            <button type="button" className="ghost icon-button" onClick={() => { setPanel('add'); setSearchParams({ panel: 'add' }) }}>추가</button>
+          <div className="friends-top-actions friends-top-actions-icons">
+            <button type="button" className="ghost icon-button friends-top-icon-button" onClick={() => setSearchOpen(v => !v)} aria-label="검색"><SearchIcon className="topbar-icon-svg" /></button>
+            <button type="button" className="ghost icon-button friends-top-icon-button" onClick={() => { setPanel('add'); setSearchParams({ panel: 'add' }) }} aria-label="추가"><PlusIcon className="topbar-icon-svg" /></button>
             <div className="dropdown-wrap friends-main-menu">
-              <button type="button" className="ghost icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)}>메뉴{data.received_requests.length > 0 && <span className="notification-badge menu-badge">{data.received_requests.length}</span>}</button>
+              <button type="button" className="ghost icon-button friends-top-icon-button menu-button-with-badge" onClick={() => setMenuOpen(v => !v)} aria-label="메뉴"><MenuIcon className="topbar-icon-svg" />{data.received_requests.length > 0 && <span className="notification-badge menu-badge">{data.received_requests.length}</span>}</button>
               {menuOpen && (
                 <div className="dropdown-menu right">
                   <button type="button" className="dropdown-item" onClick={() => { setPanel('add'); setMenuOpen(false); setSearchParams({ panel: 'add' }) }}>친구추가</button>
@@ -4090,15 +4099,17 @@ function FriendsPage() {
       </section>
 
       {groupCreateModalOpen && (
-        <div className="sheet-backdrop" onClick={() => setGroupCreateModalOpen(false)}>
-          <div className="sheet-panel" onClick={e => e.stopPropagation()}>
+        <div className="sheet-backdrop friends-group-create-backdrop" onClick={() => setGroupCreateModalOpen(false)}>
+          <div className="sheet-panel friends-group-create-sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-title">그룹추가</div>
-            <div className="stack">
-              <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="그룹명" />
-              <select value={newGroupCategoryId} onChange={e => setNewGroupCategoryId(e.target.value)}>
-                <option value="">미분류</option>
-                {groupCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
+            <div className="stack friends-group-create-stack">
+              <div className="friends-group-create-inline-row">
+                <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="그룹명" />
+                <select value={newGroupCategoryId} onChange={e => setNewGroupCategoryId(e.target.value)}>
+                  <option value="">분류</option>
+                  {groupCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </div>
               <div className="inline-actions wrap end">
                 <button type="button" className="ghost" onClick={() => setGroupCreateModalOpen(false)}>닫기</button>
                 <button type="button" onClick={submitCreateGroup}>저장</button>
@@ -4948,6 +4959,7 @@ function ChatRoomPage({ roomType }) {
   const [roomSearchOpen, setRoomSearchOpen] = useState(false)
   const [roomSearchInput, setRoomSearchInput] = useState('')
   const [roomSearchActiveIndex, setRoomSearchActiveIndex] = useState(0)
+  const [hoveredMessageId, setHoveredMessageId] = useState(null)
   const imageInputRef = useRef(null)
   const fileInputRef = useRef(null)
   const messageNodeRefs = useRef({})
@@ -5089,7 +5101,7 @@ function ChatRoomPage({ roomType }) {
       ? `/api/group-messages/${messageId}/reactions`
       : `/api/dm-messages/${messageId}/reactions`
     await api(endpoint, { method: 'POST', body: JSON.stringify({ emoji }) })
-    await loadRoom()
+    await loadRoom({ silent: true })
   }
 
   async function handleStartVoice() {
@@ -5398,7 +5410,15 @@ function ChatRoomPage({ roomType }) {
                     if (node) messageNodeRefs.current[item.id] = node
                     else delete messageNodeRefs.current[item.id]
                   }}
-                  className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}${normalizedRoomSearch && roomSearchMatches.some(match => String(match.id) === String(item.id)) ? ' chat-message-row-search-match' : ''}`}
+                  className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}${normalizedRoomSearch && roomSearchMatches.some(match => String(match.id) === String(item.id)) ? ' chat-message-row-search-match' : ''}${hoveredMessageId === item.id ? ' hovered' : ''}`}
+                  onMouseEnter={() => !isMobile && setHoveredMessageId(item.id)}
+                  onMouseLeave={() => !isMobile && setHoveredMessageId(prev => prev === item.id ? null : prev)}
+                  onContextMenu={event => {
+                    if (isMobile) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    openMessageActions(item)
+                  }}
                   {...longPressHandlers}
                 >
                   {!mine && !groupedWithPrevious && (
@@ -5416,7 +5436,7 @@ function ChatRoomPage({ roomType }) {
                     )}
                     <div className={`chat-message-bubble-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`}>
                       {!isMobile && mine && (
-                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
+                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}${hoveredMessageId === item.id || pickerOpenFor === item.id ? ' visible' : ''}`}>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
                         </div>
@@ -5428,7 +5448,7 @@ function ChatRoomPage({ roomType }) {
                         <AttachmentPreview message={item} />
                       </div>
                       {!isMobile && !mine && (
-                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}`}>
+                        <div className={`chat-message-tools inline${mine ? ' mine' : ''}${hoveredMessageId === item.id || pickerOpenFor === item.id ? ' visible' : ''}`}>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => openReplyComposer(item)}>답장</button>
                           <button type="button" className="small ghost chat-tool-button" onClick={() => setPickerOpenFor(pickerOpenFor === item.id ? null : item.id)}>반응</button>
                         </div>
@@ -5440,10 +5460,12 @@ function ChatRoomPage({ roomType }) {
                           <button
                             key={`${item.id}-${reaction.emoji}`}
                             type="button"
-                            className="reaction-pill"
+                            className="reaction-pill reaction-pill-circle"
+                            title={`${reaction.emoji} ${reaction.count}개 반응`}
                             onClick={() => handleReaction(item.id, reaction.emoji).catch(err => window.alert(err.message))}
                           >
-                            {reaction.emoji} {reaction.count}
+                            <span className="reaction-pill-emoji">{reaction.emoji}</span>
+                            {Number(reaction.count || 0) > 1 && <span className="reaction-pill-count">{reaction.count}</span>}
                           </button>
                         ))}
                       </div>
