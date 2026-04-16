@@ -3541,8 +3541,16 @@ def _fetch_json_request(url: str, headers: dict[str, str], timeout: int = 8) -> 
         return json.loads(response.read().decode(charset))
 
 
+def _read_clean_env(*keys: str) -> str:
+    for key in keys:
+        value = str(os.getenv(key) or '').strip().strip('"').strip("'").strip()
+        if value:
+            return value
+    return ''
+
+
 def _lookup_kakao_geocode(address: str) -> dict[str, Any] | None:
-    api_key = str(os.getenv('KAKAO_REST_API_KEY') or os.getenv('KAKAO_MOBILITY_REST_API_KEY') or '').strip()
+    api_key = _read_clean_env('KAKAO_REST_API_KEY', 'KAKAO_MOBILITY_REST_API_KEY')
     if not api_key:
         return None
     url = 'https://dapi.kakao.com/v2/local/search/address.json?' + urllib.parse.urlencode({
@@ -3589,7 +3597,7 @@ def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool
 
 
 def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
-    api_key = str(os.getenv('KAKAO_MOBILITY_REST_API_KEY') or os.getenv('KAKAO_REST_API_KEY') or '').strip()
+    api_key = _read_clean_env('KAKAO_MOBILITY_REST_API_KEY', 'KAKAO_REST_API_KEY')
     if not api_key:
         return None
     url = 'https://apis-navi.kakaomobility.com/v1/directions?' + urllib.parse.urlencode({
@@ -3618,20 +3626,18 @@ def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any])
 
 
 def _naver_maps_credentials() -> tuple[str, str]:
-    client_id = str(
-        os.getenv('NAVER_MAPS_CLIENT_ID')
-        or os.getenv('NAVER_MAPS_KEY_ID')
-        or os.getenv('NCP_MAPS_CLIENT_ID')
-        or os.getenv('NCP_MAPS_KEY_ID')
-        or ''
-    ).strip()
-    client_secret = str(
-        os.getenv('NAVER_MAPS_CLIENT_SECRET')
-        or os.getenv('NAVER_MAPS_KEY')
-        or os.getenv('NCP_MAPS_CLIENT_SECRET')
-        or os.getenv('NCP_MAPS_KEY')
-        or ''
-    ).strip()
+    client_id = _read_clean_env(
+        'NAVER_MAPS_CLIENT_ID',
+        'NAVER_MAPS_KEY_ID',
+        'NCP_MAPS_CLIENT_ID',
+        'NCP_MAPS_KEY_ID',
+    )
+    client_secret = _read_clean_env(
+        'NAVER_MAPS_CLIENT_SECRET',
+        'NAVER_MAPS_KEY',
+        'NCP_MAPS_CLIENT_SECRET',
+        'NCP_MAPS_KEY',
+    )
     return client_id, client_secret
 
 
