@@ -58,6 +58,21 @@ const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
 const TEXT_EDIT_BODY_CLASS = 'text-edit-enabled'
 const SETTLEMENT_OVERRIDE_STORAGE_KEY = 'icj_settlement_overrides_v20260408'
 
+
+function AccessDeniedRedirect({ message = '접근 권한이 없습니다.', to = '/' }) {
+  return (
+    <div className="stack-page">
+      <section className="card">
+        <h2>접근 제한</h2>
+        <div className="muted">{message}</div>
+        <div className="inline-actions wrap" style={{ marginTop: 12 }}>
+          <Link to={to} className="small">홈으로 이동</Link>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function eventImageList(raw) {
   if (Array.isArray(raw) && raw.length) return raw.filter(Boolean)
   const text = String(raw || '').trim()
