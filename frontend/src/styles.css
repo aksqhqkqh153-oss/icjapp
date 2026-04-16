@@ -29638,3 +29638,41 @@ button.danger {
 .disposal-customer-group-card {
   padding: 0 !important;
 }
+
+/* 2026-04-16 disposal header compact button + no gap between meta rows */
+.disposal-group-meta-card {
+  gap: 0 !important;
+}
+
+.disposal-page .disposal-group-meta-card > .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions,
+.disposal-page .disposal-group-meta-card > .disposal-meta-row.disposal-meta-row-middle.disposal-meta-row-middle-with-action {
+  margin: 0 !important;
+}
+
+.disposal-page .disposal-group-meta-card > .disposal-meta-row.disposal-meta-row-middle.disposal-meta-row-middle-with-action {
+  min-height: 36px !important;
+  border-top: 1px solid #9ca3af;
+}
+
+.disposal-page .disposal-meta-row-end-actions {
+  margin: 0 !important;
+}
+
+.disposal-page .disposal-settlement-action-button {
+  min-width: 88px !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 540px) {
+  .disposal-page .disposal-settlement-action-button {
+    min-width: 68px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+  }
+}
