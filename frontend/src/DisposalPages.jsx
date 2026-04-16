@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, getStoredUser } from './api'
 import { DISPOSAL_TEMPLATE } from './disposalTemplateData'
 
@@ -2834,6 +2834,7 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
 
 export function DisposalListPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [records, setRecords] = useState([])
   const [sortKey, setSortKey] = useState('latest')
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
@@ -2849,9 +2850,19 @@ export function DisposalListPage() {
   const [bulkPaymentDates, setBulkPaymentDates] = useState({})
   const [bulkReportStatuses, setBulkReportStatuses] = useState({})
 
+  const alertSearchQuery = String(searchParams.get('query') || '').trim()
+  const alertRecordId = String(searchParams.get('recordId') || '').trim()
+  const hasUnreportedAlertFocus = String(searchParams.get('alert') || '').trim() === 'disposal_unreported'
+
   useEffect(() => {
     setRecords(loadRecords())
   }, [])
+
+  useEffect(() => {
+    if (!alertSearchQuery) return
+    setSearchInput(alertSearchQuery)
+    setSearchQuery(alertSearchQuery)
+  }, [alertSearchQuery])
 
   const groupedRows = useMemo(() => buildDisposalListGroups(records, sortKey, sortDirection, searchQuery, dateFilter, customDateStart, customDateEnd), [records, sortKey, sortDirection, searchQuery, dateFilter, customDateStart, customDateEnd])
   const visibleRowKeys = useMemo(() => groupedRows.flatMap(group => group.rows.map(row => row.key)), [groupedRows])
@@ -3145,8 +3156,10 @@ export function DisposalListPage() {
                   <div className="disposal-list-grid-head-status"><span>입금</span><span>일시</span></div>
                   <div className="disposal-list-grid-head-status"><span>신고</span><span>여부</span></div>
                 </div>
-                {group.rows.map((row) => (
-                  <div key={row.key} className="disposal-list-grid-row disposal-list-grid-data-row">
+                {group.rows.map((row) => {
+                  const isAlertFocusedRow = hasUnreportedAlertFocus && !!alertRecordId && group.recordId === alertRecordId && !row.reportDone
+                  return (
+                  <div key={row.key} className={`disposal-list-grid-row disposal-list-grid-data-row${isAlertFocusedRow ? ' disposal-list-grid-data-row-unreported-highlight' : ''}`.trim()}>
                     <div className="disposal-list-grid-check-cell">
                       <input type="checkbox" checked={selectedRowKeys.includes(row.key)} onChange={e => toggleRowSelection(row.key, e.target.checked)} aria-label={`${group.customerName} ${row.itemName} 선택`} />
                     </div>
@@ -3179,7 +3192,8 @@ export function DisposalListPage() {
                       {statusMark(row.reportDone)}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div className="disposal-list-grid-row disposal-list-grid-summary-row">
                   <div />
                   <div className="strong">합계</div>

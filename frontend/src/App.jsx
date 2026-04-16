@@ -1616,6 +1616,7 @@ function loadDisposalAdminAlertItems() {
       if (!hasUnreportedSettlementItem) return
       alerts.push({
         key: String(record?.id || `${record?.disposalDate || ''}-${record?.customerName || ''}-${record?.location || ''}`),
+        recordId: String(record?.id || '').trim(),
         disposalDate: String(record?.disposalDate || '').trim() || '-',
         customerName: String(record?.customerName || '').trim() || '고객',
         message: `(${String(record?.disposalDate || '').trim() || '-'}) 폐기 예정인 ${String(record?.customerName || '').trim() || '고객'} 고객님의 폐기 신고접수가 되어 있지 않습니다.`,
@@ -1641,6 +1642,8 @@ function buildDisposalAdminNotificationItems(items = []) {
     created_at: item.disposalDate || '',
     is_read: 0,
     is_local_alert: true,
+    disposal_record_id: item.recordId || item.key || '',
+    disposal_search_query: item.customerName || '',
   }))
 }
 
@@ -10073,7 +10076,9 @@ function NotificationsPage({ user }) {
 
   async function handleNotificationClick(item) {
     if (item?.type === 'disposal_admin_alert' || item?.is_local_alert) {
-      navigate('/disposal/settlements')
+      const recordId = encodeURIComponent(String(item?.disposal_record_id || '').trim())
+      const query = encodeURIComponent(String(item?.disposal_search_query || '').trim())
+      navigate(`/disposal/list?alert=disposal_unreported&recordId=${recordId}&query=${query}`)
       return
     }
     try {
