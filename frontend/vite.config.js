@@ -14,8 +14,12 @@ export default defineConfig({
     reportCompressedSize: true,
     cssCodeSplit: true,
     modulePreload: { polyfill: false },
+    assetsDir: 'assets',
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name][extname]',
         manualChunks(id) {
           if (id.includes('node_modules/react-dom')) return 'vendor-react-dom'
           if (id.includes('node_modules/react-router-dom')) return 'vendor-router'
