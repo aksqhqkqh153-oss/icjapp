@@ -10820,6 +10820,15 @@ function formatQuoteDesiredDate(item) {
   return payload.move_date || '-'
 }
 
+function formatQuoteCreatedAtShort(value) {
+  const text = String(value || '').trim()
+  if (!text) return '-'
+  const normalized = text.replace('T', ' ')
+  const match = normalized.match(/(\d{4})-(\d{2})-(\d{2})[ T]?(\d{2}):(\d{2})/)
+  if (match) return `${match[1].slice(2)}.${match[2]}.${match[3]} ${match[4]}:${match[5]}`
+  return normalized.slice(0, 16)
+}
+
 function formatQuoteFieldValue(value) {
   if (Array.isArray(value)) return value.length ? value.join(', ') : '-'
   if (value === null || value === undefined) return '-'
@@ -11106,7 +11115,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
         origin_address: [form.origin_address, form.origin_address_detail].filter(Boolean).join(' '),
         destination_address: [form.destination_address, form.destination_address_detail].filter(Boolean).join(' '),
       })
-      setMessage('양식이 정상 접수되었습니다. 관리자는 견적목록에서 내용을 확인할 수 있습니다.')
       resetFormForCurrentUser()
       if (isAdminUser) {
         setPageTab('list')
@@ -11217,7 +11225,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
       <div className="quote-form-title-block quote-form-title-block-compact">
-        <h2>{guestMode && mode ? `${mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}` : guestMode && !mode ? '' : '견적'}</h2>
       </div>
 
       {!guestMode && <section className="card quote-page-tabs-card">
@@ -11417,8 +11424,8 @@ function QuoteFormsPage({ user, guestMode = false }) {
         <section className="card quote-admin-list-card">
           <div className="between quote-list-toolbar">
             <div className="quote-list-tabs">
-              <button type="button" className={listTypeTab === 'same_day' ? 'active' : ''} onClick={() => setListTypeTab('same_day')}>당일이사</button>
-              <button type="button" className={listTypeTab === 'storage' ? 'active' : ''} onClick={() => setListTypeTab('storage')}>짐보관이사</button>
+              <button type="button" className={listTypeTab === 'same_day' ? 'quote-list-type-button active' : 'quote-list-type-button'} onClick={() => setListTypeTab('same_day')}>당일이사</button>
+              <button type="button" className={listTypeTab === 'storage' ? 'quote-list-type-button active' : 'quote-list-type-button'} onClick={() => setListTypeTab('storage')}>짐보관이사</button>
             </div>
             <button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button>
           </div>
@@ -11429,7 +11436,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
                 <tr>
                   <th><input type="checkbox" checked={allSelected} onChange={e => toggleSelectAll(e.target.checked)} /></th>
                   <th>즐겨찾기</th>
-                  <th>견적양식작성시각</th>
+                  <th><span className="quote-table-th-two-line">견적양식<br />작성시각</span></th>
                   <th>고객성함</th>
                   <th>이사희망날짜</th>
                   <th>출발지가구원</th>
@@ -11445,7 +11452,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
                   return <tr key={item.id} className={detailItem?.id === item.id ? 'active' : ''} onClick={() => openDetail(item.id)}>
                     <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isChecked} onChange={() => toggleSelected(item.id)} /></td>
                     <td onClick={e => e.stopPropagation()}><button type="button" className={`quote-star-button ${isFavorite ? 'active' : ''}`} onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기">{isFavorite ? '★' : '☆'}</button></td>
-                    <td>{String(item.created_at || '').replace('T', ' ').slice(0, 16) || '-'}</td>
+                    <td>{formatQuoteCreatedAtShort(item.created_at)}</td>
                     <td>{item.requester_name || '-'}</td>
                     <td>{formatQuoteDesiredDate(item)}</td>
                     <td>{payload.household || '-'}</td>
