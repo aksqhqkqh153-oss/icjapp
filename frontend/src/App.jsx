@@ -11156,6 +11156,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
       const result = await api(`/api/admin/quote-forms/${itemId}`)
       setDetailItem(result.item || null)
       setIsQuoteDetailView(true)
+      setPageTab('detail')
     } catch (err) {
       setError(err.message || '견적상세를 불러오지 못했습니다.')
     } finally {
@@ -11165,6 +11166,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   function closeQuoteDetailView() {
     setIsQuoteDetailView(false)
+    setPageTab('list')
   }
 
 
@@ -11236,8 +11238,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
       {!guestMode && <section className="card quote-page-tabs-card">
         <div className="quote-page-tabs quote-page-tabs-disposal-style">
-          <button type="button" className={pageTab === 'form' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => setPageTab('form')}>견적양식</button>
-          <button type="button" className={pageTab === 'list' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => setPageTab('list')}>견적목록</button>
+          <button type="button" className={pageTab === 'form' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('form') }}>견적양식</button>
+          <button type="button" className={pageTab === 'list' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('list') }}>견적목록</button>
+          <button type="button" className={pageTab === 'detail' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { if (detailItem) { setIsQuoteDetailView(true); setPageTab('detail') } }}>견적상세</button>
+          <button type="button" className={pageTab === 'form-copy' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('form') }}>견적양식</button>
         </div>
       </section>}
 
@@ -11473,7 +11477,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         </section>
       </div>}
 
-      {pageTab === 'list' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
+      {pageTab === 'detail' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
         <div className="between quote-detail-screen-topbar"><button type="button" className="quote-back-button" onClick={closeQuoteDetailView}>← 뒤로가기</button>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
         <div className="between"><h3>견적상세</h3></div>
         {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
