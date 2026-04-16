@@ -346,9 +346,15 @@ function compareDisposalValue(a, b, sortKey = 'latest', sortDirection = 'desc') 
   return sortDirection === 'asc' ? compared : compared * -1
 }
 
-function sortGroupedRows(rows = [], sortKey = 'latest', sortDirection = 'desc') {
+function sortGroupedRows(rows = []) {
   const list = [...(rows || [])]
-  return list.sort((a, b) => compareDisposalValue(a, b, sortKey, sortDirection) || String(a?.itemName || '').localeCompare(String(b?.itemName || ''), 'ko'))
+  return list.sort((a, b) => {
+    const orderGap = safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder)
+    if (orderGap !== 0) return orderGap
+    const savedAtGap = String(b?.savedAt || '').localeCompare(String(a?.savedAt || ''))
+    if (savedAtGap !== 0) return savedAtGap
+    return String(a?.itemName || '').localeCompare(String(b?.itemName || ''), 'ko')
+  })
 }
 
 function getCellRef(colIndex, rowNumber) {
@@ -1031,6 +1037,7 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
         disposalDate: record.disposalDate || '',
         finalStatus: record.finalStatus || '',
         savedAt: record.savedAt || '',
+        itemOrder: index,
         itemName: String(item?.itemName || '').trim() || '-',
         quantity,
         unitCost,
@@ -1051,7 +1058,7 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
   const list = Array.from(grouped.values())
     .map(group => ({
       ...group,
-      rows: sortGroupedRows(group.rows, sortKey, sortDirection),
+      rows: sortGroupedRows(group.rows),
     }))
 
   if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
@@ -2680,7 +2687,16 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
                     </div>
                   </div>
                   <div className="disposal-bulk-payment-cell-center">{isPaid ? 'O' : 'X'}</div>
-                  <div className="disposal-bulk-payment-cell-center">{isReported ? 'O' : 'X'}</div>
+                  <div className="disposal-bulk-payment-cell-center">
+                    <button
+                      type="button"
+                      className="disposal-bulk-payment-status-button"
+                      onClick={() => onChangeReportStatus?.(row.key, !isReported)}
+                      aria-label={`${row.itemName} 신고상태 변경`}
+                    >
+                      {isReported ? 'O' : 'X'}
+                    </button>
+                  </div>
                 </div>
               )
             })}
