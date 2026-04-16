@@ -3437,6 +3437,11 @@ def _resolve_travel_geocode_point(address: str) -> tuple[dict[str, Any], dict[st
         'candidates': candidates,
         'provider_errors': [],
         'cache_hit': False,
+        'provider_status': {
+            'kakao_local_key_configured': bool(_read_clean_env('KAKAO_REST_API_KEY', 'KAKAO_MOBILITY_REST_API_KEY')),
+            'kakao_keyword_key_configured': bool(_read_clean_env('KAKAO_REST_API_KEY', 'KAKAO_MOBILITY_REST_API_KEY')),
+            'naver_geocode_key_configured': bool(all(_naver_maps_credentials())),
+        },
     }
     now_ts = time.time()
     cached = GEOCODE_CACHE.get(normalized)
@@ -3444,6 +3449,7 @@ def _resolve_travel_geocode_point(address: str) -> tuple[dict[str, Any], dict[st
     if cached and cached_provider in {'kakao-local', 'kakao-keyword', 'naver-geocode'} and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
         debug_info['cache_hit'] = True
         debug_info['resolved_provider'] = cached_provider
+        debug_info['resolved_candidate'] = normalized
         return {
             'lat': float(cached['lat']),
             'lng': float(cached['lng']),
@@ -3454,12 +3460,13 @@ def _resolve_travel_geocode_point(address: str) -> tuple[dict[str, Any], dict[st
             'approximate': False,
         }, debug_info
 
+    provider_chain = (
+        ('kakao-local', _lookup_kakao_geocode),
+        ('kakao-keyword', _lookup_kakao_keyword_geocode),
+        ('naver-geocode', _lookup_naver_geocode),
+    )
     for candidate in candidates:
-        for provider_name, resolver in (
-            ('kakao-local', _lookup_kakao_geocode),
-            ('kakao-keyword', _lookup_kakao_keyword_geocode),
-            ('naver-geocode', _lookup_naver_geocode),
-        ):
+        for provider_name, resolver in provider_chain:
             try:
                 point = resolver(candidate)
                 if point:
@@ -3472,6 +3479,7 @@ def _resolve_travel_geocode_point(address: str) -> tuple[dict[str, Any], dict[st
                     }
                     debug_info['resolved_provider'] = provider_name
                     debug_info['resolved_candidate'] = candidate
+                    debug_info['resolved_label'] = str(point.get('label') or candidate or normalized)
                     return {
                         'lat': float(point['lat']),
                         'lng': float(point['lng']),
@@ -3558,9 +3566,22 @@ def _format_duration_label(total_seconds: int) -> str:
 
 def _fetch_json_request(url: str, headers: dict[str, str], timeout: int = 8) -> Any:
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        charset = response.headers.get_content_charset() or 'utf-8'
-        return json.loads(response.read().decode(charset))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            charset = response.headers.get_content_charset() or 'utf-8'
+            return json.loads(response.read().decode(charset))
+    except urllib.error.HTTPError as exc:
+        raw_body = ''
+        try:
+            raw_body = exc.read().decode('utf-8', errors='replace')
+        except Exception:
+            raw_body = ''
+        detail = raw_body.strip()
+        if len(detail) > 500:
+            detail = detail[:500] + ' ...'
+        raise RuntimeError(f'http-{exc.code}:{url}:{detail or exc.reason}') from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f'network-error:{url}:{exc.reason}') from exc
 
 
 def _read_clean_env(*keys: str) -> str:
@@ -3669,6 +3690,27 @@ def _normalize_road_spacing(value: str) -> str:
     return normalized
 
 
+def _compact_road_spacing(value: str) -> str:
+    normalized = re.sub(r'([가-힣A-Za-z]+(?:대로|로|길))\s+(\d)', r'\1\2', str(value or '').strip())
+    normalized = re.sub(r'\s+', ' ', normalized).strip(' ,')
+    return normalized
+
+
+def _strip_administrative_prefix(value: str) -> str:
+    stripped = str(value or '').strip()
+    prefixes = (
+        '서울특별시 ', '서울 ', '부산광역시 ', '부산 ', '대구광역시 ', '대구 ', '인천광역시 ', '인천 ',
+        '광주광역시 ', '광주 ', '대전광역시 ', '대전 ', '울산광역시 ', '울산 ', '세종특별자치시 ', '세종 ',
+        '경기도 ', '경기 ', '강원특별자치도 ', '강원 ', '충청북도 ', '충북 ', '충청남도 ', '충남 ',
+        '전북특별자치도 ', '전북 ', '전라남도 ', '전남 ', '경상북도 ', '경북 ', '경상남도 ', '경남 ',
+        '제주특별자치도 ', '제주 ',
+    )
+    for prefix in prefixes:
+        if stripped.startswith(prefix):
+            return stripped[len(prefix):].strip()
+    return stripped
+
+
 def _travel_address_candidates(address: str) -> list[str]:
     raw = str(address or '').strip()
     normalized = _normalize_route_address(raw)
@@ -3679,30 +3721,36 @@ def _travel_address_candidates(address: str) -> list[str]:
         if item and item not in candidates:
             candidates.append(item)
 
+    def push_variants(value: str) -> None:
+        base = str(value or '').strip()
+        if not base:
+            return
+        push(base)
+        spaced = _normalize_road_spacing(base)
+        compact = _compact_road_spacing(base)
+        expanded = _expand_administrative_address(base)
+        stripped = _strip_administrative_prefix(base)
+        for item in (spaced, compact, expanded, _normalize_road_spacing(expanded), _compact_road_spacing(expanded), stripped, _normalize_road_spacing(stripped), _compact_road_spacing(stripped)):
+            push(item)
+
     for item in (raw, normalized):
-        push(item)
-        push(_normalize_road_spacing(item))
-        expanded = _expand_administrative_address(item)
-        push(expanded)
-        push(_normalize_road_spacing(expanded))
+        push_variants(item)
 
     relaxed = re.sub(r'\s+', ' ', re.sub(r'\([^)]*\)', ' ', normalized)).strip(' ,')
     if relaxed:
-        push(relaxed)
-        push(_normalize_road_spacing(relaxed))
-        expanded_relaxed = _expand_administrative_address(relaxed)
-        push(expanded_relaxed)
-        push(_normalize_road_spacing(expanded_relaxed))
+        push_variants(relaxed)
 
     shortened = re.sub(r'\s+', ' ', re.sub(r'\b(\d+-\d+|\d+)\b\s*$', '', normalized)).strip(' ,')
     if shortened:
-        push(shortened)
-        push(_normalize_road_spacing(shortened))
-        expanded_shortened = _expand_administrative_address(shortened)
-        push(expanded_shortened)
-        push(_normalize_road_spacing(expanded_shortened))
+        push_variants(shortened)
+
+    road_core = re.sub(r'\s+', ' ', re.sub(r'^(.*?(?:대로|로|길)\s*\d+(?:-\d+)?).*$','\1', normalized)).strip(' ,')
+    if road_core and road_core != normalized:
+        push_variants(road_core)
 
     return candidates
+
+
 def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool:
     distance_m = int(distance_m or 0)
     duration_seconds = int(duration_seconds or 0)
@@ -3849,8 +3897,8 @@ def _travel_provider_label(provider: str) -> str:
     if code == 'naver':
         return '네이버지도'
     if code == 'unavailable':
-        return '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인'
-    return '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인'
+        return '측정불가'
+    return '측정불가'
 
 
 def _travel_route_mode(provider: str) -> str:
@@ -3861,6 +3909,10 @@ def _travel_route_mode(provider: str) -> str:
 def travel_time_lookup(start_address: str = Query(..., min_length=2), end_address: str = Query(..., min_length=2), user=Depends(require_user)):
     attempts: list[str] = []
     errors: list[str] = []
+    route_provider_status = {
+        'kakao_route_key_configured': bool(_read_clean_env('KAKAO_MOBILITY_REST_API_KEY', 'KAKAO_REST_API_KEY')),
+        'naver_route_key_configured': bool(all(_naver_maps_credentials())),
+    }
     try:
         start_point, start_debug = _resolve_travel_geocode_point(start_address)
         end_point, end_debug = _resolve_travel_geocode_point(end_address)
@@ -3870,13 +3922,13 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         debug_payload = {
             'start': {'input': start_address, 'normalized': _normalize_route_address(start_address), 'candidates': _travel_address_candidates(start_address), 'provider_errors': []},
             'end': {'input': end_address, 'normalized': _normalize_route_address(end_address), 'candidates': _travel_address_candidates(end_address), 'provider_errors': []},
+            'route_provider_status': route_provider_status,
         }
         try:
             parsed = json.loads(str(detail_raw)) if isinstance(detail_raw, str) else None
             if isinstance(parsed, dict):
                 detail = str(parsed.get('message') or detail)
                 if parsed.get('debug'):
-                    # distinguish which side failed by input match when only one side raised
                     failed_debug = parsed.get('debug') if isinstance(parsed.get('debug'), dict) else {}
                     failed_input = str(failed_debug.get('input') or '')
                     if failed_input == str(start_address):
@@ -3929,6 +3981,7 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
                     'debug': {
                         'start': start_debug,
                         'end': end_debug,
+                        'route_provider_status': route_provider_status,
                     },
                 }
         except Exception as exc:
@@ -3947,6 +4000,7 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         'attempts': attempts,
         'fallback_reason': 'real-route-unavailable',
         'errors': errors,
+        'message': '좌표는 찾았지만 실경로 시간 계산 API 응답이 없어 측정하지 못했습니다.',
         'start_geocode_provider': str(start_point.get('provider') or ''),
         'end_geocode_provider': str(end_point.get('provider') or ''),
         'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
@@ -3954,8 +4008,10 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         'debug': {
             'start': start_debug,
             'end': end_debug,
+            'route_provider_status': route_provider_status,
         },
     }
+
 
 @app.get("/api/map-users")
 def map_users(user=Depends(require_user)):

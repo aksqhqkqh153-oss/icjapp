@@ -11588,19 +11588,30 @@ function LadderDispatchPage() {
         if (!nextTravelTime || response?.route_mode !== 'real') {
           const startDebug = response?.debug?.start || {}
           const endDebug = response?.debug?.end || {}
+          const routeStatus = response?.debug?.route_provider_status || {}
           const startResolved = String(startDebug?.resolved_provider || '').trim()
           const endResolved = String(endDebug?.resolved_provider || '').trim()
           const startCandidate = String(startDebug?.resolved_candidate || '').trim()
           const endCandidate = String(endDebug?.resolved_candidate || '').trim()
-          const startError = Array.isArray(startDebug?.provider_errors) && startDebug.provider_errors.length ? String(startDebug.provider_errors[0]) : ''
-          const endError = Array.isArray(endDebug?.provider_errors) && endDebug.provider_errors.length ? String(endDebug.provider_errors[0]) : ''
+          const startErrors = Array.isArray(startDebug?.provider_errors) ? startDebug.provider_errors.slice(0, 3).map(item => String(item)) : []
+          const endErrors = Array.isArray(endDebug?.provider_errors) ? endDebug.provider_errors.slice(0, 3).map(item => String(item)) : []
+          const startCandidates = Array.isArray(startDebug?.candidates) ? startDebug.candidates.slice(0, 4).map(item => String(item)) : []
+          const endCandidates = Array.isArray(endDebug?.candidates) ? endDebug.candidates.slice(0, 4).map(item => String(item)) : []
+          const routeAttempts = Array.isArray(response?.attempts) ? response.attempts.join('/') : ''
+          const routeErrors = Array.isArray(response?.errors) ? response.errors.slice(0, 2).map(item => String(item)).join(' | ') : ''
           const reasons = [
+            response?.message ? `원인:${String(response.message)}` : '',
             startResolved ? `출발지 좌표:${startResolved}${startCandidate ? `(${startCandidate})` : ''}` : '',
             endResolved ? `도착지 좌표:${endResolved}${endCandidate ? `(${endCandidate})` : ''}` : '',
-            !startResolved && startError ? `출발지 실패:${startError}` : '',
-            !endResolved && endError ? `도착지 실패:${endError}` : '',
+            !startResolved && startErrors.length ? `출발지 실패:${startErrors.join(' / ')}` : '',
+            !endResolved && endErrors.length ? `도착지 실패:${endErrors.join(' / ')}` : '',
+            !startResolved && startCandidates.length ? `출발지 후보:${startCandidates.join(' → ')}` : '',
+            !endResolved && endCandidates.length ? `도착지 후보:${endCandidates.join(' → ')}` : '',
+            routeAttempts ? `경로API 시도:${routeAttempts}` : '',
+            response?.fallback_reason === 'real-route-unavailable' ? `경로API 키상태:카카오 ${routeStatus?.kakao_route_key_configured ? '설정됨' : '없음'}, 네이버 ${routeStatus?.naver_route_key_configured ? '설정됨' : '없음'}` : '',
+            routeErrors ? `경로API 오류:${routeErrors}` : '',
           ].filter(Boolean)
-          setTravelTimeStatus({ state: 'done', message: reasons.length ? reasons.join(' · ') : String(response?.message || '') })
+          setTravelTimeStatus({ state: response?.fallback_reason ? 'error' : 'done', message: reasons.length ? reasons.join(' · ') : String(response?.message || '') })
         } else {
           const geocodeHints = [response?.start_geocode_provider, response?.end_geocode_provider].filter(Boolean)
           const geocodeNote = geocodeHints.length ? ` · 좌표:${Array.from(new Set(geocodeHints)).join('/')}` : ''
