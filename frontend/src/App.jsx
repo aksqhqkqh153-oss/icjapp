@@ -4437,6 +4437,74 @@ function ChatActionSheet({ title, actions, reactions, onReact, onClose }) {
   )
 }
 
+function ChatContextMenu({ menu, onClose, onToggleReactions, onReact }) {
+  useEffect(() => {
+    if (!menu) return undefined
+    const handlePointer = () => onClose?.()
+    const handleKey = event => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('pointerdown', handlePointer)
+    window.addEventListener('contextmenu', handlePointer)
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointer)
+      window.removeEventListener('contextmenu', handlePointer)
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [menu, onClose])
+
+  if (!menu || typeof document === 'undefined') return null
+
+  const style = {
+    left: `${menu.x}px`,
+    top: `${menu.y}px`,
+  }
+
+  return createPortal(
+    <div className="chat-context-menu-layer">
+      <div className="chat-context-menu" style={style} onPointerDown={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()}>
+        <div className="chat-context-menu-actions">
+          {menu.actions.map(action => (
+            <button
+              key={action.label}
+              type="button"
+              className={action.danger ? 'chat-context-menu-button danger-text' : 'chat-context-menu-button'}
+              onClick={() => {
+                if (action.actionType === 'react') {
+                  onToggleReactions?.()
+                  return
+                }
+                action.onClick?.()
+                onClose?.()
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+        {menu.showReactions && !!menu.reactions?.length && (
+          <div className="chat-context-reaction-row">
+            {menu.reactions.map(emoji => (
+              <button
+                key={emoji}
+                type="button"
+                className="chat-context-emoji-button"
+                onClick={() => {
+                  onReact?.(emoji)
+                  onClose?.()
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
 function ChatsPage() {
   const navigate = useNavigate()
@@ -4961,6 +5029,7 @@ function ChatRoomPage({ roomType }) {
   const [roomSearchActiveIndex, setRoomSearchActiveIndex] = useState(0)
   const [hoveredMessageId, setHoveredMessageId] = useState(null)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
+  const [chatContextMenu, setChatContextMenu] = useState(null)
   const imageInputRef = useRef(null)
   const fileInputRef = useRef(null)
   const messageNodeRefs = useRef({})
@@ -5271,6 +5340,110 @@ function ChatRoomPage({ roomType }) {
     })
   }
 
+  function updateMessageLocal(messageId, updater) {
+    setRoomData(prev => prev ? {
+      ...prev,
+      messages: (prev.messages || []).map(item => String(item?.id) === String(messageId) ? updater(item) : item),
+    } : prev)
+  }
+
+  async function copyMessageContent(item) {
+    const text = [item?.message, item?.attachment_url, item?.attachment_name].filter(Boolean).join('\n').trim() || '메시지'
+    await navigator.clipboard?.writeText(text)
+    window.alert('클립보드에 복사했습니다.')
+  }
+
+  function editMessageLocal(item) {
+    const nextText = window.prompt('메시지 수정', String(item?.message || ''))
+    if (nextText == null) return
+    updateMessageLocal(item.id, current => ({ ...current, message: nextText, is_local_edited: true }))
+  }
+
+  function deleteMessageForEveryoneLocal(item) {
+    if (!window.confirm('현재 화면에서 메시지를 삭제된 상태로 표시할까요?')) return
+    updateMessageLocal(item.id, current => ({
+      ...current,
+      message: '삭제된 메시지입니다.',
+      attachment_name: '',
+      attachment_url: '',
+      attachment_type: '',
+      reply_to: null,
+      reaction_summary: [],
+      is_local_deleted_for_all: true,
+    }))
+    window.alert('현재 클라이언트 기준으로 삭제 상태를 반영했습니다. 서버 전체 삭제 API는 아직 연결되지 않았습니다.')
+  }
+
+  function announceMessageLocal(item) {
+    const content = item?.message || item?.attachment_name || '공지 메시지'
+    window.alert(`공지 기능은 UI만 추가되었습니다.
+
+선택된 내용:
+${content}`)
+  }
+
+  function buildDesktopContextActions(item) {
+    const mine = String(item?.sender_id || '') === String(currentUser?.id || '')
+    const isOwnImage = mine && String(item?.attachment_type || '') === 'image'
+    const hiddenLabel = hiddenMessageIds.has(item.id) ? '가리기 해제' : '가리기'
+
+    if (isOwnImage) {
+      return [
+        { label: '답장', onClick: () => openReplyComposer(item) },
+        { label: '공감', actionType: 'react' },
+        { label: '공유', onClick: () => { shareMessage(item).catch(err => window.alert(err.message)) } },
+        { label: '나에게', onClick: () => { sendMessageToSelf(item).catch(err => window.alert(err.message)) } },
+        { label: '복사', onClick: () => { copyMessageContent(item).catch(err => window.alert(err.message)) } },
+        { label: '삭제(모두에게)', danger: true, onClick: () => deleteMessageForEveryoneLocal(item) },
+        { label: '삭제(나에게만)', danger: true, onClick: () => deleteMessageLocal(item) },
+        { label: hiddenLabel, onClick: () => toggleHiddenMessage(item.id) },
+        { label: '대화캡쳐', onClick: () => { captureMessageText(item).catch?.(err => window.alert(err.message)) } },
+      ]
+    }
+
+    if (mine) {
+      return [
+        { label: '답장', onClick: () => openReplyComposer(item) },
+        { label: '공감', actionType: 'react' },
+        { label: '공유', onClick: () => { shareMessage(item).catch(err => window.alert(err.message)) } },
+        { label: '나에게', onClick: () => { sendMessageToSelf(item).catch(err => window.alert(err.message)) } },
+        { label: '공지', onClick: () => announceMessageLocal(item) },
+        { label: '복사', onClick: () => { copyMessageContent(item).catch(err => window.alert(err.message)) } },
+        { label: '수정', onClick: () => editMessageLocal(item) },
+        { label: '삭제(모두에게)', danger: true, onClick: () => deleteMessageForEveryoneLocal(item) },
+        { label: '삭제(나에게만)', danger: true, onClick: () => deleteMessageLocal(item) },
+        { label: hiddenLabel, onClick: () => toggleHiddenMessage(item.id) },
+        { label: '대화캡쳐', onClick: () => { captureMessageText(item).catch?.(err => window.alert(err.message)) } },
+      ]
+    }
+
+    return [
+      { label: '답장', onClick: () => openReplyComposer(item) },
+      { label: '공감', actionType: 'react' },
+      { label: '복사', onClick: () => { copyMessageContent(item).catch(err => window.alert(err.message)) } },
+      { label: '삭제(나에게만)', danger: true, onClick: () => deleteMessageLocal(item) },
+      { label: hiddenLabel, onClick: () => toggleHiddenMessage(item.id) },
+      { label: '대화캡쳐', onClick: () => { captureMessageText(item).catch?.(err => window.alert(err.message)) } },
+    ]
+  }
+
+  function openDesktopContextMenu(event, item) {
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800
+    const menuWidth = 220
+    const approxHeight = 260
+    const left = Math.max(8, Math.min(event.clientX + 8, viewportWidth - menuWidth - 8))
+    const top = Math.max(8, Math.min(event.clientY + 8, viewportHeight - approxHeight - 8))
+    setChatContextMenu({
+      x: left,
+      y: top,
+      messageId: item.id,
+      actions: buildDesktopContextActions(item),
+      reactions: ['👍', '❤️', '😂', '👏', '🔥'],
+      showReactions: false,
+    })
+  }
+
   async function shareMessage(item) {
     const text = item.message || item.attachment_name || '메시지'
     try {
@@ -5317,6 +5490,7 @@ function ChatRoomPage({ roomType }) {
   function openReplyComposer(item) {
     setReplyTarget(item)
     setChatActionSheet(null)
+    setChatContextMenu(null)
     setMessage(prev => prev || '')
   }
 
@@ -5334,6 +5508,7 @@ function ChatRoomPage({ roomType }) {
         { label: '공유', onClick: () => { shareMessage(item).catch(err => window.alert(err.message)) } },
         { label: '나에게', onClick: () => { sendMessageToSelf(item).catch(err => window.alert(err.message)) } },
         { label: bookmarkedMessageIds.has(item.id) ? '책갈피 해제' : '책갈피', onClick: () => toggleBookmarkMessage(item.id) },
+        { label: '복사', onClick: () => { copyMessageContent(item).catch(err => window.alert(err.message)) } },
         { label: '캡쳐', onClick: () => { captureMessageText(item).catch?.(err => window.alert(err.message)) } },
         ...(String(item.sender_id) === String(getStoredUser()?.id) ? [{ label: '삭제', danger: true, onClick: () => deleteMessageLocal(item) }] : []),
       ],
@@ -5514,7 +5689,7 @@ function ChatRoomPage({ roomType }) {
                     if (isMobile) return
                     event.preventDefault()
                     event.stopPropagation()
-                    openMessageActions(item)
+                    openDesktopContextMenu(event, item)
                   }}
                   {...longPressHandlers}
                 >
@@ -5542,6 +5717,7 @@ function ChatRoomPage({ roomType }) {
                       <div className={`chat-bubble${mine ? ' mine' : ''}`}>
                         {item.reply_to?.message && <div className="chat-reply-preview">↳ {item.reply_to.message}</div>}
                         {item.message && <div className="chat-bubble-text">{item.message}</div>}
+                        {item.is_local_edited ? <div className="chat-local-edited-mark">수정됨</div> : null}
                         <AttachmentPreview message={item} />
                       </div>
                       {!isMobile && !mine && (
@@ -5639,6 +5815,16 @@ function ChatRoomPage({ roomType }) {
         reactions={chatActionSheet?.reactions}
         onReact={chatActionSheet?.onReact}
         onClose={() => setChatActionSheet(null)}
+      />
+
+      <ChatContextMenu
+        menu={chatContextMenu}
+        onClose={() => setChatContextMenu(null)}
+        onToggleReactions={() => setChatContextMenu(prev => prev ? { ...prev, showReactions: !prev.showReactions } : prev)}
+        onReact={emoji => {
+          if (!chatContextMenu?.messageId) return
+          handleReaction(chatContextMenu.messageId, emoji).catch(err => window.alert(err.message))
+        }}
       />
 
       {plusMenuOpen && (
