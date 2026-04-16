@@ -9,6 +9,7 @@ import WarehousePage from './WarehousePage'
 import StorageStatusPage from './StorageStatusPage'
 import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalPreviewPage, DisposalSettlementsPage } from './DisposalPages'
 import { WORK_SHIFT_TEMPLATE } from './workScheduleTemplate'
+import { QUOTE_WORKBOOK_TEMPLATE } from './quoteWorkbookTemplateData'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -11249,6 +11250,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {error && <div className="error-banner">{error}</div>}
 
       {(pageTab === 'form' || guestMode) && <>
+        <QuoteWorkbookTemplateViewer />
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
             <div className="quote-step-header centered">
@@ -11478,13 +11480,15 @@ function QuoteFormsPage({ user, guestMode = false }) {
       </div>}
 
       {pageTab === 'detail' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
-        <div className="between quote-detail-screen-topbar"><button type="button" className="quote-back-button" onClick={closeQuoteDetailView}>← 뒤로가기</button>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
-        <div className="between"><h3>견적상세</h3></div>
-        {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
-          <div className="inline-actions wrap end quote-detail-actions">
-            <button type="button" className="small" onClick={() => loadOperationsPreview()} disabled={operationsLoading}>{operationsLoading ? '분석 중...' : 'AI견적미리보기'}</button>
+        <div className="quote-detail-header-bar">
+          <button type="button" className="quote-back-button quote-back-icon-button" onClick={closeQuoteDetailView} aria-label="뒤로가기">←</button>
+          <h3>견적상세</h3>
+          <div className="quote-detail-header-actions">
             <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
           </div>
+        </div>
+        {detailLoading && <div className="muted quote-detail-loading-inline">불러오는 중...</div>}
+        {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
           <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
           <div className="quote-detail-grid quote-detail-grid-compact">
             <div className="quote-detail-section quote-detail-section-compact"><h4>기본 정보</h4><dl>{[
@@ -11553,6 +11557,97 @@ function QuoteFormsPage({ user, guestMode = false }) {
   </div>
 }
 
+
+
+function QuoteWorkbookTemplateViewer() {
+  const [activeSheetName, setActiveSheetName] = useState(() => QUOTE_WORKBOOK_TEMPLATE?.sheets?.[0]?.name || '')
+  const activeSheet = useMemo(() => QUOTE_WORKBOOK_TEMPLATE.sheets.find(sheet => sheet.name === activeSheetName) || QUOTE_WORKBOOK_TEMPLATE.sheets[0], [activeSheetName])
+
+  useEffect(() => {
+    if (!activeSheetName && QUOTE_WORKBOOK_TEMPLATE?.sheets?.length) {
+      setActiveSheetName(QUOTE_WORKBOOK_TEMPLATE.sheets[0].name)
+    }
+  }, [activeSheetName])
+
+  if (!activeSheet) return null
+
+  return <section className="card quote-workbook-viewer-card">
+    <div className="quote-workbook-viewer-head">
+      <div>
+        <div className="quote-workbook-viewer-title">견적양식 시트 미리보기</div>
+        <div className="quote-workbook-viewer-caption">첨부된 견적서 원본 시트의 값, 서식, 병합 구조를 기준으로 반영했습니다.</div>
+      </div>
+    </div>
+    <div className="quote-workbook-tabs" role="tablist" aria-label="견적양식 시트 탭">
+      {QUOTE_WORKBOOK_TEMPLATE.sheets.map(sheet => <button key={sheet.name} type="button" className={sheet.name === activeSheet.name ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveSheetName(sheet.name)}>{sheet.name}</button>)}
+    </div>
+    <QuoteWorkbookSheetTable sheet={activeSheet} />
+  </section>
+}
+
+function QuoteWorkbookSheetTable({ sheet }) {
+  return <div className="quote-workbook-sheet-scroll">
+    <table className="quote-workbook-sheet-table">
+      <colgroup>
+        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(36, Math.round((width || 8.43) * 8))}px` }} />)}
+      </colgroup>
+      <tbody>
+        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(18, Math.round(sheet.heights[rowIndex] * 1.5))}px` } : undefined}>
+          {row.map((cell, cellIndex) => {
+            if (!cell) return <td key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`} className="quote-workbook-empty-cell" />
+            return <td
+              key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`}
+              rowSpan={cell.rowSpan || 1}
+              colSpan={cell.colSpan || 1}
+              style={buildQuoteWorkbookCellStyle(cell.style)}
+              title={cell.formula || undefined}
+            >
+              {formatQuoteWorkbookCellValue(cell.value, cell.style?.numberFormat)}
+            </td>
+          })}
+        </tr>)}
+      </tbody>
+    </table>
+  </div>
+}
+
+function buildQuoteWorkbookCellStyle(style = {}) {
+  const borderStyleMap = { thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', dotted: '1px dotted', hair: '1px solid' }
+  const borderColor = side => side?.color || '#cbd5e1'
+  return {
+    background: style.fill || '#ffffff',
+    color: style.fontColor || '#111827',
+    fontWeight: style.bold ? 700 : 400,
+    fontStyle: style.italic ? 'italic' : 'normal',
+    fontSize: style.fontSize ? `${Math.max(8, Math.round(style.fontSize))}px` : undefined,
+    fontFamily: style.fontName || undefined,
+    textAlign: style.align?.horizontal || undefined,
+    verticalAlign: style.align?.vertical || 'middle',
+    whiteSpace: style.align?.wrapText ? 'pre-wrap' : 'normal',
+    borderLeft: style.border?.left ? `${borderStyleMap[style.border.left.style] || '1px solid'} ${borderColor(style.border.left)}` : '1px solid #e5e7eb',
+    borderRight: style.border?.right ? `${borderStyleMap[style.border.right.style] || '1px solid'} ${borderColor(style.border.right)}` : '1px solid #e5e7eb',
+    borderTop: style.border?.top ? `${borderStyleMap[style.border.top.style] || '1px solid'} ${borderColor(style.border.top)}` : '1px solid #e5e7eb',
+    borderBottom: style.border?.bottom ? `${borderStyleMap[style.border.bottom.style] || '1px solid'} ${borderColor(style.border.bottom)}` : '1px solid #e5e7eb',
+  }
+}
+
+function formatQuoteWorkbookCellValue(value, numberFormat = '') {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    const date = new Date(value)
+    if (!Number.isNaN(date.getTime())) {
+      if (numberFormat.includes('h') || numberFormat.includes('m')) {
+        return `${String(date.getFullYear()).slice(2)}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+      }
+      return `${String(date.getFullYear()).slice(2)}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
+  }
+  if (typeof value === 'number') {
+    if (numberFormat.includes('%')) return `${value}%`
+    return Number.isInteger(value) ? String(value) : String(value)
+  }
+  return String(value)
+}
 
 
 function joinQuoteValue(value) {

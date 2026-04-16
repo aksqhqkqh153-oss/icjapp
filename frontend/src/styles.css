@@ -29980,3 +29980,109 @@ button.danger {
 .disposal-list-date-group.disposal-customer-group-card > .disposal-list-grid.disposal-list-grid-customer {
   margin-top: 0 !important;
 }
+
+/* 2026-04-16 quote workbook viewer + detail header cleanup */
+.quote-workbook-viewer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.quote-workbook-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.quote-workbook-viewer-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+.quote-workbook-viewer-caption {
+  font-size: 12px;
+  color: #64748b;
+}
+.quote-workbook-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.quote-workbook-tab {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #111827;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.quote-workbook-tab.active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+.quote-workbook-sheet-scroll {
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+.quote-workbook-sheet-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+}
+.quote-workbook-sheet-table td {
+  min-width: 36px;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #111827;
+  vertical-align: middle;
+}
+.quote-workbook-empty-cell {
+  background: #fff;
+}
+.quote-detail-header-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr 96px;
+  align-items: center;
+  min-height: 48px;
+  gap: 8px;
+}
+.quote-detail-header-bar h3 {
+  margin: 0;
+  text-align: center;
+  justify-self: center;
+}
+.quote-detail-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.quote-back-icon-button {
+  color: #111827;
+  font-size: 24px;
+  font-weight: 800;
+}
+.quote-detail-loading-inline {
+  margin-top: -4px;
+}
+@media (max-width: 768px) {
+  .quote-workbook-viewer-card {
+    padding: 12px;
+  }
+  .quote-workbook-sheet-table td {
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+  .quote-detail-header-bar {
+    grid-template-columns: 42px 1fr 80px;
+  }
+}
