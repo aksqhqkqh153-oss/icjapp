@@ -30242,3 +30242,124 @@ button.danger {
   color: #6b7280;
   font-weight: 700;
 }
+
+
+/* 2026-04-16 quote tab cleanup + workbook/detail compact */
+.quotes-page .quote-page-tabs-disposal-style {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.quotes-page .quote-page-tab {
+  flex: 0 0 auto;
+}
+.quote-workbook-viewer-card {
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.quote-workbook-viewer-head {
+  gap: 8px;
+}
+.quote-workbook-viewer-title {
+  font-size: 14px;
+}
+.quote-workbook-viewer-caption {
+  font-size: 11px;
+}
+.quote-workbook-tabs {
+  gap: 6px;
+  padding-bottom: 2px;
+}
+.quote-workbook-tab {
+  padding: 6px 9px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+.quote-workbook-sheet-scroll {
+  max-height: calc(100vh - 240px);
+}
+.quote-workbook-sheet-table td {
+  min-width: 22px;
+  padding: 1px 2px;
+  font-size: 8px;
+  line-height: 1.15;
+}
+.quote-admin-detail-screen {
+  gap: 8px;
+}
+.quote-detail-header-bar {
+  min-height: 40px;
+}
+.quote-detail-header-bar h3 {
+  font-size: 22px;
+  line-height: 1.1;
+}
+.quote-detail-header-actions .small.ghost {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.quote-detail-hero.quote-detail-hero-compact {
+  padding: 8px 10px;
+  gap: 6px;
+}
+.quote-admin-detail-screen .quote-detail-title {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.quote-admin-detail-screen .quote-detail-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.quote-admin-detail-body-compact {
+  gap: 8px;
+}
+.quote-detail-grid.quote-detail-grid-compact {
+  gap: 8px;
+}
+.quote-detail-section.quote-detail-section-compact {
+  padding: 10px;
+  border-radius: 12px;
+}
+.quote-detail-section.quote-detail-section-compact h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.quote-admin-detail-screen .quote-detail-row {
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  padding: 4px 0;
+}
+.quote-admin-detail-screen .quote-detail-row dt,
+.quote-admin-detail-screen .quote-detail-row dd {
+  font-size: 11px;
+  line-height: 1.25;
+}
+.quote-detail-section-full .quote-detail-row {
+  grid-template-columns: 140px 1fr;
+}
+@media (max-width: 768px) {
+  .quote-workbook-sheet-scroll {
+    max-height: calc(100vh - 220px);
+  }
+  .quote-workbook-sheet-table td {
+    min-width: 18px;
+    padding: 1px 2px;
+    font-size: 7px;
+  }
+  .quote-detail-header-bar {
+    grid-template-columns: 40px 1fr 72px;
+    min-height: 36px;
+  }
+  .quote-detail-header-bar h3 {
+    font-size: 18px;
+  }
+  .quote-admin-detail-screen .quote-detail-row,
+  .quote-detail-section-full .quote-detail-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .quote-detail-section.quote-detail-section-compact {
+    padding: 8px;
+  }
+}

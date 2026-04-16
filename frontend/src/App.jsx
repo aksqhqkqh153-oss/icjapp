@@ -11296,7 +11296,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
           <button type="button" className={pageTab === 'form' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('form') }}>견적양식</button>
           <button type="button" className={pageTab === 'list' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('list') }}>견적목록</button>
           <button type="button" className={pageTab === 'detail' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { if (detailItem) { setIsQuoteDetailView(true); setPageTab('detail') } }}>견적상세</button>
-          <button type="button" className={pageTab === 'form-copy' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('form') }}>견적양식</button>
         </div>
       </section>}
 
@@ -11568,7 +11567,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         </div>
         {detailLoading && <div className="muted quote-detail-loading-inline">불러오는 중...</div>}
         {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
-          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
+          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div></div>
           <div className="quote-detail-grid quote-detail-grid-compact">
             <div className="quote-detail-section quote-detail-section-compact"><h4>기본 정보</h4><dl>{[
               ['고객 성함', adminDetailPayload.customer_name],
@@ -11670,10 +11669,10 @@ function QuoteWorkbookSheetTable({ sheet }) {
   return <div className="quote-workbook-sheet-scroll">
     <table className="quote-workbook-sheet-table">
       <colgroup>
-        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(36, Math.round((width || 8.43) * 8))}px` }} />)}
+        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(22, Math.round((width || 8.43) * 5.4))}px` }} />)}
       </colgroup>
       <tbody>
-        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(18, Math.round(sheet.heights[rowIndex] * 1.5))}px` } : undefined}>
+        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(12, Math.round(sheet.heights[rowIndex] * 1.05))}px` } : undefined}>
           {row.map((cell, cellIndex) => {
             if (!cell) return <td key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`} className="quote-workbook-empty-cell" />
             return <td
@@ -11700,7 +11699,7 @@ function buildQuoteWorkbookCellStyle(style = {}) {
     color: style.fontColor || '#111827',
     fontWeight: style.bold ? 700 : 400,
     fontStyle: style.italic ? 'italic' : 'normal',
-    fontSize: style.fontSize ? `${Math.max(8, Math.round(style.fontSize))}px` : undefined,
+    fontSize: style.fontSize ? `${Math.max(6, Math.round(style.fontSize - 2))}px` : undefined,
     fontFamily: style.fontName || undefined,
     textAlign: style.align?.horizontal || undefined,
     verticalAlign: style.align?.vertical || 'middle',
