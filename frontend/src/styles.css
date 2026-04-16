@@ -28980,3 +28980,130 @@ button.danger {
     justify-content: flex-end;
   }
 }
+
+
+.quote-form-title-block-compact {
+  margin-bottom: 10px;
+}
+
+.quote-page-tabs-card {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+
+.quote-page-tabs-disposal-style {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quote-page-tab {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid #111827;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+  border-radius: 0;
+}
+
+.quote-page-tab.active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.quote-mode-select-modern {
+  padding: 20px;
+}
+
+.quote-form-mode-intro-modern {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.quote-mode-section-title {
+  font-size: 24px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 18px;
+  color: #111827;
+}
+
+.quote-mode-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.quote-mode-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d6dde8;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.quote-mode-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quote-mode-card-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.quote-mode-card-arrow {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.quote-mode-card-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+@media (max-width: 768px) {
+  .quote-page-tabs-disposal-style {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .quote-page-tab {
+    min-width: 0;
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+
+  .quote-mode-select-modern {
+    padding: 16px 14px;
+  }
+
+  .quote-mode-section-title {
+    font-size: 20px;
+  }
+
+  .quote-mode-card {
+    padding: 16px;
+  }
+
+  .quote-mode-card-name {
+    font-size: 18px;
+  }
+
+  .quote-mode-card-desc {
+    font-size: 13px;
+  }
+}

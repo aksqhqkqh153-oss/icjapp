@@ -10519,15 +10519,16 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
-      <div className="quote-form-title-block">
+      <div className="quote-form-title-block quote-form-title-block-compact">
         <h2>{guestMode && mode ? `${mode === 'storage' ? '짐보관이사 상세 견적요청서' : '당일이사 상세 견적요청서'}` : guestMode && !mode ? '' : '견적'}</h2>
-        {!guestMode && <div className="quote-form-note">견적양식 작성과 관리자용 견적목록을 한 화면에서 관리합니다.</div>}
       </div>
 
-      {!guestMode && <div className="quote-page-tabs">
-        <button type="button" className={pageTab === 'form' ? 'active' : ''} onClick={() => setPageTab('form')}>견적양식</button>
-        <button type="button" className={pageTab === 'list' ? 'active' : ''} onClick={() => setPageTab('list')}>견적목록</button>
-      </div>}
+      {!guestMode && <section className="card quote-page-tabs-card">
+        <div className="quote-page-tabs quote-page-tabs-disposal-style">
+          <button type="button" className={pageTab === 'form' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => setPageTab('form')}>견적양식</button>
+          <button type="button" className={pageTab === 'list' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => setPageTab('list')}>견적목록</button>
+        </div>
+      </section>}
 
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
@@ -10568,7 +10569,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         )}
 
         {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
-          <section className="quote-mode-select-card quote-mode-select-compact">
+          <section className="quote-mode-select-card quote-mode-select-compact quote-mode-select-modern">
             {guestMode && (
               <div className="quote-step-header centered">
                 <button type="button" className="quote-step-nav-text" onClick={() => setGuestIntroCompleted(false)}>이전</button>
@@ -10576,16 +10577,24 @@ function QuoteFormsPage({ user, guestMode = false }) {
                 <span className="quote-step-nav-spacer" aria-hidden="true">이전</span>
               </div>
             )}
-            <div className="quote-form-mode-intro quote-step-body">
-              <div className="quote-form-mode-title centered">이사방법 선택</div>
-              <div className="quote-mode-choice-row style-ref">
-                <button type="button" className="quote-mode-button compact styled-choice" onClick={() => selectMode('same_day')}><span className="choice-name">당일이사</span><span className="choice-arrow">→</span></button>
+            <div className="quote-form-mode-intro quote-step-body quote-form-mode-intro-modern">
+              <div className="quote-mode-section-title">이사방법 선택</div>
+              <div className="quote-mode-card-list">
+                <button type="button" className="quote-mode-card" onClick={() => selectMode('same_day')}>
+                  <div className="quote-mode-card-main">
+                    <span className="quote-mode-card-name">당일이사</span>
+                    <span className="quote-mode-card-arrow">→</span>
+                  </div>
+                  <div className="quote-mode-card-desc">짐 보관 필요 없이 바로 입주 가능한 경우</div>
+                </button>
+                <button type="button" className="quote-mode-card" onClick={() => selectMode('storage')}>
+                  <div className="quote-mode-card-main">
+                    <span className="quote-mode-card-name">짐보관이사</span>
+                    <span className="quote-mode-card-arrow">→</span>
+                  </div>
+                  <div className="quote-mode-card-desc">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
+                </button>
               </div>
-              <div className="quote-mode-help centered">짐 보관 필요 없이 바로 입주 가능한 경우</div>
-              <div className="quote-mode-choice-row style-ref">
-                <button type="button" className="quote-mode-button compact styled-choice" onClick={() => selectMode('storage')}><span className="choice-name">짐보관이사</span><span className="choice-arrow">→</span></button>
-              </div>
-              <div className="quote-mode-help centered">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
             </div>
           </section>
         )}
