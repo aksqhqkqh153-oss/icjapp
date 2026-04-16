@@ -50,6 +50,56 @@ EMAIL_DEMO_MODE = settings.email_demo_mode
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format='%(asctime)s %(levelname)s %(name)s %(message)s')
 logger = logging.getLogger('icj24app')
 
+CHAT_MEDIA_RETENTION_DAYS = int(os.getenv("CHAT_MEDIA_RETENTION_DAYS", "90") or 90)
+
+def _parse_created_at(value: str | None) -> Optional[datetime]:
+    raw = str(value or '').strip()
+    if not raw:
+        return None
+    normalized = raw.replace('Z', '+00:00')
+    if 'T' not in normalized and ' ' in normalized:
+        normalized = normalized.replace(' ', 'T', 1)
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except Exception:
+        return None
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+def _is_chat_media_expired(created_at: str | None) -> bool:
+    parsed = _parse_created_at(created_at)
+    if not parsed:
+        return False
+    return parsed <= datetime.utcnow() - timedelta(days=max(CHAT_MEDIA_RETENTION_DAYS, 1))
+
+def _delete_local_upload_by_url(url: str | None) -> None:
+    raw = str(url or '').strip()
+    if not raw.startswith('/uploads/'):
+        return
+    rel = raw[len('/uploads/'):].lstrip('/')
+    if not rel:
+        return
+    target = (settings.upload_root / rel).resolve()
+    root = settings.upload_root.resolve()
+    if not str(target).startswith(str(root)):
+        return
+    try:
+        if target.exists() and target.is_file():
+            target.unlink()
+    except Exception:
+        logger.warning('failed to delete expired chat media: %s', target)
+
+def purge_expired_chat_media(conn) -> int:
+    removed = 0
+    for table in ('dm_messages', 'group_room_messages'):
+        rows = conn.execute(f"SELECT id, attachment_url, attachment_type, created_at FROM {table} WHERE COALESCE(attachment_url, '') != '' AND COALESCE(attachment_type, '') IN ('image', 'video')").fetchall()
+        for row in rows:
+            if not _is_chat_media_expired(row['created_at']):
+                continue
+            _delete_local_upload_by_url(row['attachment_url'])
+            conn.execute(f"UPDATE {table} SET attachment_url = '', attachment_name = CASE WHEN COALESCE(attachment_name, '') != '' THEN attachment_name ELSE '만료된 미디어' END, attachment_type = CASE WHEN COALESCE(attachment_type, '') = 'video' THEN 'expired_video' ELSE 'expired_image' END WHERE id = ?", (row['id'],))
+            removed += 1
+    return removed
+
 GEOCODE_CACHE: dict[str, dict[str, Any]] = {}
 GEOCODE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 KOREA_ADDRESS_FALLBACK_CENTERS: dict[str, dict[str, float]] = {
@@ -1901,6 +1951,11 @@ def reaction_summary(value: str):
     return normalized, list(summary.values())
 def enrich_chat_message(conn, row, table: str):
     item = row_to_dict(row)
+    attachment_type = str(item.get('attachment_type') or '')
+    if attachment_type in {'image', 'video'} and _is_chat_media_expired(item.get('created_at')):
+        item['attachment_url'] = ''
+        item['attachment_name'] = item.get('attachment_name') or '만료된 미디어'
+        item['attachment_type'] = 'expired_video' if attachment_type == 'video' else 'expired_image'
     raw_reactions, grouped = reaction_summary(item.get('reactions', '[]'))
     return {
         **item,
@@ -1940,8 +1995,14 @@ def toggle_reaction(conn, table: str, message_id: int, user_id: int, emoji: str)
 def room_preview_text(message: dict) -> str:
     if message.get('attachment_type') == 'image':
         return '[사진]'
+    if message.get('attachment_type') == 'video':
+        return '[영상]'
     if message.get('attachment_type') == 'file':
         return '[파일]'
+    if message.get('attachment_type') == 'expired_image':
+        return '[만료된 사진]'
+    if message.get('attachment_type') == 'expired_video':
+        return '[만료된 영상]'
     if message.get('attachment_type') == 'location':
         return '[위치]'
     return message.get('message', '')
@@ -2729,6 +2790,7 @@ def toggle_follow(target_user_id: int, user=Depends(require_user)):
     if target_user_id == user["id"]:
         raise HTTPException(status_code=400, detail="본인을 팔로우할 수 없습니다.")
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 팔로우할 수 없습니다.")
         exists = conn.execute("SELECT 1 FROM follows WHERE from_user_id = ? AND to_user_id = ?", (user["id"], target_user_id)).fetchone()
@@ -2793,6 +2855,7 @@ def request_friend(target_user_id: int, user=Depends(require_user)):
     if target_user_id == user["id"]:
         raise HTTPException(status_code=400, detail="본인에게 요청할 수 없습니다.")
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 친구 요청이 불가합니다.")
         exists = conn.execute("SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?", (user["id"], target_user_id)).fetchone()
@@ -2835,6 +2898,7 @@ def direct_chat_request(target_user_id: int, user=Depends(require_user)):
     if target_user_id == user["id"]:
         raise HTTPException(status_code=400, detail="본인에게 요청할 수 없습니다.")
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 채팅 요청이 불가합니다.")
         req = conn.execute("SELECT * FROM direct_chat_requests WHERE requester_id = ? AND target_user_id = ?", (user["id"], target_user_id)).fetchone()
@@ -2850,6 +2914,7 @@ def direct_chat_request(target_user_id: int, user=Depends(require_user)):
 @app.get("/api/chat/{target_user_id}")
 def get_direct_chat(target_user_id: int, user=Depends(require_user)):
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 채팅을 볼 수 없습니다.")
         key = room_key(user["id"], target_user_id)
@@ -2873,12 +2938,15 @@ def send_direct_chat(target_user_id: int, payload: MessageIn, user=Depends(requi
     if not has_text and not has_attachment:
         raise HTTPException(status_code=400, detail="메시지를 입력해 주세요.")
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 채팅할 수 없습니다.")
         key = room_key(user["id"], target_user_id)
         message_text = payload.message.strip()
         if not message_text and payload.attachment_type == 'image':
             message_text = '사진을 보냈습니다.'
+        elif not message_text and payload.attachment_type == 'video':
+            message_text = '영상을 보냈습니다.'
         elif not message_text and payload.attachment_type == 'file':
             message_text = '파일을 보냈습니다.'
         elif not message_text and payload.attachment_type == 'location':
@@ -2912,6 +2980,7 @@ def get_direct_voice_room(target_user_id: int, user=Depends(require_user)):
 @app.post("/api/chat/{target_user_id}/voice-room")
 def create_direct_voice_room(target_user_id: int, user=Depends(require_user)):
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         if is_blocked(conn, user["id"], target_user_id):
             raise HTTPException(status_code=400, detail="차단 관계에서는 음성방을 만들 수 없습니다.")
         conn.execute(
@@ -2963,6 +3032,7 @@ def join_group_room(room_id: int, user=Depends(require_user)):
 @app.get("/api/group-rooms/{room_id}/messages")
 def get_group_messages(room_id: int, user=Depends(require_user)):
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         member = conn.execute("SELECT 1 FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, user["id"])).fetchone()
         if not member:
             raise HTTPException(status_code=403, detail="그룹방 참가자만 조회할 수 있습니다.")
@@ -2992,12 +3062,15 @@ def send_group_message(room_id: int, payload: MessageIn, user=Depends(require_us
     if not has_text and not has_attachment:
         raise HTTPException(status_code=400, detail="메시지를 입력해 주세요.")
     with get_conn() as conn:
+        purge_expired_chat_media(conn)
         member = conn.execute("SELECT 1 FROM group_room_members WHERE room_id = ? AND user_id = ?", (room_id, user["id"])).fetchone()
         if not member:
             raise HTTPException(status_code=403, detail="그룹방 참가자만 작성할 수 있습니다.")
         message_text = payload.message.strip()
         if not message_text and payload.attachment_type == 'image':
             message_text = '사진을 보냈습니다.'
+        elif not message_text and payload.attachment_type == 'video':
+            message_text = '영상을 보냈습니다.'
         elif not message_text and payload.attachment_type == 'file':
             message_text = '파일을 보냈습니다.'
         elif not message_text and payload.attachment_type == 'location':

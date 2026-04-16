@@ -3291,11 +3291,13 @@ function ProfilePage({ onUserUpdate }) {
             <div className="profile-section-heading-inline">
               <h3>프로필정보</h3>
               <div className="profile-badges profile-badges-inline">
-                <span className="profile-badge">권한?({form.grade_label || '일반'})</span>
-                <span className="profile-badge ghost">호점?({branchDisplayLabel(form.branch_no, '본점/미지정')})</span>
+                <span className="profile-badge">권한?({form.grade_label || currentUser?.grade_label || '일반'})</span>
+                {['대표', '부대표', '호점대표'].includes(String(form.position_title || '').trim()) && (
+                  <span className="profile-badge ghost">호점?({branchDisplayLabel(form.branch_no, '본점/미지정')})</span>
+                )}
               </div>
             </div>
-            <button type="submit" className="profile-save-inline">프로필 저장</button>
+            <button type="submit" className="profile-save-inline">저장</button>
           </div>
           <div className="profile-section-divider" />
           <div className="profile-profile-grid">
@@ -4268,7 +4270,7 @@ const QUICK_REACTIONS = ['👍', '❤️', '👏', '🔥', '✅']
 
 const CHAT_PLUS_ACTIONS = [
   ['image', '이미지첨부'],
-  ['file', '파일첨부'],
+  ['file', '파일/영상첨부'],
   ['voiceRoom', '음성방개설'],
   ['voiceMessage', '음성메세지'],
   ['shareLocation', '내위치공유'],
@@ -4374,11 +4376,20 @@ function AttachmentPreview({ message }) {
   if (message.attachment_type === 'image' && message.attachment_url) {
     return <img className="chat-image-preview" src={message.attachment_url} alt={message.attachment_name || '첨부 이미지'} />
   }
+  if (message.attachment_type === 'video' && message.attachment_url) {
+    return <video className="chat-image-preview" src={message.attachment_url} controls playsInline preload="metadata" />
+  }
   if (message.attachment_type === 'file' && message.attachment_url) {
     return <a className="attachment-link" href={message.attachment_url} download={message.attachment_name || '첨부파일'}>{message.attachment_name || '첨부파일 다운로드'}</a>
   }
   if (message.attachment_type === 'location' && message.attachment_url) {
     return <a className="attachment-link" href={message.attachment_url} target="_blank" rel="noreferrer">공유된 위치 보기</a>
+  }
+  if (message.attachment_type === 'expired_image') {
+    return <div className="muted small-text">사진 보관기간(3개월)이 지나 만료되었습니다.</div>
+  }
+  if (message.attachment_type === 'expired_video') {
+    return <div className="muted small-text">영상 보관기간(3개월)이 지나 만료되었습니다.</div>
   }
   return null
 }
@@ -4989,11 +5000,13 @@ function ChatRoomPage({ roomType }) {
       let attachmentPayload = {}
       if (currentFile) {
         const uploaded = await uploadFile(currentFile, 'chat')
-        const isImage = String(currentFile.type || '').startsWith('image/')
+        const mimeType = String(currentFile.type || '')
+        const isImage = mimeType.startsWith('image/')
+        const isVideo = mimeType.startsWith('video/')
         attachmentPayload = {
           attachment_name: uploaded.original_name || currentFile.name,
           attachment_url: uploaded.url,
-          attachment_type: isImage ? 'image' : 'file',
+          attachment_type: isImage ? 'image' : isVideo ? 'video' : 'file',
         }
       }
       const payload = {
@@ -5011,7 +5024,7 @@ function ChatRoomPage({ roomType }) {
         id: `local-${Date.now()}`,
         sender_id: currentUser?.id,
         sender: currentUser,
-        message: currentText || (attachmentPayload.attachment_type === 'image' ? '사진을 보냈습니다.' : attachmentPayload.attachment_type === 'file' ? '파일을 보냈습니다.' : ''),
+        message: currentText || (attachmentPayload.attachment_type === 'image' ? '사진을 보냈습니다.' : attachmentPayload.attachment_type === 'video' ? '영상을 보냈습니다.' : attachmentPayload.attachment_type === 'file' ? '파일을 보냈습니다.' : ''),
         attachment_name: attachmentPayload.attachment_name || '',
         attachment_url: attachmentPayload.attachment_url || '',
         attachment_type: attachmentPayload.attachment_type || '',
@@ -5435,7 +5448,7 @@ function ChatRoomPage({ roomType }) {
           )}
           <form className="chat-compose-box compact" onSubmit={handleSend}>
             <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
-            <input ref={fileInputRef} type="file" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
+            <input ref={fileInputRef} type="file" accept="video/*,application/*,.pdf,.zip,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" hidden onChange={event => setSelectedFile(event.target.files?.[0] || null)} />
             <button type="button" className="chat-plus-button" onClick={() => setPlusMenuOpen(true)} aria-label="채팅 부가 기능">＋</button>
             <input
               value={message}
