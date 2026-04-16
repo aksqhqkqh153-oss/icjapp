@@ -3425,15 +3425,25 @@ def _resolve_geocode_point(address: str) -> dict[str, Any]:
     }
 
 
-def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
+def _resolve_travel_geocode_point(address: str) -> tuple[dict[str, Any], dict[str, Any]]:
     raw = str(address or '').strip()
     if not raw:
         raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
     normalized = _normalize_route_address(raw)
+    candidates = _travel_address_candidates(raw)
+    debug_info: dict[str, Any] = {
+        'input': raw,
+        'normalized': normalized,
+        'candidates': candidates,
+        'provider_errors': [],
+        'cache_hit': False,
+    }
     now_ts = time.time()
     cached = GEOCODE_CACHE.get(normalized)
     cached_provider = str((cached or {}).get('provider') or '').strip().lower()
     if cached and cached_provider in {'kakao-local', 'kakao-keyword', 'naver-geocode'} and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
+        debug_info['cache_hit'] = True
+        debug_info['resolved_provider'] = cached_provider
         return {
             'lat': float(cached['lat']),
             'lng': float(cached['lng']),
@@ -3442,9 +3452,9 @@ def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
             'normalized_label': normalized,
             'provider': cached_provider,
             'approximate': False,
-        }
+        }, debug_info
 
-    for candidate in _travel_address_candidates(raw):
+    for candidate in candidates:
         for provider_name, resolver in (
             ('kakao-local', _lookup_kakao_geocode),
             ('kakao-keyword', _lookup_kakao_keyword_geocode),
@@ -3460,6 +3470,8 @@ def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
                         'approximate': False,
                         'provider': provider_name,
                     }
+                    debug_info['resolved_provider'] = provider_name
+                    debug_info['resolved_candidate'] = candidate
                     return {
                         'lat': float(point['lat']),
                         'lng': float(point['lng']),
@@ -3468,11 +3480,16 @@ def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
                         'normalized_label': normalized,
                         'provider': provider_name,
                         'approximate': False,
-                    }
+                    }, debug_info
+                debug_info['provider_errors'].append(f'{provider_name}:no-match:{candidate}')
             except Exception as exc:
                 logger.warning('travel geocode lookup failed via %s for %s -> %s: %s', provider_name, raw, candidate, exc)
+                debug_info['provider_errors'].append(f'{provider_name}:error:{candidate}:{exc}')
 
-    raise HTTPException(status_code=404, detail='카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.')
+    raise HTTPException(status_code=404, detail=json.dumps({
+        'message': '카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.',
+        'debug': debug_info,
+    }, ensure_ascii=False))
 
 
 
@@ -3845,10 +3862,31 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
     attempts: list[str] = []
     errors: list[str] = []
     try:
-        start_point = _resolve_travel_geocode_point(start_address)
-        end_point = _resolve_travel_geocode_point(end_address)
+        start_point, start_debug = _resolve_travel_geocode_point(start_address)
+        end_point, end_debug = _resolve_travel_geocode_point(end_address)
     except HTTPException as exc:
-        detail = str(exc.detail or '카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.')
+        detail_raw = exc.detail
+        detail = '카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.'
+        debug_payload = {
+            'start': {'input': start_address, 'normalized': _normalize_route_address(start_address), 'candidates': _travel_address_candidates(start_address), 'provider_errors': []},
+            'end': {'input': end_address, 'normalized': _normalize_route_address(end_address), 'candidates': _travel_address_candidates(end_address), 'provider_errors': []},
+        }
+        try:
+            parsed = json.loads(str(detail_raw)) if isinstance(detail_raw, str) else None
+            if isinstance(parsed, dict):
+                detail = str(parsed.get('message') or detail)
+                if parsed.get('debug'):
+                    # distinguish which side failed by input match when only one side raised
+                    failed_debug = parsed.get('debug') if isinstance(parsed.get('debug'), dict) else {}
+                    failed_input = str(failed_debug.get('input') or '')
+                    if failed_input == str(start_address):
+                        debug_payload['start'] = failed_debug
+                    elif failed_input == str(end_address):
+                        debug_payload['end'] = failed_debug
+                    else:
+                        debug_payload['start'] = failed_debug
+        except Exception:
+            detail = str(detail_raw or detail)
         return {
             'provider': 'unavailable',
             'provider_label': _travel_provider_label('unavailable'),
@@ -3865,6 +3903,7 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
             'normalized_end_address': _normalize_route_address(end_address),
             'start_geocode_provider': '',
             'end_geocode_provider': '',
+            'debug': debug_payload,
         }
     for provider_name, resolver in (('kakao', _lookup_kakao_travel), ('naver', _lookup_naver_travel)):
         attempts.append(provider_name)
@@ -3887,6 +3926,10 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
                     'end_geocode_provider': str(end_point.get('provider') or ''),
                     'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
                     'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
+                    'debug': {
+                        'start': start_debug,
+                        'end': end_debug,
+                    },
                 }
         except Exception as exc:
             logger.warning('travel time lookup failed via %s: %s', provider_name, exc)
@@ -3908,6 +3951,10 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         'end_geocode_provider': str(end_point.get('provider') or ''),
         'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
         'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
+        'debug': {
+            'start': start_debug,
+            'end': end_debug,
+        },
     }
 
 @app.get("/api/map-users")

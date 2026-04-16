@@ -11555,6 +11555,7 @@ function LadderDispatchPage() {
       try {
         setTravelTimeStatus({ state: 'loading', message: '이동시간 계산중...' })
         const response = await api(`/api/travel-time?start_address=${encodeURIComponent(startAddress)}&end_address=${encodeURIComponent(endAddress)}`, { icjCache: { skip: true } })
+        console.info('[travel-time] response', response)
         const nextTravelTime = String(response?.duration_text || '').trim()
         const providerLabel = String(response?.provider_label || (response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인')).trim()
         setForm(prev => {
@@ -11571,7 +11572,21 @@ function LadderDispatchPage() {
           return changed ? next : prev
         })
         if (!nextTravelTime || response?.route_mode !== 'real') {
-          setTravelTimeStatus({ state: 'done', message: '' })
+          const startDebug = response?.debug?.start || {}
+          const endDebug = response?.debug?.end || {}
+          const startResolved = String(startDebug?.resolved_provider || '').trim()
+          const endResolved = String(endDebug?.resolved_provider || '').trim()
+          const startCandidate = String(startDebug?.resolved_candidate || '').trim()
+          const endCandidate = String(endDebug?.resolved_candidate || '').trim()
+          const startError = Array.isArray(startDebug?.provider_errors) && startDebug.provider_errors.length ? String(startDebug.provider_errors[0]) : ''
+          const endError = Array.isArray(endDebug?.provider_errors) && endDebug.provider_errors.length ? String(endDebug.provider_errors[0]) : ''
+          const reasons = [
+            startResolved ? `출발지 좌표:${startResolved}${startCandidate ? `(${startCandidate})` : ''}` : '',
+            endResolved ? `도착지 좌표:${endResolved}${endCandidate ? `(${endCandidate})` : ''}` : '',
+            !startResolved && startError ? `출발지 실패:${startError}` : '',
+            !endResolved && endError ? `도착지 실패:${endError}` : '',
+          ].filter(Boolean)
+          setTravelTimeStatus({ state: 'done', message: reasons.length ? reasons.join(' · ') : String(response?.message || '') })
         } else {
           const geocodeHints = [response?.start_geocode_provider, response?.end_geocode_provider].filter(Boolean)
           const geocodeNote = geocodeHints.length ? ` · 좌표:${Array.from(new Set(geocodeHints)).join('/')}` : ''
