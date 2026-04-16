@@ -11743,7 +11743,7 @@ function LadderDispatchPage() {
                   <div className="ladder-travel-time-field">
                     <input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="이동시간 ex) 1시간 23분" />
                     <div className="ladder-travel-provider-line">
-                      <span className="ladder-travel-provider-label">지도기준</span>
+                      <span className="ladder-travel-provider-label">반영지도 :</span>
                       <strong className="ladder-travel-provider-value">{form.travelProvider || '-'}</strong>
                     </div>
                     {travelTimeStatus.message && <div className={`ladder-travel-time-hint ${travelTimeStatus.state}`}>{travelTimeStatus.message}</div>}

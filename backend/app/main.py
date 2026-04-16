@@ -3425,6 +3425,51 @@ def _resolve_geocode_point(address: str) -> dict[str, Any]:
     }
 
 
+def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
+    raw = str(address or '').strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail='주소를 입력해 주세요.')
+    normalized = _normalize_route_address(raw)
+    now_ts = time.time()
+    cached = GEOCODE_CACHE.get(normalized)
+    cached_provider = str((cached or {}).get('provider') or '').strip().lower()
+    if cached and cached_provider in {'kakao-local', 'naver-geocode'} and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
+        return {
+            'lat': float(cached['lat']),
+            'lng': float(cached['lng']),
+            'label': normalized,
+            'input_label': raw,
+            'normalized_label': normalized,
+            'provider': cached_provider,
+            'approximate': False,
+        }
+
+    for provider_name, resolver in (('kakao-local', _lookup_kakao_geocode), ('naver-geocode', _lookup_naver_geocode)):
+        try:
+            point = resolver(normalized)
+            if point:
+                GEOCODE_CACHE[normalized] = {
+                    'lat': float(point['lat']),
+                    'lng': float(point['lng']),
+                    'stored_at': now_ts,
+                    'approximate': False,
+                    'provider': provider_name,
+                }
+                return {
+                    'lat': float(point['lat']),
+                    'lng': float(point['lng']),
+                    'label': str(point.get('label') or normalized),
+                    'input_label': raw,
+                    'normalized_label': normalized,
+                    'provider': provider_name,
+                    'approximate': False,
+                }
+        except Exception as exc:
+            logger.warning('travel geocode lookup failed via %s for %s -> %s: %s', provider_name, raw, normalized, exc)
+
+    raise HTTPException(status_code=404, detail='카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.')
+
+
 
 
 def _normalize_route_address(address: str) -> str:
@@ -3677,19 +3722,19 @@ def _travel_provider_label(provider: str) -> str:
         return '카카오맵'
     if code == 'naver':
         return '네이버지도'
-    if code == 'estimate':
-        return '추정값'
-    return '알 수 없음'
+    if code == 'unavailable':
+        return '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인'
+    return '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인'
 
 
 def _travel_route_mode(provider: str) -> str:
-    return 'real' if str(provider or '').strip().lower() in {'kakao', 'naver'} else 'estimate'
+    return 'real' if str(provider or '').strip().lower() in {'kakao', 'naver'} else 'unavailable'
 
 
 @app.get('/api/travel-time')
 def travel_time_lookup(start_address: str = Query(..., min_length=2), end_address: str = Query(..., min_length=2), user=Depends(require_user)):
-    start_point = _resolve_geocode_point(start_address)
-    end_point = _resolve_geocode_point(end_address)
+    start_point = _resolve_travel_geocode_point(start_address)
+    end_point = _resolve_travel_geocode_point(end_address)
     attempts: list[str] = []
     errors: list[str] = []
     for provider_name, resolver in (('kakao', _lookup_kakao_travel), ('naver', _lookup_naver_travel)):
@@ -3717,17 +3762,15 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         except Exception as exc:
             logger.warning('travel time lookup failed via %s: %s', provider_name, exc)
             errors.append(f'{provider_name}:{exc}')
-    estimated = _estimate_travel_from_distance(start_point, end_point)
-    provider_code = str(estimated['provider'])
     return {
         'start': start_point,
         'end': end_point,
-        'provider': provider_code,
-        'provider_label': _travel_provider_label(provider_code),
-        'route_mode': _travel_route_mode(provider_code),
-        'distance_m': estimated['distance_m'],
-        'duration_seconds': estimated['duration_seconds'],
-        'duration_text': estimated['duration_text'],
+        'provider': 'unavailable',
+        'provider_label': _travel_provider_label('unavailable'),
+        'route_mode': _travel_route_mode('unavailable'),
+        'distance_m': 0,
+        'duration_seconds': 0,
+        'duration_text': '',
         'approximate': True,
         'attempts': attempts,
         'fallback_reason': 'real-route-unavailable',
