@@ -2516,7 +2516,6 @@ useEffect(() => {
               setSavedDraftBaseline(normalizeDraftForCompare(draft))
             }}
           />
-          <div className="disposal-saved-at">최근 저장: {savedAt ? new Date(savedAt).toLocaleString('ko-KR') : '-'}</div>
         </div>
       </section>
 

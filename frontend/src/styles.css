@@ -29676,3 +29676,18 @@ button.danger {
     font-size: 10px !important;
   }
 }
+
+
+/* 2026-04-16 disposal edge spacing cleanup */
+.page-container.page-container-disposal-edge {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.disposal-list-top-controls.disposal-list-top-controls-single-row {
+  margin-bottom: 0 !important;
+}
+
+.disposal-form-shell .disposal-saved-at {
+  display: none !important;
+}
