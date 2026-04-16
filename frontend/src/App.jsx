@@ -3174,6 +3174,20 @@ function ProfilePage({ onUserUpdate }) {
       <form onSubmit={save} className="profile-form-layout">
         <section className="profile-section">
           <h3>기본 계정 정보</h3>
+          <div className="profile-photo-hero">
+            <button type="button" className="profile-photo-hero-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
+              <AvatarCircle src={form.photo_url} label={form.nickname || form.login_id} size={108} className="profile-photo-hero-avatar" />
+            </button>
+            <input id="profile-page-photo-input" type="file" accept="image/*" hidden onChange={handleProfilePhotoUpload} />
+            <div className="profile-photo-hero-meta">
+              <div className="profile-photo-hero-title">프로필 사진</div>
+              <div className="profile-photo-hero-actions">
+                <button type="button" className="ghost small" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>{uploadingPhoto ? '업로드 중...' : '사진 선택'}</button>
+                <button type="button" className="ghost small" onClick={() => updateField('photo_url', '')}>기본 이미지</button>
+              </div>
+              <div className="muted small-text">사진을 선택하면 즉시 미리보기로 바뀌고, 프로필 저장 시 반영됩니다.</div>
+            </div>
+          </div>
           <div className="profile-grid two">
             <label className="field-block">
               <span>아이디</span>
@@ -4052,7 +4066,7 @@ function FriendsPage() {
                 <div className="dropdown-wrap profile-preview-menu">
                   <button type="button" className="small ghost" onClick={e => { e.stopPropagation(); setOpenFriendMenuId(prev => prev === 'my-profile-preview' ? null : 'my-profile-preview') }}>메뉴</button>
                   <div className={`dropdown-menu right inline-friend-menu ${openFriendMenuId === 'my-profile-preview' ? 'open-inline-menu' : ''}`}>
-                    <button type="button" className="dropdown-item" onClick={() => { setOpenFriendMenuId(null); openMyProfileEditor() }}>상세 프로필 편집</button>
+                    <button type="button" className="dropdown-item" onClick={() => { setOpenFriendMenuId(null); setProfilePreview({ mode: '', friend: null, section: '' }); navigate('/profile') }}>상세 프로필 편집</button>
                   </div>
                 </div>
               )}
