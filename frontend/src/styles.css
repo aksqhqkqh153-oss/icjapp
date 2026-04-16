@@ -22708,12 +22708,65 @@ textarea,
   min-height: 42px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid #111827;
   background: #ffffff;
 }
 
+.disposal-bulk-payment-meta-grid > span strong,
+.disposal-bulk-payment-location strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.disposal-bulk-payment-meta-grid > span em,
+.disposal-bulk-payment-location em {
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .disposal-bulk-payment-location {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.disposal-bulk-payment-filter-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.disposal-bulk-payment-filter-label {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #111827;
+  background: #f3f4f6;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.disposal-bulk-payment-filter-row select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #111827;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 12px;
   font-size: 14px;
   font-weight: 700;
 }
@@ -22800,10 +22853,27 @@ textarea,
   justify-content: center;
 }
 
+.disposal-bulk-payment-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
 .disposal-bulk-payment-question {
   font-size: 15px;
   font-weight: 700;
   color: #111827;
+  white-space: nowrap;
+}
+
+.disposal-bulk-payment-actions-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
 }
 
 @media (max-width: 768px) {
@@ -22827,6 +22897,15 @@ textarea,
   .disposal-bulk-payment-location {
     min-height: 38px;
     padding: 8px 10px;
+  }
+
+  .disposal-bulk-payment-meta-grid > span strong,
+  .disposal-bulk-payment-location strong,
+  .disposal-bulk-payment-meta-grid > span em,
+  .disposal-bulk-payment-location em,
+  .disposal-bulk-payment-filter-row select,
+  .disposal-bulk-payment-filter-label {
+    font-size: 12px;
   }
 
   .disposal-bulk-payment-table {
@@ -22856,8 +22935,15 @@ textarea,
     font-size: 11px;
   }
 
+  .disposal-bulk-payment-footer-row {
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
   .disposal-bulk-payment-question {
     font-size: 14px;
+    white-space: normal;
   }
 }
 
@@ -28870,3 +28956,19 @@ button.danger {
 .ladder-travel-provider-line { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:#475569; }
 .ladder-travel-provider-label { color:#64748b; }
 .ladder-travel-provider-value { color:#0f172a; }
+
+
+.disposal-bulk-payment-row > div:first-child {
+  justify-content: flex-start;
+}
+
+@media (max-width: 768px) {
+  .disposal-bulk-payment-filter-row {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .disposal-bulk-payment-actions-inline {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

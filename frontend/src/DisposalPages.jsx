@@ -2569,6 +2569,7 @@ export
 function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, reportStatuses = {}, onChangeDate, onChangeReportStatus, onApplyAllDates, onApplyAllReports, onConfirm, onClose }) {
   const initialPaymentDatesRef = useRef({})
   const initialReportStatusesRef = useRef({})
+  const [filterKey, setFilterKey] = useState('default')
 
   useEffect(() => {
     if (!open) {
@@ -2584,13 +2585,58 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
   }, [open, group?.recordId, rows, paymentDates, reportStatuses])
 
   useEffect(() => {
+    if (!open) return
+    setFilterKey('default')
+  }, [open, group?.recordId])
+
+  const filteredRows = useMemo(() => {
+    const list = [...rows]
+    if (filterKey === 'item_name') {
+      return list.sort((a, b) => String(a?.itemName || '').localeCompare(String(b?.itemName || ''), 'ko'))
+    }
+    if (filterKey === 'quantity') {
+      return list.sort((a, b) => safeNumber(a?.quantity) - safeNumber(b?.quantity) || safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder))
+    }
+    if (filterKey === 'sales_amount') {
+      return list.sort((a, b) => safeNumber(a?.finalAmount) - safeNumber(b?.finalAmount) || safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder))
+    }
+    if (filterKey === 'payment_date') {
+      return list.sort((a, b) => {
+        const aValue = String(paymentDates?.[a.key] || '').trim()
+        const bValue = String(paymentDates?.[b.key] || '').trim()
+        const aIsUnpaid = !aValue || aValue === UNPAID_PAYMENT_VALUE
+        const bIsUnpaid = !bValue || bValue === UNPAID_PAYMENT_VALUE
+        if (aIsUnpaid !== bIsUnpaid) return aIsUnpaid ? 1 : -1
+        return String(aValue).localeCompare(String(bValue), 'ko') || safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder)
+      })
+    }
+    if (filterKey === 'payment_status') {
+      return list.sort((a, b) => {
+        const aPaid = (() => { const value = String(paymentDates?.[a.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE })()
+        const bPaid = (() => { const value = String(paymentDates?.[b.key] || '').trim(); return !!value && value !== UNPAID_PAYMENT_VALUE })()
+        if (aPaid !== bPaid) return aPaid ? -1 : 1
+        return safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder)
+      })
+    }
+    if (filterKey === 'report_status') {
+      return list.sort((a, b) => {
+        const aReported = !!reportStatuses?.[a.key]
+        const bReported = !!reportStatuses?.[b.key]
+        if (aReported !== bReported) return aReported ? -1 : 1
+        return safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder)
+      })
+    }
+    return list.sort((a, b) => safeNumber(a?.itemOrder) - safeNumber(b?.itemOrder))
+  }, [rows, filterKey, paymentDates, reportStatuses])
+
+  useEffect(() => {
     if (!open) return undefined
     const handleKeyDown = (event) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
       const initialDates = initialPaymentDatesRef.current || {}
       const initialReports = initialReportStatusesRef.current || {}
-      const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
+      const hasChanges = filteredRows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
       if (!hasChanges) {
         onClose?.()
         return
@@ -2601,14 +2647,14 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, rows, paymentDates, reportStatuses, onConfirm, onClose])
+  }, [open, filteredRows, paymentDates, reportStatuses, onConfirm, onClose])
 
   if (!open || !group) return null
   const totalFinalAmount = rows.reduce((sum, row) => sum + safeNumber(row?.finalAmount), 0)
   const handleRequestClose = () => {
     const initialDates = initialPaymentDatesRef.current || {}
     const initialReports = initialReportStatusesRef.current || {}
-    const hasChanges = rows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
+    const hasChanges = filteredRows.some(row => String(initialDates[row.key] || '') !== String(paymentDates?.[row.key] || '') || !!initialReports[row.key] !== !!reportStatuses?.[row.key])
     if (!hasChanges) {
       onClose?.()
       return
@@ -2633,11 +2679,24 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
 
         <div className="disposal-bulk-payment-meta">
           <div className="disposal-bulk-payment-meta-grid">
-            <span>{group.disposalDate || '-'}</span>
-            <span>{group.platform || '-'}</span>
-            <span>{group.customerName || '-'}</span>
+            <span><strong>폐기날짜</strong><em>{group.disposalDate || '-'}</em></span>
+            <span><strong>플랫폼</strong><em>{group.platform || '-'}</em></span>
+            <span><strong>고객명</strong><em>{group.customerName || '-'}</em></span>
           </div>
-          <div className="disposal-bulk-payment-location">{group.location || '-'}</div>
+          <div className="disposal-bulk-payment-location"><strong>폐기장소</strong><em>{group.location || '-'}</em></div>
+        </div>
+
+        <div className="disposal-bulk-payment-filter-row">
+          <label className="disposal-bulk-payment-filter-label" htmlFor="disposal-bulk-filter">필터</label>
+          <select id="disposal-bulk-filter" value={filterKey} onChange={e => setFilterKey(e.target.value)} aria-label="입금결산 필터">
+            <option value="default">기본순서</option>
+            <option value="item_name">품목(오름차순)</option>
+            <option value="quantity">수량(오름차순)</option>
+            <option value="sales_amount">매출액(오름차순)</option>
+            <option value="payment_date">입금일시(날짜 오름차순)</option>
+            <option value="payment_status">입금(O/X 분류)</option>
+            <option value="report_status">신고(O/X 분류)</option>
+          </select>
         </div>
 
         <div className="disposal-bulk-payment-table-wrap">
@@ -2650,7 +2709,7 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
               <div className="disposal-bulk-payment-cell-center">입금</div>
               <div className="disposal-bulk-payment-cell-center">신고</div>
             </div>
-            {rows.map(row => {
+            {filteredRows.map(row => {
               const nextValue = String(paymentDates[row.key] || '').trim()
               const isPaid = !!nextValue && nextValue !== UNPAID_PAYMENT_VALUE
               const isReported = !!reportStatuses?.[row.key]
@@ -2761,11 +2820,12 @@ function DisposalBulkPaymentModal({ open, group, rows = [], paymentDates = {}, r
           </div>
         </div>
 
-        <div className="disposal-bulk-payment-question">폐기 신고금액 입금일자가 정확합니까?</div>
-
-        <div className="disposal-confirm-actions">
-          <button type="button" className="ghost" onClick={handleRequestClose}>아니오</button>
-          <button type="button" onClick={onConfirm}>네</button>
+        <div className="disposal-bulk-payment-footer-row">
+          <div className="disposal-bulk-payment-question">폐기 신고금액 입금일자가 정확합니까?</div>
+          <div className="disposal-confirm-actions disposal-bulk-payment-actions-inline">
+            <button type="button" className="ghost" onClick={handleRequestClose}>아니오</button>
+            <button type="button" onClick={onConfirm}>네</button>
+          </div>
         </div>
       </div>
     </div>
