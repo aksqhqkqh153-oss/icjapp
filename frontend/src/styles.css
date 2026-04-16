@@ -29622,3 +29622,18 @@ button.danger {
     gap: 8px;
   }
 }
+
+/* 2026-04-16 disposal customer grid border/padding fix */
+.disposal-list-grid.disposal-list-grid-customer {
+  border: 2px solid #111111;
+  border-top: 2px solid #111111;
+}
+
+.disposal-list-grid-customer .disposal-list-grid-head {
+  border-top: 0;
+}
+
+.disposal-list-date-group.disposal-customer-group-card,
+.disposal-customer-group-card {
+  padding: 0 !important;
+}
