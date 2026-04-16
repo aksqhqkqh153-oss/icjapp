@@ -10938,6 +10938,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [error, setError] = useState('')
   const [adminItems, setAdminItems] = useState([])
   const [detailItem, setDetailItem] = useState(null)
+  const [isQuoteDetailView, setIsQuoteDetailView] = useState(false)
   const [operationsPreview, setOperationsPreview] = useState(null)
   const [operationsLoading, setOperationsLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
@@ -11139,6 +11140,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
         setDetailItem(matched || nextItems[0])
       } else {
         setDetailItem(null)
+        setIsQuoteDetailView(false)
       }
     } catch (err) {
       setError(err.message || '견적목록을 불러오지 못했습니다.')
@@ -11153,11 +11155,16 @@ function QuoteFormsPage({ user, guestMode = false }) {
     try {
       const result = await api(`/api/admin/quote-forms/${itemId}`)
       setDetailItem(result.item || null)
+      setIsQuoteDetailView(true)
     } catch (err) {
-      setError(err.message || '상세작성양식을 불러오지 못했습니다.')
+      setError(err.message || '견적상세를 불러오지 못했습니다.')
     } finally {
       setDetailLoading(false)
     }
+  }
+
+  function closeQuoteDetailView() {
+    setIsQuoteDetailView(false)
   }
 
 
@@ -11420,7 +11427,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
       {pageTab === 'list' && !isAdminUser && !guestMode && <section className="card quote-admin-list-card"><div className="muted">견적목록은 관리자/부관리자 계정에서 확인할 수 있습니다.</div></section>}
 
-      {pageTab === 'list' && isAdminUser && <div className="quote-admin-layout">
+      {pageTab === 'list' && isAdminUser && !isQuoteDetailView && <div className="quote-admin-layout">
         <section className="card quote-admin-list-card">
           <div className="between quote-list-toolbar">
             <div className="quote-list-tabs">
@@ -11464,79 +11471,80 @@ function QuoteFormsPage({ user, guestMode = false }) {
             </table>
           </div>
         </section>
-
-        <section className="card quote-admin-detail-card">
-          <div className="between"><h3>상세작성양식</h3>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
-          {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body">
-            <div className="inline-actions wrap end quote-detail-actions">
-              <button type="button" className="small" onClick={() => loadOperationsPreview()} disabled={operationsLoading}>{operationsLoading ? '분석 중...' : 'AI견적미리보기'}</button>
-              <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
-            </div>
-            <div className="quote-detail-hero"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
-            <div className="quote-detail-grid">
-              <div className="quote-detail-section"><h4>기본 정보</h4><dl>{[
-                ['고객 성함', adminDetailPayload.customer_name],
-                [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
-                ['출발지 거주 가구원', adminDetailPayload.household],
-                ['출발지 구조', adminDetailPayload.structure],
-                ['출발지 평수', adminDetailPayload.area],
-                ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
-                ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
-                ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
-                ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
-                ['연락처', adminDetailPayload.contact_phone || detailItem.contact_phone],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
-              <div className="quote-detail-section"><h4>세부 옵션</h4><dl>{[
-                ['희망 이사 종류', joinQuoteValue(adminDetailPayload.move_types)],
-                ['프리미엄 추가 옵션', joinQuoteValue(adminDetailPayload.premium_options)],
-                ['가전/가구 종류', joinQuoteValue(adminDetailPayload.furniture_types)],
-                ['추가 가전/가구', joinQuoteValue([adminDetailPayload.extra_furniture, adminDetailPayload.duplicate_furniture])],
-                ['분해/조립 필요 가전/가구', joinQuoteValue(adminDetailPayload.disassembly_types)],
-                ['추가 분해/조립', joinQuoteValue([adminDetailPayload.extra_disassembly, adminDetailPayload.duplicate_disassembly])],
-                ['대형 가전/가구 / 폐기물', joinQuoteValue(adminDetailPayload.large_item_types)],
-                ['대형 추가기재', joinQuoteValue([adminDetailPayload.extra_large_items, adminDetailPayload.duplicate_large_items])],
-                ['폐기물 원스탑 신고 서비스 접수 희망', adminDetailPayload.waste_service],
-                ['동승 희망 여부', adminDetailPayload.companion_preference],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
-              <div className="quote-detail-section"><h4>경유지 / 메모</h4><dl>{[
-                ['경유지 주소', joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
-                ['경유지 엘레베이터', adminDetailPayload.via_elevator],
-                ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
-                ['경유지 하차 물품', adminDetailPayload.via_drop_items],
-                ['추가 메모', adminDetailPayload.request_memo],
-                ['원룸/투룸/소형이사 고지 확인', boolLabel(adminDetailPayload.move_scope_notice)],
-                ['카카오톡 친구 추가 고지 확인', boolLabel(adminDetailPayload.kakao_notice)],
-                ['개인정보 수집 이용 동의', boolLabel(adminDetailPayload.privacy_agreed)],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
-            </div>
-            {operationsPreview && <div className="quote-detail-grid">
-              <div className="quote-detail-section"><h4>AI 견적 요약</h4><dl>{[
-                ['예상 견적 범위', `${Number(operationsPreview.estimate?.estimated_low || 0).toLocaleString()}원 ~ ${Number(operationsPreview.estimate?.estimated_high || 0).toLocaleString()}원`],
-                ['추천 인원', `${operationsPreview.estimate?.recommended_crew || 0}명`],
-                ['추천 차량', `${operationsPreview.estimate?.recommended_vehicle_count || 0}대`],
-                ['난이도', operationsPreview.estimate?.difficulty_grade],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl><div className="stack compact">{(operationsPreview.estimate?.explanation_lines || []).map((line, index) => <div key={`exp-${index}`} className="muted tiny-text">- {line}</div>)}</div></div>
-              <div className="quote-detail-section"><h4>일정 충돌 분석</h4><dl>{[
-                ['희망일', operationsPreview.schedule_analysis?.target_date],
-                ['가용 차량 수', operationsPreview.schedule_analysis?.available_vehicle_count ?? '미등록'],
-                ['기등록 차량 수', operationsPreview.schedule_analysis?.scheduled_vehicle_count ?? 0],
-                ['판정', operationsPreview.schedule_analysis?.conflict_level],
-                ['권장 조치', operationsPreview.schedule_analysis?.recommended_action],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
-              <div className="quote-detail-section"><h4>CRM / 계약금 / 체크리스트</h4><dl>{[
-                ['재방문 고객 후보', `${operationsPreview.crm_matches?.length || 0}건`],
-                ['계약금 알림', operationsPreview.deposit_alert?.message],
-                ['추천 체크리스트', operationsPreview.recommended_checklist?.name],
-              ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl>
-                <div className="stack compact">
-                  {(operationsPreview.crm_matches || []).slice(0, 3).map(item => <div key={`crm-${item.id}`} className="muted tiny-text">- {item.customer_name || '-'} / {item.desired_date || '-'} / {item.summary_title || '-'}</div>)}
-                  {(operationsPreview.recommended_checklist?.items || []).slice(0, 5).map((item, index) => <div key={`cl-${index}`} className="muted tiny-text">- {item.label}</div>)}
-                </div>
-              </div>
-            </div>}
-          </div>}
-        </section>
       </div>}
+
+      {pageTab === 'list' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
+        <div className="between quote-detail-screen-topbar"><button type="button" className="quote-back-button" onClick={closeQuoteDetailView}>← 뒤로가기</button>{detailLoading && <span className="muted">불러오는 중...</span>}</div>
+        <div className="between"><h3>견적상세</h3></div>
+        {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
+          <div className="inline-actions wrap end quote-detail-actions">
+            <button type="button" className="small" onClick={() => loadOperationsPreview()} disabled={operationsLoading}>{operationsLoading ? '분석 중...' : 'AI견적미리보기'}</button>
+            <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
+          </div>
+          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div><div className="quote-detail-badges"><span>{detailItem.requester_name || '-'}</span><span>{detailItem.contact_phone || '-'}</span><span>{formatQuoteDesiredDate(detailItem)}</span></div></div>
+          <div className="quote-detail-grid quote-detail-grid-compact">
+            <div className="quote-detail-section quote-detail-section-compact"><h4>기본 정보</h4><dl>{[
+              ['고객 성함', adminDetailPayload.customer_name],
+              ['연락처', adminDetailPayload.contact_phone || detailItem.contact_phone],
+              [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
+              ['출발지 거주 가구원', adminDetailPayload.household],
+              ['출발지 구조', adminDetailPayload.structure],
+              ['출발지 평수', adminDetailPayload.area],
+              ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
+              ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
+              ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
+              ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+            <div className="quote-detail-section quote-detail-section-compact"><h4>세부 옵션</h4><dl>{[
+              ['희망 이사 종류', joinQuoteValue(adminDetailPayload.move_types)],
+              ['프리미엄 추가 옵션', joinQuoteValue(adminDetailPayload.premium_options)],
+              ['가전/가구 종류', joinQuoteValue(adminDetailPayload.furniture_types)],
+              ['추가 가전/가구', joinQuoteValue([adminDetailPayload.extra_furniture, adminDetailPayload.duplicate_furniture])],
+              ['분해/조립 필요 가전/가구', joinQuoteValue(adminDetailPayload.disassembly_types)],
+              ['추가 분해/조립', joinQuoteValue([adminDetailPayload.extra_disassembly, adminDetailPayload.duplicate_disassembly])],
+              ['대형 가전/가구 / 폐기물', joinQuoteValue(adminDetailPayload.large_item_types)],
+              ['대형 추가기재', joinQuoteValue([adminDetailPayload.extra_large_items, adminDetailPayload.duplicate_large_items])],
+              ['폐기물 원스탑 신고 서비스 접수 희망', adminDetailPayload.waste_service],
+              ['동승 희망 여부', adminDetailPayload.companion_preference],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+            <div className="quote-detail-section quote-detail-section-compact"><h4>경유지 / 메모</h4><dl>{[
+              ['경유지 주소', joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
+              ['경유지 엘레베이터', adminDetailPayload.via_elevator],
+              ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
+              ['경유지 하차 물품', adminDetailPayload.via_drop_items],
+              ['추가 메모', adminDetailPayload.request_memo],
+              ['원룸/투룸/소형이사 고지 확인', boolLabel(adminDetailPayload.move_scope_notice)],
+              ['카카오톡 친구 추가 고지 확인', boolLabel(adminDetailPayload.kakao_notice)],
+              ['개인정보 수집 이용 동의', boolLabel(adminDetailPayload.privacy_agreed)],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+          </div>
+          {operationsPreview && <div className="quote-detail-grid quote-detail-grid-compact">
+            <div className="quote-detail-section quote-detail-section-compact"><h4>AI 견적 요약</h4><dl>{[
+              ['예상 견적 범위', `${Number(operationsPreview.estimate?.estimated_low || 0).toLocaleString()}원 ~ ${Number(operationsPreview.estimate?.estimated_high || 0).toLocaleString()}원`],
+              ['추천 인원', `${operationsPreview.estimate?.recommended_crew || 0}명`],
+              ['추천 차량', `${operationsPreview.estimate?.recommended_vehicle_count || 0}대`],
+              ['난이도', operationsPreview.estimate?.difficulty_grade],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl><div className="stack compact">{(operationsPreview.estimate?.explanation_lines || []).map((line, index) => <div key={`exp-${index}`} className="muted tiny-text">- {line}</div>)}</div></div>
+            <div className="quote-detail-section quote-detail-section-compact"><h4>일정 충돌 분석</h4><dl>{[
+              ['희망일', operationsPreview.schedule_analysis?.target_date],
+              ['가용 차량 수', operationsPreview.schedule_analysis?.available_vehicle_count ?? '미등록'],
+              ['기등록 차량 수', operationsPreview.schedule_analysis?.scheduled_vehicle_count ?? 0],
+              ['판정', operationsPreview.schedule_analysis?.conflict_level],
+              ['권장 조치', operationsPreview.schedule_analysis?.recommended_action],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+            <div className="quote-detail-section quote-detail-section-compact"><h4>CRM / 계약금 / 체크리스트</h4><dl>{[
+              ['재방문 고객 후보', `${operationsPreview.crm_matches?.length || 0}건`],
+              ['계약금 알림', operationsPreview.deposit_alert?.message],
+              ['추천 체크리스트', operationsPreview.recommended_checklist?.name],
+            ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl>
+              <div className="stack compact">
+                {(operationsPreview.crm_matches || []).slice(0, 3).map(item => <div key={`crm-${item.id}`} className="muted tiny-text">- {item.customer_name || '-'} / {item.desired_date || '-'} / {item.summary_title || '-'}</div>)}
+                {(operationsPreview.recommended_checklist?.items || []).slice(0, 5).map((item, index) => <div key={`cl-${index}`} className="muted tiny-text">- {item.label}</div>)}
+              </div>
+            </div>
+          </div>}
+        </div>}
+      </section>}
     </section>
   </div>
 }

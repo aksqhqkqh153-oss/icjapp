@@ -29913,3 +29913,25 @@ button.danger {
     font-size: 13px;
   }
 }
+
+
+/* quote detail full screen refinements */
+.quote-admin-detail-screen { gap: 12px; }
+.quote-detail-screen-topbar { margin-bottom: 4px; }
+.quote-admin-detail-body-compact { gap: 14px; }
+.quote-detail-hero-compact { padding: 14px; }
+.quote-detail-grid-compact { gap: 14px; }
+.quote-detail-section-compact { padding: 14px; }
+.quote-admin-detail-screen h3 { margin: 0; font-size: 26px; }
+.quote-admin-detail-screen h4 { font-size: 16px; }
+.quote-admin-detail-screen .quote-detail-title { font-size: 17px; }
+.quote-admin-detail-screen .quote-detail-meta { font-size: 12px; }
+.quote-admin-detail-screen .quote-detail-badges span { font-size: 12px; padding: 6px 10px; }
+.quote-admin-detail-screen .quote-detail-row { grid-template-columns: 132px 1fr; gap: 10px; padding: 6px 0; }
+.quote-admin-detail-screen .quote-detail-row dt,
+.quote-admin-detail-screen .quote-detail-row dd { font-size: 12px; }
+.quote-admin-detail-screen .tiny-text { font-size: 10px; }
+@media (max-width: 768px) {
+  .quote-admin-detail-screen h3 { font-size: 22px; }
+  .quote-admin-detail-screen .quote-detail-row { grid-template-columns: 1fr; gap: 3px; }
+}
