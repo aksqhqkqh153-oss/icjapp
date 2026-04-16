@@ -3348,6 +3348,20 @@ def geocode_address(address: str = Query(..., min_length=2), user=Depends(requir
     except Exception as exc:
         logger.warning('kakao geocode lookup failed for %s -> %s: %s', normalized, route_normalized, exc)
 
+    try:
+        naver_point = _lookup_naver_geocode(route_normalized)
+        if naver_point:
+            GEOCODE_CACHE[route_normalized] = {
+                'lat': float(naver_point['lat']),
+                'lng': float(naver_point['lng']),
+                'stored_at': now_ts,
+                'approximate': False,
+                'provider': 'naver-geocode',
+            }
+            return naver_point
+    except Exception as exc:
+        logger.warning('naver geocode lookup failed for %s -> %s: %s', normalized, route_normalized, exc)
+
     url = 'https://nominatim.openstreetmap.org/search?' + urllib.parse.urlencode({
         'format': 'jsonv2',
         'limit': 1,
@@ -3558,15 +3572,66 @@ def _lookup_kakao_travel(start_point: dict[str, Any], end_point: dict[str, Any])
     }
 
 
-def _lookup_naver_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
-    client_id = str(os.getenv('NAVER_MAPS_CLIENT_ID') or os.getenv('NCP_MAPS_CLIENT_ID') or '').strip()
-    client_secret = str(os.getenv('NAVER_MAPS_CLIENT_SECRET') or os.getenv('NCP_MAPS_CLIENT_SECRET') or '').strip()
+def _naver_maps_credentials() -> tuple[str, str]:
+    client_id = str(
+        os.getenv('NAVER_MAPS_CLIENT_ID')
+        or os.getenv('NAVER_MAPS_KEY_ID')
+        or os.getenv('NCP_MAPS_CLIENT_ID')
+        or os.getenv('NCP_MAPS_KEY_ID')
+        or ''
+    ).strip()
+    client_secret = str(
+        os.getenv('NAVER_MAPS_CLIENT_SECRET')
+        or os.getenv('NAVER_MAPS_KEY')
+        or os.getenv('NCP_MAPS_CLIENT_SECRET')
+        or os.getenv('NCP_MAPS_KEY')
+        or ''
+    ).strip()
+    return client_id, client_secret
+
+
+def _lookup_naver_geocode(address: str) -> dict[str, Any] | None:
+    client_id, client_secret = _naver_maps_credentials()
     if not client_id or not client_secret:
         return None
-    url = 'https://naveropenapi.apigw-pub.fin-ntruss.com/map-direction-15/v1/driving?' + urllib.parse.urlencode({
+    query = str(address or '').strip()
+    if not query:
+        return None
+    url = 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode?' + urllib.parse.urlencode({
+        'query': query,
+    })
+    payload = _fetch_json_request(url, {
+        'X-NCP-APIGW-API-KEY-ID': client_id,
+        'X-NCP-APIGW-API-KEY': client_secret,
+        'Accept': 'application/json',
+    })
+    addresses = payload.get('addresses') if isinstance(payload, dict) else None
+    first = addresses[0] if isinstance(addresses, list) and addresses else None
+    if not first:
+        return None
+    x = first.get('x')
+    y = first.get('y')
+    if x in (None, '') or y in (None, ''):
+        return None
+    label = str(first.get('roadAddress') or first.get('jibunAddress') or address or '').strip()
+    return {
+        'lat': float(y),
+        'lng': float(x),
+        'label': label,
+        'cached': False,
+        'approximate': False,
+        'provider': 'naver-geocode',
+    }
+
+
+def _lookup_naver_travel(start_point: dict[str, Any], end_point: dict[str, Any]) -> dict[str, Any] | None:
+    client_id, client_secret = _naver_maps_credentials()
+    if not client_id or not client_secret:
+        return None
+    url = 'https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?' + urllib.parse.urlencode({
         'start': f"{start_point['lng']},{start_point['lat']}",
         'goal': f"{end_point['lng']},{end_point['lat']}",
-        'option': 'traoptimal',
+        'option': 'trafast',
         'lang': 'ko',
     })
     payload = _fetch_json_request(url, {
@@ -3575,7 +3640,9 @@ def _lookup_naver_travel(start_point: dict[str, Any], end_point: dict[str, Any])
         'Accept': 'application/json',
     })
     route = payload.get('route') if isinstance(payload, dict) else None
-    candidates = route.get('traoptimal') if isinstance(route, dict) else None
+    candidates = None
+    if isinstance(route, dict):
+        candidates = route.get('trafast') or route.get('traoptimal')
     first = candidates[0].get('summary') if isinstance(candidates, list) and candidates else None
     duration_seconds = int(round(float(first.get('duration') or 0) / 1000.0)) if first else 0
     distance_m = int(first.get('distance') or 0) if first else 0
@@ -3642,6 +3709,8 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
                     'duration_text': result['duration_text'],
                     'approximate': bool(result.get('approximate')),
                     'attempts': attempts,
+                    'start_geocode_provider': str(start_point.get('provider') or ''),
+                    'end_geocode_provider': str(end_point.get('provider') or ''),
                     'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
                     'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
                 }
@@ -3663,6 +3732,8 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         'attempts': attempts,
         'fallback_reason': 'real-route-unavailable',
         'errors': errors,
+        'start_geocode_provider': str(start_point.get('provider') or ''),
+        'end_geocode_provider': str(end_point.get('provider') or ''),
         'normalized_start_address': start_point.get('normalized_label') or start_point.get('label') or start_address,
         'normalized_end_address': end_point.get('normalized_label') or end_point.get('label') or end_address,
     }

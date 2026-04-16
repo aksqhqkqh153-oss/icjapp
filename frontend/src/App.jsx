@@ -11550,7 +11550,9 @@ function LadderDispatchPage() {
         const approximate = response?.approximate ? ' · 추정값' : ''
         const normalizedApplied = response?.normalized_start_address || response?.normalized_end_address ? ' · 정리주소 적용' : ''
         const routeMode = response?.route_mode === 'real' ? '실경로' : '예상거리 환산'
-        setTravelTimeStatus({ state: 'done', message: `${providerLabel} ${routeMode} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}` })
+        const geocodeHints = [response?.start_geocode_provider, response?.end_geocode_provider].filter(Boolean)
+        const geocodeNote = geocodeHints.length ? ` · 좌표:${Array.from(new Set(geocodeHints)).join('/')}` : ''
+        setTravelTimeStatus({ state: 'done', message: `${providerLabel} ${routeMode} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}${geocodeNote}` })
       } catch (error) {
         setTravelTimeStatus({ state: 'error', message: error instanceof Error ? error.message : '이동시간 계산에 실패했습니다.' })
       }
