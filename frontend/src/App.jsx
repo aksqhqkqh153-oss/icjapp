@@ -10,6 +10,7 @@ import StorageStatusPage from './StorageStatusPage'
 import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, DisposalListPage, DisposalPreviewPage, DisposalSettlementsPage } from './DisposalPages'
 import { WORK_SHIFT_TEMPLATE } from './workScheduleTemplate'
 import { QUOTE_WORKBOOK_TEMPLATE } from './quoteWorkbookTemplateData'
+import { QUOTE_IMPORTED_DATA } from './quoteImportedData'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -2072,7 +2073,7 @@ function Layout({ children, user, onLogout }) {
         </div>
       </header>
       )}
-      <main className={`page-container${location.pathname === '/' ? ' page-container-home' : ''}${location.pathname === '/map' ? ' page-container-map' : ''}${location.pathname === '/friends' ? ' page-container-friends' : ''}${location.pathname.startsWith('/chat') ? ' page-container-chat' : ''}${isSearchView ? ' page-container-search' : ''}${(location.pathname.startsWith('/chats/direct/') || location.pathname.startsWith('/chats/group/')) ? ' page-container-chat-room' : ''}${(location.pathname.startsWith('/disposal/forms') || location.pathname === '/disposal/list' || location.pathname === '/disposal/settlements') ? ' page-container-disposal-edge' : ''}${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
+      <main className={`page-container${location.pathname === '/' ? ' page-container-home' : ''}${location.pathname === '/map' ? ' page-container-map' : ''}${location.pathname === '/friends' ? ' page-container-friends' : ''}${location.pathname.startsWith('/chat') ? ' page-container-chat' : ''}${isSearchView ? ' page-container-search' : ''}${(location.pathname.startsWith('/chats/direct/') || location.pathname.startsWith('/chats/group/')) ? ' page-container-chat-room' : ''}${(location.pathname.startsWith('/disposal/forms') || location.pathname === '/disposal/list' || location.pathname === '/disposal/settlements') ? ' page-container-disposal-edge' : ''}${(location.pathname === '/quotes' || location.pathname.startsWith('/quote-forms')) ? ' page-container-quotes' : ''}${isWideScheduleLayout ? ' schedule-wide' : ''}${isWorkScheduleView ? ' work-schedule-wide' : ''}`}>{children}</main>
       <nav className="bottom-nav">
         {bottomLinks.map(([to, label]) => (
           <Link key={to} className={isBottomActive(to) ? 'bottom-nav-item active' : 'bottom-nav-item'} to={to}>
@@ -10999,6 +11000,23 @@ function QuoteFormsPage({ user, guestMode = false }) {
   })
   const [form, setForm] = useState(() => buildBaseForm())
 
+  const importedAdminItems = useMemo(() => {
+    return (Array.isArray(QUOTE_IMPORTED_DATA) ? QUOTE_IMPORTED_DATA : []).map(item => ({ ...item, imported: true }))
+  }, [])
+  const mergedAdminItems = useMemo(() => {
+    const seen = new Set()
+    const merged = []
+    for (const item of [...importedAdminItems, ...adminItems]) {
+      const key = String(item?.id || `${item?.created_at || ''}-${item?.requester_name || ''}-${item?.contact_phone || ''}`)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(item)
+    }
+    return merged
+  }, [importedAdminItems, adminItems])
+  const ITEMS_PER_PAGE = 10
+  const [currentListPage, setCurrentListPage] = useState(1)
+
   useEffect(() => {
     if (pageTab === 'list' && isAdminUser) loadAdminList()
   }, [pageTab, isAdminUser])
@@ -11008,6 +11026,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
       localStorage.setItem('icj_quote_favorites', JSON.stringify(favoriteIds))
     } catch (_) {}
   }, [favoriteIds])
+
+  useEffect(() => {
+    setCurrentListPage(1)
+  }, [listTypeTab, pageTab])
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -11151,6 +11173,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
   }
 
   async function openDetail(itemId) {
+    const localMatch = mergedAdminItems.find(item => String(item.id) === String(itemId))
+    if (localMatch?.imported) {
+      setOperationsPreview(null)
+      setDetailItem(localMatch)
+      setIsQuoteDetailView(true)
+      setPageTab('detail')
+      return
+    }
     setDetailLoading(true)
     setOperationsPreview(null)
     try {
@@ -11229,7 +11259,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   const currentDesiredLabel = detailItem?.form_type === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
   const adminDetailPayload = detailItem?.payload || {}
-  const filteredAdminItems = adminItems.filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
+  const filteredAdminItems = mergedAdminItems.filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
+  const totalListPages = Math.max(1, Math.ceil(filteredAdminItems.length / ITEMS_PER_PAGE))
+  const safeCurrentListPage = Math.min(currentListPage, totalListPages)
+  const pagedAdminItems = filteredAdminItems.slice((safeCurrentListPage - 1) * ITEMS_PER_PAGE, safeCurrentListPage * ITEMS_PER_PAGE)
   const allSelected = filteredAdminItems.length > 0 && filteredAdminItems.every(item => selectedIds.includes(item.id))
 
   return <div className="stack-page quote-forms-page quotes-page">
@@ -11458,7 +11491,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredAdminItems.length === 0 ? <tr><td colSpan="8" className="quote-list-empty">접수된 견적이 없습니다.</td></tr> : filteredAdminItems.map(item => {
+                {pagedAdminItems.length === 0 ? <tr><td colSpan="8" className="quote-list-empty">접수된 견적이 없습니다.</td></tr> : pagedAdminItems.map(item => {
                   const payload = item.payload || {}
                   const isFavorite = favoriteIds.includes(item.id)
                   const isChecked = selectedIds.includes(item.id)
@@ -11476,6 +11509,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
               </tbody>
             </table>
           </div>
+          {totalListPages > 1 && <div className="quote-pagination" aria-label="견적목록 페이지네이션">
+            {Array.from({ length: totalListPages }, (_, index) => index + 1).map(page => <button key={page} type="button" className={page === safeCurrentListPage ? 'quote-page-number active' : 'quote-page-number'} onClick={() => setCurrentListPage(page)}>{page}</button>)}
+          </div>}
         </section>
       </div>}
 
@@ -11517,14 +11553,16 @@ function QuoteFormsPage({ user, guestMode = false }) {
             ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             <div className="quote-detail-section quote-detail-section-compact"><h4>경유지 / 메모</h4><dl>{[
               ['경유지 주소', joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
+              ['경유지 우편번호', adminDetailPayload.via_postcode],
               ['경유지 엘레베이터', adminDetailPayload.via_elevator],
               ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
               ['경유지 하차 물품', adminDetailPayload.via_drop_items],
               ['추가 메모', adminDetailPayload.request_memo],
-              ['원룸/투룸/소형이사 고지 확인', boolLabel(adminDetailPayload.move_scope_notice)],
-              ['카카오톡 친구 추가 고지 확인', boolLabel(adminDetailPayload.kakao_notice)],
-              ['개인정보 수집 이용 동의', boolLabel(adminDetailPayload.privacy_agreed)],
+              ['원룸/투룸/소형이사 고지 확인', adminDetailPayload.move_scope_notice],
+              ['카카오톡 안내 문구', adminDetailPayload.kakao_notice_text || adminDetailPayload.kakao_notice],
+              ['개인정보 수집 이용 동의', adminDetailPayload.privacy_agreed],
             ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
+            {adminDetailPayload.raw_excel_fields && <div className="quote-detail-section quote-detail-section-compact quote-detail-section-full"><h4>엑셀 원본 연동 데이터</h4><dl>{Object.entries(adminDetailPayload.raw_excel_fields).map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>}
           </div>
           {operationsPreview && <div className="quote-detail-grid quote-detail-grid-compact">
             <div className="quote-detail-section quote-detail-section-compact"><h4>AI 견적 요약</h4><dl>{[

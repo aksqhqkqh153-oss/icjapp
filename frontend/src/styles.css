@@ -30086,3 +30086,97 @@ button.danger {
     grid-template-columns: 42px 1fr 80px;
   }
 }
+
+/* 2026-04-16 quote page full-height + pagination + excel linked list/detail */
+.page-container.page-container-quotes {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden;
+}
+.page-container.page-container-quotes > * {
+  min-height: 0;
+}
+.quotes-page {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+.quotes-page > .quote-form-shell {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.quotes-page .quote-page-tabs-card,
+.quotes-page .success-banner,
+.quotes-page .error-banner {
+  margin-left: 0;
+  margin-right: 0;
+}
+.quotes-page .quote-admin-layout,
+.quotes-page .quote-admin-detail-screen,
+.quotes-page .quote-form-body,
+.quotes-page .quote-workbook-viewer-card {
+  min-height: 0;
+}
+.quotes-page .quote-admin-layout {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.quotes-page .quote-admin-list-card,
+.quotes-page .quote-admin-detail-screen,
+.quotes-page .quote-workbook-viewer-card,
+.quotes-page .quote-mode-select-card,
+.quotes-page .quote-step-card,
+.quotes-page form.quote-form-body {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+.quotes-page .quote-admin-list-card {
+  display: flex;
+  flex-direction: column;
+}
+.quotes-page .quote-list-table-wrapper {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+.quote-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+.quote-page-number {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #111827;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.quote-page-number.active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+.quote-detail-section-full {
+  grid-column: 1 / -1;
+}
+.quote-detail-section-full .quote-detail-row {
+  grid-template-columns: 180px 1fr;
+}
+@media (max-width: 768px) {
+  .quotes-page > .quote-form-shell {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .quote-detail-section-full .quote-detail-row {
+    grid-template-columns: 1fr;
+  }
+}
