@@ -11302,8 +11302,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
 
+      {pageTab === 'form' && !guestMode && <QuoteWorkbookTemplateViewer />}
+
       {((pageTab === 'request' || pageTab === 'form') || guestMode) && <>
-        <QuoteWorkbookTemplateViewer />
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
             <div className="quote-step-header centered">
@@ -11365,14 +11366,6 @@ function QuoteFormsPage({ user, guestMode = false }) {
                   <div className="quote-mode-card-desc">당일에 바로 입주가 안되어 짐을 보관해뒀다가 추후에 입주를 해야할 경우</div>
                 </button>
               </div>
-            </div>
-          </section>
-        )}
-
-        {!submittedSummary && pageTab === 'form' && !guestMode && !mode && (
-          <section className="quote-mode-select-card quote-mode-select-compact quote-mode-select-modern">
-            <div className="quote-form-mode-intro quote-step-body quote-form-mode-intro-modern">
-              <div className="quote-mode-section-title">견적신청에서 이사방법을 먼저 선택해주세요.</div>
             </div>
           </section>
         )}
@@ -11640,46 +11633,197 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
 
 function QuoteWorkbookTemplateViewer() {
-  const [activeSheetName, setActiveSheetName] = useState(() => QUOTE_WORKBOOK_TEMPLATE?.sheets?.[0]?.name || '')
-  const activeSheet = useMemo(() => QUOTE_WORKBOOK_TEMPLATE.sheets.find(sheet => sheet.name === activeSheetName) || QUOTE_WORKBOOK_TEMPLATE.sheets[0], [activeSheetName])
+  const formulaStorageKey = 'icj_quote_workbook_formula_overrides_v1'
+  const workbookTabs = useMemo(() => buildQuoteWorkbookTabs(QUOTE_WORKBOOK_TEMPLATE), [])
+  const initialTabKey = workbookTabs[0]?.key || ''
+  const [activeTabKey, setActiveTabKey] = useState(initialTabKey)
+  const [formulaOverrides, setFormulaOverrides] = useState(() => {
+    try {
+      const saved = localStorage.getItem(formulaStorageKey)
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+  const activeTab = useMemo(() => workbookTabs.find(tab => tab.key === activeTabKey) || workbookTabs[0], [activeTabKey, workbookTabs])
 
   useEffect(() => {
-    if (!activeSheetName && QUOTE_WORKBOOK_TEMPLATE?.sheets?.length) {
-      setActiveSheetName(QUOTE_WORKBOOK_TEMPLATE.sheets[0].name)
+    if (!activeTabKey && workbookTabs.length) {
+      setActiveTabKey(workbookTabs[0].key)
     }
-  }, [activeSheetName])
+  }, [activeTabKey, workbookTabs])
 
-  if (!activeSheet) return null
+  useEffect(() => {
+    try {
+      localStorage.setItem(formulaStorageKey, JSON.stringify(formulaOverrides))
+    } catch {
+      // ignore storage write failures
+    }
+  }, [formulaOverrides])
+
+  if (!activeTab) return null
 
   return <section className="card quote-workbook-viewer-card">
     <div className="quote-workbook-viewer-head">
       <div>
-        <div className="quote-workbook-viewer-title">견적양식 시트 미리보기</div>
-        <div className="quote-workbook-viewer-caption">첨부된 견적서 원본 시트의 값, 서식, 병합 구조를 기준으로 반영했습니다.</div>
+        <div className="quote-workbook-viewer-title">견적양식 시트 관리</div>
+        <div className="quote-workbook-viewer-caption">양식 보기 / 데이터 입력 / 수식 입력 화면을 분리했습니다.</div>
       </div>
     </div>
     <div className="quote-workbook-tabs" role="tablist" aria-label="견적양식 시트 탭">
-      {QUOTE_WORKBOOK_TEMPLATE.sheets.map(sheet => <button key={sheet.name} type="button" className={sheet.name === activeSheet.name ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveSheetName(sheet.name)}>{sheet.name}</button>)}
+      {workbookTabs.map(tab => <button key={tab.key} type="button" className={tab.key === activeTab.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveTabKey(tab.key)}>{tab.label}</button>)}
     </div>
-    <QuoteWorkbookSheetTable sheet={activeSheet} />
+    {activeTab.type === 'formula'
+      ? <QuoteWorkbookFormulaEditor tab={activeTab} overrides={formulaOverrides} onChange={(sheetName, cellAddress, value) => {
+        setFormulaOverrides(prev => ({
+          ...prev,
+          [sheetName]: {
+            ...(prev[sheetName] || {}),
+            [cellAddress]: value,
+          },
+        }))
+      }} />
+      : <QuoteWorkbookSheetTable sheet={activeTab.sheet} compact={activeTab.type !== 'view'} />}
   </section>
 }
 
-function QuoteWorkbookSheetTable({ sheet }) {
-  return <div className="quote-workbook-sheet-scroll">
-    <table className="quote-workbook-sheet-table">
+function buildQuoteWorkbookTabs(template) {
+  const sheetMap = new Map((template?.sheets || []).map(sheet => [sheet.name, sheet]))
+  const viewNames = ['통합 견적 (1)', '통합 견적 (2)', '통합 견적 (3)', '짐보관 견적']
+  const inputSpecs = [
+    ['ICJ1', 69, 3],
+    ['ICJ2', 69, 3],
+    ['ICJ3', 69, 3],
+    ['ICJ4', 72, 3],
+  ]
+  const tabs = []
+  viewNames.forEach(name => {
+    const sheet = sheetMap.get(name)
+    if (sheet) tabs.push({ key: `view-${name}`, label: name, type: 'view', sheet })
+  })
+  inputSpecs.forEach(([name, maxRow, maxCol]) => {
+    const sheet = sheetMap.get(name)
+    if (sheet) tabs.push({ key: `input-${name}`, label: name, type: 'input', sheet: sliceQuoteWorkbookSheet(sheet, 1, maxRow, 1, maxCol) })
+  })
+  inputSpecs.forEach(([name]) => {
+    const sheet = sheetMap.get(name)
+    if (sheet) tabs.push({ key: `formula-${name}`, label: `${name}수식`, type: 'formula', formulaEntries: extractQuoteWorkbookFormulaEntries(sheet, 8, 38), sourceSheetName: name })
+  })
+  return tabs
+}
+
+function sliceQuoteWorkbookSheet(sheet, startRow, endRow, startCol, endCol) {
+  const rows = []
+  const heights = []
+  for (let rowIndex = startRow - 1; rowIndex < Math.min(endRow, sheet.rows.length); rowIndex += 1) {
+    const sourceRow = sheet.rows[rowIndex] || []
+    const expanded = expandQuoteWorkbookRow(sourceRow, sheet.maxCol || endCol)
+    rows.push(expanded.slice(startCol - 1, endCol))
+    heights.push(sheet.heights?.[rowIndex] || null)
+  }
+  return {
+    ...sheet,
+    maxRow: rows.length,
+    maxCol: endCol - startCol + 1,
+    cols: (sheet.cols || []).slice(startCol - 1, endCol),
+    heights,
+    rows,
+  }
+}
+
+function expandQuoteWorkbookRow(row, maxCol) {
+  const expanded = []
+  let colIndex = 0
+  row.forEach(cell => {
+    if (cell === null) {
+      expanded.push(null)
+      colIndex += 1
+      return
+    }
+    const clone = { ...cell, rowSpan: 1, colSpan: 1 }
+    expanded.push(clone)
+    colIndex += 1
+    const span = Math.max(1, cell.colSpan || 1)
+    for (let offset = 1; offset < span; offset += 1) {
+      expanded.push(null)
+      colIndex += 1
+    }
+  })
+  while (expanded.length < maxCol) expanded.push(null)
+  return expanded.slice(0, maxCol)
+}
+
+function extractQuoteWorkbookFormulaEntries(sheet, startCol, endCol) {
+  const entries = []
+  for (let rowIndex = 0; rowIndex < (sheet.rows || []).length; rowIndex += 1) {
+    const expanded = expandQuoteWorkbookRow(sheet.rows[rowIndex] || [], sheet.maxCol || endCol)
+    for (let colIndex = startCol - 1; colIndex < Math.min(endCol, expanded.length); colIndex += 1) {
+      const cell = expanded[colIndex]
+      if (!cell?.formula) continue
+      const colName = quoteWorkbookColumnNumberToName(colIndex + 1)
+      entries.push({
+        id: `${sheet.name}-${colName}${rowIndex + 1}`,
+        sheetName: sheet.name,
+        cellAddress: `${colName}${rowIndex + 1}`,
+        value: cell.value,
+        formula: cell.formula,
+        numberFormat: cell.style?.numberFormat || '',
+      })
+    }
+  }
+  return entries
+}
+
+function quoteWorkbookColumnNumberToName(columnNumber) {
+  let dividend = columnNumber
+  let label = ''
+  while (dividend > 0) {
+    const modulo = (dividend - 1) % 26
+    label = String.fromCharCode(65 + modulo) + label
+    dividend = Math.floor((dividend - modulo) / 26)
+  }
+  return label
+}
+
+function QuoteWorkbookFormulaEditor({ tab, overrides, onChange }) {
+  const currentOverrides = overrides?.[tab.sourceSheetName] || {}
+  return <div className="quote-workbook-formula-panel">
+    <div className="quote-workbook-formula-caption">{tab.sourceSheetName}의 H열 ~ AL열 수식을 분리한 관리 화면입니다.</div>
+    <div className="quote-workbook-formula-list">
+      {tab.formulaEntries.map(entry => {
+        const currentValue = currentOverrides[entry.cellAddress] ?? entry.formula
+        return <label key={entry.id} className="quote-workbook-formula-item">
+          <div className="quote-workbook-formula-meta">
+            <span className="quote-workbook-formula-address">{entry.cellAddress}</span>
+            <span className="quote-workbook-formula-value">현재값: {formatQuoteWorkbookCellValue(entry.value, entry.numberFormat) || '-'}</span>
+          </div>
+          <input
+            className="quote-workbook-formula-input"
+            value={currentValue}
+            onChange={event => onChange(tab.sourceSheetName, entry.cellAddress, event.target.value)}
+            spellCheck={false}
+          />
+        </label>
+      })}
+    </div>
+  </div>
+}
+
+function QuoteWorkbookSheetTable({ sheet, compact = false }) {
+  return <div className={compact ? 'quote-workbook-sheet-scroll compact' : 'quote-workbook-sheet-scroll'}>
+    <table className={compact ? 'quote-workbook-sheet-table compact' : 'quote-workbook-sheet-table'}>
       <colgroup>
-        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(22, Math.round((width || 8.43) * 5.4))}px` }} />)}
+        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(compact ? 18 : 22, Math.round((width || 8.43) * (compact ? 4.2 : 5.4)))}px` }} />)}
       </colgroup>
       <tbody>
-        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(12, Math.round(sheet.heights[rowIndex] * 1.05))}px` } : undefined}>
+        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(compact ? 10 : 12, Math.round(sheet.heights[rowIndex] * (compact ? 0.8 : 1.05)))}px` } : undefined}>
           {row.map((cell, cellIndex) => {
             if (!cell) return <td key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`} className="quote-workbook-empty-cell" />
             return <td
               key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`}
               rowSpan={cell.rowSpan || 1}
               colSpan={cell.colSpan || 1}
-              style={buildQuoteWorkbookCellStyle(cell.style)}
+              style={buildQuoteWorkbookCellStyle(cell.style, compact)}
               title={cell.formula || undefined}
             >
               {formatQuoteWorkbookCellValue(cell.value, cell.style?.numberFormat)}
@@ -11691,7 +11835,7 @@ function QuoteWorkbookSheetTable({ sheet }) {
   </div>
 }
 
-function buildQuoteWorkbookCellStyle(style = {}) {
+function buildQuoteWorkbookCellStyle(style = {}, compact = false) {
   const borderStyleMap = { thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', dotted: '1px dotted', hair: '1px solid' }
   const borderColor = side => side?.color || '#cbd5e1'
   return {
@@ -11699,7 +11843,7 @@ function buildQuoteWorkbookCellStyle(style = {}) {
     color: style.fontColor || '#111827',
     fontWeight: style.bold ? 700 : 400,
     fontStyle: style.italic ? 'italic' : 'normal',
-    fontSize: style.fontSize ? `${Math.max(6, Math.round(style.fontSize - 2))}px` : undefined,
+    fontSize: style.fontSize ? `${Math.max(compact ? 5 : 6, Math.round(style.fontSize - (compact ? 4 : 2)))}px` : undefined,
     fontFamily: style.fontName || undefined,
     textAlign: style.align?.horizontal || undefined,
     verticalAlign: style.align?.vertical || 'middle',
