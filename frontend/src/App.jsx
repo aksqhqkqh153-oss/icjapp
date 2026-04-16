@@ -10931,7 +10931,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const navigate = useNavigate()
   const isAdminUser = !guestMode && canAccessAdminMode(user)
   const [mode, setMode] = useState('')
-  const [pageTab, setPageTab] = useState('form')
+  const [pageTab, setPageTab] = useState(guestMode ? 'form' : 'request')
   const [listTypeTab, setListTypeTab] = useState('same_day')
   const [submitting, setSubmitting] = useState(false)
   const [listLoading, setListLoading] = useState(false)
@@ -11272,6 +11272,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
       {!guestMode && <section className="card quote-page-tabs-card">
         <div className="quote-page-tabs quote-page-tabs-disposal-style">
+          <button type="button" className={pageTab === 'request' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('request') }}>견적신청</button>
           <button type="button" className={pageTab === 'form' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('form') }}>견적양식</button>
           <button type="button" className={pageTab === 'list' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { setIsQuoteDetailView(false); setPageTab('list') }}>견적목록</button>
           <button type="button" className={pageTab === 'detail' ? 'quote-page-tab active' : 'quote-page-tab'} onClick={() => { if (detailItem) { setIsQuoteDetailView(true); setPageTab('detail') } }}>견적상세</button>
@@ -11282,7 +11283,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      {(pageTab === 'form' || guestMode) && <>
+      {((pageTab === 'request' || pageTab === 'form') || guestMode) && <>
         <QuoteWorkbookTemplateViewer />
         {guestMode && !guestIntroCompleted && !submittedSummary && (
           <section className="quote-mode-select-card quote-guest-intro-card">
@@ -11318,7 +11319,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
           </section>
         )}
 
-        {!submittedSummary && (!guestMode || guestIntroCompleted) && !mode && (
+        {!submittedSummary && (pageTab === 'request' || guestMode) && (!guestMode || guestIntroCompleted) && !mode && (
           <section className="quote-mode-select-card quote-mode-select-compact quote-mode-select-modern">
             {guestMode && (
               <div className="quote-step-header centered">
@@ -11349,7 +11350,15 @@ function QuoteFormsPage({ user, guestMode = false }) {
           </section>
         )}
 
-        {!submittedSummary && (!!mode) && <>
+        {!submittedSummary && pageTab === 'form' && !guestMode && !mode && (
+          <section className="quote-mode-select-card quote-mode-select-compact quote-mode-select-modern">
+            <div className="quote-form-mode-intro quote-step-body quote-form-mode-intro-modern">
+              <div className="quote-mode-section-title">견적신청에서 이사방법을 먼저 선택해주세요.</div>
+            </div>
+          </section>
+        )}
+
+        {!submittedSummary && (pageTab === 'form' || guestMode) && (!!mode) && <>
         {guestMode && (
           <div className="quote-step-card stage-three">
             <div className="quote-step-header centered quote-step-header-boxed">
