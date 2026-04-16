@@ -1110,20 +1110,6 @@ const MENU_PERMISSION_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => [
   ...section.items.map(item => ({ ...item, key: `item:${item.id}`, type: 'item', sectionId: section.id })),
 ])
 
-const MENU_LOCK_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (
-  section.items
-    .filter(item => !!item.path)
-    .map(item => ({
-      id: item.id,
-      label: item.label,
-      path: item.path,
-      sectionId: section.id,
-      sectionLabel: section.label,
-      adminOnly: !!item.adminOnly,
-    }))
-))
-
-
 const QUICK_ACTION_MENU_ITEMS = MENU_PERMISSION_SECTIONS.flatMap(section => (section.items || []).map(item => ({
   id: `menu-${item.id}`,
   label: item.label,
@@ -1171,6 +1157,75 @@ const SETTLEMENT_MENU_GROUPS = [
   },
 ]
 
+const BASE_QUICK_ACTION_LIBRARY = [
+  { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
+  { id: 'requestCount', label: '친구요청', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
+  { id: 'point', label: '포인트', kind: 'link', path: '/points' },
+  { id: 'warehouse', label: '창고현황', kind: 'link', path: '/warehouse' },
+  { id: 'materials', label: '자재 신청현황', multiline: true, kind: 'link', path: '/materials?tab=myRequests' },
+  { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials?tab=sales' },
+  { id: 'materialsRequesters', label: '신청목록', kind: 'metric', metricKey: 'pendingMaterialsRequesterCount', path: '/materials?tab=requesters', adminOnly: true },
+  { id: 'materialsSettlement', label: '구매결산', kind: 'link', path: '/materials?tab=settlements', adminOnly: true },
+  { id: 'storageStatus', label: '짐보관\n현황', multiline: true, kind: 'placeholder' },
+  { id: 'memoPad', label: '메모장', kind: 'link', path: '/memo-pad', adminOnly: true },
+  { id: 'ladderDispatch', label: '사다리\n배차', multiline: true, kind: 'link', path: '/settlements/ladder-dispatch', adminOnly: true },
+  { id: 'soomgoReviewFinder', label: '숨고리뷰', kind: 'link', path: '/soomgo-review-finder', adminOnly: true },
+  { id: 'dailySettlement', label: '일일결산', kind: 'link', path: '/settlements?tab=daily', adminOnly: true },
+  { id: 'weeklySettlement', label: '주간결산', kind: 'link', path: '/settlements?tab=weekly', adminOnly: true },
+  { id: 'monthlySettlement', label: '월간결산', kind: 'link', path: '/settlements?tab=monthly', adminOnly: true },
+  { id: 'materialSummary', label: '자재결산', kind: 'link', path: '/settlements/materials-summary', adminOnly: true },
+  { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
+  { id: 'operationsDashboard', label: '대쉬보드', kind: 'link', path: '/operations-dashboard', adminOnly: true },
+]
+const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
+const ADMIN_EXTRA_QUICK_ACTION_IDS = ['memoPad', 'ladderDispatch', 'soomgoReviewFinder', 'dailySettlement', 'weeklySettlement', 'monthlySettlement', 'materialSummary']
+const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
+const HOME_HOLD_SECONDS_DEFAULT = 1
+const QUICK_DRAG_HOLD_MS = 500
+const QUICK_LAYOUT_OPTIONS = [
+  { id: '3x3', label: '3*3', columns: 3, previewType: 'grid' },
+  { id: '4x4', label: '4*4', columns: 4, previewType: 'grid' },
+  { id: '5x5', label: '5*5', columns: 5, previewType: 'grid' },
+  { id: '6x6', label: '6*6', columns: 6, previewType: 'grid' },
+  { id: 'list', label: '목록형', columns: 1, previewType: 'list' },
+]
+
+const HOME_QUICK_LOCK_SECTION = {
+  id: 'home-quick',
+  label: '홈빠른확인',
+}
+
+const HOME_QUICK_LOCK_ITEMS = BASE_QUICK_ACTION_LIBRARY.map(item => ({
+  id: `home-quick-${item.id}`,
+  label: String(item.label || '').replace(/\n/g, ' '),
+  quickActionId: item.id,
+  sectionId: HOME_QUICK_LOCK_SECTION.id,
+  sectionLabel: HOME_QUICK_LOCK_SECTION.label,
+  isHomeQuickLock: true,
+  adminOnly: !!item.adminOnly,
+}))
+
+const MENU_LOCK_ITEMS = [
+  ...MENU_PERMISSION_SECTIONS.flatMap(section => (
+    section.items
+      .filter(item => !!item.path)
+      .map(item => ({
+        id: item.id,
+        label: item.label,
+        path: item.path,
+        sectionId: section.id,
+        sectionLabel: section.label,
+        adminOnly: !!item.adminOnly,
+      }))
+  )),
+  ...HOME_QUICK_LOCK_ITEMS,
+]
+
+const MENU_LOCK_SECTIONS = [
+  ...MENU_PERMISSION_SECTIONS,
+  { ...HOME_QUICK_LOCK_SECTION, items: [] },
+]
+
 function buildDefaultMenuLocks() {
   return MENU_LOCK_ITEMS.reduce((acc, item) => {
     acc[item.id] = true
@@ -1207,10 +1262,18 @@ function isMenuLockedForUser(user, menuLocks, itemId) {
   return false
 }
 
+function isHomeQuickLockedForUser(user, menuLocks, itemId) {
+  if (Number(user?.grade || 6) <= 2) return false
+  const normalized = normalizeMenuLocks(menuLocks)
+  const lockId = `home-quick-${String(itemId || '').trim()}`
+  if (typeof normalized[lockId] === 'boolean') return !normalized[lockId]
+  return false
+}
+
 function findLockedMenuItemByPath(pathname) {
   if (!pathname) return null
   const normalizedPath = String(pathname).trim()
-  return MENU_LOCK_ITEMS.find(item => normalizedPath === item.path || normalizedPath.startsWith(`${item.path}/`)) || null
+  return MENU_LOCK_ITEMS.find(item => item.path && (normalizedPath === item.path || normalizedPath.startsWith(`${item.path}/`))) || null
 }
 
 function effectivePositionTitle(user) {
@@ -1335,92 +1398,6 @@ function canUserAccessPath(user, pathname, permissionMap, menuLocks) {
   return canAccessStaffRoutes(user)
 }
 
-function AccessDeniedRedirect({ message = '권한이 없습니다.' }) {
-  const navigate = useNavigate()
-  useEffect(() => {
-    const timer = window.setTimeout(() => navigate('/', { replace: true, state: { notice: message } }), 1200)
-    return () => window.clearTimeout(timer)
-  }, [message, navigate])
-  return <div className="card error">{message}</div>
-}
-
-function parseExcludedBusinessSlots(value) {
-  const output = Array(6).fill('')
-  if (!value) return output
-  let tokens = []
-  if (Array.isArray(value)) {
-    tokens = value
-  } else if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) tokens = parsed
-    } catch (_) {}
-    if (tokens.length === 0) {
-      tokens = value.split(/[\n,]/).map(token => token.trim()).filter(Boolean)
-    }
-  }
-  tokens
-    .map(item => {
-      const match = String(item).match(/(\d{1,2})/)
-      return match ? String(Number(match[1])) : ''
-    })
-    .filter(Boolean)
-    .slice(0, 6)
-    .forEach((token, index) => { output[index] = token })
-  return output
-}
-
-function serializeExcludedBusinessSlots(slots) {
-  return slots.filter(Boolean).map(value => `${value}호점`).join(', ')
-}
-
-function buildExcludedBusinessDetailsFromSlots(slots = [], options = [], reasons = []) {
-  const optionMap = new Map((options || []).map(option => [String(option.value), option]))
-  return (slots || []).map((value, index) => {
-    const key = String(value || '').trim()
-    if (!key) return null
-    const option = optionMap.get(key) || {}
-    return {
-      branch_no: Number(key),
-      name: String(option.name || option.label || `${key}호점`).replace(/^\[[^\]]+\]\s*/, '').trim(),
-      reason: String((reasons || [])[index] || '').trim(),
-      user_id: Number(option.userId || 0) || null,
-    }
-  }).filter(Boolean)
-}
-
-const BASE_QUICK_ACTION_LIBRARY = [
-  { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
-  { id: 'requestCount', label: '친구요청', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
-  { id: 'point', label: '포인트', kind: 'link', path: '/points' },
-  { id: 'warehouse', label: '창고현황', kind: 'link', path: '/warehouse' },
-  { id: 'materials', label: '자재 신청현황', multiline: true, kind: 'link', path: '/materials?tab=myRequests' },
-  { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials?tab=sales' },
-  { id: 'materialsRequesters', label: '신청목록', kind: 'metric', metricKey: 'pendingMaterialsRequesterCount', path: '/materials?tab=requesters', adminOnly: true },
-  { id: 'materialsSettlement', label: '구매결산', kind: 'link', path: '/materials?tab=settlements', adminOnly: true },
-  { id: 'storageStatus', label: '짐보관\n현황', multiline: true, kind: 'placeholder' },
-  { id: 'memoPad', label: '메모장', kind: 'link', path: '/memo-pad', adminOnly: true },
-  { id: 'ladderDispatch', label: '사다리\n배차', multiline: true, kind: 'link', path: '/settlements/ladder-dispatch', adminOnly: true },
-  { id: 'soomgoReviewFinder', label: '숨고리뷰', kind: 'link', path: '/soomgo-review-finder', adminOnly: true },
-  { id: 'dailySettlement', label: '일일결산', kind: 'link', path: '/settlements?tab=daily', adminOnly: true },
-  { id: 'weeklySettlement', label: '주간결산', kind: 'link', path: '/settlements?tab=weekly', adminOnly: true },
-  { id: 'monthlySettlement', label: '월간결산', kind: 'link', path: '/settlements?tab=monthly', adminOnly: true },
-  { id: 'materialSummary', label: '자재결산', kind: 'link', path: '/settlements/materials-summary', adminOnly: true },
-  { id: 'settlements', label: '결산자료', kind: 'link', path: '/settlements' },
-  { id: 'operationsDashboard', label: '대쉬보드', kind: 'link', path: '/operations-dashboard', adminOnly: true },
-]
-const DEFAULT_QUICK_ACTION_IDS = ['point', 'warehouse', 'materials', 'materialsBuy', 'materialsRequesters', 'materialsSettlement', 'storageStatus', 'settlements', 'operationsDashboard']
-const ADMIN_EXTRA_QUICK_ACTION_IDS = ['memoPad', 'ladderDispatch', 'soomgoReviewFinder', 'dailySettlement', 'weeklySettlement', 'monthlySettlement', 'materialSummary']
-const HOME_SECTION_ORDER_DEFAULT = ['quick', 'upcoming']
-const HOME_HOLD_SECONDS_DEFAULT = 1
-const QUICK_DRAG_HOLD_MS = 500
-const QUICK_LAYOUT_OPTIONS = [
-  { id: '3x3', label: '3*3', columns: 3, previewType: 'grid' },
-  { id: '4x4', label: '4*4', columns: 4, previewType: 'grid' },
-  { id: '5x5', label: '5*5', columns: 5, previewType: 'grid' },
-  { id: '6x6', label: '6*6', columns: 6, previewType: 'grid' },
-  { id: 'list', label: '목록형', columns: 1, previewType: 'list' },
-]
 const QUICK_ACTION_LIBRARY = [...BASE_QUICK_ACTION_LIBRARY, ...QUICK_ACTION_TOPBAR_ITEMS, ...QUICK_ACTION_MENU_ITEMS].filter((item, index, array) => array.findIndex(entry => entry.id === item.id) === index)
 
 const QUICK_ACTION_LIMIT = 36
@@ -2843,10 +2820,11 @@ function HomePage() {
             <div className="quick-check-list" role="list">
               {activeQuickItems.map(item => {
                 const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
-                const isDisabled = item.kind === 'placeholder' || preparingLocked
+                const quickLocked = isHomeQuickLockedForUser(currentUser, menuLocks, item.id)
+                const isDisabled = item.kind === 'placeholder' || preparingLocked || quickLocked || quickLocked
                 const badgeCount = preparingLocked ? 0 : getQuickActionListBadgeCount(item, summary)
                 const labelText = String((item.id === 'materials' ? '자재 신청현황' : item.label) || '').replace(/\n/g, ' ')
-                const detailText = preparingLocked ? '준비중' : getQuickActionListDetail(item, summary, currentUser)
+                const detailText = (preparingLocked || quickLocked) ? '준비중' : getQuickActionListDetail(item, summary, currentUser)
                 return (
                   <button
                     key={item.id}
@@ -2866,7 +2844,8 @@ function HomePage() {
             <div className={`quick-check-grid quick-check-grid-layout-${homeSettings.quickLayout || '5x5'}`.trim()}>
               {activeQuickItems.map(item => {
                 const preparingLocked = isQuickActionPreparingLockedForUser(currentUser, item.id)
-                const topText = preparingLocked
+                const quickLocked = isHomeQuickLockedForUser(currentUser, menuLocks, item.id)
+                const topText = (preparingLocked || quickLocked)
                   ? '준비중'
                   : item.kind === 'metric'
                     ? String(summary?.[item.metricKey] ?? 0)
@@ -15239,7 +15218,7 @@ function AdminModePage() {
         {menuLockOpen && (
           <div className="stack compact-gap materials-table-admin-editor-body materials-table-admin-section-body">
             <div className="menu-lock-admin-list">
-              {MENU_PERMISSION_SECTIONS.map(section => {
+              {MENU_LOCK_SECTIONS.map(section => {
                 const items = MENU_LOCK_ITEMS.filter(item => item.sectionId === section.id)
                 if (!items.length) return null
                 return (

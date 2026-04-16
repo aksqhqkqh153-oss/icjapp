@@ -9819,7 +9819,9 @@ a:focus-visible {
 
 
 .disposal-admin-alert-card {
-  width: min(920px, calc(100vw - 32px));
+  width: fit-content;
+  min-width: min(640px, calc(100vw - 32px));
+  max-width: min(1100px, calc(100vw - 32px));
 }
 
 .disposal-admin-alert-header {
@@ -9831,11 +9833,15 @@ a:focus-visible {
 }
 
 .disposal-admin-alert-list {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
 }
 
 .disposal-admin-alert-item {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
   padding: 14px 18px;
   display: grid;
   gap: 8px;
@@ -9862,7 +9868,9 @@ a:focus-visible {
 
 @media (max-width: 768px) {
   .disposal-admin-alert-card {
-    width: min(100%, calc(100vw - 16px));
+    width: fit-content;
+    min-width: min(100%, calc(100vw - 16px));
+    max-width: min(100%, calc(100vw - 16px));
   }
 
   .disposal-admin-alert-title {
