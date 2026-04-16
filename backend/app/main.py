@@ -3433,7 +3433,7 @@ def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
     now_ts = time.time()
     cached = GEOCODE_CACHE.get(normalized)
     cached_provider = str((cached or {}).get('provider') or '').strip().lower()
-    if cached and cached_provider in {'kakao-local', 'naver-geocode'} and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
+    if cached and cached_provider in {'kakao-local', 'kakao-keyword', 'naver-geocode'} and (now_ts - float(cached.get('stored_at') or 0)) < GEOCODE_CACHE_TTL_SECONDS:
         return {
             'lat': float(cached['lat']),
             'lng': float(cached['lng']),
@@ -3444,28 +3444,33 @@ def _resolve_travel_geocode_point(address: str) -> dict[str, Any]:
             'approximate': False,
         }
 
-    for provider_name, resolver in (('kakao-local', _lookup_kakao_geocode), ('naver-geocode', _lookup_naver_geocode)):
-        try:
-            point = resolver(normalized)
-            if point:
-                GEOCODE_CACHE[normalized] = {
-                    'lat': float(point['lat']),
-                    'lng': float(point['lng']),
-                    'stored_at': now_ts,
-                    'approximate': False,
-                    'provider': provider_name,
-                }
-                return {
-                    'lat': float(point['lat']),
-                    'lng': float(point['lng']),
-                    'label': str(point.get('label') or normalized),
-                    'input_label': raw,
-                    'normalized_label': normalized,
-                    'provider': provider_name,
-                    'approximate': False,
-                }
-        except Exception as exc:
-            logger.warning('travel geocode lookup failed via %s for %s -> %s: %s', provider_name, raw, normalized, exc)
+    for candidate in _travel_address_candidates(raw):
+        for provider_name, resolver in (
+            ('kakao-local', _lookup_kakao_geocode),
+            ('kakao-keyword', _lookup_kakao_keyword_geocode),
+            ('naver-geocode', _lookup_naver_geocode),
+        ):
+            try:
+                point = resolver(candidate)
+                if point:
+                    GEOCODE_CACHE[normalized] = {
+                        'lat': float(point['lat']),
+                        'lng': float(point['lng']),
+                        'stored_at': now_ts,
+                        'approximate': False,
+                        'provider': provider_name,
+                    }
+                    return {
+                        'lat': float(point['lat']),
+                        'lng': float(point['lng']),
+                        'label': str(point.get('label') or candidate or normalized),
+                        'input_label': raw,
+                        'normalized_label': normalized,
+                        'provider': provider_name,
+                        'approximate': False,
+                    }
+            except Exception as exc:
+                logger.warning('travel geocode lookup failed via %s for %s -> %s: %s', provider_name, raw, candidate, exc)
 
     raise HTTPException(status_code=404, detail='카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.')
 
@@ -3581,6 +3586,54 @@ def _lookup_kakao_geocode(address: str) -> dict[str, Any] | None:
         'approximate': False,
         'provider': 'kakao-local',
     }
+
+
+def _lookup_kakao_keyword_geocode(address: str) -> dict[str, Any] | None:
+    api_key = _read_clean_env('KAKAO_REST_API_KEY', 'KAKAO_MOBILITY_REST_API_KEY')
+    query = str(address or '').strip()
+    if not api_key or not query:
+        return None
+    url = 'https://dapi.kakao.com/v2/local/search/keyword.json?' + urllib.parse.urlencode({
+        'query': query,
+        'size': 1,
+    })
+    payload = _fetch_json_request(url, {
+        'Authorization': f'KakaoAK {api_key}',
+        'Accept': 'application/json',
+    })
+    documents = payload.get('documents') if isinstance(payload, dict) else None
+    first = documents[0] if isinstance(documents, list) and documents else None
+    if not first:
+        return None
+    x = first.get('x')
+    y = first.get('y')
+    if x in (None, '') or y in (None, ''):
+        return None
+    return {
+        'lat': float(y),
+        'lng': float(x),
+        'label': str(first.get('place_name') or first.get('address_name') or query).strip(),
+        'cached': False,
+        'approximate': False,
+        'provider': 'kakao-keyword',
+    }
+
+
+def _travel_address_candidates(address: str) -> list[str]:
+    raw = str(address or '').strip()
+    normalized = _normalize_route_address(raw)
+    candidates: list[str] = []
+    for item in (raw, normalized):
+        value = re.sub(r'\s+', ' ', str(item or '').replace('\n', ' ')).strip(' ,')
+        if value and value not in candidates:
+            candidates.append(value)
+    relaxed = re.sub(r'\s+', ' ', re.sub(r'\([^)]*\)', ' ', normalized)).strip(' ,')
+    if relaxed and relaxed not in candidates:
+        candidates.append(relaxed)
+    shortened = re.sub(r'\s+', ' ', re.sub(r'\b(\d+-\d+|\d+)\b\s*$', '', normalized)).strip(' ,')
+    if shortened and shortened not in candidates:
+        candidates.append(shortened)
+    return candidates
 
 
 def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool:
@@ -3739,10 +3792,30 @@ def _travel_route_mode(provider: str) -> str:
 
 @app.get('/api/travel-time')
 def travel_time_lookup(start_address: str = Query(..., min_length=2), end_address: str = Query(..., min_length=2), user=Depends(require_user)):
-    start_point = _resolve_travel_geocode_point(start_address)
-    end_point = _resolve_travel_geocode_point(end_address)
     attempts: list[str] = []
     errors: list[str] = []
+    try:
+        start_point = _resolve_travel_geocode_point(start_address)
+        end_point = _resolve_travel_geocode_point(end_address)
+    except HTTPException as exc:
+        detail = str(exc.detail or '카카오맵 또는 네이버지도로 주소 좌표를 찾을 수 없습니다.')
+        return {
+            'provider': 'unavailable',
+            'provider_label': _travel_provider_label('unavailable'),
+            'route_mode': _travel_route_mode('unavailable'),
+            'distance_m': 0,
+            'duration_seconds': 0,
+            'duration_text': '',
+            'approximate': True,
+            'attempts': attempts,
+            'errors': [detail],
+            'fallback_reason': 'geocode-unavailable',
+            'message': detail,
+            'normalized_start_address': _normalize_route_address(start_address),
+            'normalized_end_address': _normalize_route_address(end_address),
+            'start_geocode_provider': '',
+            'end_geocode_provider': '',
+        }
     for provider_name, resolver in (('kakao', _lookup_kakao_travel), ('naver', _lookup_naver_travel)):
         attempts.append(provider_name)
         try:
