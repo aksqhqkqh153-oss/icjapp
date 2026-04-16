@@ -1392,8 +1392,8 @@ function buildExcludedBusinessDetailsFromSlots(slots = [], options = [], reasons
 const BASE_QUICK_ACTION_LIBRARY = [
   { id: 'friendCount', label: '친구 수', kind: 'metric', metricKey: 'friendCount', path: '/friends' },
   { id: 'requestCount', label: '친구요청', kind: 'metric', metricKey: 'requestCount', path: '/friends?panel=requests' },
-  { id: 'point', label: '포인트', kind: 'placeholder' },
-  { id: 'warehouse', label: '창고현황', kind: 'placeholder' },
+  { id: 'point', label: '포인트', kind: 'link', path: '/points' },
+  { id: 'warehouse', label: '창고현황', kind: 'link', path: '/warehouse' },
   { id: 'materials', label: '자재 신청현황', multiline: true, kind: 'link', path: '/materials?tab=myRequests' },
   { id: 'materialsBuy', label: '자재구매', kind: 'link', path: '/materials?tab=sales' },
   { id: 'materialsRequesters', label: '신청목록', kind: 'metric', metricKey: 'pendingMaterialsRequesterCount', path: '/materials?tab=requesters', adminOnly: true },
@@ -1558,7 +1558,7 @@ function getQuickActionListDetail(item, summary, user) {
     materialsBuy: '자재 구매 화면으로 이동',
     materialsRequesters: '신청목록 화면으로 이동',
     materialsSettlement: '구매결산 화면으로 이동',
-    storageStatus: '준비중',
+    storageStatus: '짐보관현황 화면으로 이동',
     memoPad: '메모장 화면으로 이동',
     ladderDispatch: '사다리 배차 화면으로 이동',
     soomgoReviewFinder: '숨고리뷰 화면으로 이동',
@@ -1568,8 +1568,8 @@ function getQuickActionListDetail(item, summary, user) {
     materialSummary: '자재결산 화면으로 이동',
     settlements: '결산자료 화면으로 이동',
     operationsDashboard: '대쉬보드 화면으로 이동',
-    point: '준비중',
-    warehouse: '준비중',
+    point: '포인트 화면으로 이동',
+    warehouse: '창고현황 화면으로 이동',
   }
   return detailMap[item.id] || '바로가기'
 }
@@ -1637,6 +1637,19 @@ function loadDisposalAdminAlertItems() {
 
 function disposalAdminAlertSignature(items = []) {
   return (items || []).map(item => `${item.key}:${item.disposalDate}:${item.customerName}`).sort().join('|')
+}
+
+function buildDisposalAdminNotificationItems(items = []) {
+  return (items || []).map((item, index) => ({
+    id: `disposal-admin-alert-${item.key || index}`,
+    type: 'disposal_admin_alert',
+    title: '폐기신고 미접수알림',
+    body: `[${item.disposalDate}] 폐기예정인 ${item.customerName} 고객님의 폐기 신고접수가 되어 있지 않습니다.
+* 폐기 신고 날짜 전으로, 날짜가 가까워 지면 신고 처리를 진행해주세요`,
+    created_at: item.disposalDate || '',
+    is_read: 0,
+    is_local_alert: true,
+  }))
 }
 
 function DisposalAdminAlertModal({ open, items = [], onClose, onOpenSettlements }) {
@@ -1788,11 +1801,13 @@ function Layout({ children, user, onLogout }) {
   useEffect(() => {
     let ignore = false
     async function loadBadges() {
+      const localAlertCount = Number(user?.grade || 6) <= 2 ? loadDisposalAdminAlertItems().length : 0
       try {
         const result = await api('/api/badges-summary')
-        if (!ignore) setBadges(result || { notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
+        const next = result || { notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 }
+        if (!ignore) setBadges({ ...next, notification_count: Number(next.notification_count || 0) + localAlertCount })
       } catch (_) {
-        if (!ignore) setBadges({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
+        if (!ignore) setBadges({ notification_count: localAlertCount, chat_count: 0, friend_request_count: 0, menu_count: 0 })
       }
     }
     loadBadges()
@@ -9875,7 +9890,9 @@ function NotificationsPage({ user }) {
 
   async function load() {
     const [n, p] = await Promise.all([api('/api/notifications'), api('/api/preferences')])
-    setItems((n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || ''))))
+    const serverItems = (n || []).filter(item => !['follow', 'favorite'].includes(String(item?.type || '')))
+    const localAlertItems = Number(user?.grade || 6) <= 2 ? buildDisposalAdminNotificationItems(loadDisposalAdminAlertItems()) : []
+    setItems([...localAlertItems, ...serverItems])
     setPrefs(p || {})
   }
 
@@ -9884,6 +9901,10 @@ function NotificationsPage({ user }) {
   }, [])
 
   async function handleNotificationClick(item) {
+    if (item?.type === 'disposal_admin_alert' || item?.is_local_alert) {
+      navigate('/disposal/settlements')
+      return
+    }
     try {
       if (!item?.is_read) {
         await api(`/api/notifications/${item.id}/read`, { method: 'POST' })

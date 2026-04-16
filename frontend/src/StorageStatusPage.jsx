@@ -30,6 +30,19 @@ const EMPTY_ROW = () => ({
   scale: '',
 })
 
+function isPristineNewRow(row) {
+  if (!row?.__isNew) return false
+  return !String(row?.customer_name || '').trim()
+    && !String(row?.manager_name || '').trim()
+    && !String(row?.start_date || '').trim()
+    && !String(row?.end_date || '').trim()
+    && !String(row?.scale || '').trim()
+}
+
+function stripPristineNewRows(rows = []) {
+  return (rows || []).filter(row => !isPristineNewRow(row))
+}
+
 function parseDate(value) {
   const text = String(value || '').trim()
   if (!text) return null
@@ -559,20 +572,26 @@ export default function StorageStatusPage() {
   const handleTabChange = useCallback(async (nextTab) => {
     if (nextTab === tab) return
     if (tab === 'input' && isDirty) {
-      const changedRow = rows.find((row) => {
-        const previousRow = baselineRows.find((item) => item.id === row.id) || {}
-        return describeRowChanges(previousRow, row)
-      }) || rows[0]
-      const baselineRow = baselineRows.find((row) => row.id === changedRow?.id) || baselineRows[0] || {}
-      const customerName = changedRow?.customer_name || baselineRow?.customer_name || '미지정'
-      const changeSummary = describeRowChanges(baselineRow, changedRow)
-      const confirmed = window.confirm(`${customerName} 고객님의 일정이 ${changeSummary || '변경됨'}으로 변경되었습니다. 저장하시겠습니까?`)
-      if (!confirmed) {
-        setTab('input')
-        return
+      const sanitizedRows = stripPristineNewRows(rows)
+      const sanitizedBaselineRows = stripPristineNewRows(baselineRows)
+      if (serializeRows(sanitizedRows) === serializeRows(sanitizedBaselineRows)) {
+        setRows(sanitizedRows)
+      } else {
+        const changedRow = sanitizedRows.find((row) => {
+          const previousRow = sanitizedBaselineRows.find((item) => item.id === row.id) || {}
+          return describeRowChanges(previousRow, row)
+        }) || sanitizedRows[0] || rows[0]
+        const baselineRow = sanitizedBaselineRows.find((row) => row.id === changedRow?.id) || sanitizedBaselineRows[0] || {}
+        const customerName = changedRow?.customer_name || baselineRow?.customer_name || '미지정'
+        const changeSummary = describeRowChanges(baselineRow, changedRow)
+        const confirmed = window.confirm(`${customerName} 고객님의 일정이 ${changeSummary || '변경됨'}으로 변경되었습니다. 저장하시겠습니까?`)
+        if (!confirmed) {
+          setTab('input')
+          return
+        }
+        const saved = await save(sanitizedRows)
+        if (!saved) return
       }
-      const saved = await save(rows)
-      if (!saved) return
     }
     setTab(nextTab)
   }, [tab, isDirty, rows, baselineRows, save])
