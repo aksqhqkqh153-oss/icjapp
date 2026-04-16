@@ -2963,7 +2963,8 @@ def send_direct_chat(target_user_id: int, payload: MessageIn, user=Depends(requi
         if payload.mention_user_id and payload.mention_user_id != user['id']:
             insert_notification(conn, payload.mention_user_id, "chat_mention", "채팅 태그", f"{user['nickname']}님이 나를 태그했습니다.")
             insert_chat_mention(conn, payload.mention_user_id, 'direct', str(user['id']), message_id, user['id'])
-        return {"ok": True, "message_id": message_id}
+        row = conn.execute("SELECT * FROM dm_messages WHERE id = ?", (message_id,)).fetchone()
+        return {"ok": True, "message_id": message_id, "message": enrich_chat_message(conn, row, 'dm_messages')}
 @app.get("/api/chat/{target_user_id}/voice-room")
 def get_direct_voice_room(target_user_id: int, user=Depends(require_user)):
     with get_conn() as conn:
@@ -3083,7 +3084,8 @@ def send_group_message(room_id: int, payload: MessageIn, user=Depends(require_us
         if payload.mention_user_id and payload.mention_user_id != user['id']:
             insert_notification(conn, payload.mention_user_id, "chat_mention", "채팅 태그", f"{user['nickname']}님이 나를 태그했습니다.")
             insert_chat_mention(conn, payload.mention_user_id, 'group', str(room_id), message_id, user['id'])
-        return {"ok": True, "message_id": message_id}
+        row = conn.execute("SELECT * FROM group_room_messages WHERE id = ?", (message_id,)).fetchone()
+        return {"ok": True, "message_id": message_id, "message": enrich_chat_message(conn, row, 'group_room_messages')}
 @app.post("/api/voice/direct/{target_user_id}")
 def start_voice_direct(target_user_id: int, user=Depends(require_user)):
     return create_direct_voice_room(target_user_id, user)

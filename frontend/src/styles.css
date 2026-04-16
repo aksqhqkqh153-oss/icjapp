@@ -29430,3 +29430,85 @@ button.danger {
     padding: 9px 10px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+/* 2026-04-16 mobile map 5:5 split + chat realtime/button nowrap/badge refresh ui */
+@media (max-width: 768px) {
+  .page-container.page-container-map > .stack-page > .card.map-card.enhanced-map-card,
+  .page-container.page-container-map .card.map-card.enhanced-map-card {
+    gap: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .page-container.page-container-map .map-card-head,
+  .page-container.page-container-map .map-toast-notice {
+    flex: 0 0 auto !important;
+  }
+
+  .page-container.page-container-map .real-map-canvas,
+  .page-container.page-container-map .vehicle-list-panel {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: 50% !important;
+    max-height: none !important;
+  }
+
+  .page-container.page-container-map .real-map-canvas {
+    margin: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-panel {
+    margin: 0 !important;
+    padding-top: 10px !important;
+    border-top: 1px solid #000 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .page-container.page-container-map .vehicle-list-items {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+  }
+}
+
+.chat-room-heading.compact {
+  flex-wrap: nowrap !important;
+  min-width: 0 !important;
+}
+
+.chat-room-heading.compact strong {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.chat-member-count-button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.chat-message-bubble-row {
+  align-items: flex-end !important;
+}
+
+.chat-message-tools.inline {
+  flex: 0 0 auto !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  align-self: flex-end !important;
+}
+
+.chat-tool-button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  writing-mode: horizontal-tb !important;
+  line-height: 1 !important;
+}

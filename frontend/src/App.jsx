@@ -1810,11 +1810,20 @@ function Layout({ children, user, onLogout }) {
         if (!ignore) setBadges({ notification_count: localAlertCount, chat_count: 0, friend_request_count: 0, menu_count: 0 })
       }
     }
+    function handleRefresh() {
+      loadBadges().catch(() => {})
+    }
     loadBadges()
-    const timer = window.setInterval(loadBadges, 15000)
+    const timer = window.setInterval(handleRefresh, 3000)
+    window.addEventListener('app:badges:refresh', handleRefresh)
+    window.addEventListener('focus', handleRefresh)
+    document.addEventListener('visibilitychange', handleRefresh)
     return () => {
       ignore = true
       window.clearInterval(timer)
+      window.removeEventListener('app:badges:refresh', handleRefresh)
+      window.removeEventListener('focus', handleRefresh)
+      document.removeEventListener('visibilitychange', handleRefresh)
     }
   }, [location.pathname, user?.id])
 
@@ -4945,20 +4954,42 @@ function ChatRoomPage({ roomType }) {
 
   const roomId = roomType === 'group' ? params.roomId : params.targetUserId
 
-  async function loadRoom() {
-    setLoading(true)
+  async function loadRoom(options = {}) {
+    const silent = !!options.silent
+    if (!silent) setLoading(true)
     try {
       const data = roomType === 'group'
         ? await api(`/api/group-rooms/${roomId}/messages`)
         : await api(`/api/chat/${roomId}`)
-      setRoomData(data)
+      setRoomData(prev => {
+        if (!silent || !prev) return data
+        const prevMessages = Array.isArray(prev?.messages) ? prev.messages : []
+        const nextMessages = Array.isArray(data?.messages) ? data.messages : []
+        const merged = []
+        const seen = new Set()
+        ;[...prevMessages, ...nextMessages].forEach(item => {
+          const key = String(item?.id || '')
+          if (!key || seen.has(key)) return
+          seen.add(key)
+          merged.push(item)
+        })
+        merged.sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0))
+        return { ...data, messages: merged }
+      })
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     loadRoom().catch(() => setLoading(false))
+  }, [roomType, roomId])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadRoom({ silent: true }).catch(() => {})
+    }, 2500)
+    return () => window.clearInterval(timer)
   }, [roomType, roomId])
 
   useEffect(() => {
@@ -4982,7 +5013,9 @@ function ChatRoomPage({ roomType }) {
         return roomTitleText ? haystack.includes(roomTitleText) || String(item.type || '') === 'chat_mention' || String(item.type || '') === 'group_invite' : false
       })
       matched.forEach(item => {
-        api(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(() => {})
+        api(`/api/notifications/${item.id}/read`, { method: 'POST' })
+          .then(() => { try { window.dispatchEvent(new CustomEvent('app:badges:refresh')) } catch (_) {} })
+          .catch(() => {})
       })
     }).catch(() => {})
   }, [roomData, roomType])
@@ -5015,13 +5048,9 @@ function ChatRoomPage({ roomType }) {
         mention_user_id: null,
         ...attachmentPayload,
       }
-      if (roomType === 'group') {
-        await api(`/api/group-rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(payload) })
-      } else {
-        await api(`/api/chat/${roomId}`, { method: 'POST', body: JSON.stringify(payload) })
-      }
+      const optimisticId = `local-${Date.now()}`
       const optimisticMessage = {
-        id: `local-${Date.now()}`,
+        id: optimisticId,
         sender_id: currentUser?.id,
         sender: currentUser,
         message: currentText || (attachmentPayload.attachment_type === 'image' ? '사진을 보냈습니다.' : attachmentPayload.attachment_type === 'video' ? '영상을 보냈습니다.' : attachmentPayload.attachment_type === 'file' ? '파일을 보냈습니다.' : ''),
@@ -5036,7 +5065,20 @@ function ChatRoomPage({ roomType }) {
       setMessage('')
       setSelectedFile(null)
       setReplyTarget(null)
-      window.setTimeout(() => { loadRoom().catch(() => {}) }, 120)
+      let sendResult
+      if (roomType === 'group') {
+        sendResult = await api(`/api/group-rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(payload) })
+      } else {
+        sendResult = await api(`/api/chat/${roomId}`, { method: 'POST', body: JSON.stringify(payload) })
+      }
+      try { window.dispatchEvent(new CustomEvent('app:badges:refresh')) } catch (_) {}
+      if (sendResult?.message) {
+        setRoomData(prev => prev ? {
+          ...prev,
+          messages: (prev.messages || []).map(item => String(item.id) === optimisticId ? sendResult.message : item),
+        } : prev)
+      }
+      window.setTimeout(() => { loadRoom({ silent: true }).catch(() => {}) }, 80)
     } finally {
       setSending(false)
     }
