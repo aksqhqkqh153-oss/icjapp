@@ -5066,6 +5066,7 @@ function ChatRoomPage({ roomType }) {
   const pendingScrollToBottomRef = useRef(false)
 
   const roomId = roomType === 'group' ? params.roomId : params.targetUserId
+  const currentUser = getStoredUser()
 
   async function loadRoom(options = {}) {
     const silent = !!options.silent
@@ -5570,7 +5571,6 @@ ${content}`)
     }
   }
 
-  const currentUser = getStoredUser()
   const roomTitle = roomType === 'group'
     ? roomData?.room?.title || '단체 채팅방'
     : roomData?.target_user?.nickname || '1:1 채팅'

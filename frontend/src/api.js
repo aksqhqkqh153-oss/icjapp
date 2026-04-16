@@ -75,10 +75,29 @@ function resolveApiOrigin() {
 export function resolveMediaUrl(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
-  if (/^(data:|blob:|https?:|\/\/)/i.test(raw)) return raw
+  const pageProtocol = typeof window !== 'undefined' ? String(window.location.protocol || '').toLowerCase() : ''
+  if (/^data:|^blob:/i.test(raw)) return raw
+  if (/^https?:/i.test(raw)) {
+    if (pageProtocol === 'https:' && raw.toLowerCase().startsWith('http://')) {
+      return `https://${raw.slice('http://'.length)}`
+    }
+    return raw
+  }
+  if (/^\/\//.test(raw)) {
+    return pageProtocol === 'https:' ? `https:${raw}` : raw
+  }
   if (raw.startsWith('/')) {
     const origin = resolveApiOrigin()
-    return origin ? `${origin}${raw}` : raw
+    if (!origin) return raw
+    try {
+      const originUrl = new URL(origin)
+      if (pageProtocol === 'https:' && originUrl.protocol === 'http:') {
+        originUrl.protocol = 'https:'
+      }
+      return `${originUrl.origin}${raw}`
+    } catch {
+      return raw
+    }
   }
   return raw
 }
