@@ -29691,3 +29691,39 @@ button.danger {
 .disposal-form-shell .disposal-saved-at {
   display: none !important;
 }
+
+
+/* 2026-04-16 chat realtime reactions + latest jump button */
+.chat-scroll-to-latest-button {
+  position: absolute;
+  right: 14px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  z-index: 9;
+  width: 46px;
+  height: 46px;
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .18);
+}
+
+.chat-room-card.segmented-chat-layout {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .chat-scroll-to-latest-button {
+    right: 12px;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    width: 44px;
+    height: 44px;
+    font-size: 23px;
+  }
+}

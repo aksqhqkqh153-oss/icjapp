@@ -4960,9 +4960,13 @@ function ChatRoomPage({ roomType }) {
   const [roomSearchInput, setRoomSearchInput] = useState('')
   const [roomSearchActiveIndex, setRoomSearchActiveIndex] = useState(0)
   const [hoveredMessageId, setHoveredMessageId] = useState(null)
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const imageInputRef = useRef(null)
   const fileInputRef = useRef(null)
   const messageNodeRefs = useRef({})
+  const messagesScrollRef = useRef(null)
+  const lastMessageMetaRef = useRef({ id: null, count: 0 })
+  const pendingScrollToBottomRef = useRef(false)
 
   const roomId = roomType === 'group' ? params.roomId : params.targetUserId
 
@@ -5003,6 +5007,65 @@ function ChatRoomPage({ roomType }) {
     }, 2500)
     return () => window.clearInterval(timer)
   }, [roomType, roomId])
+
+  function isNearBottom(node, threshold = 88) {
+    if (!node) return true
+    const remaining = node.scrollHeight - node.scrollTop - node.clientHeight
+    return remaining <= threshold
+  }
+
+  function scrollMessagesToBottom(force = false) {
+    const node = messagesScrollRef.current
+    if (!node) return
+    if (force || isNearBottom(node, 220)) {
+      node.scrollTo({ top: node.scrollHeight, behavior: force ? 'auto' : 'smooth' })
+      setShowScrollToLatest(false)
+    }
+  }
+
+  useEffect(() => {
+    const node = messagesScrollRef.current
+    if (!node) return
+    const handleScroll = () => {
+      setShowScrollToLatest(!isNearBottom(node))
+    }
+    handleScroll()
+    node.addEventListener('scroll', handleScroll, { passive: true })
+    return () => node.removeEventListener('scroll', handleScroll)
+  }, [roomId, roomType])
+
+  useEffect(() => {
+    const nextMessages = Array.isArray(roomData?.messages) ? roomData.messages : []
+    const nextLast = nextMessages.length ? nextMessages[nextMessages.length - 1] : null
+    const nextId = nextLast?.id != null ? String(nextLast.id) : null
+    const prevMeta = lastMessageMetaRef.current
+    const prevId = prevMeta?.id
+    const prevCount = Number(prevMeta?.count || 0)
+    const node = messagesScrollRef.current
+    const alreadyNearBottom = isNearBottom(node)
+
+    if (!prevId && nextId) {
+      pendingScrollToBottomRef.current = true
+    } else if (nextId && prevId && nextId !== prevId) {
+      const mine = String(nextLast?.sender_id || '') === String(currentUser?.id || '')
+      if (mine || alreadyNearBottom || pendingScrollToBottomRef.current) {
+        pendingScrollToBottomRef.current = true
+      } else {
+        setShowScrollToLatest(true)
+      }
+    } else if (nextMessages.length > prevCount && alreadyNearBottom) {
+      pendingScrollToBottomRef.current = true
+    }
+
+    lastMessageMetaRef.current = { id: nextId, count: nextMessages.length }
+  }, [roomData?.messages, currentUser?.id])
+
+  useEffect(() => {
+    if (!pendingScrollToBottomRef.current) return
+    pendingScrollToBottomRef.current = false
+    const timer = window.setTimeout(() => scrollMessagesToBottom(true), 0)
+    return () => window.clearTimeout(timer)
+  }, [roomData?.messages])
 
   useEffect(() => {
     if (!roomData?.pending_mentions?.length) return
@@ -5073,6 +5136,7 @@ function ChatRoomPage({ roomType }) {
         reaction_summary: [],
         created_at: new Date().toISOString(),
       }
+      pendingScrollToBottomRef.current = true
       setRoomData(prev => prev ? { ...prev, messages: [...(prev.messages || []), optimisticMessage] } : prev)
       setMessage('')
       setSelectedFile(null)
@@ -5100,8 +5164,41 @@ function ChatRoomPage({ roomType }) {
     const endpoint = roomType === 'group'
       ? `/api/group-messages/${messageId}/reactions`
       : `/api/dm-messages/${messageId}/reactions`
-    await api(endpoint, { method: 'POST', body: JSON.stringify({ emoji }) })
-    await loadRoom({ silent: true })
+
+    const previousMessages = Array.isArray(roomData?.messages) ? roomData.messages : []
+    const targetMessage = previousMessages.find(item => String(item?.id) === String(messageId))
+    const alreadyReacted = Array.isArray(targetMessage?.reactions)
+      ? targetMessage.reactions.some(reaction => String(reaction?.emoji || '') === String(emoji) && String(reaction?.user_id || '') === String(currentUser?.id || ''))
+      : false
+
+    setRoomData(prev => prev ? {
+      ...prev,
+      messages: (prev.messages || []).map(item => {
+        if (String(item?.id) !== String(messageId)) return item
+        const summary = Array.isArray(item?.reaction_summary) ? [...item.reaction_summary] : []
+        const index = summary.findIndex(reaction => String(reaction?.emoji || '') === String(emoji))
+        if (alreadyReacted) {
+          if (index >= 0) {
+            const currentCount = Number(summary[index]?.count || 0)
+            if (currentCount <= 1) summary.splice(index, 1)
+            else summary[index] = { ...summary[index], count: currentCount - 1 }
+          }
+        } else if (index >= 0) {
+          summary[index] = { ...summary[index], count: Number(summary[index]?.count || 0) + 1 }
+        } else {
+          summary.push({ emoji, count: 1 })
+        }
+        return { ...item, reaction_summary: summary }
+      }),
+    } : prev)
+
+    try {
+      await api(endpoint, { method: 'POST', body: JSON.stringify({ emoji }) })
+      await loadRoom({ silent: true })
+    } catch (error) {
+      setRoomData(prev => prev ? { ...prev, messages: previousMessages } : prev)
+      throw error
+    }
   }
 
   async function handleStartVoice() {
@@ -5395,7 +5492,7 @@ function ChatRoomPage({ roomType }) {
         )}
 
         <div className="chat-room-messages-section">
-          <div className="chat-room-messages">
+          <div ref={messagesScrollRef} className="chat-room-messages">
             {loading && <div className="muted">대화 내용을 불러오는 중...</div>}
             {!loading && messages.length === 0 && <div className="muted">아직 메시지가 없습니다. 첫 메시지를 보내보세요.</div>}
             {!loading && messages.map((item, index) => {
@@ -5493,6 +5590,17 @@ function ChatRoomPage({ roomType }) {
             })}
           </div>
         </div>
+
+        {showScrollToLatest && (
+          <button
+            type="button"
+            className="chat-scroll-to-latest-button"
+            onClick={() => scrollMessagesToBottom(true)}
+            aria-label="최신 채팅으로 이동"
+          >
+            ↓
+          </button>
+        )}
 
         <div className="chat-room-compose-section">
           {replyTarget && (
