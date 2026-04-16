@@ -1073,6 +1073,22 @@ function buildPendingSettlementChangeMessage(record) {
   return `[${record.disposalDate || '-'}] [${record.platform || '-'}] [${record.customerName || '-'}] [${record.location || '-'}]의 [입금여부] 결산이 변경되었습니다.`
 }
 
+function buildSettlementTrackingSnapshot(record) {
+  const normalized = normalizeRecordShape(record || {})
+  const items = getFilledRecordItems(normalized).map(item => ({
+    itemName: String(item?.itemName || '').trim(),
+    paymentDone: !!item?.paymentDone,
+    paymentSettledAt: String(item?.paymentSettledAt || '').trim(),
+    reportDone: !!item?.reportDone,
+  }))
+  return JSON.stringify({
+    id: String(normalized?.id || ''),
+    finalStatus: String(normalized?.finalStatus || ''),
+    settlementTransferredAt: String(normalized?.settlementTransferredAt || ''),
+    items,
+  })
+}
+
 function getDisposalNavTabKey(pathname = '') {
   if (pathname.startsWith('/disposal/list')) return 'list'
   if (pathname.startsWith('/disposal/settlements')) return 'settlements'
@@ -2848,13 +2864,18 @@ export function DisposalListPage() {
   const [bulkPaymentModal, setBulkPaymentModal] = useState({ open: false, recordId: '', group: null, rows: [] })
   const [bulkPaymentDates, setBulkPaymentDates] = useState({})
   const [bulkReportStatuses, setBulkReportStatuses] = useState({})
+  const settlementBaselineRef = useRef({})
 
   const alertSearchQuery = String(searchParams.get('query') || '').trim()
   const alertRecordId = String(searchParams.get('recordId') || '').trim()
   const hasUnreportedAlertFocus = String(searchParams.get('alert') || '').trim() === 'disposal_unreported'
 
   useEffect(() => {
-    setRecords(loadRecords())
+    const loadedRecords = loadRecords()
+    setRecords(loadedRecords)
+    settlementBaselineRef.current = Object.fromEntries(
+      loadedRecords.map(record => [String(record?.id || ''), buildSettlementTrackingSnapshot(record)])
+    )
   }, [])
 
   useEffect(() => {
@@ -2907,7 +2928,17 @@ export function DisposalListPage() {
     if (!nextTarget) return
     saveRecords(nextRecords)
     setRecords(nextRecords)
-    setPendingSettlementMessages(prev => Array.from(new Set([...prev.filter(message => message !== buildPendingSettlementChangeMessage(target)), buildPendingSettlementChangeMessage(nextTarget)])))
+    const baselineSnapshot = settlementBaselineRef.current[String(recordId || '')] || ''
+    const nextSnapshot = buildSettlementTrackingSnapshot(nextTarget)
+    const nextMessage = buildPendingSettlementChangeMessage(nextTarget)
+    const previousMessage = buildPendingSettlementChangeMessage(target)
+    setPendingSettlementMessages(prev => {
+      const filtered = prev.filter(message => message !== previousMessage && message !== nextMessage)
+      if (!baselineSnapshot || baselineSnapshot === nextSnapshot) {
+        return filtered
+      }
+      return Array.from(new Set([...filtered, nextMessage]))
+    })
   }
 
   function updatePaymentStatus(recordId, rowKey, isChecked) {
