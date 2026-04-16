@@ -28801,3 +28801,7 @@ button.danger {
     padding-top: 10px !important;
   }
 }
+
+.ladder-travel-provider-line { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:#475569; }
+.ladder-travel-provider-label { color:#64748b; }
+.ladder-travel-provider-value { color:#0f172a; }

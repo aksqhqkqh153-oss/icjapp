@@ -3604,6 +3604,21 @@ def _estimate_travel_from_distance(start_point: dict[str, Any], end_point: dict[
     }
 
 
+def _travel_provider_label(provider: str) -> str:
+    code = str(provider or '').strip().lower()
+    if code == 'kakao':
+        return '카카오맵'
+    if code == 'naver':
+        return '네이버지도'
+    if code == 'estimate':
+        return '추정값'
+    return '알 수 없음'
+
+
+def _travel_route_mode(provider: str) -> str:
+    return 'real' if str(provider or '').strip().lower() in {'kakao', 'naver'} else 'estimate'
+
+
 @app.get('/api/travel-time')
 def travel_time_lookup(start_address: str = Query(..., min_length=2), end_address: str = Query(..., min_length=2), user=Depends(require_user)):
     start_point = _resolve_geocode_point(start_address)
@@ -3615,10 +3630,13 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
         try:
             result = resolver(start_point, end_point)
             if result:
+                provider_code = str(result['provider'])
                 return {
                     'start': start_point,
                     'end': end_point,
-                    'provider': result['provider'],
+                    'provider': provider_code,
+                    'provider_label': _travel_provider_label(provider_code),
+                    'route_mode': _travel_route_mode(provider_code),
                     'distance_m': result['distance_m'],
                     'duration_seconds': result['duration_seconds'],
                     'duration_text': result['duration_text'],
@@ -3631,10 +3649,13 @@ def travel_time_lookup(start_address: str = Query(..., min_length=2), end_addres
             logger.warning('travel time lookup failed via %s: %s', provider_name, exc)
             errors.append(f'{provider_name}:{exc}')
     estimated = _estimate_travel_from_distance(start_point, end_point)
+    provider_code = str(estimated['provider'])
     return {
         'start': start_point,
         'end': end_point,
-        'provider': estimated['provider'],
+        'provider': provider_code,
+        'provider_label': _travel_provider_label(provider_code),
+        'route_mode': _travel_route_mode(provider_code),
         'distance_m': estimated['distance_m'],
         'duration_seconds': estimated['duration_seconds'],
         'duration_text': estimated['duration_text'],

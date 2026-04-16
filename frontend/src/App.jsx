@@ -11244,6 +11244,7 @@ function createEmptyLadderForm(overrides = {}) {
     moveTime: '',
     customerName: '',
     travelTime: '',
+    travelProvider: '',
     start: createLadderLocationState(),
     end: createLadderLocationState(),
     ...overrides,
@@ -11524,6 +11525,7 @@ function LadderDispatchPage() {
     const endAddress = String(form.end?.addr || '').trim()
     if (!startAddress || !endAddress) {
       setTravelTimeStatus(prev => prev.state === 'idle' && !prev.message ? prev : { state: 'idle', message: '' })
+      setForm(prev => prev.travelProvider ? { ...prev, travelProvider: '' } : prev)
       return
     }
     const timer = window.setTimeout(async () => {
@@ -11531,13 +11533,24 @@ function LadderDispatchPage() {
         setTravelTimeStatus({ state: 'loading', message: '이동시간 계산중...' })
         const response = await api(`/api/travel-time?start_address=${encodeURIComponent(startAddress)}&end_address=${encodeURIComponent(endAddress)}`, { icjCache: { skip: true } })
         const nextTravelTime = String(response?.duration_text || '').trim()
-        if (nextTravelTime) {
-          setForm(prev => prev.travelTime === nextTravelTime ? prev : { ...prev, travelTime: nextTravelTime })
-        }
-        const provider = response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '예상치'
+        const providerLabel = String(response?.provider_label || (response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '추정값')).trim()
+        setForm(prev => {
+          const next = { ...prev }
+          let changed = false
+          if (nextTravelTime && prev.travelTime !== nextTravelTime) {
+            next.travelTime = nextTravelTime
+            changed = true
+          }
+          if (prev.travelProvider !== providerLabel) {
+            next.travelProvider = providerLabel
+            changed = true
+          }
+          return changed ? next : prev
+        })
         const approximate = response?.approximate ? ' · 추정값' : ''
         const normalizedApplied = response?.normalized_start_address || response?.normalized_end_address ? ' · 정리주소 적용' : ''
-        setTravelTimeStatus({ state: 'done', message: `${provider} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}` })
+        const routeMode = response?.route_mode === 'real' ? '실경로' : '예상거리 환산'
+        setTravelTimeStatus({ state: 'done', message: `${providerLabel} ${routeMode} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}` })
       } catch (error) {
         setTravelTimeStatus({ state: 'error', message: error instanceof Error ? error.message : '이동시간 계산에 실패했습니다.' })
       }
@@ -11728,6 +11741,10 @@ function LadderDispatchPage() {
                   <input type="text" value={form.customerName} onChange={e => updateTopField('customerName', e.target.value)} placeholder="고객명 ex) 홍길동" />
                   <div className="ladder-travel-time-field">
                     <input type="text" value={form.travelTime} onChange={e => updateTopField('travelTime', e.target.value)} placeholder="이동시간 ex) 1시간 23분" />
+                    <div className="ladder-travel-provider-line">
+                      <span className="ladder-travel-provider-label">지도기준</span>
+                      <strong className="ladder-travel-provider-value">{form.travelProvider || '-'}</strong>
+                    </div>
                     {travelTimeStatus.message && <div className={`ladder-travel-time-hint ${travelTimeStatus.state}`}>{travelTimeStatus.message}</div>}
                   </div>
                 </div>
