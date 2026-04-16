@@ -3619,23 +3619,73 @@ def _lookup_kakao_keyword_geocode(address: str) -> dict[str, Any] | None:
     }
 
 
+def _expand_administrative_address(value: str) -> str:
+    expanded = str(value or '').strip()
+    replacements = (
+        ('서울 ', '서울특별시 '),
+        ('부산 ', '부산광역시 '),
+        ('대구 ', '대구광역시 '),
+        ('인천 ', '인천광역시 '),
+        ('광주 ', '광주광역시 '),
+        ('대전 ', '대전광역시 '),
+        ('울산 ', '울산광역시 '),
+        ('세종 ', '세종특별자치시 '),
+        ('경기 ', '경기도 '),
+        ('강원 ', '강원특별자치도 '),
+        ('충북 ', '충청북도 '),
+        ('충남 ', '충청남도 '),
+        ('전북 ', '전북특별자치도 '),
+        ('전남 ', '전라남도 '),
+        ('경북 ', '경상북도 '),
+        ('경남 ', '경상남도 '),
+        ('제주 ', '제주특별자치도 '),
+    )
+    for short_name, full_name in replacements:
+        if expanded.startswith(short_name):
+            return full_name + expanded[len(short_name):]
+    return expanded
+
+
+def _normalize_road_spacing(value: str) -> str:
+    normalized = re.sub(r'([가-힣A-Za-z]+(?:대로|로|길))(\d)', r'\1 \2', str(value or '').strip())
+    normalized = re.sub(r'\s+', ' ', normalized).strip(' ,')
+    return normalized
+
+
 def _travel_address_candidates(address: str) -> list[str]:
     raw = str(address or '').strip()
     normalized = _normalize_route_address(raw)
     candidates: list[str] = []
+
+    def push(value: str) -> None:
+        item = re.sub(r'\s+', ' ', str(value or '').replace('\n', ' ')).strip(' ,')
+        if item and item not in candidates:
+            candidates.append(item)
+
     for item in (raw, normalized):
-        value = re.sub(r'\s+', ' ', str(item or '').replace('\n', ' ')).strip(' ,')
-        if value and value not in candidates:
-            candidates.append(value)
+        push(item)
+        push(_normalize_road_spacing(item))
+        expanded = _expand_administrative_address(item)
+        push(expanded)
+        push(_normalize_road_spacing(expanded))
+
     relaxed = re.sub(r'\s+', ' ', re.sub(r'\([^)]*\)', ' ', normalized)).strip(' ,')
-    if relaxed and relaxed not in candidates:
-        candidates.append(relaxed)
+    if relaxed:
+        push(relaxed)
+        push(_normalize_road_spacing(relaxed))
+        expanded_relaxed = _expand_administrative_address(relaxed)
+        push(expanded_relaxed)
+        push(_normalize_road_spacing(expanded_relaxed))
+
     shortened = re.sub(r'\s+', ' ', re.sub(r'\b(\d+-\d+|\d+)\b\s*$', '', normalized)).strip(' ,')
-    if shortened and shortened not in candidates:
-        candidates.append(shortened)
+    if shortened:
+        push(shortened)
+        push(_normalize_road_spacing(shortened))
+        expanded_shortened = _expand_administrative_address(shortened)
+        push(expanded_shortened)
+        push(_normalize_road_spacing(expanded_shortened))
+
     return candidates
-
-
 def _is_route_duration_plausible(distance_m: int, duration_seconds: int) -> bool:
     distance_m = int(distance_m or 0)
     duration_seconds = int(duration_seconds or 0)

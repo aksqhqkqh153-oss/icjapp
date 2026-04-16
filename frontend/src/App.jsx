@@ -11547,26 +11547,27 @@ function LadderDispatchPage() {
         setTravelTimeStatus({ state: 'loading', message: '이동시간 계산중...' })
         const response = await api(`/api/travel-time?start_address=${encodeURIComponent(startAddress)}&end_address=${encodeURIComponent(endAddress)}`, { icjCache: { skip: true } })
         const nextTravelTime = String(response?.duration_text || '').trim()
-        const providerLabel = String(response?.provider_label || (response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '추정값')).trim()
+        const providerLabel = String(response?.provider_label || (response?.provider === 'kakao' ? '카카오맵' : response?.provider === 'naver' ? '네이버지도' : '측정불가, 직접 카카오맵 또는 네이버지도로 시간 확인')).trim()
         setForm(prev => {
           const next = { ...prev }
           let changed = false
-          if (nextTravelTime && prev.travelTime !== nextTravelTime) {
+          if ((nextTravelTime || '') !== (prev.travelTime || '')) {
             next.travelTime = nextTravelTime
             changed = true
           }
-          if (prev.travelProvider !== providerLabel) {
+          if ((prev.travelProvider || '') !== providerLabel) {
             next.travelProvider = providerLabel
             changed = true
           }
           return changed ? next : prev
         })
-        const approximate = response?.approximate ? ' · 추정값' : ''
-        const normalizedApplied = response?.normalized_start_address || response?.normalized_end_address ? ' · 정리주소 적용' : ''
-        const routeMode = response?.route_mode === 'real' ? '실경로' : '예상거리 환산'
-        const geocodeHints = [response?.start_geocode_provider, response?.end_geocode_provider].filter(Boolean)
-        const geocodeNote = geocodeHints.length ? ` · 좌표:${Array.from(new Set(geocodeHints)).join('/')}` : ''
-        setTravelTimeStatus({ state: 'done', message: `${providerLabel} ${routeMode} 기준 ${nextTravelTime || '-'}${approximate}${normalizedApplied}${geocodeNote}` })
+        if (!nextTravelTime || response?.route_mode !== 'real') {
+          setTravelTimeStatus({ state: 'done', message: '' })
+        } else {
+          const geocodeHints = [response?.start_geocode_provider, response?.end_geocode_provider].filter(Boolean)
+          const geocodeNote = geocodeHints.length ? ` · 좌표:${Array.from(new Set(geocodeHints)).join('/')}` : ''
+          setTravelTimeStatus({ state: 'done', message: `${providerLabel} 실경로 기준 ${nextTravelTime}${geocodeNote}` })
+        }
       } catch (error) {
         setTravelTimeStatus({ state: 'error', message: error instanceof Error ? error.message : '이동시간 계산에 실패했습니다.' })
       }
