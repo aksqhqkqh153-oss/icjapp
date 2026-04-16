@@ -3013,6 +3013,11 @@ function ProfilePage({ onUserUpdate }) {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
   const [coverUrl, setCoverUrl] = useState(() => loadProfileCover(currentUser?.id))
+  const [liveCoords, setLiveCoords] = useState({ latitude: '', longitude: '' })
+  const [photoPrankAttempts, setPhotoPrankAttempts] = useState(0)
+  const [photoPrankOffset, setPhotoPrankOffset] = useState({ x: 0, y: 0 })
+  const [showMerong, setShowMerong] = useState(false)
+  const merongTimerRef = useRef(null)
   const branchOptions = BRANCH_NUMBER_OPTIONS
 
   useEffect(() => {
@@ -3022,6 +3027,20 @@ function ProfilePage({ onUserUpdate }) {
       setOriginalForm(nextForm)
       setCoverUrl(loadProfileCover(data?.user?.id || currentUser?.id))
     })
+  }, [])
+
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(position => {
+      setLiveCoords({
+        latitude: position.coords?.latitude || '',
+        longitude: position.coords?.longitude || '',
+      })
+    }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 })
+  }, [])
+
+  useEffect(() => () => {
+    if (merongTimerRef.current) window.clearTimeout(merongTimerRef.current)
   }, [])
 
   if (!form) return <div className="card">불러오는 중...</div>
@@ -3087,6 +3106,36 @@ function ProfilePage({ onUserUpdate }) {
     return rows
   }
 
+  function triggerPhotoPrank() {
+    setPhotoPrankAttempts(prev => {
+      const next = prev + 1
+      if (next <= 3) {
+        const direction = next % 2 === 1 ? -1 : 1
+        setPhotoPrankOffset({ x: direction * 72, y: -8 })
+        setShowMerong(false)
+      } else if (next <= 5) {
+        const direction = next % 2 === 0 ? 1 : -1
+        setPhotoPrankOffset({ x: direction * 42, y: -4 })
+        setShowMerong(true)
+        if (merongTimerRef.current) window.clearTimeout(merongTimerRef.current)
+        merongTimerRef.current = window.setTimeout(() => setShowMerong(false), 900)
+      } else {
+        setPhotoPrankOffset({ x: 0, y: 0 })
+        setShowMerong(false)
+      }
+      return next
+    })
+  }
+
+  function handleProfilePhotoEditorIntent() {
+    if (uploadingPhoto) return
+    if (photoPrankAttempts < 5) {
+      triggerPhotoPrank()
+      return
+    }
+    document.getElementById('profile-page-photo-input')?.click()
+  }
+
   async function save(e) {
     e.preventDefault()
     const payload = {
@@ -3100,6 +3149,8 @@ function ProfilePage({ onUserUpdate }) {
         ? form.interests
         : String(form.interests || '').split(',').map(v => v.trim()).filter(Boolean),
       photo_url: form.photo_url || '',
+      latitude: liveCoords.latitude || form.latitude || '',
+      longitude: liveCoords.longitude || form.longitude || '',
       phone: form.phone || '',
       recovery_email: form.recovery_email || '',
       gender: form.gender || '',
@@ -3136,15 +3187,6 @@ function ProfilePage({ onUserUpdate }) {
     setMessage('프로필이 저장되었습니다.')
   }
 
-  async function saveLocation() {
-    const data = await api('/api/profile/location', {
-      method: 'POST',
-      body: JSON.stringify({ latitude: Number(form.latitude), longitude: Number(form.longitude), region: form.region }),
-    })
-    setForm(prev => ({ ...data.user, new_password: prev.new_password || '' }))
-    onUserUpdate(data.user)
-    setMessage('위치가 저장되었습니다.')
-  }
 
   async function handleProfilePhotoUpload(e) {
     const file = e.target.files?.[0]
@@ -3184,24 +3226,18 @@ function ProfilePage({ onUserUpdate }) {
 
   return (
     <div className="card profile-page-card">
-      <div className="profile-header">
-        <div>
-          <h2>프로필</h2>
-        </div>
-        <div className="profile-badges">
-          <span className="profile-badge">{form.grade_label || '일반'}</span>
-          <span className="profile-badge ghost">{branchDisplayLabel(form.branch_no, '본점/미지정')}</span>
-        </div>
-      </div>
-
       <form onSubmit={save} className="profile-form-layout">
-        <div className="profile-actions profile-actions-top">
-          <button type="submit">프로필 저장</button>
-          <button type="button" className="ghost" onClick={saveLocation}>위치 저장</button>
-        </div>
-
         <section className="profile-section">
-          <h3>프로필정보</h3>
+          <div className="profile-section-heading-row">
+            <div className="profile-section-heading-inline">
+              <h3>프로필정보</h3>
+              <div className="profile-badges profile-badges-inline">
+                <span className="profile-badge">권한?({form.grade_label || '일반'})</span>
+                <span className="profile-badge ghost">호점?({branchDisplayLabel(form.branch_no, '본점/미지정')})</span>
+              </div>
+            </div>
+            <button type="submit" className="profile-save-inline">프로필 저장</button>
+          </div>
           <div className="profile-section-divider" />
           <div className="profile-profile-grid">
             <div className="profile-photo-panel profile-cover-stack">
@@ -3215,9 +3251,17 @@ function ProfilePage({ onUserUpdate }) {
                 <span className="profile-cover-editor-label">배경화면 클릭 후 변경</span>
               </button>
               <input id="profile-page-cover-input" type="file" accept="image/*" hidden onChange={handleProfileCoverUpload} />
-              <button type="button" className="profile-photo-hero-button profile-cover-avatar-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
+              <button
+                type="button"
+                className={`profile-photo-hero-button profile-cover-avatar-button ${photoPrankAttempts < 5 ? 'profile-photo-prank-active' : ''}`}
+                style={{ transform: `translate(${photoPrankOffset.x}px, ${photoPrankOffset.y}px)` }}
+                onMouseEnter={handleProfilePhotoEditorIntent}
+                onClick={event => { event.preventDefault(); handleProfilePhotoEditorIntent() }}
+                disabled={uploadingPhoto}
+              >
                 <AvatarCircle src={form.photo_url} label={form.nickname || form.login_id} size={108} className="profile-photo-hero-avatar" />
               </button>
+              {showMerong && <span className="profile-photo-prank-text">메롱</span>}
               <input id="profile-page-photo-input" type="file" accept="image/*" hidden onChange={handleProfilePhotoUpload} />
             </div>
             <label className="field-block profile-span-all">
@@ -3248,16 +3292,6 @@ function ProfilePage({ onUserUpdate }) {
               <span>배경 이미지 업로드</span>
               <input type="file" accept="image/*" onChange={handleProfileCoverUpload} disabled={uploadingCover} />
             </label>
-            <div className="profile-grid two profile-span-all">
-              <label className="field-block">
-                <span>위도</span>
-                <input value={form.latitude || ''} onChange={e => updateField('latitude', e.target.value)} placeholder="위도" />
-              </label>
-              <label className="field-block">
-                <span>경도</span>
-                <input value={form.longitude || ''} onChange={e => updateField('longitude', e.target.value)} placeholder="경도" />
-              </label>
-            </div>
           </div>
         </section>
 
@@ -3396,10 +3430,6 @@ function ProfilePage({ onUserUpdate }) {
           </label>
         </section>
 
-        <div className="profile-actions">
-          <button type="submit">프로필 저장</button>
-          <button type="button" className="ghost" onClick={saveLocation}>위치 저장</button>
-        </div>
         {message && <div className="success">{message}</div>}
       </form>
     </div>
