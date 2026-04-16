@@ -3163,7 +3163,6 @@ function ProfilePage({ onUserUpdate }) {
       <div className="profile-header">
         <div>
           <h2>프로필</h2>
-          <div className="muted">설정 &gt; 프로필에서 계정 정보를 수정할 수 있습니다.</div>
         </div>
         <div className="profile-badges">
           <span className="profile-badge">{form.grade_label || '일반'}</span>
@@ -3172,22 +3171,57 @@ function ProfilePage({ onUserUpdate }) {
       </div>
 
       <form onSubmit={save} className="profile-form-layout">
+        <div className="profile-actions profile-actions-top">
+          <button type="submit">프로필 저장</button>
+          <button type="button" className="ghost" onClick={saveLocation}>위치 저장</button>
+        </div>
+
         <section className="profile-section">
-          <h3>기본 계정 정보</h3>
-          <div className="profile-photo-hero">
-            <button type="button" className="profile-photo-hero-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
-              <AvatarCircle src={form.photo_url} label={form.nickname || form.login_id} size={108} className="profile-photo-hero-avatar" />
-            </button>
-            <input id="profile-page-photo-input" type="file" accept="image/*" hidden onChange={handleProfilePhotoUpload} />
-            <div className="profile-photo-hero-meta">
-              <div className="profile-photo-hero-title">프로필 사진</div>
-              <div className="profile-photo-hero-actions">
-                <button type="button" className="ghost small" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>{uploadingPhoto ? '업로드 중...' : '사진 선택'}</button>
-                <button type="button" className="ghost small" onClick={() => updateField('photo_url', '')}>기본 이미지</button>
-              </div>
-              <div className="muted small-text">사진을 선택하면 즉시 미리보기로 바뀌고, 프로필 저장 시 반영됩니다.</div>
+          <h3>프로필정보</h3>
+          <div className="profile-section-divider" />
+          <div className="profile-profile-grid">
+            <div className="profile-photo-panel">
+              <button type="button" className="profile-photo-hero-button" onClick={() => document.getElementById('profile-page-photo-input')?.click()} disabled={uploadingPhoto}>
+                <AvatarCircle src={form.photo_url} label={form.nickname || form.login_id} size={108} className="profile-photo-hero-avatar" />
+              </button>
+              <input id="profile-page-photo-input" type="file" accept="image/*" hidden onChange={handleProfilePhotoUpload} />
+            </div>
+            <label className="field-block profile-span-all">
+              <span>한줄소개</span>
+              <input value={form.one_liner || ''} onChange={e => updateField('one_liner', e.target.value)} placeholder="한줄소개" />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>프로필 상세소개</span>
+              <textarea rows={4} value={form.bio || ''} onChange={e => updateField('bio', e.target.value)} placeholder="프로필 상세소개" />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>관심사</span>
+              <input value={Array.isArray(form.interests) ? form.interests.join(', ') : form.interests || ''} onChange={e => updateField('interests', e.target.value)} placeholder="관심사 (쉼표로 구분)" />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>프로필 이미지 URL</span>
+              <input value={form.photo_url || ''} onChange={e => updateField('photo_url', e.target.value)} placeholder="프로필 이미지 URL" />
+            </label>
+            <label className="field-block profile-span-all">
+              <span>프로필 이미지 업로드</span>
+              <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
+            </label>
+            <div className="profile-grid two profile-span-all">
+              <label className="field-block">
+                <span>위도</span>
+                <input value={form.latitude || ''} onChange={e => updateField('latitude', e.target.value)} placeholder="위도" />
+              </label>
+              <label className="field-block">
+                <span>경도</span>
+                <input value={form.longitude || ''} onChange={e => updateField('longitude', e.target.value)} placeholder="경도" />
+              </label>
             </div>
           </div>
+        </section>
+
+        <section className="profile-section">
+          <h3>계정정보</h3>
+          <div className="profile-section-divider" />
           <div className="profile-grid two">
             <label className="field-block">
               <span>아이디</span>
@@ -3197,9 +3231,14 @@ function ProfilePage({ onUserUpdate }) {
               <span>새 비밀번호</span>
               <input type="password" value={form.new_password || ''} onChange={e => updateField('new_password', e.target.value)} placeholder="변경 시에만 입력" />
             </label>
+          </div>
+          <div className="profile-grid four">
             <label className="field-block">
-              <span>이름</span>
-              <input value={form.nickname || ''} onChange={e => updateField('nickname', e.target.value)} placeholder="이름" />
+              <span>호점</span>
+              <select value={isAssignedBranchNo(form.branch_no) ? String(form.branch_no) : ''} onChange={e => updateField('branch_no', e.target.value)} disabled={Number(form.grade || 6) !== 1} className={Number(form.grade || 6) !== 1 ? 'readonly-input' : ''}>
+                <option value="">본점 또는 미지정</option>
+                {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
+              </select>
             </label>
             <label className="field-block">
               <span>직급</span>
@@ -3213,30 +3252,34 @@ function ProfilePage({ onUserUpdate }) {
               <input value={form.grade_label || ''} readOnly className="readonly-input" />
             </label>
             <label className="field-block">
-              <span>호점</span>
-              <select value={isAssignedBranchNo(form.branch_no) ? String(form.branch_no) : ''} onChange={e => updateField('branch_no', e.target.value)} disabled={Number(form.grade || 6) !== 1} className={Number(form.grade || 6) !== 1 ? 'readonly-input' : ''}>
-                <option value="">본점 또는 미지정</option>
-                {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
-              </select>
+              <span>이름</span>
+              <input value={form.nickname || ''} onChange={e => updateField('nickname', e.target.value)} placeholder="이름" />
             </label>
-            <label className="field-block">
-              <span>연락처</span>
-              <input value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="연락처" />
-            </label>
+          </div>
+          <label className="field-block">
+            <span>연락처</span>
+            <input value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="연락처" />
+          </label>
+          <div className="profile-grid two">
             <label className="field-block">
               <span>복구 이메일</span>
               <input value={form.recovery_email || ''} onChange={e => updateField('recovery_email', e.target.value)} placeholder="복구 이메일" />
             </label>
             <label className="field-block">
-              <span>구글 아이디</span>
-              <input value={form.google_email || ''} onChange={e => updateField('google_email', e.target.value)} placeholder="구글 아이디" />
+              <span>구글아이디</span>
+              <input value={form.google_email || ''} onChange={e => updateField('google_email', e.target.value)} placeholder="구글아이디" />
             </label>
           </div>
         </section>
 
         <section className="profile-section">
-          <h3>개인 정보</h3>
-          <div className="profile-grid three">
+          <h3>개인정보</h3>
+          <div className="profile-section-divider" />
+          <div className="profile-grid three profile-grid-three-compact">
+            <label className="field-block">
+              <span>성별</span>
+              <select value={form.gender || ''} onChange={e => updateField('gender', e.target.value)}><option value="">성별 선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>
+            </label>
             <label className="field-block">
               <span>생년월일</span>
               <input value={form.resident_id || ''} onChange={e => updateField('resident_id', e.target.value)} placeholder="예: 950109" />
@@ -3245,31 +3288,32 @@ function ProfilePage({ onUserUpdate }) {
               <span>출생연도</span>
               <input type="number" value={form.birth_year || 1990} onChange={e => updateField('birth_year', Number(e.target.value))} placeholder="출생연도" />
             </label>
+          </div>
+          <div className="profile-grid two">
             <label className="field-block">
-              <span>결혼</span>
-              <input value={form.marital_status || ''} onChange={e => updateField('marital_status', e.target.value)} placeholder="결혼 여부" />
-            </label>
-            <label className="field-block">
-              <span>성별</span>
-              <select value={form.gender || ''} onChange={e => updateField('gender', e.target.value)}><option value="">성별 선택</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>
+              <span>결혼여부</span>
+              <input value={form.marital_status || ''} onChange={e => updateField('marital_status', e.target.value)} placeholder="결혼여부" />
             </label>
             <label className="field-block">
               <span>MBTI</span>
               <input value={form.mbti || ''} onChange={e => updateField('mbti', e.target.value)} placeholder="MBTI" />
             </label>
+          </div>
+          <div className="profile-grid two">
             <label className="field-block">
               <span>지역</span>
               <input value={form.region || ''} onChange={e => updateField('region', e.target.value)} placeholder="지역" />
             </label>
+            <label className="field-block">
+              <span>집주소</span>
+              <input value={form.resident_address || ''} onChange={e => updateField('resident_address', e.target.value)} placeholder="집주소" />
+            </label>
           </div>
-          <label className="field-block">
-            <span>집주소</span>
-            <textarea rows={3} value={form.resident_address || ''} onChange={e => updateField('resident_address', e.target.value)} placeholder="집주소" />
-          </label>
         </section>
 
         <section className="profile-section">
-          <h3>사업자 정보</h3>
+          <h3>사업자정보</h3>
+          <div className="profile-section-divider" />
           <div className="profile-grid two">
             <label className="field-block">
               <span>상호명</span>
@@ -3279,18 +3323,22 @@ function ProfilePage({ onUserUpdate }) {
               <span>사업자 등록번호</span>
               <input value={form.business_number || ''} onChange={e => updateField('business_number', e.target.value)} placeholder="사업자 등록번호" />
             </label>
+          </div>
+          <div className="profile-grid three">
             <label className="field-block">
               <span>업태</span>
-              <textarea rows={3} value={form.business_type || ''} onChange={e => updateField('business_type', e.target.value)} placeholder="업태" />
+              <input value={form.business_type || ''} onChange={e => updateField('business_type', e.target.value)} placeholder="업태" />
             </label>
             <label className="field-block">
               <span>종목</span>
-              <textarea rows={3} value={form.business_item || ''} onChange={e => updateField('business_item', e.target.value)} placeholder="종목" />
+              <input value={form.business_item || ''} onChange={e => updateField('business_item', e.target.value)} placeholder="종목" />
             </label>
             <label className="field-block">
-              <span>차량 번호</span>
-              <input value={form.vehicle_number || ''} onChange={e => updateField('vehicle_number', e.target.value)} placeholder="차량 번호" />
+              <span>차량번호</span>
+              <input value={form.vehicle_number || ''} onChange={e => updateField('vehicle_number', e.target.value)} placeholder="차량번호" />
             </label>
+          </div>
+          <div className="profile-grid two">
             <label className="field-block">
               <span>은행</span>
               <input value={form.bank_name || ''} onChange={e => updateField('bank_name', e.target.value)} placeholder="은행" />
@@ -3299,45 +3347,11 @@ function ProfilePage({ onUserUpdate }) {
               <span>계좌번호</span>
               <input value={form.bank_account || ''} onChange={e => updateField('bank_account', e.target.value)} placeholder="계좌번호" />
             </label>
-            <label className="field-block">
-              <span>한줄 소개</span>
-              <input value={form.one_liner || ''} onChange={e => updateField('one_liner', e.target.value)} placeholder="한줄 소개" />
-            </label>
           </div>
           <label className="field-block">
             <span>사업장 소재지</span>
-            <textarea rows={3} value={form.business_address || ''} onChange={e => updateField('business_address', e.target.value)} placeholder="사업장 소재지" />
+            <input value={form.business_address || ''} onChange={e => updateField('business_address', e.target.value)} placeholder="사업장 소재지" />
           </label>
-        </section>
-
-        <section className="profile-section">
-          <h3>프로필 표시 정보</h3>
-          <div className="profile-grid photo">
-            <label className="field-block">
-              <span>프로필 소개</span>
-              <textarea rows={4} value={form.bio || ''} onChange={e => updateField('bio', e.target.value)} placeholder="프로필 소개" />
-            </label>
-            <label className="field-block">
-              <span>관심사</span>
-              <input value={Array.isArray(form.interests) ? form.interests.join(', ') : form.interests || ''} onChange={e => updateField('interests', e.target.value)} placeholder="관심사 (쉼표로 구분)" />
-            </label>
-            <label className="field-block">
-              <span>프로필 이미지 URL</span>
-              <input value={form.photo_url || ''} onChange={e => updateField('photo_url', e.target.value)} placeholder="프로필 이미지 URL" />
-            </label>
-            <label className="field-block">
-              <span>프로필 이미지 업로드</span>
-              <input type="file" accept="image/*" onChange={handleProfilePhotoUpload} disabled={uploadingPhoto} />
-            </label>
-            <label className="field-block">
-              <span>위도</span>
-              <input value={form.latitude || ''} onChange={e => updateField('latitude', e.target.value)} placeholder="위도" />
-            </label>
-            <label className="field-block">
-              <span>경도</span>
-              <input value={form.longitude || ''} onChange={e => updateField('longitude', e.target.value)} placeholder="경도" />
-            </label>
-          </div>
         </section>
 
         <div className="profile-actions">

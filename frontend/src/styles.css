@@ -2129,6 +2129,39 @@ label { font-size: 14px; color: #4f6f8c; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.profile-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.profile-section-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.profile-profile-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-photo-panel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0 14px;
+}
+
+.profile-span-all {
+  grid-column: 1 / -1;
+}
+
+.profile-grid-three-compact {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.profile-actions-top {
+  justify-content: space-between;
+}
+
 .profile-grid.photo {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -2165,7 +2198,9 @@ label { font-size: 14px; color: #4f6f8c; }
 @media (max-width: 900px) {
   .profile-grid.two,
   .profile-grid.three,
-  .profile-grid.photo {
+  .profile-grid.four,
+  .profile-grid.photo,
+  .profile-grid-three-compact {
     grid-template-columns: minmax(0, 1fr);
   }
 }
