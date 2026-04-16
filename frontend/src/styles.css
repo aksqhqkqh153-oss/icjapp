@@ -29935,3 +29935,37 @@ button.danger {
   .quote-admin-detail-screen h3 { font-size: 22px; }
   .quote-admin-detail-screen .quote-detail-row { grid-template-columns: 1fr; gap: 3px; }
 }
+
+
+/* 2026-04-16 chat init bug + disposal grouped hover/button centering */
+.disposal-page .disposal-meta-row.disposal-meta-row-top.disposal-meta-row-top-inline-actions {
+  grid-template-columns: minmax(0,1fr) auto !important;
+}
+.disposal-page .disposal-meta-top-click-group {
+  display:grid;
+  grid-template-columns:max-content max-content minmax(0,1fr);
+  min-width:0;
+  cursor:pointer;
+}
+.disposal-page .disposal-meta-top-click-group > .disposal-meta-link-button {
+  pointer-events:none;
+}
+.disposal-page .disposal-meta-top-click-group:hover > .disposal-meta-link-button,
+.disposal-page .disposal-meta-top-click-group:focus-visible > .disposal-meta-link-button {
+  background:#f8fafc !important;
+}
+.disposal-page .disposal-meta-row-end-actions {
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  height:100%;
+  padding-block:4px !important;
+}
+.disposal-page .disposal-meta-row-end-actions .disposal-settlement-action-button {
+  align-self:center;
+}
+@media (max-width: 768px) {
+  .disposal-page .disposal-meta-top-click-group {
+    grid-template-columns:max-content max-content minmax(0,1fr);
+  }
+}

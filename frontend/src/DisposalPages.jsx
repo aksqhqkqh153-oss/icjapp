@@ -3111,9 +3111,23 @@ export function DisposalListPage() {
               <div className="disposal-list-date-label disposal-customer-group-label disposal-customer-group-label-mobile-card">
                 <div className="disposal-group-meta-card" aria-label={`${group.customerName} 폐기양식 정보`}>
                   <div className="disposal-meta-row disposal-meta-row-top disposal-meta-row-top-inline-actions">
-                    <button type="button" className="disposal-meta-link-button disposal-meta-date" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>{group.disposalDate}</button>
-                    <button type="button" className="disposal-meta-link-button disposal-meta-platform" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>{group.platform || '-'}</button>
-                    <button type="button" className="disposal-meta-link-button disposal-meta-customer-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}><strong className="disposal-meta-customer">{group.customerName}</strong></button>
+                    <div
+                      className="disposal-meta-top-click-group"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/disposal/forms/${group.recordId}`)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          navigate(`/disposal/forms/${group.recordId}`)
+                        }
+                      }}
+                      aria-label={`${group.customerName} 폐기양식으로 이동`}
+                    >
+                      <span className="disposal-meta-link-button disposal-meta-date">{group.disposalDate}</span>
+                      <span className="disposal-meta-link-button disposal-meta-platform">{group.platform || '-'}</span>
+                      <span className="disposal-meta-link-button disposal-meta-customer-link"><strong className="disposal-meta-customer">{group.customerName}</strong></span>
+                    </div>
                     <div className="disposal-meta-action-inline-wrap">
                       <span className={`disposal-payment-badge disposal-header-action-button ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()} aria-label={`${group.customerName} 입금완/신고완 상태`}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
                       {isTransferred ? <span className="disposal-transfer-badge disposal-header-action-button">결산반영완료</span> : <span className="disposal-transfer-badge disposal-header-action-button is-pending">결산대기</span>}

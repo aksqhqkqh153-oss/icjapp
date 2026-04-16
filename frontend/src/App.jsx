@@ -5568,11 +5568,11 @@ ${content}`)
     }
   }
 
+  const currentUser = getStoredUser()
   const roomTitle = roomType === 'group'
     ? roomData?.room?.title || '단체 채팅방'
     : roomData?.target_user?.nickname || '1:1 채팅'
 
-  const currentUser = getStoredUser()
   const roomMembers = roomType === 'group'
     ? (roomData?.members || [])
     : [currentUser, roomData?.target_user].filter(Boolean)
