@@ -53,6 +53,10 @@ const PAGE_TITLES = {
 }
 
 const APP_THEME_STORAGE_KEY = 'icj_app_theme'
+const CHAT_FONT_SIZE_STORAGE_KEY = 'icj_chat_font_size_px'
+const DEFAULT_CHAT_FONT_SIZE = 14
+const MIN_CHAT_FONT_SIZE = 12
+const MAX_CHAT_FONT_SIZE = 24
 const LAYOUT_GUIDE_BODY_CLASS = 'layout-guide-enabled'
 const HTML_INSPECTOR_BODY_CLASS = 'html-inspector-enabled'
 const TEXT_EDIT_BODY_CLASS = 'text-edit-enabled'
@@ -220,6 +224,28 @@ function applyAppTheme(theme) {
     themeColorMeta.setAttribute('content', nextTheme === 'dark' ? '#111827' : '#ffffff')
   }
   return nextTheme
+}
+
+function normalizeChatFontSize(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return DEFAULT_CHAT_FONT_SIZE
+  return Math.min(MAX_CHAT_FONT_SIZE, Math.max(MIN_CHAT_FONT_SIZE, Math.round(numeric)))
+}
+
+function getStoredChatFontSize() {
+  try {
+    return normalizeChatFontSize(localStorage.getItem(CHAT_FONT_SIZE_STORAGE_KEY))
+  } catch (_) {
+    return DEFAULT_CHAT_FONT_SIZE
+  }
+}
+
+function applyChatFontSize(size) {
+  const nextSize = normalizeChatFontSize(size)
+  if (typeof document === 'undefined') return nextSize
+  document.documentElement.style.setProperty('--chat-font-size', `${nextSize}px`)
+  if (document.body) document.body.style.setProperty('--chat-font-size', `${nextSize}px`)
+  return nextSize
 }
 
 function applyLayoutGuideMode(enabled) {
@@ -14082,8 +14108,11 @@ function SettingsPage({ onLogout }) {
   const [inquiry, setInquiry] = useState({ category: '기능문의', title: '', content: '' })
   const [message, setMessage] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const [category, setCategory] = useState('theme')
+  const [category, setCategory] = useState('basic')
+  const [basicCategory, setBasicCategory] = useState('theme')
   const [theme, setTheme] = useState(() => getStoredThemePreference())
+  const [chatSettingTab, setChatSettingTab] = useState('font-size')
+  const [chatFontSize, setChatFontSize] = useState(() => getStoredChatFontSize())
 
   useEffect(() => {
     applyAppTheme(theme)
@@ -14092,19 +14121,31 @@ function SettingsPage({ onLogout }) {
     } catch (_) {}
   }, [theme])
 
+  useEffect(() => {
+    applyChatFontSize(chatFontSize)
+    try {
+      localStorage.setItem(CHAT_FONT_SIZE_STORAGE_KEY, String(chatFontSize))
+    } catch (_) {}
+  }, [chatFontSize])
+
   async function load() {
     const [p, b] = await Promise.all([api('/api/preferences'), api('/api/blocked-users')])
     setPrefs(p)
     setBlocks(b)
     const savedTheme = p?.theme === 'dark' ? 'dark' : p?.theme === 'light' ? 'light' : getStoredThemePreference()
     setTheme(savedTheme)
+    const savedChatFontSize = p?.chatFontSize ? normalizeChatFontSize(p.chatFontSize) : getStoredChatFontSize()
+    setChatFontSize(savedChatFontSize)
   }
   useEffect(() => { load() }, [])
 
   async function savePrefs() {
-    const nextPrefs = { ...prefs, theme }
+    const nextPrefs = { ...prefs, theme, chatFontSize: normalizeChatFontSize(chatFontSize) }
     await api('/api/preferences', { method: 'POST', body: JSON.stringify({ data: nextPrefs }) })
     setPrefs(nextPrefs)
+    try {
+      localStorage.setItem(CHAT_FONT_SIZE_STORAGE_KEY, String(normalizeChatFontSize(chatFontSize)))
+    } catch (_) {}
     setMessage('설정이 저장되었습니다.')
   }
 
@@ -14132,21 +14173,11 @@ function SettingsPage({ onLogout }) {
     }
   }
 
-  return (
-    <div className="stack settings-page-shell">
-      <section className="card settings-category-card">
-        <h2>설정</h2>
-        <div className="settings-category-row">
-          <button type="button" className={category === 'theme' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('theme')}>테마변경</button>
-          <button type="button" className={category === 'notifications' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('notifications')}>알림설정</button>
-          <button type="button" className={category === 'home' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('home')}>목록형전환</button>
-          <button type="button" className={category === 'blocked' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('blocked')}>차단목록</button>
-          <button type="button" className={category === 'inquiry' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('inquiry')}>문의접수</button>
-          <button type="button" className={category === 'account' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('account')}>계정관리</button>
-        </div>
-      </section>
+  const fontPreviewSizes = [12, 14, 16, 18, 20, 22, 24]
 
-      {category === 'theme' ? (
+  function renderBasicContent() {
+    if (basicCategory === 'theme') {
+      return (
         <section className="card settings-theme-card">
           <h3>테마변경</h3>
           <div className="settings-theme-options">
@@ -14158,9 +14189,10 @@ function SettingsPage({ onLogout }) {
           </div>
           {message ? <div className="success">{message}</div> : null}
         </section>
-      ) : null}
-
-      {category === 'notifications' ? (
+      )
+    }
+    if (basicCategory === 'notifications') {
+      return (
         <section className="card">
           <h3>알림설정</h3>
           <label className="check"><input type="checkbox" checked={!!prefs.groupChatNotifications} onChange={e => setPrefs({ ...prefs, groupChatNotifications: e.target.checked })} /> 그룹채팅 알림</label>
@@ -14171,10 +14203,10 @@ function SettingsPage({ onLogout }) {
           </div>
           {message ? <div className="success">{message}</div> : null}
         </section>
-      ) : null}
-
-
-      {category === 'home' ? (
+      )
+    }
+    if (basicCategory === 'home') {
+      return (
         <section className="card settings-theme-card">
           <h3>목록형전환</h3>
           <div className="settings-home-toggle-card">
@@ -14182,12 +14214,7 @@ function SettingsPage({ onLogout }) {
               <strong>빠른 확인 목록형전환</strong>
               <div className="muted small-text">ON으로 바꾸면 홈의 빠른 확인이 제목 / 세부내용 / 알림수 목록형으로 표시됩니다.</div>
             </div>
-            <button
-              type="button"
-              className={prefs.quickListMode ? 'settings-toggle-button active' : 'settings-toggle-button'}
-              onClick={() => setPrefs({ ...prefs, quickListMode: !prefs.quickListMode })}
-              aria-pressed={!!prefs.quickListMode}
-            >
+            <button type="button" className={prefs.quickListMode ? 'settings-toggle-button active' : 'settings-toggle-button'} onClick={() => setPrefs({ ...prefs, quickListMode: !prefs.quickListMode })} aria-pressed={!!prefs.quickListMode}>
               {prefs.quickListMode ? 'ON' : 'OFF'}
             </button>
           </div>
@@ -14196,9 +14223,10 @@ function SettingsPage({ onLogout }) {
           </div>
           {message ? <div className="success">{message}</div> : null}
         </section>
-      ) : null}
-
-      {category === 'blocked' ? (
+      )
+    }
+    if (basicCategory === 'blocked') {
+      return (
         <section className="card">
           <h3>차단 사용자</h3>
           <div className="list">
@@ -14211,9 +14239,10 @@ function SettingsPage({ onLogout }) {
             {blocks.length === 0 && <div className="muted">차단된 사용자가 없습니다.</div>}
           </div>
         </section>
-      ) : null}
-
-      {category === 'inquiry' ? (
+      )
+    }
+    if (basicCategory === 'inquiry') {
+      return (
         <section className="card">
           <h3>문의 접수</h3>
           <form onSubmit={submitInquiry} className="stack">
@@ -14224,9 +14253,10 @@ function SettingsPage({ onLogout }) {
           </form>
           {message ? <div className="success">{message}</div> : null}
         </section>
-      ) : null}
-
-      {category === 'account' ? (
+      )
+    }
+    if (basicCategory === 'account') {
+      return (
         <section className="card">
           <h3>계정관리</h3>
           <div className="inline-actions wrap">
@@ -14234,6 +14264,106 @@ function SettingsPage({ onLogout }) {
             <button type="button" className="ghost" onClick={onLogout}>로그아웃</button>
           </div>
           <div className="muted small-text">계정삭제시 관련 정보가 삭제됩니다. 삭제 후에는 복구할 수 없습니다.</div>
+        </section>
+      )
+    }
+    return null
+  }
+
+  function renderCategoryPlaceholder(title) {
+    return (
+      <section className="card settings-placeholder-card">
+        <h3>{title}</h3>
+        <div className="muted">해당 카테고리 세부 설정은 다음 확장 항목으로 연결될 수 있도록 기본 카테고리만 추가했습니다.</div>
+      </section>
+    )
+  }
+
+  return (
+    <div className="stack settings-page-shell">
+      <section className="card settings-category-card">
+        <h2>설정</h2>
+        <div className="settings-category-row settings-main-category-row">
+          <button type="button" className={category === 'basic' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('basic')}>기본</button>
+          <button type="button" className={category === 'home-main' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('home-main')}>홈</button>
+          <button type="button" className={category === 'map' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('map')}>지도</button>
+          <button type="button" className={category === 'friends' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('friends')}>친구</button>
+          <button type="button" className={category === 'chat' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('chat')}>채팅</button>
+          <button type="button" className={category === 'schedule' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('schedule')}>일정</button>
+          <button type="button" className={category === 'work-schedule' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setCategory('work-schedule')}>스케줄</button>
+        </div>
+        {category === 'basic' ? (
+          <div className="settings-category-row settings-subcategory-row">
+            <button type="button" className={basicCategory === 'theme' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('theme')}>테마변경</button>
+            <button type="button" className={basicCategory === 'notifications' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('notifications')}>알림설정</button>
+            <button type="button" className={basicCategory === 'home' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('home')}>목록형전환</button>
+            <button type="button" className={basicCategory === 'blocked' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('blocked')}>차단목록</button>
+            <button type="button" className={basicCategory === 'inquiry' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('inquiry')}>문의접수</button>
+            <button type="button" className={basicCategory === 'account' ? 'ghost settings-category-chip active' : 'ghost settings-category-chip'} onClick={() => setBasicCategory('account')}>계정관리</button>
+          </div>
+        ) : null}
+      </section>
+
+      {category === 'basic' ? renderBasicContent() : null}
+      {category === 'home-main' ? renderCategoryPlaceholder('홈') : null}
+      {category === 'map' ? renderCategoryPlaceholder('지도') : null}
+      {category === 'friends' ? renderCategoryPlaceholder('친구') : null}
+      {category === 'schedule' ? renderCategoryPlaceholder('일정') : null}
+      {category === 'work-schedule' ? renderCategoryPlaceholder('스케줄') : null}
+
+      {category === 'chat' ? (
+        <section className="card settings-chat-card">
+          <h3>채팅</h3>
+          <div className="settings-chat-layout">
+            <aside className="settings-chat-submenu">
+              <button type="button" className={chatSettingTab === 'font-size' ? 'ghost settings-chat-submenu-button active' : 'ghost settings-chat-submenu-button'} onClick={() => setChatSettingTab('font-size')}>채팅방 글씨 크기</button>
+            </aside>
+            <div className="settings-chat-panel">
+              {chatSettingTab === 'font-size' ? (
+                <div className="settings-chat-font-panel">
+                  <div className="settings-chat-font-head">
+                    <strong>채팅방 글씨 크기</strong>
+                    <span className="settings-chat-font-value">현재 {chatFontSize}px</span>
+                  </div>
+                  <div className="settings-chat-preview-image" aria-label="픽셀별 사이즈 예시">
+                    <div className="settings-chat-preview-image-title">픽셀별 사이즈 예시</div>
+                    <div className="settings-chat-preview-scale-list">
+                      {fontPreviewSizes.map(size => (
+                        <div key={size} className={size === chatFontSize ? 'settings-chat-preview-scale-item active' : 'settings-chat-preview-scale-item'}>
+                          <span className="settings-chat-preview-px">{size}px</span>
+                          <div className="settings-chat-preview-bubble" style={{ fontSize: `${size}px` }}>안녕하세요. 채팅 글씨 크기 예시입니다.</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="settings-chat-live-preview">
+                    <div className="settings-chat-live-preview-title">현재 적용 미리보기</div>
+                    <div className="settings-chat-live-preview-room">
+                      <div className="settings-chat-live-row other">
+                        <div className="settings-chat-live-bubble" style={{ fontSize: `${chatFontSize}px` }}>상대방 채팅 글씨가 이렇게 보입니다.</div>
+                      </div>
+                      <div className="settings-chat-live-row mine">
+                        <div className="settings-chat-live-bubble mine" style={{ fontSize: `${chatFontSize}px` }}>내 채팅 글씨도 동일한 크기로 보입니다.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-chat-slider-block">
+                    <input type="range" min={MIN_CHAT_FONT_SIZE} max={MAX_CHAT_FONT_SIZE} step={1} value={chatFontSize} onChange={e => setChatFontSize(normalizeChatFontSize(e.target.value))} className="settings-chat-font-slider" aria-label="채팅방 글씨 크기 조절" />
+                    <div className="settings-chat-slider-scale">
+                      <span>{MIN_CHAT_FONT_SIZE}px</span>
+                      <span>{DEFAULT_CHAT_FONT_SIZE}px</span>
+                      <span>{MAX_CHAT_FONT_SIZE}px</span>
+                    </div>
+                  </div>
+                  <div className="inline-actions wrap">
+                    <button type="button" className="ghost" onClick={() => setChatFontSize(DEFAULT_CHAT_FONT_SIZE)}>기본값</button>
+                    <button type="button" onClick={savePrefs}>설정 저장</button>
+                  </div>
+                  {message ? <div className="success">{message}</div> : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </section>
       ) : null}
     </div>
@@ -19342,6 +19472,7 @@ function App() {
 
   useEffect(() => {
     applyAppTheme(getStoredThemePreference())
+    applyChatFontSize(getStoredChatFontSize())
   }, [])
 
   useEffect(() => {
