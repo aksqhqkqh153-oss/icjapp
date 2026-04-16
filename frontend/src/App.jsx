@@ -4925,8 +4925,12 @@ function ChatRoomPage({ roomType }) {
   const [memberProfileImageViewer, setMemberProfileImageViewer] = useState(null)
   const [hiddenMessageIds, setHiddenMessageIds] = useState(() => new Set())
   const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState(() => new Set())
+  const [roomSearchOpen, setRoomSearchOpen] = useState(false)
+  const [roomSearchInput, setRoomSearchInput] = useState('')
+  const [roomSearchActiveIndex, setRoomSearchActiveIndex] = useState(0)
   const imageInputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const messageNodeRefs = useRef({})
 
   const roomId = roomType === 'group' ? params.roomId : params.targetUserId
 
@@ -5210,6 +5214,15 @@ function ChatRoomPage({ roomType }) {
 
   const roomMemberCount = roomMembers.length
   const messages = (roomData?.messages || []).filter(item => !hiddenMessageIds.has(item.id))
+  const normalizedRoomSearch = String(roomSearchInput || '').trim().toLowerCase()
+  const roomSearchMatches = normalizedRoomSearch
+    ? messages.filter(item => {
+        const haystack = [item?.message, item?.attachment_name, item?.sender?.nickname]
+          .map(value => String(value || '').toLowerCase())
+          .join(' ')
+        return haystack.includes(normalizedRoomSearch)
+      })
+    : []
 
   function isGroupedMessage(currentItem, previousItem) {
     if (!currentItem || !previousItem) return false
@@ -5231,6 +5244,30 @@ function ChatRoomPage({ roomType }) {
     navigate(`/chats/${targetId}`)
   }
 
+  function runRoomSearch() {
+    if (!roomSearchMatches.length) return
+    const safeIndex = Math.max(0, Math.min(roomSearchActiveIndex, roomSearchMatches.length - 1))
+    setRoomSearchActiveIndex(safeIndex)
+    const targetId = roomSearchMatches[safeIndex]?.id
+    const targetNode = targetId ? messageNodeRefs.current[targetId] : null
+    if (targetNode?.scrollIntoView) {
+      targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      targetNode.classList.remove('chat-search-hit-flash')
+      void targetNode.offsetWidth
+      targetNode.classList.add('chat-search-hit-flash')
+    }
+  }
+
+  useEffect(() => {
+    setRoomSearchActiveIndex(0)
+  }, [normalizedRoomSearch])
+
+  useEffect(() => {
+    if (!roomSearchOpen) return
+    if (!roomSearchMatches.length) return
+    runRoomSearch()
+  }, [roomSearchActiveIndex, roomSearchOpen, normalizedRoomSearch, roomSearchMatches.length])
+
   return (
     <div className="stack-page chat-room-page-shell">
       <section className="card chat-room-card segmented-chat-layout">
@@ -5244,11 +5281,51 @@ function ChatRoomPage({ roomType }) {
               </div>
             </div>
             <div className="chat-room-topbar-actions">
-              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => window.alert('채팅방 검색 기능은 다음 단계에서 연결됩니다.')} aria-label="검색"><SearchIcon className="topbar-icon-svg" /></button>
-              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => setChatActionSheet({ title: roomTitle, actions: [{ label: '참여자 보기', onClick: () => setMembersOpen(true) }] })} aria-label="메뉴"><MenuIcon className="topbar-icon-svg" /></button>
+              {roomSearchOpen && (
+                <input
+                  value={roomSearchInput}
+                  onChange={e => setRoomSearchInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      runRoomSearch()
+                    }
+                  }}
+                  placeholder="대화 검색"
+                  aria-label="현재 채팅방 대화 검색"
+                  className="chat-room-search-input"
+                  autoFocus
+                />
+              )}
+              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => {
+                if (!roomSearchOpen) {
+                  setRoomSearchOpen(true)
+                  return
+                }
+                if (String(roomSearchInput || '').trim()) {
+                  runRoomSearch()
+                  return
+                }
+                setRoomSearchOpen(false)
+                setRoomSearchInput('')
+              }} aria-label="검색"><SearchIcon className="topbar-icon-svg" /></button>
+              <button type="button" className="ghost icon-button chat-header-icon-button" onClick={() => setChatActionSheet({ title: roomTitle, actions: [
+                { label: '채팅방 이름변경', onClick: () => window.alert('채팅방 이름변경은 채팅 목록 우클릭 메뉴에서 사용할 수 있습니다.') },
+                { label: '채팅방 나가기', danger: true, onClick: () => window.alert('채팅방 나가기는 채팅 목록 우클릭 메뉴에서 사용할 수 있습니다.') },
+              ] })} aria-label="메뉴"><MenuIcon className="topbar-icon-svg" /></button>
             </div>
           </div>
         </header>
+
+        {roomSearchOpen && (
+          <div className="chat-room-search-status-bar">
+            {normalizedRoomSearch
+              ? (roomSearchMatches.length
+                  ? <span>검색결과 {roomSearchMatches.length}건</span>
+                  : <span>검색 결과가 없습니다.</span>)
+              : <span>검색어를 입력해 현재 채팅방 대화를 찾으세요.</span>}
+          </div>
+        )}
 
         <div className="chat-room-messages-section">
           <div className="chat-room-messages">
@@ -5260,7 +5337,15 @@ function ChatRoomPage({ roomType }) {
               const groupedWithPrevious = isGroupedMessage(item, previousItem)
               const longPressHandlers = isMobile ? useLongPress(() => openMessageActions(item), 500) : {}
               return (
-                <div key={item.id} className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}`} {...longPressHandlers}>
+                <div
+                  key={item.id}
+                  ref={node => {
+                    if (node) messageNodeRefs.current[item.id] = node
+                    else delete messageNodeRefs.current[item.id]
+                  }}
+                  className={`chat-message-row${mine ? ' mine' : ''}${groupedWithPrevious ? ' grouped' : ''}${normalizedRoomSearch && roomSearchMatches.some(match => String(match.id) === String(item.id)) ? ' chat-message-row-search-match' : ''}`}
+                  {...longPressHandlers}
+                >
                   {!mine && !groupedWithPrevious && (
                     <button type="button" className="chat-message-avatar-button" onClick={() => openMemberProfile(item.sender || {})}>
                       <AvatarCircle src={item.sender?.photo_url} label={item.sender?.nickname || '회원'} size={36} className="chat-message-avatar" />
@@ -5396,7 +5481,7 @@ function ChatRoomPage({ roomType }) {
               {roomMembers.map(member => (
                 <button key={`member-${member.id || member.nickname}`} type="button" className="chat-member-list-item clickable" onClick={() => openMemberProfile(member)}>
                   <AvatarCircle src={member.photo_url} label={member.nickname || '회원'} size={40} />
-                  <span>{member.nickname || '회원'}</span>
+                  <span className="chat-member-list-item-name">{member.nickname || '회원'}</span>
                 </button>
               ))}
             </div>
