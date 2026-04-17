@@ -617,6 +617,10 @@ class QuoteFormSubmitIn(BaseModel):
     summary_title: str = ''
     privacy_agreed: bool = False
     payload: dict[str, Any] = {}
+
+class QuoteFormAdminEditIn(BaseModel):
+    payload: dict[str, Any] = {}
+
 class ReportIn(BaseModel):
     reason: str
     detail: str = ""
@@ -5943,6 +5947,45 @@ def admin_quote_form_detail(submission_id: int, admin=Depends(require_admin_mode
     item = row_to_dict(row)
     item['payload'] = json_loads(item.get('payload_json'), {})
     return {'item': item}
+
+
+@app.put('/api/admin/quote-forms/{submission_id}/payload')
+def admin_quote_form_update_payload(submission_id: int, payload: QuoteFormAdminEditIn, admin=Depends(require_admin_or_subadmin)):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='해당 양식 접수를 찾을 수 없습니다.')
+        item = row_to_dict(row)
+        current_payload = json_loads(item.get('payload_json'), {})
+        next_payload = dict(current_payload)
+        next_payload.update(payload.payload or {})
+        next_payload['customer_name'] = str(next_payload.get('customer_name') or item.get('requester_name') or '').strip()
+        next_payload['contact_phone'] = str(next_payload.get('contact_phone') or item.get('contact_phone') or '').strip()
+        form_type = 'storage' if str(item.get('form_type') or '').strip() == 'storage' else 'same_day'
+        desired_date = ''
+        if form_type == 'storage':
+            desired_date = ' ~ '.join([str(next_payload.get('storage_start_date') or '').strip(), str(next_payload.get('storage_end_date') or '').strip()]).strip(' ~')
+        else:
+            desired_date = str(next_payload.get('move_date') or item.get('desired_date') or '').strip()
+        request_kind = str(next_payload.get('request_kind') or ('짐보관이사' if form_type == 'storage' else '당일이사')).strip()
+        requester_name = str(next_payload.get('customer_name') or item.get('requester_name') or '').strip()
+        contact_phone = str(next_payload.get('contact_phone') or item.get('contact_phone') or '').strip()
+        summary_title = f"{request_kind or ('짐보관이사' if form_type == 'storage' else '당일이사')} · {requester_name or '고객'}"
+        now = utcnow()
+        conn.execute(
+            "UPDATE quote_form_submissions SET requester_name = ?, contact_phone = ?, desired_date = ?, summary_title = ?, payload_json = ?, updated_at = ? WHERE id = ?",
+            (requester_name, contact_phone, desired_date, summary_title, json.dumps(next_payload, ensure_ascii=False), now, submission_id),
+        )
+        updated_row = conn.execute(
+            "SELECT id, form_type, requester_user_id, requester_name, contact_phone, desired_date, summary_title, status, payload_json, created_at, updated_at FROM quote_form_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+    updated_item = row_to_dict(updated_row)
+    updated_item['payload'] = json_loads(updated_item.get('payload_json'), {})
+    return {'ok': True, 'item': updated_item}
 
 
 @app.get('/api/admin/quote-forms/{submission_id}/operations-preview')

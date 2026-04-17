@@ -3099,6 +3099,15 @@ function ProfilePage({ onUserUpdate }) {
 
   if (!form) return <div className="card">불러오는 중...</div>
 
+  useEffect(() => {
+    if (!detailItem) {
+      setDetailSettingsOpen(false)
+      setDetailEditOpen(false)
+      return
+    }
+    setDetailEditForm(buildQuoteDetailEditForm(detailItem))
+  }, [detailItem])
+
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
@@ -10944,6 +10953,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [operationsPreview, setOperationsPreview] = useState(null)
   const [operationsLoading, setOperationsLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [detailSettingsOpen, setDetailSettingsOpen] = useState(false)
+  const [detailEditOpen, setDetailEditOpen] = useState(false)
+  const [detailEditSaving, setDetailEditSaving] = useState(false)
+  const [detailEditForm, setDetailEditForm] = useState({})
   const [guestIntro, setGuestIntro] = useState({
     customer_name: user?.name || user?.nickname || '',
     contact_phone: user?.phone || '',
@@ -11215,6 +11228,129 @@ function QuoteFormsPage({ user, guestMode = false }) {
   function closeQuoteDetailView() {
     setIsQuoteDetailView(false)
     setPageTab('list')
+    setDetailSettingsOpen(false)
+    setDetailEditOpen(false)
+  }
+
+  function buildQuoteDetailEditForm(item = detailItem) {
+    const payload = item?.payload || {}
+    return {
+      customer_name: payload.customer_name || item?.requester_name || '',
+      contact_phone: payload.contact_phone || item?.contact_phone || '',
+      move_date: payload.move_date || '',
+      storage_start_date: payload.storage_start_date || '',
+      storage_end_date: payload.storage_end_date || '',
+      household: payload.household || '',
+      structure: payload.structure || '',
+      area: payload.area || '',
+      origin_address: payload.origin_address || '',
+      origin_address_detail: payload.origin_address_detail || '',
+      origin_elevator: payload.origin_elevator || '',
+      destination_address: payload.destination_address || '',
+      destination_address_detail: payload.destination_address_detail || '',
+      destination_elevator: payload.destination_elevator || '',
+      move_types: Array.isArray(payload.move_types) ? payload.move_types.join(', ') : (payload.move_types || ''),
+      premium_options: Array.isArray(payload.premium_options) ? payload.premium_options.join(', ') : (payload.premium_options || ''),
+      furniture_types: Array.isArray(payload.furniture_types) ? payload.furniture_types.join(', ') : (payload.furniture_types || ''),
+      extra_furniture: payload.extra_furniture || '',
+      duplicate_furniture: payload.duplicate_furniture || '',
+      disassembly_types: Array.isArray(payload.disassembly_types) ? payload.disassembly_types.join(', ') : (payload.disassembly_types || ''),
+      extra_disassembly: payload.extra_disassembly || '',
+      duplicate_disassembly: payload.duplicate_disassembly || '',
+      large_item_types: Array.isArray(payload.large_item_types) ? payload.large_item_types.join(', ') : (payload.large_item_types || ''),
+      extra_large_items: payload.extra_large_items || '',
+      duplicate_large_items: payload.duplicate_large_items || '',
+      waste_service: payload.waste_service || '',
+      companion_preference: payload.companion_preference || '',
+      via_address: payload.via_address || '',
+      via_address_detail: payload.via_address_detail || '',
+      via_postcode: payload.via_postcode || '',
+      via_elevator: payload.via_elevator || '',
+      via_pickup_items: payload.via_pickup_items || '',
+      via_drop_items: payload.via_drop_items || '',
+      request_memo: payload.request_memo || '',
+      move_scope_notice: payload.move_scope_notice ? '확인' : '',
+      kakao_notice_text: payload.kakao_notice_text || payload.kakao_notice || '',
+      privacy_agreed: payload.privacy_agreed ? '동의' : '',
+    }
+  }
+
+  function openQuoteDetailEditor() {
+    setDetailEditForm(buildQuoteDetailEditForm(detailItem))
+    setDetailEditOpen(true)
+    setDetailSettingsOpen(false)
+  }
+
+  function updateDetailEditField(key, value) {
+    setDetailEditForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function normalizeCommaText(value) {
+    return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
+  }
+
+  async function saveQuoteDetailEdits() {
+    if (!detailItem?.id || detailItem?.imported) return
+    setDetailEditSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      const nextPayload = {
+        ...detailItem.payload,
+        customer_name: String(detailEditForm.customer_name || '').trim(),
+        contact_phone: String(detailEditForm.contact_phone || '').trim(),
+        move_date: String(detailEditForm.move_date || '').trim(),
+        storage_start_date: String(detailEditForm.storage_start_date || '').trim(),
+        storage_end_date: String(detailEditForm.storage_end_date || '').trim(),
+        household: String(detailEditForm.household || '').trim(),
+        structure: String(detailEditForm.structure || '').trim(),
+        area: String(detailEditForm.area || '').trim(),
+        origin_address: String(detailEditForm.origin_address || '').trim(),
+        origin_address_detail: String(detailEditForm.origin_address_detail || '').trim(),
+        origin_elevator: String(detailEditForm.origin_elevator || '').trim(),
+        destination_address: String(detailEditForm.destination_address || '').trim(),
+        destination_address_detail: String(detailEditForm.destination_address_detail || '').trim(),
+        destination_elevator: String(detailEditForm.destination_elevator || '').trim(),
+        move_types: normalizeCommaText(detailEditForm.move_types),
+        premium_options: normalizeCommaText(detailEditForm.premium_options),
+        furniture_types: normalizeCommaText(detailEditForm.furniture_types),
+        extra_furniture: String(detailEditForm.extra_furniture || '').trim(),
+        duplicate_furniture: String(detailEditForm.duplicate_furniture || '').trim(),
+        disassembly_types: normalizeCommaText(detailEditForm.disassembly_types),
+        extra_disassembly: String(detailEditForm.extra_disassembly || '').trim(),
+        duplicate_disassembly: String(detailEditForm.duplicate_disassembly || '').trim(),
+        large_item_types: normalizeCommaText(detailEditForm.large_item_types),
+        extra_large_items: String(detailEditForm.extra_large_items || '').trim(),
+        duplicate_large_items: String(detailEditForm.duplicate_large_items || '').trim(),
+        waste_service: String(detailEditForm.waste_service || '').trim(),
+        companion_preference: String(detailEditForm.companion_preference || '').trim(),
+        via_address: String(detailEditForm.via_address || '').trim(),
+        via_address_detail: String(detailEditForm.via_address_detail || '').trim(),
+        via_postcode: String(detailEditForm.via_postcode || '').trim(),
+        via_elevator: String(detailEditForm.via_elevator || '').trim(),
+        via_pickup_items: String(detailEditForm.via_pickup_items || '').trim(),
+        via_drop_items: String(detailEditForm.via_drop_items || '').trim(),
+        request_memo: String(detailEditForm.request_memo || '').trim(),
+        move_scope_notice: /확인|동의|yes|true|1/i.test(String(detailEditForm.move_scope_notice || '').trim()),
+        kakao_notice_text: String(detailEditForm.kakao_notice_text || '').trim(),
+        kakao_notice: /확인|동의|yes|true|1/i.test(String(detailEditForm.kakao_notice_text || '').trim()),
+        privacy_agreed: /확인|동의|yes|true|1/i.test(String(detailEditForm.privacy_agreed || '').trim()),
+      }
+      const result = await api(`/api/admin/quote-forms/${detailItem.id}/payload`, {
+        method: 'PUT',
+        body: JSON.stringify({ payload: nextPayload }),
+      })
+      if (result?.item) {
+        setDetailItem(result.item)
+        setAdminItems(prev => prev.map(item => item.id === result.item.id ? result.item : item))
+      }
+      setDetailEditOpen(false)
+      setMessage('견적상세 항목이 저장되었습니다.')
+    } catch (err) {
+      setError(err.message || '항목편집 저장에 실패했습니다.')
+    } finally {
+      setDetailEditSaving(false)
+    }
   }
 
 
@@ -11556,10 +11692,46 @@ function QuoteFormsPage({ user, guestMode = false }) {
           <h3>견적상세</h3>
           <div className="quote-detail-header-actions">
             <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
+            {isAdminUser && <div className="quote-detail-settings-wrap">
+              <button type="button" className="small ghost" onClick={() => setDetailSettingsOpen(prev => !prev)}>설정</button>
+              {detailSettingsOpen && <div className="quote-detail-settings-popover">
+                <button type="button" className="quote-detail-settings-item" onClick={openQuoteDetailEditor} disabled={!!detailItem?.imported}>항목편집</button>
+              </div>}
+            </div>}
           </div>
         </div>
         {detailLoading && <div className="muted quote-detail-loading-inline">불러오는 중...</div>}
         {!detailItem ? <div className="muted">목록에서 견적을 선택해 주세요.</div> : <div className="quote-admin-detail-body quote-admin-detail-body-compact">
+          {detailEditOpen && <div className="quote-detail-edit-panel">
+            <div className="quote-detail-edit-header">
+              <strong>항목편집</strong>
+              <span className="muted tiny-text">저장 시 앱 전체 계정에서 변경된 문구로 표시됩니다.</span>
+            </div>
+            <div className="quote-detail-edit-grid">
+              {[
+                ['customer_name','고객 성함'], ['contact_phone','연락처'], ['move_date','이사 희망 날짜'], ['storage_start_date','짐보관 시작일'], ['storage_end_date','짐보관 종료일'],
+                ['household','출발지 거주 가구원'], ['structure','출발지 구조'], ['area','출발지 평수'], ['origin_address','출발지 주소'], ['origin_address_detail','출발지 상세주소'],
+                ['origin_elevator','출발지 엘레베이터'], ['destination_address','도착지 주소'], ['destination_address_detail','도착지 상세주소'], ['destination_elevator','도착지 엘레베이터'],
+                ['move_types','희망 이사 종류'], ['premium_options','프리미엄 추가 옵션'], ['furniture_types','가전/가구 종류'], ['extra_furniture','추가 가전/가구'], ['duplicate_furniture','가전/가구 추가기재'],
+                ['disassembly_types','분해/조립 필요 가전/가구'], ['extra_disassembly','추가 분해/조립'], ['duplicate_disassembly','분해/조립 추가기재'], ['large_item_types','대형 가전/가구 / 폐기물'], ['extra_large_items','대형 추가기재'],
+                ['duplicate_large_items','대형 중복기재'], ['waste_service','폐기물 원스탑 신고 서비스'], ['companion_preference','동승 희망 여부'], ['via_address','경유지 주소'], ['via_address_detail','경유지 상세주소'],
+                ['via_postcode','경유지 우편번호'], ['via_elevator','경유지 엘레베이터'], ['via_pickup_items','경유지 상차 물품'], ['via_drop_items','경유지 하차 물품'], ['request_memo','추가 메모'],
+                ['move_scope_notice','원룸/투룸/소형이사 고지 확인'], ['kakao_notice_text','카카오톡 안내 문구'], ['privacy_agreed','개인정보 수집 이용 동의']
+              ].map(([key, label]) => (
+                <label key={key} className="quote-detail-edit-field">
+                  <span>{label}</span>
+                  {key === 'request_memo'
+                    ? <textarea value={detailEditForm[key] || ''} onChange={e => updateDetailEditField(key, e.target.value)} rows={3} />
+                    : <input type="text" value={detailEditForm[key] || ''} onChange={e => updateDetailEditField(key, e.target.value)} />}
+                </label>
+              ))}
+            </div>
+            <div className="quote-detail-edit-actions">
+              <button type="button" className="ghost small" onClick={() => setDetailEditOpen(false)} disabled={detailEditSaving}>취소</button>
+              <button type="button" className="small" onClick={saveQuoteDetailEdits} disabled={detailEditSaving}>{detailEditSaving ? '저장 중...' : '저장'}</button>
+            </div>
+            {detailItem?.imported && <div className="muted tiny-text">엑셀 연동 샘플 데이터는 직접 저장 편집이 불가합니다.</div>}
+          </div>}
           <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div></div>
           <div className="quote-detail-grid quote-detail-grid-compact">
             <div className="quote-detail-section quote-detail-section-compact"><h4>기본 정보</h4><dl>{[
@@ -11689,7 +11861,7 @@ function QuoteWorkbookTemplateViewer() {
 
 function buildQuoteWorkbookTabs(template) {
   const sheetMap = new Map((template?.sheets || []).map(sheet => [sheet.name, sheet]))
-  const linkedViewNames = ['통합 견적 (1)', '통합 견적 (2)', '통합 견적 (3)', '짐보관 견적']
+  const linkedViewNames = ['통합 견적 (1)', '짐보관 견적']
   const inputSpecs = [
     ['ICJ1', 69, 3],
   ]
@@ -11709,53 +11881,101 @@ function buildQuoteWorkbookTabs(template) {
   return tabs
 }
 
+function buildQuoteWorkbookPlacementMap(sheet) {
+  const rowCount = sheet.rows?.length || 0
+  const colCount = sheet.maxCol || Math.max(0, ...(sheet.rows || []).map(row => row?.length || 0))
+  const occupied = Array.from({ length: rowCount }, () => Array(colCount).fill(false))
+  const blankGrid = Array.from({ length: rowCount }, () => Array(colCount).fill(false))
+  const anchors = new Map()
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    const sourceRow = sheet.rows?.[rowIndex] || []
+    let colCursor = 0
+
+    sourceRow.forEach(cell => {
+      while (colCursor < colCount && occupied[rowIndex][colCursor]) colCursor += 1
+      if (colCursor >= colCount) return
+
+      if (!cell) {
+        blankGrid[rowIndex][colCursor] = true
+        occupied[rowIndex][colCursor] = true
+        colCursor += 1
+        return
+      }
+
+      const rowSpan = Math.max(1, Math.min(cell.rowSpan || 1, rowCount - rowIndex))
+      const colSpan = Math.max(1, Math.min(cell.colSpan || 1, colCount - colCursor))
+      anchors.set(`${rowIndex}:${colCursor}`, { ...cell, rowSpan, colSpan })
+
+      for (let rowOffset = 0; rowOffset < rowSpan; rowOffset += 1) {
+        for (let colOffset = 0; colOffset < colSpan; colOffset += 1) {
+          occupied[rowIndex + rowOffset][colCursor + colOffset] = true
+        }
+      }
+      colCursor += colSpan
+    })
+
+    while (colCursor < colCount) {
+      blankGrid[rowIndex][colCursor] = true
+      occupied[rowIndex][colCursor] = true
+      colCursor += 1
+    }
+  }
+
+  return { rowCount, colCount, anchors, blankGrid }
+}
+
 function sliceQuoteWorkbookSheet(sheet, startRow, endRow, startCol, endCol) {
+  const placement = buildQuoteWorkbookPlacementMap(sheet)
+  const rowStart = Math.max(0, startRow - 1)
+  const rowEnd = Math.min(endRow - 1, placement.rowCount - 1)
+  const colStart = Math.max(0, startCol - 1)
+  const colEnd = Math.min(endCol - 1, placement.colCount - 1)
   const rows = []
   const heights = []
-  for (let rowIndex = startRow - 1; rowIndex < Math.min(endRow, sheet.rows.length); rowIndex += 1) {
-    const sourceRow = sheet.rows[rowIndex] || []
-    const expanded = expandQuoteWorkbookRow(sourceRow, sheet.maxCol || endCol)
-    rows.push(expanded.slice(startCol - 1, endCol))
+
+  for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex += 1) {
+    const nextRow = []
+    let colIndex = colStart
+
+    while (colIndex <= colEnd) {
+      const anchor = placement.anchors.get(`${rowIndex}:${colIndex}`)
+      if (anchor) {
+        nextRow.push({
+          ...anchor,
+          rowSpan: Math.max(1, Math.min(anchor.rowSpan || 1, rowEnd - rowIndex + 1)),
+          colSpan: Math.max(1, Math.min(anchor.colSpan || 1, colEnd - colIndex + 1)),
+        })
+        colIndex += Math.max(1, Math.min(anchor.colSpan || 1, colEnd - colIndex + 1))
+        continue
+      }
+
+      if (placement.blankGrid[rowIndex]?.[colIndex]) {
+        nextRow.push(null)
+      }
+      colIndex += 1
+    }
+
+    rows.push(nextRow)
     heights.push(sheet.heights?.[rowIndex] || null)
   }
+
   return {
     ...sheet,
     maxRow: rows.length,
-    maxCol: endCol - startCol + 1,
-    cols: (sheet.cols || []).slice(startCol - 1, endCol),
+    maxCol: colEnd >= colStart ? colEnd - colStart + 1 : 0,
+    cols: (sheet.cols || []).slice(colStart, colEnd + 1),
     heights,
     rows,
   }
 }
 
-function expandQuoteWorkbookRow(row, maxCol) {
-  const expanded = []
-  let colIndex = 0
-  row.forEach(cell => {
-    if (cell === null) {
-      expanded.push(null)
-      colIndex += 1
-      return
-    }
-    const clone = { ...cell, rowSpan: 1, colSpan: 1 }
-    expanded.push(clone)
-    colIndex += 1
-    const span = Math.max(1, cell.colSpan || 1)
-    for (let offset = 1; offset < span; offset += 1) {
-      expanded.push(null)
-      colIndex += 1
-    }
-  })
-  while (expanded.length < maxCol) expanded.push(null)
-  return expanded.slice(0, maxCol)
-}
-
 function extractQuoteWorkbookFormulaEntries(sheet, startCol, endCol) {
+  const placement = buildQuoteWorkbookPlacementMap(sheet)
   const entries = []
-  for (let rowIndex = 0; rowIndex < (sheet.rows || []).length; rowIndex += 1) {
-    const expanded = expandQuoteWorkbookRow(sheet.rows[rowIndex] || [], sheet.maxCol || endCol)
-    for (let colIndex = startCol - 1; colIndex < Math.min(endCol, expanded.length); colIndex += 1) {
-      const cell = expanded[colIndex]
+  for (let rowIndex = 0; rowIndex < placement.rowCount; rowIndex += 1) {
+    for (let colIndex = startCol - 1; colIndex < Math.min(endCol, placement.colCount); colIndex += 1) {
+      const cell = placement.anchors.get(`${rowIndex}:${colIndex}`)
       if (!cell?.formula) continue
       const colName = quoteWorkbookColumnNumberToName(colIndex + 1)
       entries.push({
