@@ -5698,6 +5698,13 @@ button.danger:hover {
 .quote-notice-stack { display: flex; flex-direction: column; gap: 10px; }
 .quote-submit-bar { display: flex; justify-content: center; }
 .quote-submit-bar button { min-width: 220px; border: 1px solid #363636; background: #1a1a1a; color: #fff; padding: 14px 22px; border-radius: 10px; font-weight: 700; }
+
+.quote-form-group.has-error { scroll-margin-top: 110px; }
+.quote-form-error { color: #d40000; font-size: 13px; font-weight: 700; line-height: 1.5; }
+.quote-move-guide-image-wrap { display: flex; justify-content: center; align-items: center; padding: 8px 4px 2px; }
+.quote-move-guide-image { display: block; width: min(100%, 920px); height: auto; border-radius: 18px; border: 1px solid #dbe3ef; background: #fff; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+.quote-submit-bar { position: sticky; bottom: 0; z-index: 3; padding: 10px 0 calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 24%, rgba(255,255,255,1) 100%); }
+.quote-submit-bar button { box-shadow: 0 10px 24px rgba(17, 24, 39, 0.12); }
 .quote-submit-bar button:hover { background: #0000f4; }
 .quote-admin-layout { display: flex; flex-direction: column; gap: 16px; }
 .quote-admin-list-card, .quote-admin-detail-card { display: flex; flex-direction: column; gap: 16px; }
@@ -30124,6 +30131,7 @@ button.danger {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 .quotes-page .quote-page-tabs-card,
 .quotes-page .success-banner,
@@ -30149,6 +30157,9 @@ button.danger {
 .quotes-page form.quote-form-body {
   flex: 1 1 auto;
   overflow: auto;
+}
+.quotes-page form.quote-form-body {
+  padding: 0 0 calc(120px + env(safe-area-inset-bottom, 0px));
 }
 .quotes-page .quote-admin-list-card {
   display: flex;
@@ -30597,4 +30608,10 @@ button.danger {
   .quote-workbook-sheet-table.fit td {
     padding: 1px 2px;
   }
+}
+
+@media (max-width: 768px) {
+  .quote-move-guide-image-wrap { padding-top: 4px; }
+  .quote-move-guide-image { width: 100%; border-radius: 14px; }
+  .quote-submit-bar { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 }

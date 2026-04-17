@@ -3110,6 +3110,12 @@ function ProfilePage({ onUserUpdate }) {
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
+    setFieldErrors(prev => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
 
   function profileFieldValueLabel(key, value) {
@@ -10847,8 +10853,8 @@ function formatQuoteFieldValue(value) {
   return text || '-'
 }
 
-function QuoteField({ label, required = false, children, hint = '' }) {
-  return <div className="quote-form-group"><label className="quote-form-label">{required ? '＊ ' : ''}{label}</label>{hint && <div className="quote-form-hint">{hint}</div>}{children}</div>
+function QuoteField({ label, required = false, children, hint = '', fieldKey = '', errorText = '' }) {
+  return <div className={`quote-form-group ${errorText ? 'has-error' : ''}`.trim()} data-quote-field-key={fieldKey || undefined}><label className="quote-form-label">{required ? '＊ ' : ''}{label}</label>{hint && <div className="quote-form-hint">{hint}</div>}{children}{errorText && <div className="quote-form-error">{errorText}</div>}</div>
 }
 
 
@@ -10964,6 +10970,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [guestIntroCompleted, setGuestIntroCompleted] = useState(!guestMode)
   const [submittedSummary, setSubmittedSummary] = useState(null)
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [favoriteIds, setFavoriteIds] = useState(() => {
     try {
       const raw = localStorage.getItem('icj_quote_favorites')
@@ -11063,6 +11070,12 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
+    setFieldErrors(prev => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
   }
 
   function handleGuestIntroChange(key, value) {
@@ -11094,6 +11107,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
     setMode(nextMode)
     setMessage('')
     setError('')
+    setFieldErrors({})
     setSubmittedSummary(null)
   }
 
@@ -11101,6 +11115,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
     setMode('')
     setMessage('')
     setError('')
+    setFieldErrors({})
     setSubmittedSummary(null)
   }
 
@@ -11117,6 +11132,74 @@ function QuoteFormsPage({ user, guestMode = false }) {
     const nextName = guestMode ? guestIntro.customer_name : (user?.name || user?.nickname || '')
     const nextPhone = guestMode ? guestIntro.contact_phone : (user?.phone || '')
     setForm(buildBaseForm(nextName, nextPhone))
+    setFieldErrors({})
+  }
+
+  function focusQuoteField(fieldKey) {
+    if (!fieldKey || typeof document === 'undefined') return
+    const target = document.querySelector(`[data-quote-field-key="${fieldKey}"]`)
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => {
+      const focusable = target.querySelector('input, textarea, button')
+      if (focusable && typeof focusable.focus === 'function') focusable.focus()
+    }, 220)
+  }
+
+  function buildRequiredFieldErrors() {
+    const errors = {}
+    const requireText = (key) => {
+      if (!String(form[key] || '').trim()) errors[key] = '필수 작성 항목입니다. 작성 후 신청 보내기를 진행해주세요.'
+    }
+    const requireCheck = (key) => {
+      if (!form[key]) errors[key] = '필수 체크 항목입니다. 체크 후 신청 보내기를 진행해주세요.'
+    }
+    const requireChoice = (key) => {
+      if (!String(form[key] || '').trim()) errors[key] = '필수 체크 항목입니다. 체크 후 신청 보내기를 진행해주세요.'
+    }
+    const requireArray = (key) => {
+      if (!Array.isArray(form[key]) || form[key].length === 0) errors[key] = '필수 체크 항목입니다. 체크 후 신청 보내기를 진행해주세요.'
+    }
+
+    requireCheck('privacy_agreed')
+    requireText('customer_name')
+    if (mode === 'storage') {
+      requireText('storage_start_date')
+      requireText('storage_end_date')
+    } else {
+      requireText('move_date')
+    }
+    requireChoice('household')
+    requireChoice('structure')
+    requireChoice('area')
+    requireText('origin_address')
+    requireText('origin_address_detail')
+    requireChoice('origin_elevator')
+    requireText('destination_address')
+    requireText('destination_address_detail')
+    requireChoice('destination_elevator')
+    requireArray('move_types')
+    requireText('contact_phone')
+    requireArray('furniture_types')
+    requireArray('disassembly_types')
+    requireArray('large_item_types')
+    requireCheck('move_scope_notice')
+    requireCheck('kakao_notice')
+    return errors
+  }
+
+  function getFieldErrorOrder() {
+    return [
+      'privacy_agreed',
+      'customer_name',
+      ...(mode === 'storage' ? ['storage_start_date', 'storage_end_date'] : ['move_date']),
+      'household', 'structure', 'area',
+      'origin_address', 'origin_address_detail', 'origin_elevator',
+      'destination_address', 'destination_address_detail', 'destination_elevator',
+      'move_types', 'contact_phone',
+      'furniture_types', 'disassembly_types', 'large_item_types',
+      'move_scope_notice', 'kakao_notice',
+    ]
   }
 
   function restartGuestFlow() {
@@ -11150,12 +11233,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
     e.preventDefault()
     setMessage('')
     setError('')
-    if (!form.privacy_agreed) { setError('개인정보 수집 및 이용 동의가 필요합니다.'); return }
-    if (!form.customer_name.trim()) { setError('고객 성함을 입력해 주세요.'); return }
-    if (!form.contact_phone.trim()) { setError('견적 받으실 연락처를 입력해 주세요.'); return }
-    if (mode === 'storage') {
-      if (!form.storage_start_date || !form.storage_end_date) { setError('짐보관 시작/종료 일자를 입력해 주세요.'); return }
-    } else if (!form.move_date) { setError('이사 희망 날짜를 입력해 주세요.'); return }
+    const nextFieldErrors = buildRequiredFieldErrors()
+    if (Object.keys(nextFieldErrors).length) {
+      setFieldErrors(nextFieldErrors)
+      const firstKey = getFieldErrorOrder().find(key => nextFieldErrors[key]) || Object.keys(nextFieldErrors)[0]
+      focusQuoteField(firstKey)
+      setError('필수 항목을 작성 또는 체크한 뒤 다시 신청해 주세요.')
+      return
+    }
     setSubmitting(true)
     try {
       await api('/api/quote-forms/submit', { method: 'POST', body: JSON.stringify(buildPayload()) })
@@ -11519,58 +11604,50 @@ function QuoteFormsPage({ user, guestMode = false }) {
             </div>
           </div>
         )}
-        <div className="quote-move-type-table-wrapper compact integrated">
-          <table className="quote-move-type-table compact-table">
-            <tbody>
-              <tr><th></th><th></th><th>일반이사</th><th className="blue">반포장이사(추천)</th><th className="red">포장이사</th></tr>
-              <tr><th rowSpan="2" className="sky">출발지</th><th className="sky">짐포장</th><td>고객님</td><td rowSpan="3" className="blue">이청잘</td><td rowSpan="4" className="red">이청잘</td></tr>
-              <tr><th className="sky">가전/가구포장</th><td>이청잘</td></tr>
-              <tr><th rowSpan="2" className="rose">도착지</th><th className="rose">가전/가구 배치</th><td>이청잘</td></tr>
-              <tr><th className="rose">짐 뒷정리</th><td>고객님</td><td className="blue">고객님</td></tr>
-            </tbody>
-          </table>
+        <div className="quote-move-guide-image-wrap">
+          <img className="quote-move-guide-image" src="/quote-move-guide.png" alt="일반이사, 반포장이사, 포장이사 설명표" />
         </div>
 
         <form className="quote-form-body" onSubmit={submitForm}>
           <section className="quote-form-section">
-            <QuoteField label="개인정보 수집 및 이용 동의" required>
+            <QuoteField label="개인정보 수집 및 이용 동의" required fieldKey="privacy_agreed" errorText={fieldErrors.privacy_agreed}>
               <div className="quote-privacy-actions">
                 <button type="button" className="ghost small" onClick={openPrivacyModal}>상세보기</button>
                 <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.privacy_agreed} onChange={e => updateField('privacy_agreed', e.target.checked)} /><span>개인정보 수집 및 이용에 동의합니다.</span></label>
               </div>
             </QuoteField>
-            <QuoteField label="고객 성함" required><input className="quote-form-input" value={form.customer_name} onChange={e => updateField('customer_name', e.target.value)} /></QuoteField>
-            {mode === 'storage' ? <div className="quote-inline-grid two"><QuoteField label="짐보관 시작 희망일" required><input type="date" className="quote-form-input" value={form.storage_start_date} onChange={e => updateField('storage_start_date', e.target.value)} /></QuoteField><QuoteField label="짐보관 종료 희망일" required><input type="date" className="quote-form-input" value={form.storage_end_date} onChange={e => updateField('storage_end_date', e.target.value)} /></QuoteField></div> : <QuoteField label="이사 희망 날짜" required><input type="date" className="quote-form-input" value={form.move_date} onChange={e => updateField('move_date', e.target.value)} /></QuoteField>}
+            <QuoteField label="고객 성함" required fieldKey="customer_name" errorText={fieldErrors.customer_name}><input className="quote-form-input" value={form.customer_name} onChange={e => updateField('customer_name', e.target.value)} /></QuoteField>
+            {mode === 'storage' ? <div className="quote-inline-grid two"><QuoteField label="짐보관 시작 희망일" required fieldKey="storage_start_date" errorText={fieldErrors.storage_start_date}><input type="date" className="quote-form-input" value={form.storage_start_date} onChange={e => updateField('storage_start_date', e.target.value)} /></QuoteField><QuoteField label="짐보관 종료 희망일" required fieldKey="storage_end_date" errorText={fieldErrors.storage_end_date}><input type="date" className="quote-form-input" value={form.storage_end_date} onChange={e => updateField('storage_end_date', e.target.value)} /></QuoteField></div> : <QuoteField label="이사 희망 날짜" required fieldKey="move_date" errorText={fieldErrors.move_date}><input type="date" className="quote-form-input" value={form.move_date} onChange={e => updateField('move_date', e.target.value)} /></QuoteField>}
             <div className="quote-inline-grid three">
-              <QuoteField label="출발지 거주 가구원" required><QuoteRadioGroup name="household" value={form.household} options={QUOTE_FORM_RADIO_OPTIONS.household} onChange={value => updateField('household', value)} /></QuoteField>
-              <QuoteField label="출발지 구조" required><QuoteRadioGroup name="structure" value={form.structure} options={QUOTE_FORM_RADIO_OPTIONS.structure} onChange={value => updateField('structure', value)} /></QuoteField>
-              <QuoteField label="출발지 평수" required><QuoteRadioGroup name="area" value={form.area} options={QUOTE_FORM_RADIO_OPTIONS.area} onChange={value => updateField('area', value)} /></QuoteField>
+              <QuoteField label="출발지 거주 가구원" required fieldKey="household" errorText={fieldErrors.household}><QuoteRadioGroup name="household" value={form.household} options={QUOTE_FORM_RADIO_OPTIONS.household} onChange={value => updateField('household', value)} /></QuoteField>
+              <QuoteField label="출발지 구조" required fieldKey="structure" errorText={fieldErrors.structure}><QuoteRadioGroup name="structure" value={form.structure} options={QUOTE_FORM_RADIO_OPTIONS.structure} onChange={value => updateField('structure', value)} /></QuoteField>
+              <QuoteField label="출발지 평수" required fieldKey="area" errorText={fieldErrors.area}><QuoteRadioGroup name="area" value={form.area} options={QUOTE_FORM_RADIO_OPTIONS.area} onChange={value => updateField('area', value)} /></QuoteField>
             </div>
             <div className="quote-inline-grid two">
-              <QuoteField label="출발지 주소" required><input className="quote-form-input" placeholder="주소" value={form.origin_address} onChange={e => updateField('origin_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.origin_address_detail} onChange={e => updateField('origin_address_detail', e.target.value)} /></QuoteField>
-              <QuoteField label="출발지 엘레베이터" required><QuoteRadioGroup name="originElevator" value={form.origin_elevator} options={QUOTE_FORM_RADIO_OPTIONS.elevator} onChange={value => updateField('origin_elevator', value)} /></QuoteField>
+              <QuoteField label="출발지 주소" required fieldKey="origin_address" errorText={fieldErrors.origin_address || fieldErrors.origin_address_detail}><input className="quote-form-input" placeholder="주소" value={form.origin_address} onChange={e => updateField('origin_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.origin_address_detail} onChange={e => updateField('origin_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="출발지 엘레베이터" required fieldKey="origin_elevator" errorText={fieldErrors.origin_elevator}><QuoteRadioGroup name="originElevator" value={form.origin_elevator} options={QUOTE_FORM_RADIO_OPTIONS.elevator} onChange={value => updateField('origin_elevator', value)} /></QuoteField>
             </div>
             <div className="quote-inline-grid two">
-              <QuoteField label="도착지 주소" required><input className="quote-form-input" placeholder="주소" value={form.destination_address} onChange={e => updateField('destination_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.destination_address_detail} onChange={e => updateField('destination_address_detail', e.target.value)} /></QuoteField>
-              <QuoteField label="도착지 엘레베이터" required><QuoteRadioGroup name="destinationElevator" value={form.destination_elevator} options={QUOTE_FORM_RADIO_OPTIONS.destinationElevator} onChange={value => updateField('destination_elevator', value)} /></QuoteField>
+              <QuoteField label="도착지 주소" required fieldKey="destination_address" errorText={fieldErrors.destination_address || fieldErrors.destination_address_detail}><input className="quote-form-input" placeholder="주소" value={form.destination_address} onChange={e => updateField('destination_address', e.target.value)} /><input className="quote-form-input" placeholder="상세주소" value={form.destination_address_detail} onChange={e => updateField('destination_address_detail', e.target.value)} /></QuoteField>
+              <QuoteField label="도착지 엘레베이터" required fieldKey="destination_elevator" errorText={fieldErrors.destination_elevator}><QuoteRadioGroup name="destinationElevator" value={form.destination_elevator} options={QUOTE_FORM_RADIO_OPTIONS.destinationElevator} onChange={value => updateField('destination_elevator', value)} /></QuoteField>
             </div>
-            <QuoteField label="희망 이사 종류" required><QuoteCheckboxGroup values={form.move_types} options={QUOTE_FORM_MOVE_TYPES} onChange={value => updateField('move_types', value)} /></QuoteField>
-            <QuoteField label="견적 받으실 연락처" required><input className="quote-form-input" inputMode="numeric" maxLength={13} placeholder="010-0000-0000" value={form.contact_phone} onChange={e => updateField('contact_phone', formatPhoneDigits(e.target.value))} /></QuoteField>
+            <QuoteField label="희망 이사 종류" required fieldKey="move_types" errorText={fieldErrors.move_types}><QuoteCheckboxGroup values={form.move_types} options={QUOTE_FORM_MOVE_TYPES} onChange={value => updateField('move_types', value)} /></QuoteField>
+            <QuoteField label="견적 받으실 연락처" required fieldKey="contact_phone" errorText={fieldErrors.contact_phone}><input className="quote-form-input" inputMode="numeric" maxLength={13} placeholder="010-0000-0000" value={form.contact_phone} onChange={e => updateField('contact_phone', formatPhoneDigits(e.target.value))} /></QuoteField>
           </section>
 
           <section className="quote-form-section">
             <QuoteField label="프리미엄 추가 옵션(무료)"><QuoteCheckboxGroup values={form.premium_options} options={QUOTE_FORM_PREMIUM_OPTIONS} onChange={value => updateField('premium_options', value)} /></QuoteField>
-            <QuoteField label="가전/가구 종류" required><QuoteCheckboxGroup values={form.furniture_types} options={QUOTE_FORM_FURNITURE_OPTIONS} onChange={value => updateField('furniture_types', value)} /></QuoteField>
+            <QuoteField label="가전/가구 종류" required fieldKey="furniture_types" errorText={fieldErrors.furniture_types}><QuoteCheckboxGroup values={form.furniture_types} options={QUOTE_FORM_FURNITURE_OPTIONS} onChange={value => updateField('furniture_types', value)} /></QuoteField>
             <div className="quote-inline-grid two">
               <QuoteField label="위에 없는 중형/대형 가전/가구 별도 기재"><input className="quote-form-input" placeholder="ex) 소파(2인) / tv장" value={form.extra_furniture} onChange={e => updateField('extra_furniture', e.target.value)} /></QuoteField>
               <QuoteField label="가전/가구 2개 이상 별도 기재"><input className="quote-form-input" placeholder="ex) 행거 2개 / 옷장 191cm 초과 2개" value={form.duplicate_furniture} onChange={e => updateField('duplicate_furniture', e.target.value)} /></QuoteField>
             </div>
-            <QuoteField label="분해/조립 필요 가전/가구 및 책" required><QuoteCheckboxGroup values={form.disassembly_types} options={QUOTE_FORM_DISASSEMBLY_OPTIONS} onChange={value => updateField('disassembly_types', value)} /></QuoteField>
+            <QuoteField label="분해/조립 필요 가전/가구 및 책" required fieldKey="disassembly_types" errorText={fieldErrors.disassembly_types}><QuoteCheckboxGroup values={form.disassembly_types} options={QUOTE_FORM_DISASSEMBLY_OPTIONS} onChange={value => updateField('disassembly_types', value)} /></QuoteField>
             <div className="quote-inline-grid two">
               <QuoteField label="위에 없는 분해/조립 필요 가전/가구"><input className="quote-form-input" placeholder="ex) 블라인드 / 커텐 / 행거" value={form.extra_disassembly} onChange={e => updateField('extra_disassembly', e.target.value)} /></QuoteField>
               <QuoteField label="분해/조립 필요 가전/가구 2개 이상 기재"><input className="quote-form-input" placeholder="ex) 행거 2개 / 커텐 2개 / 블라인드 3개" value={form.duplicate_disassembly} onChange={e => updateField('duplicate_disassembly', e.target.value)} /></QuoteField>
             </div>
-            <QuoteField label="대형 가전/가구 / 폐기물" required hint="* 폐기물 대리 신고 서비스 가능합니다."><QuoteCheckboxGroup values={form.large_item_types} options={QUOTE_FORM_LARGE_ITEM_OPTIONS} onChange={value => updateField('large_item_types', value)} /></QuoteField>
+            <QuoteField label="대형 가전/가구 / 폐기물" required hint="* 폐기물 대리 신고 서비스 가능합니다." fieldKey="large_item_types" errorText={fieldErrors.large_item_types}><QuoteCheckboxGroup values={form.large_item_types} options={QUOTE_FORM_LARGE_ITEM_OPTIONS} onChange={value => updateField('large_item_types', value)} /></QuoteField>
             <div className="quote-inline-grid two">
               <QuoteField label="위에 없는 중/대형 가전/가구 별도 기재"><input className="quote-form-input" value={form.extra_large_items} onChange={e => updateField('extra_large_items', e.target.value)} /></QuoteField>
               <QuoteField label="중/대형 가전/가구 2개 이상 별도 기재"><input className="quote-form-input" value={form.duplicate_large_items} onChange={e => updateField('duplicate_large_items', e.target.value)} /></QuoteField>
@@ -11590,8 +11667,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
             </div>
             <QuoteField label="추가 메모"><textarea className="quote-form-textarea" value={form.request_memo} onChange={e => updateField('request_memo', e.target.value)} /></QuoteField>
             <div className="quote-notice-stack">
-              <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.move_scope_notice} onChange={e => updateField('move_scope_notice', e.target.checked)} /><span>'이청잘'은 원룸/투룸/소형이사 전문 브랜드이며, 집/짐량 사이즈에 따라 견적 발송이 제한될 수 있음을 확인했습니다.</span></label>
-              <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.kakao_notice} onChange={e => updateField('kakao_notice', e.target.checked)} /><span>견적은 카카오톡으로 발송되며, 전화번호로 친구 추가 허용이 필요함을 확인했습니다.</span></label>
+              <div className={`quote-form-group ${fieldErrors.move_scope_notice ? 'has-error' : ''}`.trim()} data-quote-field-key="move_scope_notice">
+                <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.move_scope_notice} onChange={e => updateField('move_scope_notice', e.target.checked)} /><span>'이청잘'은 원룸/투룸/소형이사 전문 브랜드이며, 집/짐량 사이즈에 따라 견적 발송이 제한될 수 있음을 확인했습니다.</span></label>
+                {fieldErrors.move_scope_notice && <div className="quote-form-error">{fieldErrors.move_scope_notice}</div>}
+              </div>
+              <div className={`quote-form-group ${fieldErrors.kakao_notice ? 'has-error' : ''}`.trim()} data-quote-field-key="kakao_notice">
+                <label className="quote-choice quote-choice-check quote-inline-check"><input type="checkbox" checked={form.kakao_notice} onChange={e => updateField('kakao_notice', e.target.checked)} /><span>견적은 카카오톡으로 발송되며, 전화번호로 친구 추가 허용이 필요함을 확인했습니다.</span></label>
+                {fieldErrors.kakao_notice && <div className="quote-form-error">{fieldErrors.kakao_notice}</div>}
+              </div>
             </div>
           </section>
 
