@@ -30123,11 +30123,12 @@ button.danger {
 
 /* 2026-04-16 quote page full-height + pagination + excel linked list/detail */
 .page-container.page-container-quotes {
-  padding-top: 8px !important;
+  padding-top: calc(var(--app-topbar-height) + 8px) !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
-  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
-  min-height: calc(100vh - 50px);
+  padding-bottom: calc(var(--app-bottom-nav-height) + 12px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: 100dvh;
+  height: 100dvh;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -30135,8 +30136,8 @@ button.danger {
   min-height: 0;
 }
 .quotes-page {
-  height: calc(100vh - 50px - 84px - env(safe-area-inset-bottom, 0px));
-  min-height: 0;
+  height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 20px - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 20px - env(safe-area-inset-bottom, 0px));
   padding: 0;
 }
 .quotes-page > .quote-form-shell {
@@ -30238,11 +30239,12 @@ button.danger {
 }
 @media (max-width: 768px) {
   .page-container.page-container-quotes {
-    padding-top: 6px !important;
-    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-top: calc(var(--app-topbar-height) + 6px) !important;
+    padding-bottom: calc(var(--app-bottom-nav-height) + 10px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .quotes-page {
-    height: calc(100vh - 50px - 78px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 16px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 16px - env(safe-area-inset-bottom, 0px));
   }
   .quotes-page > .quote-form-shell {
     padding-left: 0;
