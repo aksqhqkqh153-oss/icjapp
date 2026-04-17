@@ -3712,10 +3712,19 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
   return rows
 }
 
+function getSettlementPaymentDateKey(record) {
+  const eligibleItems = getSettlementEligibleItems(record)
+  const timestamps = eligibleItems
+    .map(item => getDateValueParts(item?.paymentSettledAt)?.date?.getTime?.())
+    .filter(value => Number.isFinite(value))
+  if (!timestamps.length) return '날짜 미지정'
+  return getSavedDateKey(new Date(Math.min(...timestamps)).toISOString())
+}
+
 function groupMonthlyRecordCount(monthlyRecords) {
   const days = new Map()
   monthlyRecords.forEach(record => {
-    const key = String(record.disposalDate || getSavedDateKey(record.savedAt) || '날짜 미지정')
+    const key = String(getSettlementPaymentDateKey(record) || '날짜 미지정')
     const metrics = getRecordSettlementMetrics(record)
     if (!days.has(key)) days.set(key, { count: 0, qty: 0, minimum: 0 })
     const target = days.get(key)
@@ -3788,17 +3797,17 @@ export function DisposalSettlementsPage() {
   }, [])
 
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
-  const filteredMonthlyRecords = useMemo(() => {
+  const filteredSettlementRecords = useMemo(() => {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
-    const dateFiltered = monthlyRecords.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, 'disposalDate'))
+    const dateFiltered = records.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, 'disposalDate'))
     const filtered = normalizedQuery
       ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
     return sortSettlementRecords(filtered, settlementFilterField, settlementSortDirection)
-  }, [monthlyRecords, settlementFilterField, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
+  }, [records, settlementFilterField, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
-  const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, filteredMonthlyRecords), [monthLabel, filteredMonthlyRecords])
-  const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredMonthlyRecords, settlementFilterField, settlementSortDirection), [filteredMonthlyRecords, settlementFilterField, settlementSortDirection])
+  const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
+  const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredSettlementRecords, settlementFilterField, settlementSortDirection), [filteredSettlementRecords, settlementFilterField, settlementSortDirection])
   const effectiveExpandedKeys = useMemo(() => {
     const next = { ...expandedKeys }
     const normalizedQuery = String(settlementSearchQuery || '').trim()
