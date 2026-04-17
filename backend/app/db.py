@@ -775,6 +775,7 @@ CREATE TABLE IF NOT EXISTS disposal_jurisdiction_mappings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL DEFAULT '기본',
     place_prefix TEXT NOT NULL,
+    admin_area TEXT NOT NULL DEFAULT '',
     district_name TEXT NOT NULL,
     report_link TEXT NOT NULL DEFAULT '',
     created_by INTEGER,
@@ -2279,6 +2280,16 @@ CREATE TABLE IF NOT EXISTS quote_workbook_formula_labels (
             'scheduled_minutes': 'INTEGER NOT NULL DEFAULT 0',
             'worked_minutes': 'INTEGER NOT NULL DEFAULT 0',
             'estimated_pay': 'INTEGER NOT NULL DEFAULT 0',
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
+        })
+        _ensure_columns(conn, 'disposal_jurisdiction_mappings', {
+            'category': "TEXT NOT NULL DEFAULT '기본'",
+            'place_prefix': "TEXT NOT NULL DEFAULT ''",
+            'admin_area': "TEXT NOT NULL DEFAULT ''",
+            'district_name': "TEXT NOT NULL DEFAULT ''",
+            'report_link': "TEXT NOT NULL DEFAULT ''",
+            'created_by': 'INTEGER',
             'created_at': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })

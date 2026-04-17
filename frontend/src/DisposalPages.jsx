@@ -1352,7 +1352,12 @@ function DisposalMetaInputs({ draft, updateDraftField, districtResolved, actions
           </div>
         </div>
         <div className="disposal-meta-row disposal-meta-row-bottom">
-          <input ref={locationRef} value={draft.location} onChange={e => updateDraftField('location', e.target.value)} onKeyDown={e => moveFocus(e, districtRef, finalStatusRef)} placeholder="폐기장소" />
+          <div className="disposal-location-field">
+            <input ref={locationRef} value={draft.location} onChange={e => updateDraftField('location', e.target.value)} onKeyDown={e => moveFocus(e, districtRef, finalStatusRef)} placeholder="폐기장소" />
+            {districtResolved?.matched && districtResolved?.admin_area ? (
+              <div className="disposal-location-admin-area">해당 주소지의 행정구역은 {districtResolved.admin_area}입니다.</div>
+            ) : null}
+          </div>
           <div className="disposal-district-field">
             <input ref={districtRef} value={draft.district} onChange={e => updateDraftField('district', e.target.value)} onKeyDown={e => moveFocus(e, null, locationRef)} placeholder="관할구역" />
             {districtResolved?.report_link ? (
@@ -2067,6 +2072,7 @@ export function DisposalJurisdictionRegistryPage() {
         const fieldMap = {
           category: String(row.category || '기본'),
           place_prefix: String(row.place_prefix || ''),
+          admin_area: String(row.admin_area || ''),
           district_name: String(row.district_name || ''),
           report_link: String(row.report_link || ''),
         }
@@ -2121,7 +2127,7 @@ export function DisposalJurisdictionRegistryPage() {
 
   function addRow() {
     const uid = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    setRows(prev => [{ id: null, localId: uid, addedAt: Date.now(), category: '기본', place_prefix: '', district_name: '', report_link: '' }, ...prev])
+    setRows(prev => [{ id: null, localId: uid, addedAt: Date.now(), category: '기본', place_prefix: '', admin_area: '', district_name: '', report_link: '' }, ...prev])
   }
 
   function toggleAll(checked) {
@@ -2143,6 +2149,7 @@ export function DisposalJurisdictionRegistryPage() {
         id: row.id || undefined,
         category: String(row.category || '기본').trim() || '기본',
         place_prefix: String(row.place_prefix || '').trim(),
+        admin_area: String(row.admin_area || '').trim(),
         district_name: String(row.district_name || '').trim(),
         report_link: String(row.report_link || '').trim(),
       }))
@@ -2204,6 +2211,7 @@ export function DisposalJurisdictionRegistryPage() {
             <select value={primaryFilter} onChange={e => setPrimaryFilter(e.target.value)}>
               <option value="category">1차필터: 구분</option>
               <option value="place_prefix">1차필터: 폐기장소입력칸</option>
+              <option value="admin_area">1차필터: 행정구역 입력칸</option>
               <option value="district_name">1차필터: 관할구역 입력칸</option>
               <option value="report_link">1차필터: 관할구역 폐기신고링크 입력칸</option>
               <option value="all">1차필터: 전체</option>
@@ -2229,6 +2237,7 @@ export function DisposalJurisdictionRegistryPage() {
             <div className="disposal-jurisdiction-head-spacer" />
             <div>구분</div>
             <div>폐기장소입력칸</div>
+            <div>행정구역 입력칸</div>
             <div>관할구역 입력칸</div>
             <div>관할구역 폐기신고링크 입력칸</div>
           </div>
@@ -2237,6 +2246,7 @@ export function DisposalJurisdictionRegistryPage() {
               <label><input type="checkbox" checked={!!row.id && selectedIds.includes(row.id)} onChange={e => toggleOne(row.id, e.target.checked)} /></label>
               <input value={row.category || '기본'} onChange={e => updateRow(row.localId, 'category', e.target.value)} disabled={!canEdit} placeholder="구분" />
               <input value={row.place_prefix || ''} onChange={e => updateRow(row.localId, 'place_prefix', e.target.value)} disabled={!canEdit} placeholder="예: 서울특별시 노원구" />
+              <input value={row.admin_area || ''} onChange={e => updateRow(row.localId, 'admin_area', e.target.value)} disabled={!canEdit} placeholder="예: 상계1동" />
               <input value={row.district_name || ''} onChange={e => updateRow(row.localId, 'district_name', e.target.value)} disabled={!canEdit} placeholder="관할구역명" />
               <input value={row.report_link || ''} onChange={e => updateRow(row.localId, 'report_link', e.target.value)} disabled={!canEdit} placeholder="https://..." />
             </div>
@@ -2274,7 +2284,7 @@ export function DisposalFormsPage() {
   const [loadedRecordId, setLoadedRecordId] = useState('')
   const [savedAt, setSavedAt] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [districtResolved, setDistrictResolved] = useState({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+  const [districtResolved, setDistrictResolved] = useState({ matched: false, admin_area: '', district_name: '', report_link: '', place_prefix: '' })
   const [deleteMode, setDeleteMode] = useState(false)
   const [selectedItemRows, setSelectedItemRows] = useState([])
   const [itemSettingsOpen, setItemSettingsOpen] = useState(false)
@@ -2331,14 +2341,14 @@ useEffect(() => {
 useEffect(() => {
   const trimmed = String(draft.location || '').trim()
   if (!trimmed) {
-    setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+    setDistrictResolved({ matched: false, admin_area: '', district_name: '', report_link: '', place_prefix: '' })
     setDraft(prev => prev.district ? ({ ...prev, district: '' }) : prev)
     return
   }
   const timer = window.setTimeout(async () => {
     try {
       const result = await api(`/api/disposal/jurisdictions/resolve?location=${encodeURIComponent(trimmed)}`, { cache: 'no-store' })
-      const normalizedResult = result || { matched: false, district_name: '', report_link: '', place_prefix: '' }
+      const normalizedResult = result || { matched: false, admin_area: '', district_name: '', report_link: '', place_prefix: '' }
       setDistrictResolved(normalizedResult)
       setDraft(prev => {
         if (normalizedResult?.matched && normalizedResult?.district_name) {
@@ -2347,7 +2357,7 @@ useEffect(() => {
         return prev.district ? ({ ...prev, district: '' }) : prev
       })
     } catch {
-      setDistrictResolved({ matched: false, district_name: '', report_link: '', place_prefix: '' })
+      setDistrictResolved({ matched: false, admin_area: '', district_name: '', report_link: '', place_prefix: '' })
     }
   }, 180)
   return () => window.clearTimeout(timer)
