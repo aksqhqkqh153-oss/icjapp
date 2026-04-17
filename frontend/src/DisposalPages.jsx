@@ -3588,7 +3588,7 @@ function sortSettlementRecords(records, field = 'disposalDate', direction = 'des
   return direction === 'desc' ? sorted.reverse() : sorted
 }
 
-function buildSettlementMonthlyRows(monthlyRecords) {
+function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', direction = 'asc') {
   const byDate = new Map()
   monthlyRecords.forEach(record => {
     const dateKey = String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
@@ -3596,7 +3596,15 @@ function buildSettlementMonthlyRows(monthlyRecords) {
     byDate.get(dateKey).push(record)
   })
   const rows = []
-  Array.from(byDate.entries()).forEach(([dateKey, records]) => {
+  const groupedEntries = Array.from(byDate.entries()).sort((a, b) => {
+    if (field !== 'disposalDate') return 0
+    const aTime = getDateValueParts(a[0])?.date?.getTime?.()
+    const bTime = getDateValueParts(b[0])?.date?.getTime?.()
+    const aValue = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY
+    const bValue = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY
+    return direction === 'desc' ? bValue - aValue : aValue - bValue
+  })
+  groupedEntries.forEach(([dateKey, records]) => {
     const summary = records.reduce((acc, record) => {
       const metrics = getRecordSettlementMetrics(record)
       acc.customerCount += 1
@@ -3770,7 +3778,7 @@ export function DisposalSettlementsPage() {
   }, [monthlyRecords, settlementFilterField, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, filteredMonthlyRecords), [monthLabel, filteredMonthlyRecords])
-  const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredMonthlyRecords), [filteredMonthlyRecords])
+  const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredMonthlyRecords, settlementFilterField, settlementSortDirection), [filteredMonthlyRecords, settlementFilterField, settlementSortDirection])
   const effectiveExpandedKeys = useMemo(() => {
     const next = { ...expandedKeys }
     const normalizedQuery = String(settlementSearchQuery || '').trim()
