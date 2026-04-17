@@ -30725,3 +30725,223 @@ button.danger {
     box-sizing: border-box !important;
   }
 }
+
+/* 2026-04-17 non-schedule compact 40px bars + quote list numbering/pagination refinement */
+@media (min-width: 769px) {
+  :root {
+    --app-topbar-height: 40px;
+    --app-bottom-nav-height: 40px;
+  }
+
+  .app-shell.non-schedule-compact-bars .topbar.topbar-fixed {
+    min-height: var(--app-topbar-height) !important;
+    height: var(--app-topbar-height) !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .bottom-nav {
+    min-height: var(--app-bottom-nav-height) !important;
+    height: var(--app-bottom-nav-height) !important;
+    align-items: stretch;
+  }
+
+  .app-shell.non-schedule-compact-bars .bottom-nav-item {
+    min-height: var(--app-bottom-nav-height) !important;
+    height: var(--app-bottom-nav-height) !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container:not(.schedule-wide):not(.page-container-chat-room) {
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+    overflow: auto;
+    box-sizing: border-box;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container.page-container-home,
+  .app-shell.non-schedule-compact-bars .page-container.page-container-map,
+  .app-shell.non-schedule-compact-bars .page-container.page-container-friends,
+  .app-shell.non-schedule-compact-bars .page-container.page-container-chat,
+  .app-shell.non-schedule-compact-bars .page-container.page-container-quotes,
+  .app-shell.non-schedule-compact-bars .page-container.page-container-disposal-edge {
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+  }
+}
+
+.quote-list-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quote-row-number {
+  text-align: center;
+  font-weight: 700;
+  color: #111827;
+}
+
+.quote-list-table th,
+.quote-list-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.quote-list-table td:nth-child(5),
+.quote-list-table td:nth-child(6),
+.quote-list-table td:nth-child(7) {
+  text-align: left;
+}
+
+.quote-list-table th:first-child,
+.quote-list-table td:first-child { width: 38px; }
+.quote-list-table th:nth-child(2),
+.quote-list-table td:nth-child(2) { width: 26px; }
+.quote-list-table th:nth-child(3),
+.quote-list-table td:nth-child(3) { width: 40px; }
+.quote-list-table th:nth-child(4),
+.quote-list-table td:nth-child(4) { width: 84px; }
+.quote-list-table th:nth-child(5),
+.quote-list-table td:nth-child(5) { width: 58px; }
+.quote-list-table th:nth-child(6),
+.quote-list-table td:nth-child(6) { width: 88px; }
+.quote-list-table th:nth-child(7),
+.quote-list-table td:nth-child(7) { width: 92px; }
+.quote-list-table th:nth-child(8),
+.quote-list-table td:nth-child(8) { width: 40px; }
+.quote-list-table th:nth-child(9),
+.quote-list-table td:nth-child(9) { width: 34px; }
+
+.quote-star-button {
+  width: 22px;
+  height: 22px;
+  border: 0 !important;
+  outline: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.quote-star-button.active {
+  color: #facc15 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.quotes-page .quote-list-table-wrapper {
+  overflow-x: hidden;
+  overflow-y: hidden;
+  max-height: calc(42px + 34px + (30px * 10)) !important;
+}
+
+.quote-list-table tbody tr {
+  height: 30px !important;
+}
+
+.quote-pagination {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 4px;
+}
+
+.quote-pagination-numbers {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.quote-pagination-numbers::-webkit-scrollbar {
+  display: none;
+}
+
+.quote-page-number,
+.quote-page-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  text-align: center;
+}
+
+.quote-page-number {
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.quote-page-number.active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.quote-page-nav {
+  min-width: 54px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+@media (max-width: 768px) {
+  .quote-list-table th:first-child,
+  .quote-list-table td:first-child { width: 30px; }
+  .quote-list-table th:nth-child(2),
+  .quote-list-table td:nth-child(2) { width: 22px; }
+  .quote-list-table th:nth-child(3),
+  .quote-list-table td:nth-child(3) { width: 32px; }
+  .quote-list-table th:nth-child(4),
+  .quote-list-table td:nth-child(4) { width: 72px; }
+  .quote-list-table th:nth-child(5),
+  .quote-list-table td:nth-child(5) { width: 52px; }
+  .quote-list-table th:nth-child(6),
+  .quote-list-table td:nth-child(6) { width: 78px; }
+  .quote-list-table th:nth-child(7),
+  .quote-list-table td:nth-child(7) { width: 78px; }
+  .quote-list-table th:nth-child(8),
+  .quote-list-table td:nth-child(8) { width: 34px; }
+  .quote-list-table th:nth-child(9),
+  .quote-list-table td:nth-child(9) { width: 28px; }
+
+  .quote-list-table tbody tr {
+    height: 28px !important;
+  }
+
+  .quotes-page .quote-list-table-wrapper {
+    max-height: calc(38px + 32px + (28px * 10)) !important;
+  }
+
+  .quote-page-number {
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .quote-page-nav {
+    min-width: 48px;
+    height: 32px;
+  }
+}

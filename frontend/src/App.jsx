@@ -1774,6 +1774,7 @@ function Layout({ children, user, onLogout }) {
   const isScheduleView = location.pathname === '/schedule'
   const isWorkScheduleView = location.pathname === '/work-schedule'
   const isWideScheduleLayout = isScheduleView
+  const useCompactGlobalBars = !isScheduleView
   const isSearchView = location.pathname === '/search'
   const bottomLinks = [
     ['/', '홈'],
@@ -1915,7 +1916,7 @@ function Layout({ children, user, onLogout }) {
   }
 
   return (
-    <div className={`app-shell${isWideScheduleLayout ? ' schedule-wide' : ''}`}>
+    <div className={`app-shell${isWideScheduleLayout ? ' schedule-wide' : ''}${useCompactGlobalBars ? ' non-schedule-compact-bars' : ''}`}>
       <DisposalAdminAlertModal
         open={disposalAdminAlertOpen && disposalAdminAlerts.length > 0}
         items={disposalAdminAlerts}
@@ -11034,17 +11035,9 @@ function QuoteFormsPage({ user, guestMode = false }) {
     }
     return merged
   }, [importedAdminItems, adminItems])
-  const [listPageSize, setListPageSize] = useState(() => {
-    try {
-      const raw = Number(localStorage.getItem('icj_quote_list_page_size') || 10)
-      return [10, 20, 30, 50, 100].includes(raw) ? raw : 10
-    } catch (_) {
-      return 10
-    }
-  })
+  const listPageSize = 10
   const [currentListPage, setCurrentListPage] = useState(1)
-  const [listSettingsOpen, setListSettingsOpen] = useState(false)
-  const [listCountMenuOpen, setListCountMenuOpen] = useState(false)
+  const paginationScrollRef = useRef(null)
 
   useEffect(() => {
     if (pageTab === 'list' && isAdminUser) loadAdminList()
@@ -11058,15 +11051,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   useEffect(() => {
     setCurrentListPage(1)
-    setListSettingsOpen(false)
-    setListCountMenuOpen(false)
   }, [listTypeTab, pageTab])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('icj_quote_list_page_size', String(listPageSize))
-    } catch (_) {}
-  }, [listPageSize])
 
   function updateField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -11497,7 +11482,16 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
   const currentDesiredLabel = detailItem?.form_type === 'storage' ? '짐보관 시작 / 종료 일자' : '이사 희망 날짜'
   const adminDetailPayload = detailItem?.payload || {}
-  const filteredAdminItems = mergedAdminItems.filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
+  const filteredAdminItems = [...mergedAdminItems]
+    .filter(item => listTypeTab === 'storage' ? item.form_type === 'storage' : item.form_type !== 'storage')
+    .sort((a, b) => {
+      const aTime = new Date(a?.created_at || 0).getTime()
+      const bTime = new Date(b?.created_at || 0).getTime()
+      if (Number.isNaN(aTime) && Number.isNaN(bTime)) return Number(a?.id || 0) - Number(b?.id || 0)
+      if (Number.isNaN(aTime)) return -1
+      if (Number.isNaN(bTime)) return 1
+      return aTime - bTime
+    })
   const totalListPages = Math.max(1, Math.ceil(filteredAdminItems.length / listPageSize))
   const safeCurrentListPage = Math.min(currentListPage, totalListPages)
   const pagedAdminItems = filteredAdminItems.slice((safeCurrentListPage - 1) * listPageSize, safeCurrentListPage * listPageSize)
@@ -11505,6 +11499,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const paginationStart = Math.max(1, safeCurrentListPage - 5)
   const paginationEnd = Math.min(totalListPages, safeCurrentListPage + 5)
   const paginationPages = Array.from({ length: paginationEnd - paginationStart + 1 }, (_, index) => paginationStart + index)
+
+  useEffect(() => {
+    const container = paginationScrollRef.current
+    if (!container) return
+    const activeButton = container.querySelector('.quote-page-number.active')
+    if (!activeButton) return
+    activeButton.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [safeCurrentListPage, paginationPages.length])
 
   return <div className="stack-page quote-forms-page quotes-page">
     <section className="card quote-form-shell">
@@ -11714,16 +11716,8 @@ function QuoteFormsPage({ user, guestMode = false }) {
               <button type="button" className={listTypeTab === 'storage' ? 'quote-list-type-button active' : 'quote-list-type-button'} onClick={() => setListTypeTab('storage')}>짐보관이사</button>
             </div>
             <div className="quote-list-toolbar-actions">
+              <div className="quote-list-count-badge">페이지당 10개</div>
               <button type="button" className="ghost small" onClick={loadAdminList} disabled={listLoading}>{listLoading ? '불러오는 중...' : '새로고침'}</button>
-              <div className="quote-list-settings-wrap">
-                <button type="button" className="ghost small" onClick={() => { setListSettingsOpen(prev => !prev); setListCountMenuOpen(false) }}>설정</button>
-                {listSettingsOpen && <div className="quote-list-settings-popover">
-                  <button type="button" className="quote-list-settings-item" onClick={() => setListCountMenuOpen(prev => !prev)}>목록개수</button>
-                  {listCountMenuOpen && <div className="quote-list-settings-submenu">
-                    {[10, 20, 30, 50, 100].map(size => <button key={size} type="button" className={listPageSize === size ? 'quote-list-settings-item active' : 'quote-list-settings-item'} onClick={() => { setListPageSize(size); setCurrentListPage(1); setListCountMenuOpen(false); setListSettingsOpen(false) }}>{size}개</button>)}
-                  </div>}
-                </div>}
-              </div>
             </div>
           </div>
 
@@ -11731,6 +11725,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
             <table className="quote-list-table">
               <thead>
                 <tr>
+                  <th>번호</th>
                   <th><input type="checkbox" checked={allSelected} onChange={e => toggleSelectAll(e.target.checked)} /></th>
                   <th>즐겨찾기</th>
                   <th><span className="quote-table-th-two-line">견적양식<br />작성시각</span></th>
@@ -11742,11 +11737,13 @@ function QuoteFormsPage({ user, guestMode = false }) {
                 </tr>
               </thead>
               <tbody>
-                {pagedAdminItems.length === 0 ? <tr><td colSpan="8" className="quote-list-empty">접수된 견적이 없습니다.</td></tr> : pagedAdminItems.map(item => {
+                {pagedAdminItems.length === 0 ? <tr><td colSpan="9" className="quote-list-empty">접수된 견적이 없습니다.</td></tr> : pagedAdminItems.map((item, index) => {
                   const payload = item.payload || {}
                   const isFavorite = favoriteIds.includes(item.id)
                   const isChecked = selectedIds.includes(item.id)
+                  const rowNumber = (safeCurrentListPage - 1) * listPageSize + index + 1
                   return <tr key={item.id} className={detailItem?.id === item.id ? 'active' : ''} onClick={() => openDetail(item.id)}>
+                    <td className="quote-row-number">{rowNumber}</td>
                     <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isChecked} onChange={() => toggleSelected(item.id)} /></td>
                     <td onClick={e => e.stopPropagation()}><button type="button" className={`quote-star-button ${isFavorite ? 'active' : ''}`} onClick={() => toggleFavorite(item.id)} aria-label="즐겨찾기">{isFavorite ? '★' : '☆'}</button></td>
                     <td>{formatQuoteCreatedAtShort(item.created_at)}</td>
@@ -11762,8 +11759,10 @@ function QuoteFormsPage({ user, guestMode = false }) {
           </div>
           {totalListPages > 1 && <div className="quote-pagination" aria-label="견적목록 페이지네이션">
             <button type="button" className="quote-page-nav" onClick={() => setCurrentListPage(prev => Math.max(1, prev - 1))} disabled={safeCurrentListPage <= 1}>이전</button>
-            {paginationPages.map(page => <button key={page} type="button" className={page === safeCurrentListPage ? 'quote-page-number active' : 'quote-page-number'} onClick={() => setCurrentListPage(page)}>{page}</button>)}
-            {paginationEnd < totalListPages && <span className="quote-page-ellipsis">...</span>}
+            <div className="quote-pagination-numbers" ref={paginationScrollRef}>
+              {paginationPages.map(page => <button key={page} type="button" className={page === safeCurrentListPage ? 'quote-page-number active' : 'quote-page-number'} onClick={() => setCurrentListPage(page)}>{page}</button>)}
+              {paginationEnd < totalListPages && <span className="quote-page-ellipsis">...</span>}
+            </div>
             <button type="button" className="quote-page-nav" onClick={() => setCurrentListPage(prev => Math.min(totalListPages, prev + 1))} disabled={safeCurrentListPage >= totalListPages}>다음</button>
           </div>}
         </section>
