@@ -11907,6 +11907,9 @@ function QuoteWorkbookTemplateViewer({ user }) {
   const [formulaLabelMap, setFormulaLabelMap] = useState({})
   const [formulaLabelDrafts, setFormulaLabelDrafts] = useState({})
   const canManageFormulaLabels = Number(user?.grade || 9) <= 2
+  const visibleWorkbookTabs = useMemo(() => workbookTabs.filter(tab => !tab.hidden), [workbookTabs])
+  const formulaTab = useMemo(() => workbookTabs.find(tab => tab.type === 'formula') || null, [workbookTabs])
+  const inputTab = useMemo(() => workbookTabs.find(tab => tab.type === 'input') || workbookTabs[0] || null, [workbookTabs])
   const activeTab = useMemo(() => workbookTabs.find(tab => tab.key === activeTabKey) || workbookTabs[0], [activeTabKey, workbookTabs])
 
   useEffect(() => {
@@ -11986,20 +11989,23 @@ function QuoteWorkbookTemplateViewer({ user }) {
   if (!activeTab) return null
 
   return <section className="card quote-workbook-viewer-card">
-    <div className="quote-workbook-viewer-head">
-      <div>
-        <div className="quote-workbook-viewer-title">견적양식 시트 관리</div>
-        <div className="quote-workbook-viewer-caption">양식 보기 / 데이터 입력 / 수식 입력 화면을 분리했습니다.</div>
-      </div>
-      {canManageFormulaLabels && activeTab.type === 'formula' && <div className="quote-detail-settings-wrap">
-        <button type="button" className="small ghost" onClick={() => setFormulaSettingsOpen(prev => !prev)}>설정</button>
-        {formulaSettingsOpen && <div className="quote-detail-settings-popover">
-          <button type="button" className="quote-detail-settings-item" onClick={openFormulaLabelEditor}>항목편집</button>
+    <div className="quote-workbook-viewer-head quote-workbook-viewer-head-actions-only">
+      <div className="quote-workbook-viewer-top-actions">
+        {formulaTab && <button
+          type="button"
+          className={activeTab?.type === 'formula' ? 'small quote-workbook-formula-open-button active' : 'small ghost quote-workbook-formula-open-button'}
+          onClick={() => setActiveTabKey(activeTab?.type === 'formula' ? (inputTab?.key || formulaTab.key) : formulaTab.key)}
+        >{activeTab?.type === 'formula' ? '양식보기' : '수식편집'}</button>}
+        {canManageFormulaLabels && activeTab.type === 'formula' && <div className="quote-detail-settings-wrap">
+          <button type="button" className="small ghost" onClick={() => setFormulaSettingsOpen(prev => !prev)}>설정</button>
+          {formulaSettingsOpen && <div className="quote-detail-settings-popover">
+            <button type="button" className="quote-detail-settings-item" onClick={openFormulaLabelEditor}>항목편집</button>
+          </div>}
         </div>}
-      </div>}
+      </div>
     </div>
     <div className="quote-workbook-tabs" role="tablist" aria-label="견적양식 시트 탭">
-      {workbookTabs.map(tab => <button key={tab.key} type="button" className={tab.key === activeTab.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveTabKey(tab.key)}>{tab.label}</button>)}
+      {visibleWorkbookTabs.map(tab => <button key={tab.key} type="button" className={tab.key === activeTab.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveTabKey(tab.key)}>{tab.label}</button>)}
     </div>
     {activeTab.type === 'formula'
       ? <QuoteWorkbookFormulaEditor
@@ -12058,7 +12064,7 @@ function buildQuoteWorkbookTabs(template) {
   })
   inputSpecs.forEach(([name]) => {
     const sheet = sheetMap.get(name)
-    if (sheet) tabs.push({ key: `formula-${name}`, label: `${name}수식`, type: 'formula', formulaEntries: extractQuoteWorkbookFormulaEntries(sheet, 8, 38), sourceSheetName: name })
+    if (sheet) tabs.push({ key: `formula-${name}`, label: `${name}수식`, type: 'formula', hidden: true, formulaEntries: extractQuoteWorkbookFormulaEntries(sheet, 8, 38), sourceSheetName: name })
   })
 
   const quoteSheet = sheetMap.get('통합 견적 (1)')

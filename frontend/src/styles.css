@@ -29812,37 +29812,46 @@ button.danger {
 
 .quote-list-table {
   min-width: 0;
+  width: 100%;
   table-layout: fixed;
 }
 
 .quote-list-table th,
 .quote-list-table td {
-  padding: 7px 4px;
-  font-size: 12px;
-  word-break: break-word;
+  padding: 4px 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  word-break: keep-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .quote-list-table thead th {
   white-space: normal;
-  line-height: 1.2;
+  line-height: 1.1;
+}
+
+.quote-list-table tbody tr {
+  height: 34px;
 }
 
 .quote-list-table th:first-child,
-.quote-list-table td:first-child { width: 34px; }
+.quote-list-table td:first-child { width: 26px; }
 .quote-list-table th:nth-child(2),
-.quote-list-table td:nth-child(2) { width: 48px; }
+.quote-list-table td:nth-child(2) { width: 42px; }
 .quote-list-table th:nth-child(3),
-.quote-list-table td:nth-child(3) { width: 92px; }
+.quote-list-table td:nth-child(3) { width: 78px; }
 .quote-list-table th:nth-child(4),
-.quote-list-table td:nth-child(4) { width: 68px; }
+.quote-list-table td:nth-child(4) { width: 56px; }
 .quote-list-table th:nth-child(5),
-.quote-list-table td:nth-child(5) { width: 98px; }
+.quote-list-table td:nth-child(5) { width: 84px; }
 .quote-list-table th:nth-child(6),
-.quote-list-table td:nth-child(6) { width: 58px; }
+.quote-list-table td:nth-child(6) { width: 92px; }
 .quote-list-table th:nth-child(7),
-.quote-list-table td:nth-child(7) { width: 46px; }
+.quote-list-table td:nth-child(7) { width: 40px; }
 .quote-list-table th:nth-child(8),
-.quote-list-table td:nth-child(8) { width: 42px; }
+.quote-list-table td:nth-child(8) { width: 34px; }
 
 .quote-table-th-two-line {
   display: inline-block;
@@ -29893,26 +29902,30 @@ button.danger {
 
   .quote-list-table th,
   .quote-list-table td {
-    padding: 6px 3px;
-    font-size: 11px;
+    padding: 4px 3px;
+    font-size: 10px;
+  }
+
+  .quote-list-table tbody tr {
+    height: 31px;
   }
 
   .quote-list-table th:first-child,
-  .quote-list-table td:first-child { width: 28px; }
+  .quote-list-table td:first-child { width: 24px; }
   .quote-list-table th:nth-child(2),
-  .quote-list-table td:nth-child(2) { width: 42px; }
+  .quote-list-table td:nth-child(2) { width: 38px; }
   .quote-list-table th:nth-child(3),
-  .quote-list-table td:nth-child(3) { width: 78px; }
+  .quote-list-table td:nth-child(3) { width: 70px; }
   .quote-list-table th:nth-child(4),
-  .quote-list-table td:nth-child(4) { width: 56px; }
+  .quote-list-table td:nth-child(4) { width: 50px; }
   .quote-list-table th:nth-child(5),
-  .quote-list-table td:nth-child(5) { width: 86px; }
+  .quote-list-table td:nth-child(5) { width: 76px; }
   .quote-list-table th:nth-child(6),
-  .quote-list-table td:nth-child(6) { width: 48px; }
+  .quote-list-table td:nth-child(6) { width: 82px; }
   .quote-list-table th:nth-child(7),
-  .quote-list-table td:nth-child(7) { width: 38px; }
+  .quote-list-table td:nth-child(7) { width: 34px; }
   .quote-list-table th:nth-child(8),
-  .quote-list-table td:nth-child(8) { width: 34px; }
+  .quote-list-table td:nth-child(8) { width: 30px; }
 
   .quote-star-button {
     width: 20px;
@@ -30110,16 +30123,19 @@ button.danger {
 
 /* 2026-04-16 quote page full-height + pagination + excel linked list/detail */
 .page-container.page-container-quotes {
+  padding-top: 8px !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
-  padding-bottom: 0 !important;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(100vh - 50px);
+  box-sizing: border-box;
   overflow: hidden;
 }
 .page-container.page-container-quotes > * {
   min-height: 0;
 }
 .quotes-page {
-  height: 100%;
+  height: calc(100vh - 50px - 84px - env(safe-area-inset-bottom, 0px));
   min-height: 0;
   padding: 0;
 }
@@ -30131,7 +30147,7 @@ button.danger {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .quotes-page .quote-page-tabs-card,
 .quotes-page .success-banner,
@@ -30169,6 +30185,30 @@ button.danger {
   flex: 1 1 auto;
   overflow: auto;
 }
+.quotes-page .quote-list-table-wrapper {
+  max-height: calc(42px + 34px + (34px * 10));
+}
+.quotes-page .quote-admin-list-card {
+  gap: 10px;
+}
+.quote-admin-list-card .quote-list-toolbar {
+  margin-bottom: 0;
+}
+.quote-workbook-viewer-head-actions-only {
+  justify-content: flex-end;
+  min-height: 38px;
+  margin-bottom: 6px;
+}
+.quote-workbook-viewer-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quote-workbook-formula-open-button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
 .quote-pagination {
   display: flex;
   flex-wrap: wrap;
@@ -30197,9 +30237,19 @@ button.danger {
   grid-template-columns: 180px 1fr;
 }
 @media (max-width: 768px) {
+  .page-container.page-container-quotes {
+    padding-top: 6px !important;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .quotes-page {
+    height: calc(100vh - 50px - 78px - env(safe-area-inset-bottom, 0px));
+  }
   .quotes-page > .quote-form-shell {
     padding-left: 0;
     padding-right: 0;
+  }
+  .quotes-page .quote-list-table-wrapper {
+    max-height: calc(38px + 32px + (31px * 10));
   }
   .quote-detail-section-full .quote-detail-row {
     grid-template-columns: 1fr;
