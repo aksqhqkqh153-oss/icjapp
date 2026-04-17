@@ -11689,18 +11689,11 @@ function QuoteWorkbookTemplateViewer() {
 
 function buildQuoteWorkbookTabs(template) {
   const sheetMap = new Map((template?.sheets || []).map(sheet => [sheet.name, sheet]))
-  const viewNames = ['통합 견적 (1)', '통합 견적 (2)', '통합 견적 (3)', '짐보관 견적']
+  const linkedViewNames = ['통합 견적 (1)', '통합 견적 (2)', '통합 견적 (3)', '짐보관 견적']
   const inputSpecs = [
     ['ICJ1', 69, 3],
-    ['ICJ2', 69, 3],
-    ['ICJ3', 69, 3],
-    ['ICJ4', 72, 3],
   ]
   const tabs = []
-  viewNames.forEach(name => {
-    const sheet = sheetMap.get(name)
-    if (sheet) tabs.push({ key: `view-${name}`, label: name, type: 'view', sheet })
-  })
   inputSpecs.forEach(([name, maxRow, maxCol]) => {
     const sheet = sheetMap.get(name)
     if (sheet) tabs.push({ key: `input-${name}`, label: name, type: 'input', sheet: sliceQuoteWorkbookSheet(sheet, 1, maxRow, 1, maxCol) })
@@ -11708,6 +11701,10 @@ function buildQuoteWorkbookTabs(template) {
   inputSpecs.forEach(([name]) => {
     const sheet = sheetMap.get(name)
     if (sheet) tabs.push({ key: `formula-${name}`, label: `${name}수식`, type: 'formula', formulaEntries: extractQuoteWorkbookFormulaEntries(sheet, 8, 38), sourceSheetName: name })
+  })
+  linkedViewNames.forEach(name => {
+    const sheet = sheetMap.get(name)
+    if (sheet) tabs.push({ key: `view-${name}`, label: name, type: 'view', sheet })
   })
   return tabs
 }
@@ -11809,18 +11806,65 @@ function QuoteWorkbookFormulaEditor({ tab, overrides, onChange }) {
   </div>
 }
 
+function buildQuoteWorkbookRenderedRows(sheet) {
+  const rowCount = sheet.rows.length
+  const colCount = sheet.cols.length
+  const occupied = Array.from({ length: rowCount }, () => Array(colCount).fill(false))
+  const renderedRows = []
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    const sourceRow = sheet.rows[rowIndex] || []
+    const renderedRow = []
+    let colCursor = 0
+
+    sourceRow.forEach((cell, cellIndex) => {
+      while (colCursor < colCount && occupied[rowIndex][colCursor]) colCursor += 1
+      if (colCursor >= colCount) return
+
+      if (!cell) {
+        renderedRow.push({ key: `${sheet.name}-empty-${rowIndex}-${cellIndex}-${colCursor}`, empty: true })
+        colCursor += 1
+        return
+      }
+
+      const rowSpan = Math.max(1, Math.min(cell.rowSpan || 1, rowCount - rowIndex))
+      const colSpan = Math.max(1, Math.min(cell.colSpan || 1, colCount - colCursor))
+      renderedRow.push({ ...cell, rowSpan, colSpan, key: `${sheet.name}-cell-${rowIndex}-${cellIndex}-${colCursor}` })
+
+      for (let rowOffset = 0; rowOffset < rowSpan; rowOffset += 1) {
+        for (let colOffset = 0; colOffset < colSpan; colOffset += 1) {
+          occupied[rowIndex + rowOffset][colCursor + colOffset] = true
+        }
+      }
+      colCursor += colSpan
+    })
+
+    while (colCursor < colCount) {
+      if (!occupied[rowIndex][colCursor]) {
+        renderedRow.push({ key: `${sheet.name}-tail-empty-${rowIndex}-${colCursor}`, empty: true })
+      }
+      colCursor += 1
+    }
+
+    renderedRows.push(renderedRow)
+  }
+
+  return renderedRows
+}
+
 function QuoteWorkbookSheetTable({ sheet, compact = false }) {
+  const renderedRows = buildQuoteWorkbookRenderedRows(sheet)
   return <div className={compact ? 'quote-workbook-sheet-scroll compact' : 'quote-workbook-sheet-scroll'}>
     <table className={compact ? 'quote-workbook-sheet-table compact' : 'quote-workbook-sheet-table'}>
       <colgroup>
         {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(compact ? 18 : 22, Math.round((width || 8.43) * (compact ? 4.2 : 5.4)))}px` }} />)}
       </colgroup>
       <tbody>
-        {sheet.rows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(compact ? 10 : 12, Math.round(sheet.heights[rowIndex] * (compact ? 0.8 : 1.05)))}px` } : undefined}>
-          {row.map((cell, cellIndex) => {
-            if (!cell) return <td key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`} className="quote-workbook-empty-cell" />
+        {renderedRows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(compact ? 10 : 12, Math.round(sheet.heights[rowIndex] * (compact ? 0.8 : 1.05)))}px` } : undefined}>
+          {row.map(cell => {
+            if (cell.empty) return <td key={cell.key} className="quote-workbook-empty-cell" />
             return <td
-              key={`${sheet.name}-cell-${rowIndex}-${cellIndex}`}
+              key={cell.key}
               rowSpan={cell.rowSpan || 1}
               colSpan={cell.colSpan || 1}
               style={buildQuoteWorkbookCellStyle(cell.style, compact)}
