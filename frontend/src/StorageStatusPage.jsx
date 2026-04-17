@@ -467,16 +467,31 @@ export default function StorageStatusPage() {
     setSelectedIds((prev) => prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId])
   }, [])
 
+  const dirtyRowIds = useMemo(() => {
+    const ids = new Set()
+    rows.forEach((row, index) => {
+      const previousRow = baselineRows.find((item) => item.id === row.id) || baselineRows[index] || {}
+      const hasChanged = ['customer_name', 'manager_name', 'start_date', 'end_date', 'scale', 'status']
+        .some((field) => String(previousRow?.[field] || '').trim() !== String(row?.[field] || '').trim())
+      if (hasChanged || row.__isNew) ids.add(row.id)
+    })
+    return ids
+  }, [rows, baselineRows])
+
   const filteredRows = useMemo(() => {
     const statusOrder = { '예정': 0, '진행': 1, '종료': 2, '': 3 }
 
     const statusFilteredRows = rows.filter((row) => {
+      if (dirtyRowIds.has(row.id)) return true
       if (statusFilter === 'all') return row.status !== '종료'
       return row.status === statusFilter
     })
 
     return statusFilteredRows
-      .filter((row) => matchesSearchKeyword(row, searchKeyword))
+      .filter((row) => {
+        if (dirtyRowIds.has(row.id)) return true
+        return matchesSearchKeyword(row, searchKeyword)
+      })
       .slice()
       .sort((a, b) => {
         if (a.__isNew && b.__isNew) {
@@ -507,7 +522,7 @@ export default function StorageStatusPage() {
 
         return String(a.id || '').localeCompare(String(b.id || ''), 'en')
       })
-  }, [rows, statusFilter, searchKeyword])
+  }, [rows, statusFilter, searchKeyword, dirtyRowIds])
 
   const visibleRowIds = useMemo(() => filteredRows.map((row) => row.id), [filteredRows])
 
