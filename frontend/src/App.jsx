@@ -12182,7 +12182,7 @@ function QuoteWorkbookGroupedView({ tab }) {
     <div className="quote-workbook-subtabs quote-workbook-subtabs-second" role="tablist" aria-label={`${activeGroup.label} 작업 방식 탭`}>
       {views.map(view => <button key={view.key} type="button" className={view.key === activeView.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveViewKey(view.key)}>{view.label}</button>)}
     </div>
-    <QuoteWorkbookSheetTable sheet={activeView.sheet} compact={false} />
+    <QuoteWorkbookSheetTable sheet={activeView.sheet} compact={false} fitToView />
   </div>
 }
 
@@ -12260,34 +12260,101 @@ function buildQuoteWorkbookRenderedRows(sheet) {
   return renderedRows
 }
 
-function QuoteWorkbookSheetTable({ sheet, compact = false }) {
+function QuoteWorkbookSheetTable({ sheet, compact = false, fitToView = false }) {
   const renderedRows = buildQuoteWorkbookRenderedRows(sheet)
-  return <div className={compact ? 'quote-workbook-sheet-scroll compact' : 'quote-workbook-sheet-scroll'}>
-    <table className={compact ? 'quote-workbook-sheet-table compact' : 'quote-workbook-sheet-table'}>
-      <colgroup>
-        {sheet.cols.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${Math.max(compact ? 18 : 22, Math.round((width || 8.43) * (compact ? 4.2 : 5.4)))}px` }} />)}
-      </colgroup>
-      <tbody>
-        {renderedRows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={sheet.heights?.[rowIndex] ? { height: `${Math.max(compact ? 10 : 12, Math.round(sheet.heights[rowIndex] * (compact ? 0.8 : 1.05)))}px` } : undefined}>
-          {row.map(cell => {
-            if (cell.empty) return <td key={cell.key} className="quote-workbook-empty-cell" />
-            return <td
-              key={cell.key}
-              rowSpan={cell.rowSpan || 1}
-              colSpan={cell.colSpan || 1}
-              style={buildQuoteWorkbookCellStyle(cell.style, compact)}
-              title={cell.formula || undefined}
-            >
-              {formatQuoteWorkbookCellValue(cell.value, cell.style?.numberFormat)}
-            </td>
-          })}
-        </tr>)}
-      </tbody>
-    </table>
+  const viewportRef = useRef(null)
+  const metrics = useMemo(() => {
+    const colWidths = (sheet.cols || []).map(width => Math.max(compact ? 18 : 24, Math.round((width || 8.43) * (compact ? 4.6 : 7.2))))
+    const rowHeights = (sheet.heights || []).map(height => Math.max(compact ? 10 : 14, Math.round((height || 15) * (compact ? 0.85 : 1.28))))
+    const tableWidth = colWidths.reduce((sum, width) => sum + width, 0)
+    const tableHeight = rowHeights.reduce((sum, height) => sum + height, 0)
+    return { colWidths, rowHeights, tableWidth, tableHeight }
+  }, [compact, sheet.cols, sheet.heights])
+  const [fitScale, setFitScale] = useState(1)
+
+  useLayoutEffect(() => {
+    if (!fitToView) {
+      setFitScale(1)
+      return undefined
+    }
+    const node = viewportRef.current
+    if (!node || !metrics.tableWidth || !metrics.tableHeight) return undefined
+
+    const updateScale = () => {
+      const availableWidth = Math.max(240, node.clientWidth - 8)
+      const availableHeight = Math.max(200, node.clientHeight - 8)
+      const scaleX = availableWidth / metrics.tableWidth
+      const scaleY = availableHeight / metrics.tableHeight
+      const nextScale = Math.max(0.42, Math.min(1, scaleX, scaleY))
+      setFitScale(Number.isFinite(nextScale) ? nextScale : 1)
+    }
+
+    updateScale()
+    const observer = new ResizeObserver(() => updateScale())
+    observer.observe(node)
+    window.addEventListener('resize', updateScale)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateScale)
+    }
+  }, [fitToView, metrics.tableHeight, metrics.tableWidth])
+
+  const scrollClassName = [
+    'quote-workbook-sheet-scroll',
+    compact ? 'compact' : '',
+    fitToView ? 'fit' : '',
+  ].filter(Boolean).join(' ')
+
+  const tableClassName = [
+    'quote-workbook-sheet-table',
+    compact ? 'compact' : '',
+    fitToView ? 'fit' : '',
+  ].filter(Boolean).join(' ')
+
+  const tableElement = <table className={tableClassName}>
+    <colgroup>
+      {metrics.colWidths.map((width, index) => <col key={`${sheet.name}-col-${index}`} style={{ width: `${width}px` }} />)}
+    </colgroup>
+    <tbody>
+      {renderedRows.map((row, rowIndex) => <tr key={`${sheet.name}-row-${rowIndex}`} style={metrics.rowHeights[rowIndex] ? { height: `${metrics.rowHeights[rowIndex]}px` } : undefined}>
+        {row.map(cell => {
+          if (cell.empty) return <td key={cell.key} className="quote-workbook-empty-cell" />
+          return <td
+            key={cell.key}
+            rowSpan={cell.rowSpan || 1}
+            colSpan={cell.colSpan || 1}
+            style={buildQuoteWorkbookCellStyle(cell.style, compact, fitToView)}
+            title={cell.formula || undefined}
+          >
+            {formatQuoteWorkbookCellValue(cell.value, cell.style?.numberFormat)}
+          </td>
+        })}
+      </tr>)}
+    </tbody>
+  </table>
+
+  if (!fitToView) {
+    return <div className={scrollClassName}>{tableElement}</div>
+  }
+
+  return <div className={scrollClassName} ref={viewportRef}>
+    <div className="quote-workbook-fit-viewport" style={{ height: `${Math.max(220, Math.round(metrics.tableHeight * fitScale))}px` }}>
+      <div
+        className="quote-workbook-fit-stage"
+        style={{
+          width: `${metrics.tableWidth}px`,
+          height: `${metrics.tableHeight}px`,
+          transform: `scale(${fitScale})`,
+          transformOrigin: 'top left',
+        }}
+      >
+        {tableElement}
+      </div>
+    </div>
   </div>
 }
 
-function buildQuoteWorkbookCellStyle(style = {}, compact = false) {
+function buildQuoteWorkbookCellStyle(style = {}, compact = false, fitToView = false) {
   const borderStyleMap = { thin: '1px solid', medium: '2px solid', thick: '3px solid', double: '3px double', dashed: '1px dashed', dotted: '1px dotted', hair: '1px solid' }
   const borderColor = side => side?.color || '#cbd5e1'
   return {
@@ -12295,7 +12362,7 @@ function buildQuoteWorkbookCellStyle(style = {}, compact = false) {
     color: style.fontColor || '#111827',
     fontWeight: style.bold ? 700 : 400,
     fontStyle: style.italic ? 'italic' : 'normal',
-    fontSize: style.fontSize ? `${Math.max(compact ? 5 : 6, Math.round(style.fontSize - (compact ? 4 : 2)))}px` : undefined,
+    fontSize: style.fontSize ? `${Math.max(compact ? 5 : fitToView ? 8 : 6, Math.round(style.fontSize - (compact ? 4 : fitToView ? 0 : 2)))}px` : undefined,
     fontFamily: style.fontName || undefined,
     textAlign: style.align?.horizontal || undefined,
     verticalAlign: style.align?.vertical || 'middle',

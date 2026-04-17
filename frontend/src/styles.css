@@ -30565,3 +30565,36 @@ button.danger {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* 2026-04-17 quote workbook fit-to-view sizing */
+.quote-workbook-sheet-scroll.fit {
+  overflow: hidden;
+  padding: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.quote-workbook-fit-viewport {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.quote-workbook-fit-stage {
+  will-change: transform;
+}
+.quote-workbook-sheet-table.fit {
+  min-width: 0;
+}
+.quote-workbook-sheet-table.fit td {
+  padding: 2px 3px;
+  line-height: 1.2;
+}
+@media (max-width: 768px) {
+  .quote-workbook-sheet-scroll.fit {
+    padding: 4px;
+  }
+  .quote-workbook-sheet-table.fit td {
+    padding: 1px 2px;
+  }
+}
