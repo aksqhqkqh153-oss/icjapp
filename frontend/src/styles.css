@@ -31174,3 +31174,42 @@ button.danger {
     font-size: 22px;
   }
 }
+
+/* 2026-04-17 quote detail title colors + home 780 content area fix */
+.quote-detail-type-badge {
+  font-weight: 800;
+}
+
+.quote-detail-type-badge.same-day {
+  color: #2563eb;
+}
+
+.quote-detail-type-badge.storage {
+  color: #f97316;
+}
+
+.quote-back-icon-button:hover {
+  background: transparent !important;
+}
+
+@media (min-width: 769px) {
+  .app-shell.non-schedule-compact-bars .page-container.page-container-home {
+    box-sizing: border-box !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container.page-container-home > .stack-page.home-page {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+}

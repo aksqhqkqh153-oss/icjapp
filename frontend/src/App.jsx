@@ -10943,6 +10943,18 @@ function QuoteCheckboxGroup({ values, options, onChange }) {
 }
 
 
+const QUOTE_DETAIL_LABEL_STORAGE_KEY = "icj_quote_detail_label_overrides_v1"
+const QUOTE_DETAIL_LABEL_FIELDS = [
+  ["customer_name","고객 성함"], ["contact_phone","연락처"], ["move_date","이사 희망 날짜"], ["storage_start_date","짐보관 시작일"], ["storage_end_date","짐보관 종료일"],
+  ["household","출발지 거주 가구원"], ["structure","출발지 구조"], ["area","출발지 평수"], ["origin_address","출발지 주소"], ["origin_address_detail","출발지 상세주소"],
+  ["origin_elevator","출발지 엘레베이터"], ["destination_address","도착지 주소"], ["destination_address_detail","도착지 상세주소"], ["destination_elevator","도착지 엘레베이터"],
+  ["move_types","희망 이사 종류"], ["premium_options","프리미엄 추가 옵션"], ["furniture_types","가전/가구 종류"], ["extra_furniture","추가 가전/가구"], ["duplicate_furniture","가전/가구 추가기재"],
+  ["disassembly_types","분해/조립 필요 가전/가구"], ["extra_disassembly","추가 분해/조립"], ["duplicate_disassembly","분해/조립 추가기재"], ["large_item_types","대형 가전/가구 / 폐기물"], ["extra_large_items","대형 추가기재"],
+  ["duplicate_large_items","대형 중복기재"], ["waste_service","폐기물 원스탑 신고 서비스 접수 희망"], ["companion_preference","동승 희망 여부"], ["via_address","경유지 주소"], ["via_address_detail","경유지 상세주소"],
+  ["via_postcode","경유지 우편번호"], ["via_elevator","경유지 엘레베이터"], ["via_pickup_items","경유지 상차 물품"], ["via_drop_items","경유지 하차 물품"], ["request_memo","추가 메모"],
+  ["move_scope_notice","원룸/투룸/소형이사 고지 확인"], ["kakao_notice_text","카카오톡 안내 문구"], ["privacy_agreed","개인정보 수집 이용 동의"]
+]
+
 function QuoteFormsPage({ user, guestMode = false }) {
   const navigate = useNavigate()
   const isAdminUser = !guestMode && canAccessAdminMode(user)
@@ -10965,6 +10977,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [detailEditOpen, setDetailEditOpen] = useState(false)
   const [detailEditSaving, setDetailEditSaving] = useState(false)
   const [detailEditForm, setDetailEditForm] = useState({})
+  const [detailLabelOverrides, setDetailLabelOverrides] = useState(() => {
+    try {
+      const raw = localStorage.getItem(QUOTE_DETAIL_LABEL_STORAGE_KEY)
+      return raw ? JSON.parse(raw) : {}
+    } catch (_) {
+      return {}
+    }
+  })
   const [guestIntro, setGuestIntro] = useState({
     customer_name: user?.name || user?.nickname || '',
     contact_phone: user?.phone || '',
@@ -11049,6 +11069,12 @@ function QuoteFormsPage({ user, guestMode = false }) {
       localStorage.setItem('icj_quote_favorites', JSON.stringify(favoriteIds))
     } catch (_) {}
   }, [favoriteIds])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(QUOTE_DETAIL_LABEL_STORAGE_KEY, JSON.stringify(detailLabelOverrides || {}))
+    } catch (_) {}
+  }, [detailLabelOverrides])
 
   useEffect(() => {
     setCurrentListPage(1)
@@ -11347,7 +11373,11 @@ function QuoteFormsPage({ user, guestMode = false }) {
   }
 
   function openQuoteDetailEditor() {
-    setDetailEditForm(buildQuoteDetailEditForm(detailItem))
+    const nextDrafts = {}
+    QUOTE_DETAIL_LABEL_FIELDS.forEach(([key, fallback]) => {
+      nextDrafts[key] = String(detailLabelOverrides?.[key] || fallback)
+    })
+    setDetailEditForm(nextDrafts)
     setDetailEditOpen(true)
     setDetailSettingsOpen(false)
   }
@@ -11356,80 +11386,28 @@ function QuoteFormsPage({ user, guestMode = false }) {
     setDetailEditForm(prev => ({ ...prev, [key]: value }))
   }
 
+  function getQuoteDetailLabel(key, fallback) {
+    const overridden = String(detailLabelOverrides?.[key] || '').trim()
+    return overridden || fallback
+  }
+
   function normalizeCommaText(value) {
     return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
   }
 
   async function saveQuoteDetailEdits() {
-    if (!detailItem?.id) return
     setDetailEditSaving(true)
     setError('')
     setMessage('')
     try {
-      const nextPayload = {
-        ...detailItem.payload,
-        customer_name: String(detailEditForm.customer_name || '').trim(),
-        contact_phone: String(detailEditForm.contact_phone || '').trim(),
-        move_date: String(detailEditForm.move_date || '').trim(),
-        storage_start_date: String(detailEditForm.storage_start_date || '').trim(),
-        storage_end_date: String(detailEditForm.storage_end_date || '').trim(),
-        household: String(detailEditForm.household || '').trim(),
-        structure: String(detailEditForm.structure || '').trim(),
-        area: String(detailEditForm.area || '').trim(),
-        origin_address: String(detailEditForm.origin_address || '').trim(),
-        origin_address_detail: String(detailEditForm.origin_address_detail || '').trim(),
-        origin_elevator: String(detailEditForm.origin_elevator || '').trim(),
-        destination_address: String(detailEditForm.destination_address || '').trim(),
-        destination_address_detail: String(detailEditForm.destination_address_detail || '').trim(),
-        destination_elevator: String(detailEditForm.destination_elevator || '').trim(),
-        move_types: normalizeCommaText(detailEditForm.move_types),
-        premium_options: normalizeCommaText(detailEditForm.premium_options),
-        furniture_types: normalizeCommaText(detailEditForm.furniture_types),
-        extra_furniture: String(detailEditForm.extra_furniture || '').trim(),
-        duplicate_furniture: String(detailEditForm.duplicate_furniture || '').trim(),
-        disassembly_types: normalizeCommaText(detailEditForm.disassembly_types),
-        extra_disassembly: String(detailEditForm.extra_disassembly || '').trim(),
-        duplicate_disassembly: String(detailEditForm.duplicate_disassembly || '').trim(),
-        large_item_types: normalizeCommaText(detailEditForm.large_item_types),
-        extra_large_items: String(detailEditForm.extra_large_items || '').trim(),
-        duplicate_large_items: String(detailEditForm.duplicate_large_items || '').trim(),
-        waste_service: String(detailEditForm.waste_service || '').trim(),
-        companion_preference: String(detailEditForm.companion_preference || '').trim(),
-        via_address: String(detailEditForm.via_address || '').trim(),
-        via_address_detail: String(detailEditForm.via_address_detail || '').trim(),
-        via_postcode: String(detailEditForm.via_postcode || '').trim(),
-        via_elevator: String(detailEditForm.via_elevator || '').trim(),
-        via_pickup_items: String(detailEditForm.via_pickup_items || '').trim(),
-        via_drop_items: String(detailEditForm.via_drop_items || '').trim(),
-        request_memo: String(detailEditForm.request_memo || '').trim(),
-        move_scope_notice: /확인|동의|yes|true|1/i.test(String(detailEditForm.move_scope_notice || '').trim()),
-        kakao_notice_text: String(detailEditForm.kakao_notice_text || '').trim(),
-        kakao_notice: /확인|동의|yes|true|1/i.test(String(detailEditForm.kakao_notice_text || '').trim()),
-        privacy_agreed: /확인|동의|yes|true|1/i.test(String(detailEditForm.privacy_agreed || '').trim()),
-      }
-      if (detailItem?.imported) {
-        const editedImportedItem = {
-          ...detailItem,
-          payload: nextPayload,
-          requester_name: String(detailEditForm.customer_name || '').trim() || detailItem.requester_name,
-          contact_phone: String(detailEditForm.contact_phone || '').trim() || detailItem.contact_phone,
-          summary_title: detailItem.summary_title || `${detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'} · ${String(detailEditForm.customer_name || '').trim() || detailItem.requester_name || '고객'}`,
-          imported: true,
-        }
-        setDetailItem(editedImportedItem)
-        setImportedEditedItems(prev => [editedImportedItem, ...prev.filter(item => String(item.id) !== String(editedImportedItem.id))])
-      } else {
-        const result = await api(`/api/admin/quote-forms/${detailItem.id}/payload`, {
-          method: 'PUT',
-          body: JSON.stringify({ payload: nextPayload }),
-        })
-        if (result?.item) {
-          setDetailItem(result.item)
-          setAdminItems(prev => prev.map(item => item.id === result.item.id ? result.item : item))
-        }
-      }
+      const cleaned = {}
+      QUOTE_DETAIL_LABEL_FIELDS.forEach(([key, fallback]) => {
+        const nextLabel = String(detailEditForm?.[key] || '').trim()
+        if (nextLabel && nextLabel !== fallback) cleaned[key] = nextLabel
+      })
+      setDetailLabelOverrides(cleaned)
       setDetailEditOpen(false)
-      setMessage('견적상세 항목이 저장되었습니다.')
+      setMessage('견적상세 항목 명칭이 저장되었습니다.')
     } catch (err) {
       setError(err.message || '항목편집 저장에 실패했습니다.')
     } finally {
@@ -11790,7 +11768,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {pageTab === 'detail' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
         <div className="quote-detail-header-bar">
           <button type="button" className="quote-back-button quote-back-icon-button" onClick={closeQuoteDetailView} aria-label="뒤로가기">‹</button>
-          <h3>{detailItem ? `견적상세 ${detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}` : '견적상세'}</h3>
+          <h3>{detailItem ? <>견적상세 <span className={detailItem.form_type === 'storage' ? 'quote-detail-type-badge storage' : 'quote-detail-type-badge same-day'}>{detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</span></> : '견적상세'}</h3>
           <div className="quote-detail-header-actions">
             <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
             {isAdminUser && <div className="quote-detail-settings-wrap">
@@ -11806,24 +11784,13 @@ function QuoteFormsPage({ user, guestMode = false }) {
           {detailEditOpen && <div className="quote-detail-edit-panel">
             <div className="quote-detail-edit-header">
               <strong>항목편집</strong>
-              <span className="muted tiny-text">저장 시 앱 전체 계정에서 변경된 문구로 표시됩니다.</span>
+              <span className="muted tiny-text">고객 데이터가 아니라 화면에 보이는 항목 명칭을 변경합니다.</span>
             </div>
             <div className="quote-detail-edit-grid">
-              {[
-                ['customer_name','고객 성함'], ['contact_phone','연락처'], ['move_date','이사 희망 날짜'], ['storage_start_date','짐보관 시작일'], ['storage_end_date','짐보관 종료일'],
-                ['household','출발지 거주 가구원'], ['structure','출발지 구조'], ['area','출발지 평수'], ['origin_address','출발지 주소'], ['origin_address_detail','출발지 상세주소'],
-                ['origin_elevator','출발지 엘레베이터'], ['destination_address','도착지 주소'], ['destination_address_detail','도착지 상세주소'], ['destination_elevator','도착지 엘레베이터'],
-                ['move_types','희망 이사 종류'], ['premium_options','프리미엄 추가 옵션'], ['furniture_types','가전/가구 종류'], ['extra_furniture','추가 가전/가구'], ['duplicate_furniture','가전/가구 추가기재'],
-                ['disassembly_types','분해/조립 필요 가전/가구'], ['extra_disassembly','추가 분해/조립'], ['duplicate_disassembly','분해/조립 추가기재'], ['large_item_types','대형 가전/가구 / 폐기물'], ['extra_large_items','대형 추가기재'],
-                ['duplicate_large_items','대형 중복기재'], ['waste_service','폐기물 원스탑 신고 서비스'], ['companion_preference','동승 희망 여부'], ['via_address','경유지 주소'], ['via_address_detail','경유지 상세주소'],
-                ['via_postcode','경유지 우편번호'], ['via_elevator','경유지 엘레베이터'], ['via_pickup_items','경유지 상차 물품'], ['via_drop_items','경유지 하차 물품'], ['request_memo','추가 메모'],
-                ['move_scope_notice','원룸/투룸/소형이사 고지 확인'], ['kakao_notice_text','카카오톡 안내 문구'], ['privacy_agreed','개인정보 수집 이용 동의']
-              ].map(([key, label]) => (
+              {QUOTE_DETAIL_LABEL_FIELDS.map(([key, label]) => (
                 <label key={key} className="quote-detail-edit-field">
                   <span>{label}</span>
-                  {key === 'request_memo'
-                    ? <textarea value={detailEditForm[key] || ''} onChange={e => updateDetailEditField(key, e.target.value)} rows={3} />
-                    : <input type="text" value={detailEditForm[key] || ''} onChange={e => updateDetailEditField(key, e.target.value)} />}
+                  <input type="text" value={detailEditForm[key] || ''} onChange={e => updateDetailEditField(key, e.target.value)} />
                 </label>
               ))}
             </div>
@@ -11831,44 +11798,42 @@ function QuoteFormsPage({ user, guestMode = false }) {
               <button type="button" className="ghost small" onClick={() => setDetailEditOpen(false)} disabled={detailEditSaving}>취소</button>
               <button type="button" className="small" onClick={saveQuoteDetailEdits} disabled={detailEditSaving}>{detailEditSaving ? '저장 중...' : '저장'}</button>
             </div>
-            {detailItem?.imported && <div className="muted tiny-text">엑셀 연동 샘플 데이터도 현재 화면에서 수정 내용을 반영해 확인할 수 있습니다.</div>}
           </div>}
-          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div></div></div>
           <div className="quote-detail-grid quote-detail-grid-compact">
             <div className="quote-detail-section quote-detail-section-compact"><h4>{`기본 정보 ${detailItem?.created_at ? `(접수일: ${String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)})` : ''}`}</h4><dl>{[
-              ['고객 성함', adminDetailPayload.customer_name],
-              ['연락처', adminDetailPayload.contact_phone || detailItem.contact_phone],
-              [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
-              ['출발지 거주 가구원', adminDetailPayload.household],
-              ['출발지 구조', adminDetailPayload.structure],
-              ['출발지 평수', adminDetailPayload.area],
-              ['출발지 주소', [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
-              ['출발지 엘레베이터', adminDetailPayload.origin_elevator],
-              ['도착지 주소', [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
-              ['도착지 엘레베이터', adminDetailPayload.destination_elevator],
+              [getQuoteDetailLabel('customer_name', '고객 성함'), adminDetailPayload.customer_name],
+              [getQuoteDetailLabel('contact_phone', '연락처'), adminDetailPayload.contact_phone || detailItem.contact_phone],
+              [detailItem?.form_type === 'storage' ? getQuoteDetailLabel('storage_start_date', currentDesiredLabel) : getQuoteDetailLabel('move_date', currentDesiredLabel), formatQuoteDesiredDate(detailItem)],
+              [getQuoteDetailLabel('household', '출발지 거주 가구원'), adminDetailPayload.household],
+              [getQuoteDetailLabel('structure', '출발지 구조'), adminDetailPayload.structure],
+              [getQuoteDetailLabel('area', '출발지 평수'), adminDetailPayload.area],
+              [getQuoteDetailLabel('origin_address', '출발지 주소'), [adminDetailPayload.origin_address, adminDetailPayload.origin_address_detail].filter(Boolean).join(' ')],
+              [getQuoteDetailLabel('origin_elevator', '출발지 엘레베이터'), adminDetailPayload.origin_elevator],
+              [getQuoteDetailLabel('destination_address', '도착지 주소'), [adminDetailPayload.destination_address, adminDetailPayload.destination_address_detail].filter(Boolean).join(' ')],
+              [getQuoteDetailLabel('destination_elevator', '도착지 엘레베이터'), adminDetailPayload.destination_elevator],
             ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             <div className="quote-detail-section quote-detail-section-compact"><h4>세부 옵션</h4><dl>{[
-              ['희망 이사 종류', joinQuoteValue(adminDetailPayload.move_types)],
-              ['프리미엄 추가 옵션', joinQuoteValue(adminDetailPayload.premium_options)],
-              ['가전/가구 종류', joinQuoteValue(adminDetailPayload.furniture_types)],
-              ['추가 가전/가구', joinQuoteValue([adminDetailPayload.extra_furniture, adminDetailPayload.duplicate_furniture])],
-              ['분해/조립 필요 가전/가구', joinQuoteValue(adminDetailPayload.disassembly_types)],
-              ['추가 분해/조립', joinQuoteValue([adminDetailPayload.extra_disassembly, adminDetailPayload.duplicate_disassembly])],
-              ['대형 가전/가구 / 폐기물', joinQuoteValue(adminDetailPayload.large_item_types)],
-              ['대형 추가기재', joinQuoteValue([adminDetailPayload.extra_large_items, adminDetailPayload.duplicate_large_items])],
-              ['폐기물 원스탑 신고 서비스 접수 희망', adminDetailPayload.waste_service],
-              ['동승 희망 여부', adminDetailPayload.companion_preference],
+              [getQuoteDetailLabel('move_types', '희망 이사 종류'), joinQuoteValue(adminDetailPayload.move_types)],
+              [getQuoteDetailLabel('premium_options', '프리미엄 추가 옵션'), joinQuoteValue(adminDetailPayload.premium_options)],
+              [getQuoteDetailLabel('furniture_types', '가전/가구 종류'), joinQuoteValue(adminDetailPayload.furniture_types)],
+              [getQuoteDetailLabel('extra_furniture', '추가 가전/가구'), joinQuoteValue([adminDetailPayload.extra_furniture, adminDetailPayload.duplicate_furniture])],
+              [getQuoteDetailLabel('disassembly_types', '분해/조립 필요 가전/가구'), joinQuoteValue(adminDetailPayload.disassembly_types)],
+              [getQuoteDetailLabel('extra_disassembly', '추가 분해/조립'), joinQuoteValue([adminDetailPayload.extra_disassembly, adminDetailPayload.duplicate_disassembly])],
+              [getQuoteDetailLabel('large_item_types', '대형 가전/가구 / 폐기물'), joinQuoteValue(adminDetailPayload.large_item_types)],
+              [getQuoteDetailLabel('extra_large_items', '대형 추가기재'), joinQuoteValue([adminDetailPayload.extra_large_items, adminDetailPayload.duplicate_large_items])],
+              [getQuoteDetailLabel('waste_service', '폐기물 원스탑 신고 서비스 접수 희망'), adminDetailPayload.waste_service],
+              [getQuoteDetailLabel('companion_preference', '동승 희망 여부'), adminDetailPayload.companion_preference],
             ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             <div className="quote-detail-section quote-detail-section-compact"><h4>경유지 / 메모</h4><dl>{[
-              ['경유지 주소', joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
-              ['경유지 우편번호', adminDetailPayload.via_postcode],
-              ['경유지 엘레베이터', adminDetailPayload.via_elevator],
-              ['경유지 상차 물품', adminDetailPayload.via_pickup_items],
-              ['경유지 하차 물품', adminDetailPayload.via_drop_items],
-              ['추가 메모', adminDetailPayload.request_memo],
-              ['원룸/투룸/소형이사 고지 확인', adminDetailPayload.move_scope_notice],
-              ['카카오톡 안내 문구', adminDetailPayload.kakao_notice_text || adminDetailPayload.kakao_notice],
-              ['개인정보 수집 이용 동의', adminDetailPayload.privacy_agreed],
+              [getQuoteDetailLabel('via_address', '경유지 주소'), joinQuoteValue([adminDetailPayload.via_address, adminDetailPayload.via_address_detail])],
+              [getQuoteDetailLabel('via_postcode', '경유지 우편번호'), adminDetailPayload.via_postcode],
+              [getQuoteDetailLabel('via_elevator', '경유지 엘레베이터'), adminDetailPayload.via_elevator],
+              [getQuoteDetailLabel('via_pickup_items', '경유지 상차 물품'), adminDetailPayload.via_pickup_items],
+              [getQuoteDetailLabel('via_drop_items', '경유지 하차 물품'), adminDetailPayload.via_drop_items],
+              [getQuoteDetailLabel('request_memo', '추가 메모'), adminDetailPayload.request_memo],
+              [getQuoteDetailLabel('move_scope_notice', '원룸/투룸/소형이사 고지 확인'), adminDetailPayload.move_scope_notice],
+              [getQuoteDetailLabel('kakao_notice_text', '카카오톡 안내 문구'), adminDetailPayload.kakao_notice_text || adminDetailPayload.kakao_notice],
+              [getQuoteDetailLabel('privacy_agreed', '개인정보 수집 이용 동의'), adminDetailPayload.privacy_agreed],
             ].map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>
             {adminDetailPayload.raw_excel_fields && <div className="quote-detail-section quote-detail-section-compact quote-detail-section-full"><h4>엑셀 원본 연동 데이터</h4><dl>{Object.entries(adminDetailPayload.raw_excel_fields).map(([label, value]) => <QuoteDetailRow key={label} label={label} value={value} />)}</dl></div>}
           </div>
