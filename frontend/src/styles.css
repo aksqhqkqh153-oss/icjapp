@@ -30667,3 +30667,61 @@ button.danger {
   .quote-move-guide-image { width: 100%; border-radius: 14px; }
   .quote-submit-bar { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* 2026-04-17 mobile global chrome/content spacing except schedule */
+@media (max-width: 768px) {
+  :root {
+    --app-topbar-height: 40px;
+    --app-bottom-nav-height: 40px;
+  }
+
+  .app-shell:not(.schedule-wide) .topbar.topbar-fixed {
+    min-height: 40px !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .app-shell:not(.schedule-wide) .topbar.topbar-fixed .topbar-left,
+  .app-shell:not(.schedule-wide) .topbar.topbar-fixed .topbar-right,
+  .app-shell:not(.schedule-wide) .topbar.topbar-fixed .page-heading {
+    min-height: 40px !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .app-shell:not(.schedule-wide) .bottom-nav {
+    min-height: 40px !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    padding-top: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-shell:not(.schedule-wide) .bottom-nav-item {
+    min-height: 40px !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    padding: 4px 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-shell:not(.schedule-wide) .page-container:not(.schedule-wide) {
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: 100dvh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-shell:not(.schedule-wide) .page-container:not(.schedule-wide) > * {
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - env(safe-area-inset-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+  }
+}
