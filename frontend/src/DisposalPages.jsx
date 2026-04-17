@@ -3770,7 +3770,7 @@ export function DisposalSettlementsPage() {
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
   const filteredMonthlyRecords = useMemo(() => {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
-    const dateFiltered = monthlyRecords.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementFilterField === 'paymentDate' ? 'paymentDate' : 'disposalDate'))
+    const dateFiltered = monthlyRecords.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, 'disposalDate'))
     const filtered = normalizedQuery
       ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
@@ -3806,11 +3806,6 @@ export function DisposalSettlementsPage() {
 
   function applySettlementSearch() {
     const trimmedQuery = settlementSearchInput.trim()
-    setSettlementFilterField(settlementFilterFieldInput)
-    setSettlementDateFilter(settlementDateFilterInput)
-    setSettlementDateStart(settlementDateFilterInput === 'custom' ? settlementDateStartInput : '')
-    setSettlementDateEnd(settlementDateFilterInput === 'custom' ? settlementDateEndInput : '')
-    setSettlementSortDirection(settlementSortDirectionInput)
     setSettlementSearchQuery(trimmedQuery)
     if (!trimmedQuery) {
       setExpandedKeys({})
@@ -3818,11 +3813,25 @@ export function DisposalSettlementsPage() {
   }
 
   useEffect(() => {
-    if (settlementDateFilterInput !== 'custom') {
-      setSettlementDateStartInput('')
-      setSettlementDateEndInput('')
+    setSettlementDateFilter(settlementDateFilterInput)
+    if (settlementDateFilterInput === 'custom') {
+      setSettlementDateStart(settlementDateStartInput)
+      setSettlementDateEnd(settlementDateEndInput)
+      return
     }
-  }, [settlementDateFilterInput])
+    setSettlementDateStart('')
+    setSettlementDateEnd('')
+    setSettlementDateStartInput('')
+    setSettlementDateEndInput('')
+  }, [settlementDateFilterInput, settlementDateStartInput, settlementDateEndInput])
+
+  useEffect(() => {
+    setSettlementFilterField(settlementFilterFieldInput)
+  }, [settlementFilterFieldInput])
+
+  useEffect(() => {
+    setSettlementSortDirection(settlementSortDirectionInput)
+  }, [settlementSortDirectionInput])
 
   return (
     <div className="stack-page disposal-page">
@@ -3867,14 +3876,8 @@ export function DisposalSettlementsPage() {
         <div className="disposal-sheet-title">월 결산표</div>
         <div className="disposal-settlement-inline-controls">
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable">
-            <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 1차 필터">
-              {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
             <select value={settlementDateFilterInput} onChange={e => setSettlementDateFilterInput(e.target.value)} aria-label="월 결산표 날짜 필터">
               {DATE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            <select value={settlementSortDirectionInput} onChange={e => setSettlementSortDirectionInput(e.target.value)} aria-label="월 결산표 정렬기준 필터">
-              {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             {settlementDateFilterInput === 'custom' ? (
               <div className="disposal-settlement-custom-date-group">
@@ -3888,6 +3891,12 @@ export function DisposalSettlementsPage() {
                 </label>
               </div>
             ) : null}
+            <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 구분 필터">
+              {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <select value={settlementSortDirectionInput} onChange={e => setSettlementSortDirectionInput(e.target.value)} aria-label="월 결산표 정렬기준 필터">
+              {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
             <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="검색창" aria-label="월 결산표 검색" />
