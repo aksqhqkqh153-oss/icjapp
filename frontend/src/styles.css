@@ -31241,3 +31241,36 @@ button.danger {
     box-sizing: border-box !important;
   }
 }
+
+
+/* 2026-04-17 desktop map container full-height between compact top/bottom bars */
+@media (min-width: 769px) {
+  .app-shell.non-schedule-compact-bars .page-container.page-container-map {
+    box-sizing: border-box !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding-top: var(--app-topbar-height) !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container.page-container-map > .stack-page {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    max-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container.page-container-map > .stack-page > .card.map-card.enhanced-map-card {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+  }
+}
