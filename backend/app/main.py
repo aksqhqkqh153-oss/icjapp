@@ -634,6 +634,16 @@ class PasswordVerifyIn(BaseModel):
     password: str
 
 
+class QuoteWorkbookFormulaLabelItemIn(BaseModel):
+    cell_address: str = Field(default='')
+    label_text: str = Field(default='')
+
+
+class QuoteWorkbookFormulaLabelsUpdateIn(BaseModel):
+    sheet_name: str = Field(default='')
+    items: list[QuoteWorkbookFormulaLabelItemIn] = Field(default_factory=list)
+
+
 def _ensure_policy_storage_ready(conn: Any) -> bool:
     try:
         conn.execute(
@@ -5898,6 +5908,54 @@ def _build_quote_estimate_workbook(item: dict, preview: dict) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+
+
+def _normalize_quote_workbook_formula_label_rows(rows: list[Any]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for row in rows or []:
+        item = row_to_dict(row)
+        cell_address = str(item.get('cell_address') or '').strip().upper()
+        if not cell_address:
+            continue
+        result[cell_address] = str(item.get('label_text') or '').strip()
+    return result
+
+
+@app.get('/api/admin/quote-workbook/formula-labels')
+def admin_quote_workbook_formula_labels(sheet_name: str = Query(default='ICJ1'), admin=Depends(require_admin_mode_user)):
+    target_sheet = str(sheet_name or '').strip() or 'ICJ1'
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT sheet_name, cell_address, label_text, updated_at FROM quote_workbook_formula_labels WHERE sheet_name = ? ORDER BY cell_address ASC",
+            (target_sheet,),
+        ).fetchall()
+    return {'sheet_name': target_sheet, 'labels': _normalize_quote_workbook_formula_label_rows(rows)}
+
+
+@app.put('/api/admin/quote-workbook/formula-labels')
+def admin_quote_workbook_formula_labels_update(payload: QuoteWorkbookFormulaLabelsUpdateIn, admin=Depends(require_admin_or_subadmin)):
+    target_sheet = str(payload.sheet_name or '').strip() or 'ICJ1'
+    now = utcnow()
+    cleaned: dict[str, str] = {}
+    for item in payload.items or []:
+        cell_address = str(item.cell_address or '').strip().upper()
+        if not cell_address:
+            continue
+        cleaned[cell_address] = str(item.label_text or '').strip()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM quote_workbook_formula_labels WHERE sheet_name = ?", (target_sheet,))
+        for cell_address, label_text in cleaned.items():
+            conn.execute(
+                "INSERT INTO quote_workbook_formula_labels(sheet_name, cell_address, label_text, updated_by_user_id, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (target_sheet, cell_address, label_text, admin.get('id'), now),
+            )
+        rows = conn.execute(
+            "SELECT sheet_name, cell_address, label_text, updated_at FROM quote_workbook_formula_labels WHERE sheet_name = ? ORDER BY cell_address ASC",
+            (target_sheet,),
+        ).fetchall()
+    return {'ok': True, 'sheet_name': target_sheet, 'labels': _normalize_quote_workbook_formula_label_rows(rows)}
 
 
 @app.post("/api/quote-forms/submit")

@@ -30406,6 +30406,17 @@ button.danger {
   font-size: 10px;
   color: #6b7280;
 }
+.quote-workbook-formula-address-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.quote-workbook-formula-address-sub {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
 .quote-workbook-formula-input {
   width: 100%;
   min-height: 34px;
@@ -30519,6 +30530,24 @@ button.danger {
 }
 @media (max-width: 768px) {
   .quote-detail-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.quote-workbook-label-edit-panel {
+  margin-top: 10px;
+}
+.quote-workbook-label-edit-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.quote-workbook-label-edit-item input {
+  min-height: 40px;
+}
+@media (max-width: 768px) {
+  .quote-workbook-label-edit-list {
     grid-template-columns: 1fr;
   }
 }

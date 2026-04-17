@@ -2008,6 +2008,17 @@ CREATE TABLE IF NOT EXISTS calendar_event_comments (
     FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+
+CREATE TABLE IF NOT EXISTS quote_workbook_formula_labels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sheet_name TEXT NOT NULL DEFAULT '',
+    cell_address TEXT NOT NULL DEFAULT '',
+    label_text TEXT NOT NULL DEFAULT '',
+    updated_by_user_id INTEGER,
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
 """
         if DB_ENGINE == 'postgresql':
             extra_schema_sql = extra_schema_sql.replace(
@@ -2426,6 +2437,7 @@ CREATE TABLE IF NOT EXISTS material_inventory_daily (
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
         _ensure_unique_index(conn, 'material_inventory_daily', 'uq_material_inventory_daily_date_product', ['inventory_date', 'product_id'])
+        _ensure_unique_index(conn, 'quote_workbook_formula_labels', 'idx_quote_formula_labels_sheet_cell', ['sheet_name', 'cell_address'])
         for _platform_name in ('숨고', '오늘', '공홈'):
             conn.execute("INSERT OR IGNORE INTO settlement_platform_metrics(platform, metric_key, metric_value, detail_json, sync_status, sync_message, updated_at) VALUES (?, 'platform_send_count', 0, '[]', 'idle', '', ?)", (_platform_name, utcnow()))
         seed_imported_accounts(conn)

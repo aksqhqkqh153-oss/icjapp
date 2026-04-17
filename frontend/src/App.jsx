@@ -11438,7 +11438,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
       {message && <div className="success-banner">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      {pageTab === 'form' && !guestMode && <QuoteWorkbookTemplateViewer />}
+      {pageTab === 'form' && !guestMode && <QuoteWorkbookTemplateViewer user={user} />}
 
       {((pageTab === 'request' || pageTab === 'form') || guestMode) && <>
         {guestMode && !guestIntroCompleted && !submittedSummary && (
@@ -11804,7 +11804,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
 
 
-function QuoteWorkbookTemplateViewer() {
+function QuoteWorkbookTemplateViewer({ user }) {
   const formulaStorageKey = 'icj_quote_workbook_formula_overrides_v1'
   const workbookTabs = useMemo(() => buildQuoteWorkbookTabs(QUOTE_WORKBOOK_TEMPLATE), [])
   const initialTabKey = workbookTabs[0]?.key || ''
@@ -11817,6 +11817,13 @@ function QuoteWorkbookTemplateViewer() {
       return {}
     }
   })
+  const [formulaSettingsOpen, setFormulaSettingsOpen] = useState(false)
+  const [formulaLabelEditorOpen, setFormulaLabelEditorOpen] = useState(false)
+  const [formulaLabelSaving, setFormulaLabelSaving] = useState(false)
+  const [formulaLabelLoading, setFormulaLabelLoading] = useState(false)
+  const [formulaLabelMap, setFormulaLabelMap] = useState({})
+  const [formulaLabelDrafts, setFormulaLabelDrafts] = useState({})
+  const canManageFormulaLabels = Number(user?.grade || 9) <= 2
   const activeTab = useMemo(() => workbookTabs.find(tab => tab.key === activeTabKey) || workbookTabs[0], [activeTabKey, workbookTabs])
 
   useEffect(() => {
@@ -11833,6 +11840,66 @@ function QuoteWorkbookTemplateViewer() {
     }
   }, [formulaOverrides])
 
+  useEffect(() => {
+    setFormulaSettingsOpen(false)
+    setFormulaLabelEditorOpen(false)
+  }, [activeTabKey])
+
+  useEffect(() => {
+    if (!canManageFormulaLabels || activeTab?.type !== 'formula' || !activeTab?.sourceSheetName) return
+    let cancelled = false
+    async function loadFormulaLabels() {
+      setFormulaLabelLoading(true)
+      try {
+        const params = new URLSearchParams({ sheet_name: activeTab.sourceSheetName })
+        const result = await api(`/api/admin/quote-workbook/formula-labels?${params.toString()}`, { cache: 'no-store' })
+        if (cancelled) return
+        const labels = result?.labels && typeof result.labels === 'object' ? result.labels : {}
+        setFormulaLabelMap(prev => ({ ...prev, [activeTab.sourceSheetName]: labels }))
+      } catch (_) {
+        if (!cancelled) setFormulaLabelMap(prev => ({ ...prev, [activeTab.sourceSheetName]: {} }))
+      } finally {
+        if (!cancelled) setFormulaLabelLoading(false)
+      }
+    }
+    loadFormulaLabels()
+    return () => { cancelled = true }
+  }, [activeTab?.key, activeTab?.type, activeTab?.sourceSheetName, canManageFormulaLabels])
+
+  function openFormulaLabelEditor() {
+    if (!canManageFormulaLabels || activeTab?.type !== 'formula') return
+    const currentLabels = formulaLabelMap?.[activeTab.sourceSheetName] || {}
+    const nextDrafts = {}
+    ;(activeTab.formulaEntries || []).forEach(entry => {
+      nextDrafts[entry.cellAddress] = currentLabels?.[entry.cellAddress] || ''
+    })
+    setFormulaLabelDrafts(nextDrafts)
+    setFormulaSettingsOpen(false)
+    setFormulaLabelEditorOpen(true)
+  }
+
+  async function saveFormulaLabels() {
+    if (!canManageFormulaLabels || activeTab?.type !== 'formula') return
+    setFormulaLabelSaving(true)
+    try {
+      const items = (activeTab.formulaEntries || []).map(entry => ({
+        cell_address: entry.cellAddress,
+        label_text: String(formulaLabelDrafts?.[entry.cellAddress] || '').trim(),
+      }))
+      const result = await api('/api/admin/quote-workbook/formula-labels', {
+        method: 'PUT',
+        body: JSON.stringify({ sheet_name: activeTab.sourceSheetName, items }),
+      })
+      const labels = result?.labels && typeof result.labels === 'object' ? result.labels : {}
+      setFormulaLabelMap(prev => ({ ...prev, [activeTab.sourceSheetName]: labels }))
+      setFormulaLabelEditorOpen(false)
+    } catch (err) {
+      window.alert(err.message || '항목편집 저장에 실패했습니다.')
+    } finally {
+      setFormulaLabelSaving(false)
+    }
+  }
+
   if (!activeTab) return null
 
   return <section className="card quote-workbook-viewer-card">
@@ -11841,21 +11908,56 @@ function QuoteWorkbookTemplateViewer() {
         <div className="quote-workbook-viewer-title">견적양식 시트 관리</div>
         <div className="quote-workbook-viewer-caption">양식 보기 / 데이터 입력 / 수식 입력 화면을 분리했습니다.</div>
       </div>
+      {canManageFormulaLabels && activeTab.type === 'formula' && <div className="quote-detail-settings-wrap">
+        <button type="button" className="small ghost" onClick={() => setFormulaSettingsOpen(prev => !prev)}>설정</button>
+        {formulaSettingsOpen && <div className="quote-detail-settings-popover">
+          <button type="button" className="quote-detail-settings-item" onClick={openFormulaLabelEditor}>항목편집</button>
+        </div>}
+      </div>}
     </div>
     <div className="quote-workbook-tabs" role="tablist" aria-label="견적양식 시트 탭">
       {workbookTabs.map(tab => <button key={tab.key} type="button" className={tab.key === activeTab.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveTabKey(tab.key)}>{tab.label}</button>)}
     </div>
     {activeTab.type === 'formula'
-      ? <QuoteWorkbookFormulaEditor tab={activeTab} overrides={formulaOverrides} onChange={(sheetName, cellAddress, value) => {
-        setFormulaOverrides(prev => ({
-          ...prev,
-          [sheetName]: {
-            ...(prev[sheetName] || {}),
-            [cellAddress]: value,
-          },
-        }))
-      }} />
+      ? <QuoteWorkbookFormulaEditor
+          tab={activeTab}
+          overrides={formulaOverrides}
+          onChange={(sheetName, cellAddress, value) => {
+            setFormulaOverrides(prev => ({
+              ...prev,
+              [sheetName]: {
+                ...(prev[sheetName] || {}),
+                [cellAddress]: value,
+              },
+            }))
+          }}
+          labelMap={canManageFormulaLabels ? (formulaLabelMap?.[activeTab.sourceSheetName] || {}) : {}}
+          showCustomLabels={canManageFormulaLabels}
+        />
       : <QuoteWorkbookSheetTable sheet={activeTab.sheet} compact={activeTab.type !== 'view'} />}
+    {canManageFormulaLabels && formulaLabelEditorOpen && activeTab.type === 'formula' && <div className="quote-detail-edit-panel quote-workbook-label-edit-panel">
+      <div className="quote-detail-edit-header">
+        <div>
+          <strong>항목편집</strong>
+          <div className="muted tiny-text">{activeTab.sourceSheetName} 수식 항목의 표시명을 관리자 / 부관리자 화면에서만 변경합니다.</div>
+        </div>
+        <div className="muted tiny-text">{formulaLabelLoading ? '불러오는 중...' : `${activeTab.formulaEntries.length}개 항목`}</div>
+      </div>
+      <div className="quote-workbook-label-edit-list">
+        {activeTab.formulaEntries.map(entry => <label key={`label-${entry.id}`} className="quote-detail-edit-field quote-workbook-label-edit-item">
+          <span>{entry.cellAddress}</span>
+          <input
+            value={formulaLabelDrafts?.[entry.cellAddress] ?? ''}
+            onChange={event => setFormulaLabelDrafts(prev => ({ ...prev, [entry.cellAddress]: event.target.value }))}
+            placeholder={entry.cellAddress}
+          />
+        </label>)}
+      </div>
+      <div className="quote-detail-edit-actions">
+        <button type="button" className="small ghost" onClick={() => setFormulaLabelEditorOpen(false)} disabled={formulaLabelSaving}>닫기</button>
+        <button type="button" className="small" onClick={saveFormulaLabels} disabled={formulaLabelSaving}>{formulaLabelSaving ? '저장 중...' : '저장'}</button>
+      </div>
+    </div>}
   </section>
 }
 
@@ -12002,16 +12104,20 @@ function quoteWorkbookColumnNumberToName(columnNumber) {
   return label
 }
 
-function QuoteWorkbookFormulaEditor({ tab, overrides, onChange }) {
+function QuoteWorkbookFormulaEditor({ tab, overrides, onChange, labelMap = {}, showCustomLabels = false }) {
   const currentOverrides = overrides?.[tab.sourceSheetName] || {}
   return <div className="quote-workbook-formula-panel">
     <div className="quote-workbook-formula-caption">{tab.sourceSheetName}의 H열 ~ AL열 수식을 분리한 관리 화면입니다.</div>
     <div className="quote-workbook-formula-list">
       {tab.formulaEntries.map(entry => {
         const currentValue = currentOverrides[entry.cellAddress] ?? entry.formula
+        const customLabel = String(labelMap?.[entry.cellAddress] || '').trim()
         return <label key={entry.id} className="quote-workbook-formula-item">
           <div className="quote-workbook-formula-meta">
-            <span className="quote-workbook-formula-address">{entry.cellAddress}</span>
+            <div className="quote-workbook-formula-address-stack">
+              <span className="quote-workbook-formula-address">{showCustomLabels && customLabel ? customLabel : entry.cellAddress}</span>
+              {showCustomLabels && customLabel ? <span className="quote-workbook-formula-address-sub">{entry.cellAddress}</span> : null}
+            </div>
             <span className="quote-workbook-formula-value">현재값: {formatQuoteWorkbookCellValue(entry.value, entry.numberFormat) || '-'}</span>
           </div>
           <input
