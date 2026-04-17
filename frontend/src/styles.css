@@ -31110,3 +31110,67 @@ button.danger {
     height: 30px;
   }
 }
+
+
+/* 2026-04-17 quote detail admin usability refinements */
+.quote-detail-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.quote-detail-header-actions .small.ghost,
+.quote-detail-settings-wrap > .small.ghost {
+  min-width: 78px;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex: 0 0 auto;
+}
+
+.quote-back-icon-button {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quote-back-icon-button:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+}
+
+.quote-detail-header-bar h3 {
+  white-space: nowrap;
+}
+
+.quote-detail-section.quote-detail-section-compact h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .quote-detail-header-actions .small.ghost,
+  .quote-detail-settings-wrap > .small.ghost {
+    min-width: 68px;
+  }
+
+  .quote-back-icon-button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    font-size: 22px;
+  }
+}

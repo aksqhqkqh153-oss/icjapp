@@ -10955,6 +10955,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [adminItems, setAdminItems] = useState([])
+  const [importedEditedItems, setImportedEditedItems] = useState([])
   const [detailItem, setDetailItem] = useState(null)
   const [isQuoteDetailView, setIsQuoteDetailView] = useState(false)
   const [operationsPreview, setOperationsPreview] = useState(null)
@@ -11027,14 +11028,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
   const mergedAdminItems = useMemo(() => {
     const seen = new Set()
     const merged = []
-    for (const item of [...importedAdminItems, ...adminItems]) {
+    for (const item of [...importedEditedItems, ...adminItems, ...importedAdminItems]) {
       const key = String(item?.id || `${item?.created_at || ''}-${item?.requester_name || ''}-${item?.contact_phone || ''}`)
       if (seen.has(key)) continue
       seen.add(key)
       merged.push(item)
     }
     return merged
-  }, [importedAdminItems, adminItems])
+  }, [importedEditedItems, importedAdminItems, adminItems])
   const listPageSize = 10
   const [currentListPage, setCurrentListPage] = useState(1)
   const paginationScrollRef = useRef(null)
@@ -11360,7 +11361,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
   }
 
   async function saveQuoteDetailEdits() {
-    if (!detailItem?.id || detailItem?.imported) return
+    if (!detailItem?.id) return
     setDetailEditSaving(true)
     setError('')
     setMessage('')
@@ -11406,13 +11407,26 @@ function QuoteFormsPage({ user, guestMode = false }) {
         kakao_notice: /확인|동의|yes|true|1/i.test(String(detailEditForm.kakao_notice_text || '').trim()),
         privacy_agreed: /확인|동의|yes|true|1/i.test(String(detailEditForm.privacy_agreed || '').trim()),
       }
-      const result = await api(`/api/admin/quote-forms/${detailItem.id}/payload`, {
-        method: 'PUT',
-        body: JSON.stringify({ payload: nextPayload }),
-      })
-      if (result?.item) {
-        setDetailItem(result.item)
-        setAdminItems(prev => prev.map(item => item.id === result.item.id ? result.item : item))
+      if (detailItem?.imported) {
+        const editedImportedItem = {
+          ...detailItem,
+          payload: nextPayload,
+          requester_name: String(detailEditForm.customer_name || '').trim() || detailItem.requester_name,
+          contact_phone: String(detailEditForm.contact_phone || '').trim() || detailItem.contact_phone,
+          summary_title: detailItem.summary_title || `${detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'} · ${String(detailEditForm.customer_name || '').trim() || detailItem.requester_name || '고객'}`,
+          imported: true,
+        }
+        setDetailItem(editedImportedItem)
+        setImportedEditedItems(prev => [editedImportedItem, ...prev.filter(item => String(item.id) !== String(editedImportedItem.id))])
+      } else {
+        const result = await api(`/api/admin/quote-forms/${detailItem.id}/payload`, {
+          method: 'PUT',
+          body: JSON.stringify({ payload: nextPayload }),
+        })
+        if (result?.item) {
+          setDetailItem(result.item)
+          setAdminItems(prev => prev.map(item => item.id === result.item.id ? result.item : item))
+        }
       }
       setDetailEditOpen(false)
       setMessage('견적상세 항목이 저장되었습니다.')
@@ -11775,14 +11789,14 @@ function QuoteFormsPage({ user, guestMode = false }) {
 
       {pageTab === 'detail' && isAdminUser && isQuoteDetailView && <section className="card quote-admin-detail-screen quote-admin-detail-card">
         <div className="quote-detail-header-bar">
-          <button type="button" className="quote-back-button quote-back-icon-button" onClick={closeQuoteDetailView} aria-label="뒤로가기">←</button>
-          <h3>견적상세</h3>
+          <button type="button" className="quote-back-button quote-back-icon-button" onClick={closeQuoteDetailView} aria-label="뒤로가기">‹</button>
+          <h3>{detailItem ? `견적상세 ${detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}` : '견적상세'}</h3>
           <div className="quote-detail-header-actions">
             <button type="button" className="small ghost" onClick={() => downloadEstimateExcel()}>견적추출</button>
             {isAdminUser && <div className="quote-detail-settings-wrap">
               <button type="button" className="small ghost" onClick={() => setDetailSettingsOpen(prev => !prev)}>설정</button>
               {detailSettingsOpen && <div className="quote-detail-settings-popover">
-                <button type="button" className="quote-detail-settings-item" onClick={openQuoteDetailEditor} disabled={!!detailItem?.imported}>항목편집</button>
+                <button type="button" className="quote-detail-settings-item" onClick={openQuoteDetailEditor}>항목편집</button>
               </div>}
             </div>}
           </div>
@@ -11817,11 +11831,11 @@ function QuoteFormsPage({ user, guestMode = false }) {
               <button type="button" className="ghost small" onClick={() => setDetailEditOpen(false)} disabled={detailEditSaving}>취소</button>
               <button type="button" className="small" onClick={saveQuoteDetailEdits} disabled={detailEditSaving}>{detailEditSaving ? '저장 중...' : '저장'}</button>
             </div>
-            {detailItem?.imported && <div className="muted tiny-text">엑셀 연동 샘플 데이터는 직접 저장 편집이 불가합니다.</div>}
+            {detailItem?.imported && <div className="muted tiny-text">엑셀 연동 샘플 데이터도 현재 화면에서 수정 내용을 반영해 확인할 수 있습니다.</div>}
           </div>}
-          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div><div className="quote-detail-meta">접수유형: {detailItem.form_type === 'storage' ? '짐보관이사' : '당일이사'}</div><div className="quote-detail-meta">접수일: {String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)}</div></div></div>
+          <div className="quote-detail-hero quote-detail-hero-compact"><div><div className="quote-detail-title">{detailItem.summary_title || '-'}</div></div></div>
           <div className="quote-detail-grid quote-detail-grid-compact">
-            <div className="quote-detail-section quote-detail-section-compact"><h4>기본 정보</h4><dl>{[
+            <div className="quote-detail-section quote-detail-section-compact"><h4>{`기본 정보 ${detailItem?.created_at ? `(접수일: ${String(detailItem.created_at || '').replace('T', ' ').slice(0, 16)})` : ''}`}</h4><dl>{[
               ['고객 성함', adminDetailPayload.customer_name],
               ['연락처', adminDetailPayload.contact_phone || detailItem.contact_phone],
               [currentDesiredLabel, formatQuoteDesiredDate(detailItem)],
