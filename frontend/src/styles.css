@@ -31274,3 +31274,88 @@ button.danger {
     max-height: 100% !important;
   }
 }
+
+/* 2026-04-17 quote screens desktop viewport fit */
+@media (min-width: 769px) {
+  .page-container.page-container-quotes {
+    padding-top: calc(var(--app-topbar-height) + 8px) !important;
+    padding-bottom: calc(var(--app-bottom-nav-height) + 8px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow: hidden !important;
+  }
+
+  .page-container.page-container-quotes > .quotes-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 16px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 16px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 16px - env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+  }
+
+  .quotes-page > .quote-form-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .quotes-page .quote-page-tabs-card,
+  .quotes-page .success-banner,
+  .quotes-page .error-banner,
+  .quotes-page .quote-move-guide-image-wrap,
+  .quotes-page .quote-step-card,
+  .quotes-page .quote-form-title-block {
+    flex: 0 0 auto;
+  }
+
+  .quotes-page .quote-mode-select-card,
+  .quotes-page .quote-guest-intro-card,
+  .quotes-page form.quote-form-body,
+  .quotes-page .quote-admin-list-card,
+  .quotes-page .quote-admin-detail-screen,
+  .quotes-page .quote-workbook-viewer-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .quotes-page .quote-admin-detail-screen,
+  .quotes-page .quote-workbook-viewer-card,
+  .quotes-page .quote-admin-list-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quotes-page .quote-admin-detail-body-compact,
+  .quotes-page .quote-workbook-grouped-panel,
+  .quotes-page .quote-workbook-formula-list,
+  .quotes-page .quote-list-table-wrapper {
+    min-height: 0;
+  }
+
+  .quotes-page .quote-admin-detail-body-compact,
+  .quotes-page .quote-workbook-grouped-panel {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .quotes-page .quote-list-table-wrapper {
+    flex: 1 1 auto;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .quotes-page .quote-pagination {
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    padding-bottom: 8px;
+  }
+}
