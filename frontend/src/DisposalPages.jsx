@@ -170,10 +170,11 @@ function normalizeDraftItemsForSave(draftItems = [], existingRecord = null) {
     const normalizedItem = { ...createEmptyItem(), ...(item || {}) }
     const previousItem = existingRecord?.items?.[index] || null
     const isNewlyFilledItem = hasMeaningfulItemContent(normalizedItem) && !hasMeaningfulItemContent(previousItem)
+    const hasReportNumber = !!String(normalizedItem?.reportNo || '').trim()
     return {
       ...normalizedItem,
       paymentDone: isNewlyFilledItem ? false : !!normalizedItem.paymentDone,
-      reportDone: isNewlyFilledItem ? false : !!normalizedItem.reportDone,
+      reportDone: hasReportNumber ? true : (isNewlyFilledItem ? false : !!normalizedItem.reportDone),
       paymentSettledAt: isNewlyFilledItem ? '' : String(normalizedItem.paymentSettledAt || ''),
     }
   })
@@ -294,7 +295,9 @@ function normalizeRecordShape(record) {
       ...createEmptyItem(),
       ...sourceItem,
       paymentDone: typeof sourceItem?.paymentDone === 'boolean' ? sourceItem.paymentDone : defaultPaid,
-      reportDone: typeof sourceItem?.reportDone === 'boolean' ? sourceItem.reportDone : defaultReported,
+      reportDone: String(sourceItem?.reportNo || '').trim()
+        ? true
+        : (typeof sourceItem?.reportDone === 'boolean' ? sourceItem.reportDone : defaultReported),
       paymentSettledAt: String(sourceItem?.paymentSettledAt || ''),
     }
   })
