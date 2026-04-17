@@ -11370,7 +11370,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
           </section>
         )}
 
-        {!submittedSummary && (pageTab === 'form' || guestMode) && (!!mode) && <>
+        {!submittedSummary && (pageTab === 'request' || guestMode) && (!!mode) && <>
         {guestMode && (
           <div className="quote-step-card stage-three">
             <div className="quote-step-header centered quote-step-header-boxed">
