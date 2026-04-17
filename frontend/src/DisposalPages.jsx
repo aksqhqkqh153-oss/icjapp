@@ -3374,11 +3374,31 @@ function formatMonthLabel(monthKey) {
 }
 
 function getSettlementMonthSource(record) {
+  const eligibleItems = getSettlementEligibleItems(record)
+  const eligibleTimes = eligibleItems
+    .map(item => getDateValueParts(item?.paymentSettledAt)?.date?.getTime?.())
+    .filter(value => Number.isFinite(value))
+
+  if (eligibleTimes.length) {
+    return new Date(Math.min(...eligibleTimes)).toISOString()
+  }
+
   return record?.settlementTransferredAt || record?.savedAt || record?.disposalDate || new Date().toISOString()
 }
 
+function buildMonthFilteredSettlementRecord(record, monthKey) {
+  const matchedItems = getSettlementEligibleItems(record).filter(item => getMonthKey(item?.paymentSettledAt) === monthKey)
+  if (!matchedItems.length) return null
+  return {
+    ...record,
+    items: matchedItems.map(item => ({ ...item })),
+  }
+}
+
 function filterRecordsByMonth(records, monthKey) {
-  return (records || []).filter(record => getMonthKey(getSettlementMonthSource(record)) === monthKey)
+  return (records || [])
+    .map(record => buildMonthFilteredSettlementRecord(record, monthKey))
+    .filter(Boolean)
 }
 
 function buildDailySettlementSummary(groups = []) {
@@ -3452,7 +3472,7 @@ function buildSettlementSalesSheet(monthLabel, monthlyRecords) {
     ['최소수수료', `${formatNumber(totals.totalMinimum)}원`, '평균신고액', totals.count ? `${formatNumber(Math.round(totals.totalReport / totals.count))}원` : '0원', '평균수수료', totals.count ? `${formatNumber(Math.round(totals.totalFee / totals.count))}원` : '0원'],
     ['최고신고액', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).reportAmount)))}원`, '최고수수료', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).feeAmount)))}원`, '최고최소수수료', `${formatNumber(Math.max(0, ...monthlyRecords.map(record => getRecordSettlementMetrics(record).minimumFee)))}원`],
     ['일평균 건수', formatNumber(groupMonthlyRecordCount(monthlyRecords).dailyAverage), '일평균 품목수', formatNumber(groupMonthlyRecordCount(monthlyRecords).qtyAverage), '일평균 최소수수료', `${formatNumber(groupMonthlyRecordCount(monthlyRecords).minimumAverage)}원`],
-    ['집계대상', '결산일 기준', '목록정렬', '최신 저장순', '표시방식', '날짜별 그룹'],
+    ['집계대상', '입금일자 기준', '목록정렬', '최신 저장순', '표시방식', '날짜별 그룹'],
     ['안내', '아래 목록에서 항목 클릭 시 상세 입력 화면으로 이동', '', '', '', ''],
   ]
 }
