@@ -155,6 +155,30 @@ function createEmptyItem() {
   return { itemName: '', quantity: '', unitCost: '', reportNo: '', note: '', paymentDone: false, reportDone: false, paymentSettledAt: '' }
 }
 
+function hasMeaningfulItemContent(item) {
+  return !!(
+    String(item?.itemName || '').trim() ||
+    String(item?.quantity || '').trim() ||
+    String(item?.unitCost || '').trim() ||
+    String(item?.reportNo || '').trim() ||
+    String(item?.note || '').trim()
+  )
+}
+
+function normalizeDraftItemsForSave(draftItems = [], existingRecord = null) {
+  return (draftItems || []).slice(0, ITEM_ROW_COUNT).map((item, index) => {
+    const normalizedItem = { ...createEmptyItem(), ...(item || {}) }
+    const previousItem = existingRecord?.items?.[index] || null
+    const isNewlyFilledItem = hasMeaningfulItemContent(normalizedItem) && !hasMeaningfulItemContent(previousItem)
+    return {
+      ...normalizedItem,
+      paymentDone: isNewlyFilledItem ? false : !!normalizedItem.paymentDone,
+      reportDone: isNewlyFilledItem ? false : !!normalizedItem.reportDone,
+      paymentSettledAt: isNewlyFilledItem ? '' : String(normalizedItem.paymentSettledAt || ''),
+    }
+  })
+}
+
 function createInitialDraft() {
   return {
     disposalDate: '',
@@ -477,24 +501,30 @@ function buildRenderedTemplate(draft) {
   }
 }
 
-function makeRecordFromDraft(draft, totals, existingId = '') {
+function makeRecordFromDraft(draft, totals, existingId = '', options = {}) {
+  const { existingRecord = null } = options || {}
   const normalizedTotals = {
     totalQty: safeNumber(totals?.totalQty),
     totalUnitCost: safeNumber(totals?.totalUnitCost),
     totalReport: safeNumber(totals?.totalReport),
     totalFinal: safeNumber(totals?.totalFinal),
   }
+  const normalizedItems = normalizeDraftItemsForSave(draft?.items || [], existingRecord)
+  const filledItems = normalizedItems.filter(item => hasMeaningfulItemContent(item))
+  const paymentDone = filledItems.length > 0 && filledItems.every(item => !!item?.paymentDone)
+  const reportDone = filledItems.length > 0 && filledItems.every(item => !!item?.reportDone)
+  const hasEligibleSettlementItems = filledItems.some(item => !!item?.paymentDone && String(item?.paymentSettledAt || '').trim())
   return normalizeRecordShape({
     id: existingId || `disposal-${Date.now()}`,
     savedAt: new Date().toISOString(),
     disposalDate: draft.disposalDate,
     location: draft.location,
     district: draft.district,
-    finalStatus: draft.finalStatus,
+    finalStatus: composeFinalStatus(paymentDone, reportDone),
     platform: draft.platform,
     customerName: draft.customerName,
-    items: (draft.items || []).slice(0, ITEM_ROW_COUNT),
-    settlementTransferredAt: '',
+    items: normalizedItems,
+    settlementTransferredAt: existingRecord?.settlementTransferredAt && hasEligibleSettlementItems ? String(existingRecord.settlementTransferredAt) : '',
     totals: normalizedTotals,
   })
 }
@@ -2423,7 +2453,8 @@ useEffect(() => {
     const current = loadRecords()
     const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
     const matchedRecord = effectiveRecordId ? null : findMatchingRecord(current, draft)
-    const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '')
+    const existingRecord = current.find(record => record.id === (effectiveRecordId || matchedRecord?.id || '')) || matchedRecord || null
+    const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '', { existingRecord })
     const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
     saveRecords(next)
     setLoadedRecordId(nextRecord.id)
