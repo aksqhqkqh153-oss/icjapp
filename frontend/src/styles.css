@@ -30945,3 +30945,168 @@ button.danger {
     height: 32px;
   }
 }
+
+/* 2026-04-17 desktop work-schedule-wide content fill between compact bars */
+@media (min-width: 769px) {
+  .app-shell.non-schedule-compact-bars .page-container.work-schedule-wide {
+    height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    min-height: calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height)) !important;
+    padding-top: 0 !important;
+    padding-bottom: var(--app-bottom-nav-height) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-shell.non-schedule-compact-bars .page-container.work-schedule-wide > .stack-page.work-schedule-page,
+  .app-shell.non-schedule-compact-bars .page-container.work-schedule-wide > .work-schedule-page {
+    flex: 1 1 auto !important;
+    min-height: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box !important;
+  }
+}
+
+
+/* 2026-04-17 quote list descending order + 10-row fit + centered pagination */
+.quote-admin-list-card {
+  min-height: 0;
+}
+
+.quotes-page .quote-admin-list-card {
+  overflow: hidden;
+}
+
+.quotes-page .quote-list-table-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.quote-list-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.quote-list-table thead th {
+  height: 28px;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.quote-list-table tbody td {
+  height: 26px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.quote-list-table tbody tr {
+  height: 26px !important;
+}
+
+.quote-list-table .quote-menu-button {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.quote-pagination {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0 4px;
+}
+
+.quote-pagination-numbers {
+  display: flex;
+  align-items: center;
+  justify-content: center !important;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+.quote-page-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+}
+
+@media (min-width: 769px) {
+  .quotes-page .quote-admin-layout,
+  .quotes-page .quote-admin-list-card {
+    min-height: 0;
+  }
+
+  .quote-admin-list-card .quote-list-toolbar {
+    flex: 0 0 auto;
+    min-height: 36px;
+  }
+
+  .quotes-page .quote-list-table-wrapper {
+    display: block;
+  }
+
+  .quote-list-table thead th {
+    height: 28px;
+  }
+
+  .quote-list-table tbody td,
+  .quote-list-table tbody tr {
+    height: 24px !important;
+  }
+
+  .quote-list-table tbody td {
+    padding-top: 1px;
+    padding-bottom: 1px;
+    font-size: 10.5px;
+  }
+}
+
+@media (max-width: 768px) {
+  .quote-list-table thead th {
+    height: 26px;
+    font-size: 10px;
+  }
+
+  .quote-list-table tbody td,
+  .quote-list-table tbody tr {
+    height: 24px !important;
+  }
+
+  .quote-list-table tbody td {
+    padding: 1px 4px;
+    font-size: 10px;
+  }
+
+  .quote-pagination {
+    gap: 6px;
+  }
+
+  .quote-page-number {
+    min-width: 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .quote-page-nav {
+    min-width: 48px;
+    height: 30px;
+  }
+}

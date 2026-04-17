@@ -11492,10 +11492,15 @@ function QuoteFormsPage({ user, guestMode = false }) {
       if (Number.isNaN(bTime)) return 1
       return aTime - bTime
     })
-  const totalListPages = Math.max(1, Math.ceil(filteredAdminItems.length / listPageSize))
+    .map((item, index) => ({
+      ...item,
+      displayNumber: index + 1,
+    }))
+  const descendingAdminItems = [...filteredAdminItems].reverse()
+  const totalListPages = Math.max(1, Math.ceil(descendingAdminItems.length / listPageSize))
   const safeCurrentListPage = Math.min(currentListPage, totalListPages)
-  const pagedAdminItems = filteredAdminItems.slice((safeCurrentListPage - 1) * listPageSize, safeCurrentListPage * listPageSize)
-  const allSelected = filteredAdminItems.length > 0 && filteredAdminItems.every(item => selectedIds.includes(item.id))
+  const pagedAdminItems = descendingAdminItems.slice((safeCurrentListPage - 1) * listPageSize, safeCurrentListPage * listPageSize)
+  const allSelected = descendingAdminItems.length > 0 && descendingAdminItems.every(item => selectedIds.includes(item.id))
   const paginationStart = Math.max(1, safeCurrentListPage - 5)
   const paginationEnd = Math.min(totalListPages, safeCurrentListPage + 5)
   const paginationPages = Array.from({ length: paginationEnd - paginationStart + 1 }, (_, index) => paginationStart + index)
@@ -11741,7 +11746,7 @@ function QuoteFormsPage({ user, guestMode = false }) {
                   const payload = item.payload || {}
                   const isFavorite = favoriteIds.includes(item.id)
                   const isChecked = selectedIds.includes(item.id)
-                  const rowNumber = (safeCurrentListPage - 1) * listPageSize + index + 1
+                  const rowNumber = item.displayNumber
                   return <tr key={item.id} className={detailItem?.id === item.id ? 'active' : ''} onClick={() => openDetail(item.id)}>
                     <td className="quote-row-number">{rowNumber}</td>
                     <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={isChecked} onChange={() => toggleSelected(item.id)} /></td>
