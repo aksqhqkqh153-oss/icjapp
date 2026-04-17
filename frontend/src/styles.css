@@ -30025,6 +30025,20 @@ button.danger {
   color: #fff;
   border-color: #111827;
 }
+.quote-workbook-grouped-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.quote-workbook-subtabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.quote-workbook-subtabs-second {
+  margin-top: -2px;
+}
 .quote-workbook-sheet-scroll {
   overflow: auto;
   border: 1px solid #e5e7eb;

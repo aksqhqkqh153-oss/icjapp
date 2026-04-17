@@ -11934,7 +11934,9 @@ function QuoteWorkbookTemplateViewer({ user }) {
           labelMap={canManageFormulaLabels ? (formulaLabelMap?.[activeTab.sourceSheetName] || {}) : {}}
           showCustomLabels={canManageFormulaLabels}
         />
-      : <QuoteWorkbookSheetTable sheet={activeTab.sheet} compact={activeTab.type !== 'view'} />}
+      : activeTab.type === 'grouped-view'
+        ? <QuoteWorkbookGroupedView tab={activeTab} />
+        : <QuoteWorkbookSheetTable sheet={activeTab.sheet} compact={activeTab.type !== 'view'} />}
     {canManageFormulaLabels && formulaLabelEditorOpen && activeTab.type === 'formula' && <div className="quote-detail-edit-panel quote-workbook-label-edit-panel">
       <div className="quote-detail-edit-header">
         <div>
@@ -11963,7 +11965,6 @@ function QuoteWorkbookTemplateViewer({ user }) {
 
 function buildQuoteWorkbookTabs(template) {
   const sheetMap = new Map((template?.sheets || []).map(sheet => [sheet.name, sheet]))
-  const linkedViewNames = ['통합 견적 (1)', '짐보관 견적']
   const inputSpecs = [
     ['ICJ1', 69, 3],
   ]
@@ -11976,11 +11977,56 @@ function buildQuoteWorkbookTabs(template) {
     const sheet = sheetMap.get(name)
     if (sheet) tabs.push({ key: `formula-${name}`, label: `${name}수식`, type: 'formula', formulaEntries: extractQuoteWorkbookFormulaEntries(sheet, 8, 38), sourceSheetName: name })
   })
-  linkedViewNames.forEach(name => {
-    const sheet = sheetMap.get(name)
-    if (sheet) tabs.push({ key: `view-${name}`, label: name, type: 'view', sheet })
-  })
+
+  const quoteSheet = sheetMap.get('통합 견적 (1)')
+  if (quoteSheet) tabs.push(buildGroupedQuoteWorkbookViewTab(quoteSheet))
+
+  const storageSheet = sheetMap.get('짐보관 견적')
+  if (storageSheet) tabs.push({ key: `view-${storageSheet.name}`, label: storageSheet.name, type: 'view', sheet: storageSheet })
+
   return tabs
+}
+
+function buildGroupedQuoteWorkbookViewTab(sheet) {
+  return {
+    key: `grouped-${sheet.name}`,
+    label: sheet.name,
+    type: 'grouped-view',
+    sheetName: sheet.name,
+    groups: [
+      {
+        key: 'general',
+        label: '일반이사',
+        views: [
+          { key: 'general-truck1', label: '1T 차 1대', sheet: sliceQuoteWorkbookSheet(sheet, 2, 35, 1, 4) },
+          { key: 'general-floor', label: '1T 층간이사', sheet: sliceQuoteWorkbookSheet(sheet, 40, 72, 1, 4) },
+          { key: 'general-delivery', label: '1T 일반용달', sheet: sliceQuoteWorkbookSheet(sheet, 79, 109, 1, 4) },
+          { key: 'general-truck3', label: '1T 차 3대', sheet: sliceQuoteWorkbookSheet(sheet, 115, 147, 1, 4) },
+          { key: 'general-truck4', label: '1T 차 4대', sheet: sliceQuoteWorkbookSheet(sheet, 150, 182, 1, 4) },
+        ],
+      },
+      {
+        key: 'semi',
+        label: '반포장이사',
+        views: [
+          { key: 'semi-truck1', label: '1T 차 1대', sheet: sliceQuoteWorkbookSheet(sheet, 2, 35, 5, 8) },
+          { key: 'semi-floor', label: '1T 층간이사', sheet: sliceQuoteWorkbookSheet(sheet, 40, 72, 5, 8) },
+          { key: 'semi-truck3', label: '1T 차 3대', sheet: sliceQuoteWorkbookSheet(sheet, 115, 147, 5, 8) },
+          { key: 'semi-truck4', label: '1T 차 4대', sheet: sliceQuoteWorkbookSheet(sheet, 150, 182, 5, 8) },
+        ],
+      },
+      {
+        key: 'full',
+        label: '포장이사',
+        views: [
+          { key: 'full-truck1', label: '1T 차 1대', sheet: sliceQuoteWorkbookSheet(sheet, 2, 35, 9, 12) },
+          { key: 'full-floor', label: '1T 층간이사', sheet: sliceQuoteWorkbookSheet(sheet, 40, 72, 9, 12) },
+          { key: 'full-truck3', label: '1T 차 3대', sheet: sliceQuoteWorkbookSheet(sheet, 115, 147, 9, 12) },
+          { key: 'full-truck4', label: '1T 차 4대', sheet: sliceQuoteWorkbookSheet(sheet, 150, 182, 9, 12) },
+        ],
+      },
+    ],
+  }
 }
 
 function buildQuoteWorkbookPlacementMap(sheet) {
@@ -12102,6 +12148,42 @@ function quoteWorkbookColumnNumberToName(columnNumber) {
     dividend = Math.floor((dividend - modulo) / 26)
   }
   return label
+}
+
+function QuoteWorkbookGroupedView({ tab }) {
+  const groups = Array.isArray(tab?.groups) ? tab.groups : []
+  const [activeGroupKey, setActiveGroupKey] = useState(groups[0]?.key || '')
+  const activeGroup = useMemo(() => groups.find(group => group.key === activeGroupKey) || groups[0], [activeGroupKey, groups])
+  const views = activeGroup?.views || []
+  const [activeViewKey, setActiveViewKey] = useState(views[0]?.key || '')
+  const activeView = useMemo(() => views.find(view => view.key === activeViewKey) || views[0], [activeViewKey, views])
+
+  useEffect(() => {
+    if (!activeGroupKey && groups.length) setActiveGroupKey(groups[0].key)
+  }, [activeGroupKey, groups])
+
+  useEffect(() => {
+    const nextViews = activeGroup?.views || []
+    if (!nextViews.length) {
+      setActiveViewKey('')
+      return
+    }
+    if (!nextViews.some(view => view.key === activeViewKey)) {
+      setActiveViewKey(nextViews[0].key)
+    }
+  }, [activeGroup, activeViewKey])
+
+  if (!activeGroup || !activeView) return null
+
+  return <div className="quote-workbook-grouped-panel">
+    <div className="quote-workbook-subtabs" role="tablist" aria-label={`${tab.label} 이사 종류 탭`}>
+      {groups.map(group => <button key={group.key} type="button" className={group.key === activeGroup.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveGroupKey(group.key)}>{group.label}</button>)}
+    </div>
+    <div className="quote-workbook-subtabs quote-workbook-subtabs-second" role="tablist" aria-label={`${activeGroup.label} 작업 방식 탭`}>
+      {views.map(view => <button key={view.key} type="button" className={view.key === activeView.key ? 'quote-workbook-tab active' : 'quote-workbook-tab'} onClick={() => setActiveViewKey(view.key)}>{view.label}</button>)}
+    </div>
+    <QuoteWorkbookSheetTable sheet={activeView.sheet} compact={false} />
+  </div>
 }
 
 function QuoteWorkbookFormulaEditor({ tab, overrides, onChange, labelMap = {}, showCustomLabels = false }) {
