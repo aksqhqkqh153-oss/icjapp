@@ -4,6 +4,7 @@ import difflib
 import json
 import os
 import re
+import traceback
 from pathlib import Path
 from typing import Any, Optional
 
@@ -223,6 +224,32 @@ def _playwright_launch_options(headless: bool) -> dict[str, Any]:
         'headless': headless,
         'args': ['--no-sandbox', '--disable-dev-shm-usage'],
     }
+
+
+def _diagnose_playwright_runtime() -> None:
+    try:
+        sync_playwright = _get_playwright_sync_api()
+    except Exception as exc:
+        raise RuntimeError('Playwright 패키지 로드에 실패했습니다. backend requirements 설치 상태를 확인해 주세요.') from exc
+
+    playwright = sync_playwright().start()
+    browser = None
+    try:
+        browser = playwright.chromium.launch(**_playwright_launch_options(headless=True))
+    except Exception as exc:
+        raise RuntimeError(
+            'Playwright Chromium 실행에 실패했습니다. Railway 배포가 Dockerfile이 아닌 Nixpacks로 배포 중이면 chromium 설치 명령이 누락된 상태일 수 있습니다. Railway 재배포 후 다시 시도해 주세요.'
+        ) from exc
+    finally:
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        try:
+            playwright.stop()
+        except Exception:
+            pass
 
 
 def _playwright_login_page(email: str, password: str, headless: bool = True):
@@ -517,13 +544,17 @@ def scan_auto(authorization: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=403, detail='관리자 / 부관리자만 자동 숨고리뷰 찾기를 실행할 수 있습니다.')
     state = _load_state()
     try:
+        _diagnose_playwright_runtime()
         state = _scan_unanswered_reviews(state, headless=True)
         _save_state(state)
         return state
     except Exception as exc:
-        state['last_scan'] = {'ok': False, 'message': str(exc), 'updated_at': utcnow(), 'found_count': 0}
+        detail = str(exc).strip() or '자동 숨고 리뷰 찾기 실행 중 알 수 없는 오류가 발생했습니다.'
+        trace = traceback.format_exc(limit=5)
+        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': utcnow(), 'found_count': 0}
+        state.setdefault('results', {})['ai_result'] = ''
         _save_state(state)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=f'{detail}\n\n[debug] {trace}')
 
 
 @router.post('/scan-manual')
@@ -533,13 +564,16 @@ def scan_manual(authorization: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=403, detail='관리자 / 부관리자만 수동 리뷰 찾기를 실행할 수 있습니다.')
     state = _load_state()
     try:
+        _diagnose_playwright_runtime()
         state = _scan_unanswered_reviews(state, headless=False)
         _save_state(state)
         return state
     except Exception as exc:
-        state['last_scan'] = {'ok': False, 'message': str(exc), 'updated_at': utcnow(), 'found_count': 0}
+        detail = str(exc).strip() or '수동 숨고 리뷰 찾기 실행 중 알 수 없는 오류가 발생했습니다.'
+        trace = traceback.format_exc(limit=5)
+        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': utcnow(), 'found_count': 0}
         _save_state(state)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=f'{detail}\n\n[debug] {trace}')
 
 
 @router.post('/manual-match')

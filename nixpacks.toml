@@ -1,11 +1,42 @@
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.12"
 PYTHONUNBUFFERED = "1"
+PLAYWRIGHT_BROWSERS_PATH = "/opt/playwright-browsers"
+
+[phases.setup]
+aptPkgs = [
+  "ca-certificates",
+  "curl",
+  "fonts-liberation",
+  "libasound2",
+  "libatk-bridge2.0-0",
+  "libatk1.0-0",
+  "libcups2",
+  "libdbus-1-3",
+  "libdrm2",
+  "libgbm1",
+  "libglib2.0-0",
+  "libgtk-3-0",
+  "libnss3",
+  "libnspr4",
+  "libpango-1.0-0",
+  "libx11-6",
+  "libx11-xcb1",
+  "libxcb1",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxext6",
+  "libxfixes3",
+  "libxrandr2",
+  "libxshmfence1",
+  "xdg-utils"
+]
 
 [phases.install]
 cmds = [
   "cd backend && python -m pip install --upgrade pip setuptools wheel",
-  "cd backend && pip install -r requirements.txt"
+  "cd backend && pip install -r requirements.txt",
+  "cd backend && python -m playwright install chromium"
 ]
 
 [start]
