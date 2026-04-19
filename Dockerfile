@@ -39,8 +39,7 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --upgrade pip setuptools wheel \
     && pip install -r /app/backend/requirements.txt
 
-ARG INSTALL_PLAYWRIGHT_BROWSER=0
-RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "1" ]; then python -m playwright install chromium; fi
+RUN python -m playwright install chromium
 
 COPY backend /app/backend
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

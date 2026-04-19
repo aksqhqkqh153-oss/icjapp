@@ -208,54 +208,91 @@ def _manual_match(outer_html: str, anonymous_name: str, review_input: str) -> di
     return {'candidate_names': names, 'candidate_scores': scores}
 
 
-def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) -> str:
+def _get_playwright_sync_api():
     try:
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-        from webdriver_manager.chrome import ChromeDriverManager
-        from selenium.common.exceptions import ElementClickInterceptedException
+        from playwright.sync_api import sync_playwright  # type: ignore
     except Exception as exc:
-        raise RuntimeError('selenium / webdriver-manager 가 설치되어 있지 않습니다.') from exc
+        raise RuntimeError(
+            '자동 숨고리뷰 찾기에 필요한 Playwright 가 설치되지 않았습니다. backend requirements 설치 후 playwright chromium 을 함께 설치해 주세요.'
+        ) from exc
+    return sync_playwright
 
+
+def _playwright_launch_options(headless: bool) -> dict[str, Any]:
+    return {
+        'headless': headless,
+        'args': ['--no-sandbox', '--disable-dev-shm-usage'],
+    }
+
+
+def _playwright_login_page(email: str, password: str, headless: bool = True):
     if not email or not password:
         raise RuntimeError('숨고 로그인 이메일/비밀번호가 설정되어 있지 않습니다.')
 
-    chrome_options = Options()
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    if headless:
-        chrome_options.add_argument('--headless=new')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--disable-gpu')
-    else:
-        chrome_options.add_argument('--start-maximized')
-        chrome_options.add_experimental_option('detach', True)
-
-    driver = None
+    sync_playwright = _get_playwright_sync_api()
+    playwright = sync_playwright().start()
+    browser = None
+    context = None
+    page = None
     try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-        driver.get('https://soomgo.com/login')
-        email_box = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.NAME, 'email')))
-        pw_box = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.NAME, 'password')))
-        email_box.clear(); email_box.send_keys(email)
-        pw_box.clear(); pw_box.send_keys(password)
-        login_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
-        try:
-            login_btn.click()
-        except ElementClickInterceptedException:
-            driver.execute_script('arguments[0].click();', login_btn)
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.ID, 'app-body')))
-        driver.get('https://soomgo.com/mypage/cash-dashboard')
-        script_element = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, '/html/body/script[1]')))
-        return driver.execute_script('return arguments[0].outerHTML;', script_element) or ''
-    finally:
-        if driver:
+        browser = playwright.chromium.launch(**_playwright_launch_options(headless=headless))
+        context = browser.new_context(viewport={'width': 1920, 'height': 1080})
+        page = context.new_page()
+        page.goto('https://soomgo.com/login', wait_until='domcontentloaded', timeout=30000)
+        page.locator('input[name="email"]').wait_for(timeout=30000)
+        page.fill('input[name="email"]', email)
+        page.fill('input[name="password"]', password)
+        page.locator('button[type="submit"]').click(force=True)
+        page.wait_for_selector('#app-body', timeout=30000)
+        return playwright, browser, context, page
+    except Exception as exc:
+        if page is not None:
             try:
-                driver.quit()
+                page.screenshot(path=str(SCREENSHOT_DIR / 'soomgo_login_error.png'), full_page=True)
+            except Exception:
+                pass
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        try:
+            playwright.stop()
+        except Exception:
+            pass
+        raise RuntimeError(
+            '자동 숨고리뷰 찾기 로그인 단계에서 실패했습니다. Railway 배포환경에 playwright chromium 설치가 되어 있는지 확인해 주세요.'
+        ) from exc
+
+
+def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) -> str:
+    playwright = browser = context = page = None
+    try:
+        playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
+        page.goto('https://soomgo.com/mypage/cash-dashboard', wait_until='domcontentloaded', timeout=30000)
+        page.wait_for_load_state('domcontentloaded')
+        script_locator = page.locator('xpath=/html/body/script[1]').first
+        script_locator.wait_for(timeout=20000)
+        return script_locator.evaluate('el => el.outerHTML || ""') or ''
+    finally:
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        if playwright is not None:
+            try:
+                playwright.stop()
             except Exception:
                 pass
 
@@ -271,102 +308,76 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
     settings['outer_html'] = outer_html
     reviews_data = _parse_reviews_from_outer_html(outer_html)
 
+    playwright = browser = context = page = None
+    found: list[dict[str, str]] = []
     try:
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-        from webdriver_manager.chrome import ChromeDriverManager
-        from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
-    except Exception as exc:
-        raise RuntimeError('selenium / webdriver-manager 가 설치되어 있지 않습니다.') from exc
+        playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
+        page.goto('https://soomgo.com/profile#id_profile_review', wait_until='domcontentloaded', timeout=30000)
+        page.wait_for_selector('.grid-item.span-8.profile-section', timeout=20000)
 
-    chrome_options = Options()
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    if headless:
-        chrome_options.add_argument('--headless=new')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--disable-gpu')
-    else:
-        chrome_options.add_argument('--start-maximized')
-        chrome_options.add_experimental_option('detach', True)
-
-    driver = None
-    found = []
-    try:
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-        driver.get('https://soomgo.com/login')
-        email_box = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.NAME, 'email')))
-        pw_box = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.NAME, 'password')))
-        email_box.clear(); email_box.send_keys(email)
-        pw_box.clear(); pw_box.send_keys(password)
-        login_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
-        try:
-            login_btn.click()
-        except ElementClickInterceptedException:
-            driver.execute_script('arguments[0].click();', login_btn)
-        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.ID, 'app-body')))
-        driver.get('https://soomgo.com/profile#id_profile_review')
-        profile_section = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, '.grid-item.span-8.profile-section')))
-        review_list = profile_section.find_element(By.CLASS_NAME, 'review-list')
-        for _ in range(5):
+        for _ in range(10):
+            more_button = page.locator("xpath=//button[.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'secondary') and contains(normalize-space(text()), '더보기')]]").last
+            if more_button.count() == 0:
+                break
             try:
-                more_btn = None
-                try:
-                    target_el = driver.find_element(By.XPATH, "//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'secondary') and contains(text(), '더보기')]")
-                    more_btn = target_el.find_element(By.XPATH, './ancestor::button')
-                except Exception:
-                    pass
-                if more_btn is None:
-                    break
-                driver.execute_script('arguments[0].scrollIntoView({block: "center"});', more_btn)
-                more_btn.click()
+                more_button.scroll_into_view_if_needed(timeout=5000)
+                more_button.click(force=True, timeout=5000)
+                page.wait_for_timeout(700)
             except Exception:
                 break
-        review_items = review_list.find_elements(By.CSS_SELECTOR, '.profile-review-item')
-        for item in review_items:
+
+        review_items = page.locator('.review-list .profile-review-item')
+        item_count = review_items.count()
+        for index in range(item_count):
             if len(found) >= SLOT_COUNT:
                 break
+            item = review_items.nth(index)
             try:
-                text_blocks = item.find_elements(By.XPATH, ".//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary')]")
-                has_reply = False
-                for block in text_blocks:
-                    if 'review-content' not in (block.get_attribute('class') or ''):
-                        has_reply = True
-                        break
+                has_reply = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]").count() > 0
                 if has_reply:
                     continue
+
                 content_text = ''
-                try:
-                    content_el = item.find_element(By.XPATH, ".//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and contains(@class, 'review-content')]")
-                    content_text = content_el.text
-                except Exception:
-                    try:
-                        content_el = item.find_element(By.CSS_SELECTOR, '.review-content')
-                        content_text = content_el.text
-                    except Exception:
-                        content_text = '(내용 없음)'
-                try:
-                    author_el = item.find_element(By.XPATH, ".//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]")
-                    author_name = author_el.text
-                except Exception:
-                    author_name = '익명'
+                content_locator = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and contains(@class, 'review-content')]").first
+                if content_locator.count() > 0:
+                    content_text = content_locator.inner_text(timeout=3000).strip()
+                elif item.locator('.review-content').count() > 0:
+                    content_text = item.locator('.review-content').first.inner_text(timeout=3000).strip()
+                else:
+                    content_text = '(내용 없음)'
+
+                author_locator = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]").first
+                author_name = author_locator.inner_text(timeout=3000).strip() if author_locator.count() > 0 else '익명'
                 real_name = _find_real_name_by_content(reviews_data, content_text)
                 found.append({'masked_name': author_name, 'real_name': real_name, 'review': content_text})
             except Exception:
                 continue
     finally:
-        if driver:
+        if page is not None:
             try:
-                driver.quit()
+                page.screenshot(path=str(SCREENSHOT_DIR / 'soomgo_review_scan_last.png'), full_page=True)
+            except Exception:
+                pass
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        if playwright is not None:
+            try:
+                playwright.stop()
             except Exception:
                 pass
 
     slots = state.get('slots', [])
     for idx in range(SLOT_COUNT):
+        if idx >= len(slots):
+            slots.append({'index': idx, 'masked_name': '', 'real_name': '', 'review': '', 'reply': '', 'situation': '', 'specifics': ''})
         slot = slots[idx]
         if idx < len(found):
             slot['masked_name'] = found[idx].get('masked_name', '')
@@ -374,6 +385,12 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             slot['review'] = found[idx].get('review', '')
         else:
             slot['masked_name'] = slot.get('masked_name', '')
+            slot['real_name'] = slot.get('real_name', '')
+            slot['review'] = slot.get('review', '')
+        slot['reply'] = slot.get('reply', '')
+        slot['situation'] = slot.get('situation', '')
+        slot['specifics'] = slot.get('specifics', '')
+
     state['last_scan'] = {
         'ok': True,
         'message': f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.',
