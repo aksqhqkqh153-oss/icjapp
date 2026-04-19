@@ -310,6 +310,9 @@ function normalizeRecordShape(record) {
     finalStatus: String(record.finalStatus || ''),
     platform: String(record.platform || ''),
     customerName: String(record.customerName || ''),
+    createdByUserId: String(record.createdByUserId || record.created_by_user_id || ''),
+    createdByUsername: String(record.createdByUsername || record.created_by_username || ''),
+    createdByGrade: String(record.createdByGrade || record.created_by_grade || ''),
     items,
     settlementTransferredAt: record.settlementTransferredAt ? String(record.settlementTransferredAt) : '',
     totals: {
@@ -321,7 +324,46 @@ function normalizeRecordShape(record) {
   }
 }
 
-function loadRecords() {
+function getDisposalCurrentUser() {
+  return getStoredUser?.() || {}
+}
+
+function isDisposalAdminLike(user = {}) {
+  return Number(user?.grade || 9) <= 2
+}
+
+function getDisposalUserIdentity(user = {}) {
+  return {
+    userId: String(user?.id || '').trim(),
+    username: String(user?.username || '').trim(),
+  }
+}
+
+function canUserViewDisposalRecord(record, user = getDisposalCurrentUser()) {
+  if (!record) return false
+  if (isDisposalAdminLike(user)) return true
+  const { userId, username } = getDisposalUserIdentity(user)
+  const recordUserId = String(record?.createdByUserId || '').trim()
+  const recordUsername = String(record?.createdByUsername || '').trim()
+  if (!recordUserId && !recordUsername) return true
+  if (userId && recordUserId && userId === recordUserId) return true
+  if (username && recordUsername && username === recordUsername) return true
+  return false
+}
+
+function attachDisposalRecordOwner(record, user = getDisposalCurrentUser()) {
+  const normalized = normalizeRecordShape(record)
+  if (!normalized) return null
+  const { userId, username } = getDisposalUserIdentity(user)
+  return {
+    ...normalized,
+    createdByUserId: String(normalized?.createdByUserId || userId || ''),
+    createdByUsername: String(normalized?.createdByUsername || username || ''),
+    createdByGrade: String(normalized?.createdByGrade || user?.grade || ''),
+  }
+}
+
+function loadAllRecords() {
   try {
     const primary = localStorage.getItem(STORAGE_KEY)
     const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
@@ -337,6 +379,10 @@ function loadRecords() {
   }
 }
 
+function loadRecords(user = getDisposalCurrentUser()) {
+  return loadAllRecords().filter(record => canUserViewDisposalRecord(record, user))
+}
+
 function saveRecords(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
   try {
@@ -345,6 +391,7 @@ function saveRecords(records) {
 }
 
 function getDateValueParts(rawValue) {
+
   const raw = String(rawValue || '').trim()
   if (!raw) return null
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw
@@ -517,7 +564,7 @@ function makeRecordFromDraft(draft, totals, existingId = '', options = {}) {
   const paymentDone = filledItems.length > 0 && filledItems.every(item => !!item?.paymentDone)
   const reportDone = filledItems.length > 0 && filledItems.every(item => !!item?.reportDone)
   const hasEligibleSettlementItems = filledItems.some(item => !!item?.paymentDone && String(item?.paymentSettledAt || '').trim())
-  return normalizeRecordShape({
+  return attachDisposalRecordOwner({
     id: existingId || `disposal-${Date.now()}`,
     savedAt: new Date().toISOString(),
     disposalDate: draft.disposalDate,
@@ -526,6 +573,9 @@ function makeRecordFromDraft(draft, totals, existingId = '', options = {}) {
     finalStatus: composeFinalStatus(paymentDone, reportDone),
     platform: draft.platform,
     customerName: draft.customerName,
+    createdByUserId: existingRecord?.createdByUserId || '',
+    createdByUsername: existingRecord?.createdByUsername || '',
+    createdByGrade: existingRecord?.createdByGrade || '',
     items: normalizedItems,
     settlementTransferredAt: existingRecord?.settlementTransferredAt && hasEligibleSettlementItems ? String(existingRecord.settlementTransferredAt) : '',
     totals: normalizedTotals,
@@ -533,9 +583,17 @@ function makeRecordFromDraft(draft, totals, existingId = '', options = {}) {
 }
 
 function upsertRecordByCustomerLocation(records, nextRecord) {
-  const existing = findMatchingRecord(records, nextRecord)
+  const visibleRecords = (records || []).filter(record => canUserViewDisposalRecord(record))
+  const existing = findMatchingRecord(visibleRecords, nextRecord)
   const nextId = existing?.id || nextRecord.id
-  const normalizedNext = normalizeRecordShape({ ...nextRecord, id: nextId, savedAt: new Date().toISOString() })
+  const normalizedNext = attachDisposalRecordOwner({
+    ...nextRecord,
+    id: nextId,
+    savedAt: new Date().toISOString(),
+    createdByUserId: existing?.createdByUserId || '',
+    createdByUsername: existing?.createdByUsername || '',
+    createdByGrade: existing?.createdByGrade || '',
+  })
   return [normalizedNext, ...(records || []).filter(record => record.id !== nextId)].slice(0, 300)
 }
 
@@ -2290,7 +2348,7 @@ export function DisposalFormsPage() {
       setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
       return
     }
-    const found = loadRecords().find(record => record.id === recordId)
+    const found = loadAllRecords().find(record => record.id === recordId && canUserViewDisposalRecord(record))
     if (found) {
       setLoadedRecordId(found.id || recordId)
       setDraft({
@@ -2314,9 +2372,11 @@ export function DisposalFormsPage() {
       }))
       return
     }
-    setLoadedRecordId(recordId)
+    setLoadedRecordId('')
+    setSavedAt('')
     setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
-  }, [recordId])
+    navigate('/disposal/forms', { replace: true })
+  }, [recordId, navigate])
 
 
 useEffect(() => {
@@ -2453,9 +2513,10 @@ useEffect(() => {
       if (!silent) window.alert('고객명을 입력한 후 저장해주세요.')
       return false
     }
-    const current = loadRecords()
+    const current = loadAllRecords()
+    const visibleCurrent = loadRecords()
     const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
-    const matchedRecord = effectiveRecordId ? null : findMatchingRecord(current, draft)
+    const matchedRecord = effectiveRecordId ? null : findMatchingRecord(visibleCurrent, draft)
     const existingRecord = current.find(record => record.id === (effectiveRecordId || matchedRecord?.id || '')) || matchedRecord || null
     const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '', { existingRecord })
     const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
@@ -2549,10 +2610,11 @@ useEffect(() => {
             onOpenRegistry={() => navigateWithDraftGuard('/disposal/jurisdictions')}
             onSaveEstimate={saveSettlementRecord}
             onAutoSaveRecord={nextRecord => {
-              const currentRecords = loadRecords()
+              const currentRecords = loadAllRecords()
               const effectiveRecordId = String(recordId || loadedRecordId || nextRecord?.id || '').trim()
               if (effectiveRecordId) {
-                const normalizedNextRecord = normalizeRecordShape({ ...nextRecord, id: effectiveRecordId, savedAt: new Date().toISOString() })
+                const existingRecord = currentRecords.find(record => record.id === effectiveRecordId) || null
+                const normalizedNextRecord = attachDisposalRecordOwner({ ...nextRecord, id: effectiveRecordId, savedAt: new Date().toISOString(), createdByUserId: existingRecord?.createdByUserId || '', createdByUsername: existingRecord?.createdByUsername || '', createdByGrade: existingRecord?.createdByGrade || '' })
                 const nextRecords = [normalizedNextRecord, ...currentRecords.filter(record => record.id !== effectiveRecordId)].slice(0, 300)
                 saveRecords(nextRecords)
                 setLoadedRecordId(effectiveRecordId)
