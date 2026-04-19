@@ -485,7 +485,7 @@ def save_state(payload: SoomgoReviewStateIn, authorization: Optional[str] = Head
     state = _load_state()
     if payload.settings:
         if not _is_soomgo_admin(user):
-            raise HTTPException(status_code=403, detail='관리자 / 부관리자만 숨은 설정을 확인하거나 수정할 수 있습니다.')
+            raise HTTPException(status_code=403, detail='관리자 / 부관리자만 설정을 확인하거나 수정할 수 있습니다.')
         allowed_settings = {key: value for key, value in payload.settings.items() if key in SENSITIVE_SETTING_KEYS}
         state['settings'].update(allowed_settings)
     if payload.memos:

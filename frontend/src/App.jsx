@@ -20079,10 +20079,11 @@ function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onM
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card soomgo-settings-modal" onClick={e => e.stopPropagation()}>
         <div className="between">
-          <h3>숨은 설정</h3>
+          <h3>설정</h3>
           <button type="button" className="ghost small" onClick={onClose}>닫기</button>
         </div>
         <div className="stack compact-gap">
+          <div className="card muted small">이 화면에서 저장하는 로그인 정보와 프롬프트는 계정별 설정이 아닌 앱 전체 공용 설정으로 저장됩니다.</div>
           <label className="stack compact-gap"><span>숨고 로그인 이메일</span><input value={state.settings.soomgo_email || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_email: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>숨고 로그인 비밀번호</span><input type="password" value={state.settings.soomgo_password || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_password: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>리뷰초안 프롬프트</span><textarea className="soomgo-hidden-textarea" value={state.settings.prompt || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, prompt: e.target.value } }))} /></label>
@@ -20258,7 +20259,7 @@ function SoomgoReviewFinderPage({ user }) {
           <div className="row gap wrap soomgo-review-action-row">
             <button type="button" onClick={handleAutoScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
             <button type="button" className="ghost" onClick={handleManualScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '수동 리뷰 찾기'}</button>
-            {canManageHiddenSettings ? <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>숨은 설정</button> : null}
+            {canManageHiddenSettings ? <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>설정</button> : null}
             <button type="button" className="ghost" onClick={() => persistState()} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
         </div>
@@ -20279,7 +20280,7 @@ function SoomgoReviewFinderPage({ user }) {
         {state.slots.slice(0, 6).map((slot, index) => <SoomgoReviewSlotCard key={`slot-${index}`} slot={slot} index={index} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}
       </section>
 
-      {!canManageHiddenSettings ? <div className="card muted">숨은 설정, 자동/수동 리뷰 찾기 기능은 관리자 / 부관리자만 사용할 수 있습니다.</div> : null}
+      {!canManageHiddenSettings ? <div className="card muted">설정, 자동/수동 리뷰 찾기 기능은 관리자 / 부관리자만 사용할 수 있습니다.</div> : null}
 
       <SoomgoReviewSettingsModal
         open={settingsOpen}
