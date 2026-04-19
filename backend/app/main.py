@@ -52,6 +52,14 @@ logger = logging.getLogger('icj24app')
 
 CHAT_MEDIA_RETENTION_DAYS = int(os.getenv("CHAT_MEDIA_RETENTION_DAYS", "90") or 90)
 
+LOGIN_ACCOUNT_FAILURE_LIMIT = int(os.getenv("LOGIN_ACCOUNT_FAILURE_LIMIT", "5") or 5)
+LOGIN_IP_FAILURE_LIMIT = int(os.getenv("LOGIN_IP_FAILURE_LIMIT", "10") or 10)
+LOGIN_ACCOUNT_BLOCK_MINUTES = int(os.getenv("LOGIN_ACCOUNT_BLOCK_MINUTES", "10") or 10)
+LOGIN_IP_BLOCK_MINUTES = int(os.getenv("LOGIN_IP_BLOCK_MINUTES", "10") or 10)
+LOGIN_EXTENDED_BLOCK_THRESHOLD = int(os.getenv("LOGIN_EXTENDED_BLOCK_THRESHOLD", "10") or 10)
+LOGIN_EXTENDED_BLOCK_MINUTES = int(os.getenv("LOGIN_EXTENDED_BLOCK_MINUTES", "60") or 60)
+
+
 def _parse_created_at(value: str | None) -> Optional[datetime]:
     raw = str(value or '').strip()
     if not raw:
@@ -818,6 +826,166 @@ def _normalize_account_type(row: Any) -> str:
 
 def _normalize_email_value(value: Any) -> str:
     return str(value or '').strip().lower()
+
+def _utcnow_dt() -> datetime:
+    return datetime.utcnow().replace(microsecond=0)
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+def _parse_iso_dt(value: Any) -> Optional[datetime]:
+    raw = str(value or '').strip()
+    if not raw:
+        return None
+    normalized = raw.replace('Z', '+00:00')
+    if 'T' not in normalized and ' ' in normalized:
+        normalized = normalized.replace(' ', 'T', 1)
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except Exception:
+        return None
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+def _to_iso_dt(value: Optional[datetime]) -> str:
+    if not value:
+        return ''
+    return value.replace(microsecond=0).isoformat()
+
+def _client_ip(request: Request) -> str:
+    header_candidates = [
+        request.headers.get('cf-connecting-ip'),
+        request.headers.get('x-forwarded-for'),
+        request.headers.get('x-real-ip'),
+    ]
+    for candidate in header_candidates:
+        raw = str(candidate or '').strip()
+        if not raw:
+            continue
+        ip = raw.split(',')[0].strip()
+        if ip:
+            return ip
+    client = getattr(request, 'client', None)
+    host = getattr(client, 'host', '') if client else ''
+    return str(host or '').strip()
+
+def _client_user_agent(request: Request) -> str:
+    return str(request.headers.get('user-agent') or '').strip()[:500]
+
+def _load_ip_block_row(conn: Any, ip_address: str):
+    if not ip_address:
+        return None
+    return conn.execute(
+        "SELECT * FROM login_ip_blocks WHERE ip_address = ?",
+        (ip_address,),
+    ).fetchone()
+
+def _is_block_active_until(value: Any) -> bool:
+    blocked_until = _parse_iso_dt(value)
+    return bool(blocked_until and blocked_until > _utcnow_dt())
+
+def _remaining_block_seconds(value: Any) -> int:
+    blocked_until = _parse_iso_dt(value)
+    if not blocked_until:
+        return 0
+    delta = int((blocked_until - _utcnow_dt()).total_seconds())
+    return max(delta, 0)
+
+def _login_block_detail(subject: str, blocked_until: Any) -> str:
+    seconds = _remaining_block_seconds(blocked_until)
+    minutes = max(1, math.ceil(seconds / 60)) if seconds else 0
+    if minutes:
+        return f"로그인 {subject}이(가) 일시 차단되었습니다. 약 {minutes}분 후 다시 시도해 주세요."
+    return f"로그인 {subject}이(가) 일시 차단되었습니다. 잠시 후 다시 시도해 주세요."
+
+def _record_login_security_event(conn: Any, event_type: str, login_id: str, ip_address: str, user_id: Optional[int] = None, is_success: bool = False, reason: str = '', blocked_until: str = '', user_agent: str = '') -> None:
+    conn.execute(
+        """
+        INSERT INTO login_security_events(event_type, login_id, ip_address, user_id, is_success, reason, blocked_until, user_agent, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (event_type, str(login_id or '').strip().lower(), str(ip_address or '').strip(), user_id, 1 if is_success else 0, str(reason or '').strip(), str(blocked_until or '').strip(), str(user_agent or '').strip(), utcnow()),
+    )
+
+def _clear_user_login_lock(conn: Any, user_id: int) -> None:
+    conn.execute(
+        "UPDATE users SET failed_login_attempts = 0, last_failed_login_at = '', blocked_until = '' WHERE id = ?",
+        (user_id,),
+    )
+
+def _clear_ip_login_lock(conn: Any, ip_address: str) -> None:
+    if not ip_address:
+        return
+    conn.execute(
+        "UPDATE login_ip_blocks SET failure_count = 0, first_failed_at = '', last_failed_at = '', blocked_until = '', last_login_id = '' WHERE ip_address = ?",
+        (ip_address,),
+    )
+
+def _register_login_failure(conn: Any, login_id: str, ip_address: str, user_row: Any, user_agent: str, reason: str) -> tuple[Optional[str], Optional[str]]:
+    now = _utcnow_dt()
+    login_key = str(login_id or '').strip().lower()
+    user_blocked_until = ''
+    ip_blocked_until = ''
+    if user_row:
+        current_failures = _safe_int(user_row['failed_login_attempts'] if 'failed_login_attempts' in user_row.keys() else 0, 0) + 1
+        block_minutes = LOGIN_EXTENDED_BLOCK_MINUTES if current_failures >= LOGIN_EXTENDED_BLOCK_THRESHOLD else LOGIN_ACCOUNT_BLOCK_MINUTES
+        user_blocked_until = _to_iso_dt(now + timedelta(minutes=block_minutes)) if current_failures >= LOGIN_ACCOUNT_FAILURE_LIMIT else ''
+        conn.execute(
+            "UPDATE users SET failed_login_attempts = ?, last_failed_login_at = ?, blocked_until = ? WHERE id = ?",
+            (current_failures, utcnow(), user_blocked_until, user_row['id']),
+        )
+    if ip_address:
+        ip_row = _load_ip_block_row(conn, ip_address)
+        failure_count = _safe_int(ip_row['failure_count'] if ip_row and 'failure_count' in ip_row.keys() else 0, 0) + 1
+        first_failed_at = str(ip_row['first_failed_at'] if ip_row and 'first_failed_at' in ip_row.keys() else '') or utcnow()
+        block_minutes = LOGIN_EXTENDED_BLOCK_MINUTES if failure_count >= LOGIN_EXTENDED_BLOCK_THRESHOLD else LOGIN_IP_BLOCK_MINUTES
+        ip_blocked_until = _to_iso_dt(now + timedelta(minutes=block_minutes)) if failure_count >= LOGIN_IP_FAILURE_LIMIT else ''
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO login_ip_blocks(ip_address, failure_count, first_failed_at, last_failed_at, blocked_until, last_login_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ip_address, failure_count, first_failed_at, utcnow(), ip_blocked_until, login_key, utcnow()),
+        )
+    _record_login_security_event(conn, 'failure', login_key, ip_address, user_id=(user_row['id'] if user_row else None), is_success=False, reason=reason, blocked_until=(user_blocked_until or ip_blocked_until), user_agent=user_agent)
+    return user_blocked_until or None, ip_blocked_until or None
+
+def _ensure_login_security_ready(conn: Any) -> None:
+    _ensure_columns(conn, 'users', {
+        'failed_login_attempts': "INTEGER NOT NULL DEFAULT 0",
+        'last_failed_login_at': "TEXT NOT NULL DEFAULT ''",
+        'blocked_until': "TEXT NOT NULL DEFAULT ''",
+        'last_login_ip': "TEXT NOT NULL DEFAULT ''",
+        'last_login_user_agent': "TEXT NOT NULL DEFAULT ''",
+        'last_login_at': "TEXT NOT NULL DEFAULT ''",
+    })
+    event_id_sql = 'BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY' if DB_ENGINE == 'postgresql' else 'INTEGER PRIMARY KEY AUTOINCREMENT'
+    conn.executescript(f"""
+CREATE TABLE IF NOT EXISTS login_ip_blocks (
+    ip_address TEXT PRIMARY KEY,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    first_failed_at TEXT NOT NULL DEFAULT '',
+    last_failed_at TEXT NOT NULL DEFAULT '',
+    blocked_until TEXT NOT NULL DEFAULT '',
+    last_login_id TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS login_security_events (
+    id {event_id_sql},
+    event_type TEXT NOT NULL DEFAULT 'failure',
+    login_id TEXT NOT NULL DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '',
+    user_id INTEGER,
+    is_success INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    blocked_until TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+""")
 
 def _normalize_login_id_value(value: Any) -> str:
     return ''.join(ch for ch in str(value or '').strip().lower() if not ch.isspace())
@@ -2074,6 +2242,8 @@ def startup():
     settings.settlement_runtime_dir.mkdir(parents=True, exist_ok=True)
     init_db()
     with get_conn() as conn:
+        _ensure_login_security_ready(conn)
+    with get_conn() as conn:
         _sync_all_day_note_available_vehicle_counts(conn)
     settlement_sync_service.start()
     runtime = get_settings()
@@ -2425,6 +2595,12 @@ def demo_accounts():
             }
             for r in rows
         ]
+class AdminAuthSecurityUnlockIn(BaseModel):
+    login_id: str = ""
+
+class AdminIpUnlockIn(BaseModel):
+    ip_address: str = ""
+
 @app.post("/api/auth/signup")
 def signup(payload: SignupIn):
     login_id = _validate_login_id_value(payload.login_id)
@@ -2527,16 +2703,32 @@ def find_account(payload: AccountFindIn):
         return {'ok': True, 'account_id': row['email'], 'nickname': row['nickname'], 'message': '계정을 찾았습니다.'}
 
 @app.post("/api/auth/login")
-def login(payload: LoginIn):
+def login(payload: LoginIn, request: Request):
     account_id = _validate_login_id_value(payload.login_id or payload.email)
+    client_ip = _client_ip(request)
+    user_agent = _client_user_agent(request)
     with get_conn() as conn:
+        _ensure_login_security_ready(conn)
+        ip_row = _load_ip_block_row(conn, client_ip)
+        if ip_row and _is_block_active_until(ip_row['blocked_until'] if 'blocked_until' in ip_row.keys() else ''):
+            _record_login_security_event(conn, 'blocked_ip', account_id, client_ip, reason='ip_block_active', blocked_until=str(ip_row['blocked_until'] or ''), user_agent=user_agent)
+            raise HTTPException(status_code=429, detail=_login_block_detail('IP', ip_row['blocked_until']))
         account = conn.execute(
             "SELECT * FROM users WHERE LOWER(TRIM(COALESCE(login_id, email, ''))) = ?",
             (account_id,),
         ).fetchone()
         if not account:
+            _register_login_failure(conn, account_id, client_ip, None, user_agent, 'account_not_found')
             raise HTTPException(status_code=404, detail='등록되지 않은 계정입니다.')
+        if _is_block_active_until(account['blocked_until'] if 'blocked_until' in account.keys() else ''):
+            _record_login_security_event(conn, 'blocked_account', account_id, client_ip, user_id=account['id'], reason='account_block_active', blocked_until=str(account['blocked_until'] or ''), user_agent=user_agent)
+            raise HTTPException(status_code=429, detail=_login_block_detail('계정', account['blocked_until']))
         if account['password_hash'] != hash_password(payload.password):
+            user_blocked_until, ip_blocked_until = _register_login_failure(conn, account_id, client_ip, account, user_agent, 'wrong_password')
+            if user_blocked_until:
+                raise HTTPException(status_code=429, detail=_login_block_detail('계정', user_blocked_until))
+            if ip_blocked_until:
+                raise HTTPException(status_code=429, detail=_login_block_detail('IP', ip_blocked_until))
             raise HTTPException(status_code=401, detail='해당 계정의 비밀번호가 틀렸습니다.')
         grade = int(account['grade'] or 6)
         approved = int(account['approved'] if account['approved'] is not None else 1)
@@ -2549,8 +2741,12 @@ def login(payload: LoginIn):
             raise HTTPException(status_code=403, detail='퇴사/종료 상태 계정입니다.')
         if account_status == 'deleted':
             raise HTTPException(status_code=403, detail='삭제된 계정입니다.')
+        _clear_user_login_lock(conn, int(account['id']))
+        _clear_ip_login_lock(conn, client_ip)
+        conn.execute("UPDATE users SET last_login_ip = ?, last_login_user_agent = ?, last_login_at = ? WHERE id = ?", (client_ip, user_agent, utcnow(), account['id']))
         token = make_token()
         conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, account["id"], utcnow()))
+        _record_login_security_event(conn, 'success', account_id, client_ip, user_id=account['id'], is_success=True, reason='login_success', user_agent=user_agent)
         user_payload = user_public_dict(account)
         user_payload['permission_config'] = _get_permission_config(conn)
         return {'access_token': token, 'user': user_payload}
@@ -2574,6 +2770,78 @@ def logout(user=Depends(require_user), authorization: Optional[str] = Header(def
     with get_conn() as conn:
         conn.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
     return {"ok": True}
+
+@app.get('/api/admin/auth-security/locks')
+def admin_auth_security_locks(query: str = '', user=Depends(require_admin)):
+    query_value = str(query or '').strip().lower()
+    with get_conn() as conn:
+        _ensure_login_security_ready(conn)
+        locked_users = conn.execute(
+            """
+            SELECT id, login_id, email, nickname, failed_login_attempts, last_failed_login_at, blocked_until, last_login_ip, last_login_at
+            FROM users
+            WHERE COALESCE(blocked_until, '') != '' OR COALESCE(failed_login_attempts, 0) > 0
+            ORDER BY COALESCE(blocked_until, '') DESC, COALESCE(last_failed_login_at, '') DESC, id DESC
+            """
+        ).fetchall()
+        ip_rows = conn.execute(
+            """
+            SELECT ip_address, failure_count, first_failed_at, last_failed_at, blocked_until, last_login_id, updated_at
+            FROM login_ip_blocks
+            WHERE COALESCE(failure_count, 0) > 0 OR COALESCE(blocked_until, '') != ''
+            ORDER BY COALESCE(blocked_until, '') DESC, COALESCE(last_failed_at, '') DESC, ip_address
+            """
+        ).fetchall()
+    def user_match(row):
+        if not query_value:
+            return True
+        haystack = ' '.join(str(row.get(key) or '').lower() for key in ('login_id','email','nickname','last_login_ip'))
+        return query_value in haystack
+    def ip_match(row):
+        if not query_value:
+            return True
+        haystack = ' '.join(str(row.get(key) or '').lower() for key in ('ip_address','last_login_id'))
+        return query_value in haystack
+    return {
+        'locked_users': [row_to_dict(row) for row in locked_users if user_match(row_to_dict(row))],
+        'ip_blocks': [row_to_dict(row) for row in ip_rows if ip_match(row_to_dict(row))],
+        'limits': {
+            'account_failure_limit': LOGIN_ACCOUNT_FAILURE_LIMIT,
+            'ip_failure_limit': LOGIN_IP_FAILURE_LIMIT,
+            'account_block_minutes': LOGIN_ACCOUNT_BLOCK_MINUTES,
+            'ip_block_minutes': LOGIN_IP_BLOCK_MINUTES,
+            'extended_block_threshold': LOGIN_EXTENDED_BLOCK_THRESHOLD,
+            'extended_block_minutes': LOGIN_EXTENDED_BLOCK_MINUTES,
+        },
+    }
+
+@app.post('/api/admin/auth-security/unlock-user')
+def admin_unlock_user(payload: AdminAuthSecurityUnlockIn, user=Depends(require_admin)):
+    login_id = _validate_login_id_value(payload.login_id)
+    with get_conn() as conn:
+        _ensure_login_security_ready(conn)
+        account = _find_user_by_login_id_ci(conn, login_id)
+        if not account:
+            raise HTTPException(status_code=404, detail='해당 계정을 찾을 수 없습니다.')
+        _clear_user_login_lock(conn, int(account['id']))
+        _record_login_security_event(conn, 'admin_unlock_user', login_id, '', user_id=account['id'], is_success=True, reason=f'admin:{user.get("id")}', user_agent='admin_api')
+        updated = conn.execute("SELECT id, login_id, email, nickname, failed_login_attempts, last_failed_login_at, blocked_until FROM users WHERE id = ?", (account['id'],)).fetchone()
+        return {'ok': True, 'user': row_to_dict(updated)}
+
+@app.post('/api/admin/auth-security/unblock-ip')
+def admin_unblock_ip(payload: AdminIpUnlockIn, user=Depends(require_admin)):
+    ip_address = str(payload.ip_address or '').strip()
+    if not ip_address:
+        raise HTTPException(status_code=400, detail='IP 주소를 입력해 주세요.')
+    with get_conn() as conn:
+        _ensure_login_security_ready(conn)
+        row = _load_ip_block_row(conn, ip_address)
+        if not row:
+            raise HTTPException(status_code=404, detail='해당 IP 차단 정보를 찾을 수 없습니다.')
+        _clear_ip_login_lock(conn, ip_address)
+        _record_login_security_event(conn, 'admin_unblock_ip', '', ip_address, is_success=True, reason=f'admin:{user.get("id")}', user_agent='admin_api')
+        updated = _load_ip_block_row(conn, ip_address)
+        return {'ok': True, 'ip_block': row_to_dict(updated)}
 
 @app.delete('/api/account')
 def delete_account(user=Depends(require_user)):
