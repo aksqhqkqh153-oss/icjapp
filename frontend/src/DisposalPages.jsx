@@ -390,6 +390,58 @@ function saveRecords(records) {
   } catch {}
 }
 
+async function fetchDisposalRecordsFromServer() {
+  const response = await api('/api/disposal/records', { icjCache: { skip: true } })
+  const records = Array.isArray(response?.records) ? response.records.map(normalizeRecordShape).filter(Boolean) : []
+  saveRecords(records)
+  return records
+}
+
+async function migrateLocalDisposalRecordsToServer(records = loadAllRecords()) {
+  const normalized = (records || []).map(normalizeRecordShape).filter(Boolean)
+  if (!normalized.length) return { ok: true, count: 0 }
+  return api('/api/disposal/records/migrate-local', {
+    method: 'POST',
+    body: JSON.stringify({ records: normalized }),
+  })
+}
+
+async function upsertDisposalRecordToServer(record) {
+  const normalized = normalizeRecordShape(record)
+  const response = await api('/api/disposal/records/upsert', {
+    method: 'POST',
+    body: JSON.stringify(normalized),
+  })
+  const saved = normalizeRecordShape(response?.record)
+  const current = loadAllRecords().filter(item => item.id !== saved?.id)
+  const next = [saved, ...current].filter(Boolean)
+  saveRecords(next)
+  return saved
+}
+
+async function deleteDisposalRecordsFromServer(ids = []) {
+  const targetIds = Array.from(new Set((ids || []).map(value => String(value || '').trim()).filter(Boolean)))
+  if (!targetIds.length) return { ok: true, deletedIds: [] }
+  const response = await api('/api/disposal/records/delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids: targetIds }),
+  })
+  const deletedIds = Array.isArray(response?.deletedIds) ? response.deletedIds.map(value => String(value || '')) : targetIds
+  const next = loadAllRecords().filter(record => !deletedIds.includes(String(record?.id || '')))
+  saveRecords(next)
+  return { ok: true, deletedIds }
+}
+
+async function bootstrapDisposalRecords() {
+  const localRecords = loadAllRecords()
+  if (localRecords.length) {
+    try {
+      await migrateLocalDisposalRecordsToServer(localRecords)
+    } catch {}
+  }
+  return fetchDisposalRecordsFromServer()
+}
+
 function getDateValueParts(rawValue) {
 
   const raw = String(rawValue || '').trim()
@@ -2343,39 +2395,48 @@ export function DisposalFormsPage() {
   const itemSettingsRef = useRef(null)
 
   useEffect(() => {
-    if (!recordId) {
+    let cancelled = false
+    async function loadRecord() {
+      try {
+        await bootstrapDisposalRecords()
+      } catch {}
+      if (cancelled) return
+      if (!recordId) {
+        setLoadedRecordId('')
+        setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
+        return
+      }
+      const found = loadAllRecords().find(record => record.id === recordId && canUserViewDisposalRecord(record))
+      if (found) {
+        setLoadedRecordId(found.id || recordId)
+        setDraft({
+          platform: found.platform || '',
+          customerName: found.customerName || '',
+          disposalDate: found.disposalDate || '',
+          location: found.location || '',
+          district: found.district || '',
+          finalStatus: found.finalStatus || '',
+          items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+        })
+        setSavedAt(found.savedAt || '')
+        setSavedDraftBaseline(normalizeDraftForCompare({
+          platform: found.platform || '',
+          customerName: found.customerName || '',
+          disposalDate: found.disposalDate || '',
+          location: found.location || '',
+          district: found.district || '',
+          finalStatus: found.finalStatus || '',
+          items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+        }))
+        return
+      }
       setLoadedRecordId('')
+      setSavedAt('')
       setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
-      return
+      navigate('/disposal/forms', { replace: true })
     }
-    const found = loadAllRecords().find(record => record.id === recordId && canUserViewDisposalRecord(record))
-    if (found) {
-      setLoadedRecordId(found.id || recordId)
-      setDraft({
-        platform: found.platform || '',
-        customerName: found.customerName || '',
-        disposalDate: found.disposalDate || '',
-        location: found.location || '',
-        district: found.district || '',
-        finalStatus: found.finalStatus || '',
-        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
-      })
-      setSavedAt(found.savedAt || '')
-      setSavedDraftBaseline(normalizeDraftForCompare({
-        platform: found.platform || '',
-        customerName: found.customerName || '',
-        disposalDate: found.disposalDate || '',
-        location: found.location || '',
-        district: found.district || '',
-        finalStatus: found.finalStatus || '',
-        items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
-      }))
-      return
-    }
-    setLoadedRecordId('')
-    setSavedAt('')
-    setSavedDraftBaseline(normalizeDraftForCompare(createInitialDraft()))
-    navigate('/disposal/forms', { replace: true })
+    loadRecord()
+    return () => { cancelled = true }
   }, [recordId, navigate])
 
 
@@ -2507,7 +2568,7 @@ useEffect(() => {
     window.alert(`기본품목칸 수가 ${nextValue}칸으로 변경되었습니다.`)
   }
 
-  function saveCurrentDraftRecord(options = {}) {
+  async function saveCurrentDraftRecord(options = {}) {
     const { silent = false } = options
     if (!String(draft?.customerName || '').trim()) {
       if (!silent) window.alert('고객명을 입력한 후 저장해주세요.')
@@ -2519,10 +2580,9 @@ useEffect(() => {
     const matchedRecord = effectiveRecordId ? null : findMatchingRecord(visibleCurrent, draft)
     const existingRecord = current.find(record => record.id === (effectiveRecordId || matchedRecord?.id || '')) || matchedRecord || null
     const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '', { existingRecord })
-    const next = [nextRecord, ...current.filter(record => record.id !== nextRecord.id)].slice(0, 300)
-    saveRecords(next)
-    setLoadedRecordId(nextRecord.id)
-    setSavedAt(nextRecord.savedAt)
+    const savedRecord = await upsertDisposalRecordToServer(nextRecord)
+    setLoadedRecordId(savedRecord.id)
+    setSavedAt(savedRecord.savedAt)
     setSavedDraftBaseline(normalizeDraftForCompare(draft))
     if (!silent) {
       window.alert(effectiveRecordId ? '폐기양식이 수정 저장되어 폐기목록에 반영되었습니다.' : '현재 입력한 정보가 저장되어 폐기목록에 등록되었습니다.')
@@ -2543,10 +2603,10 @@ useEffect(() => {
     setPendingDraftNavigation(target)
   }
 
-  function confirmDraftNavigationSave() {
+  async function confirmDraftNavigationSave() {
     const target = String(pendingDraftNavigation || '').trim()
     if (!target) return
-    const saved = saveCurrentDraftRecord({ silent: true })
+    const saved = await saveCurrentDraftRecord({ silent: true })
     if (!saved) return
     setPendingDraftNavigation('')
     navigate(target)
@@ -2571,8 +2631,8 @@ useEffect(() => {
     setSavedDraftBaseline(normalizeDraftForCompare(initialDraft))
   }
 
-  function saveSettlementRecord() {
-    const saved = saveCurrentDraftRecord()
+  async function saveSettlementRecord() {
+    const saved = await saveCurrentDraftRecord()
     if (!saved) return
     navigate('/disposal/list')
   }
@@ -2609,22 +2669,21 @@ useEffect(() => {
             onOpenPreview={openPreviewPage}
             onOpenRegistry={() => navigateWithDraftGuard('/disposal/jurisdictions')}
             onSaveEstimate={saveSettlementRecord}
-            onAutoSaveRecord={nextRecord => {
+            onAutoSaveRecord={async nextRecord => {
               const currentRecords = loadAllRecords()
               const effectiveRecordId = String(recordId || loadedRecordId || nextRecord?.id || '').trim()
               if (effectiveRecordId) {
                 const existingRecord = currentRecords.find(record => record.id === effectiveRecordId) || null
                 const normalizedNextRecord = attachDisposalRecordOwner({ ...nextRecord, id: effectiveRecordId, savedAt: new Date().toISOString(), createdByUserId: existingRecord?.createdByUserId || '', createdByUsername: existingRecord?.createdByUsername || '', createdByGrade: existingRecord?.createdByGrade || '' })
-                const nextRecords = [normalizedNextRecord, ...currentRecords.filter(record => record.id !== effectiveRecordId)].slice(0, 300)
-                saveRecords(nextRecords)
+                const savedRecord = await upsertDisposalRecordToServer(normalizedNextRecord)
                 setLoadedRecordId(effectiveRecordId)
-                setSavedAt(normalizedNextRecord?.savedAt || '')
+                setSavedAt(savedRecord?.savedAt || '')
                 setSavedDraftBaseline(normalizeDraftForCompare(draft))
                 return
               }
               const nextRecords = upsertRecordByCustomerLocation(currentRecords, nextRecord)
-              saveRecords(nextRecords)
-              setSavedAt(nextRecords[0]?.savedAt || '')
+              const savedRecord = await upsertDisposalRecordToServer(nextRecords[0])
+              setSavedAt(savedRecord?.savedAt || '')
               setSavedDraftBaseline(normalizeDraftForCompare(draft))
             }}
           />
@@ -2967,11 +3026,20 @@ export function DisposalListPage() {
   const hasUnreportedAlertFocus = String(searchParams.get('alert') || '').trim() === 'disposal_unreported'
 
   useEffect(() => {
-    const loadedRecords = loadRecords()
-    setRecords(loadedRecords)
-    settlementBaselineRef.current = Object.fromEntries(
-      loadedRecords.map(record => [String(record?.id || ''), buildSettlementTrackingSnapshot(record)])
-    )
+    let cancelled = false
+    async function loadServerRecords() {
+      let loadedRecords = loadRecords()
+      try {
+        loadedRecords = await bootstrapDisposalRecords()
+      } catch {}
+      if (cancelled) return
+      setRecords(loadedRecords)
+      settlementBaselineRef.current = Object.fromEntries(
+        loadedRecords.map(record => [String(record?.id || ''), buildSettlementTrackingSnapshot(record)])
+      )
+    }
+    loadServerRecords()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -3002,7 +3070,7 @@ export function DisposalListPage() {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  function updateRecordStatuses(recordId, updater) {
+  async function updateRecordStatuses(recordId, updater) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
     let nextTarget = null
@@ -3022,11 +3090,12 @@ export function DisposalListPage() {
       return nextTarget
     })
     if (!nextTarget) return
-    saveRecords(nextRecords)
-    setRecords(nextRecords)
+    const savedTarget = await upsertDisposalRecordToServer(nextTarget)
+    const refreshedRecords = records.map(record => record.id === recordId ? savedTarget : record)
+    setRecords(refreshedRecords)
     const baselineSnapshot = settlementBaselineRef.current[String(recordId || '')] || ''
-    const nextSnapshot = buildSettlementTrackingSnapshot(nextTarget)
-    const nextMessage = buildPendingSettlementChangeMessage(nextTarget)
+    const nextSnapshot = buildSettlementTrackingSnapshot(savedTarget)
+    const nextMessage = buildPendingSettlementChangeMessage(savedTarget)
     const previousMessage = buildPendingSettlementChangeMessage(target)
     setPendingSettlementMessages(prev => {
       const filtered = prev.filter(message => message !== previousMessage && message !== nextMessage)
@@ -3145,7 +3214,7 @@ export function DisposalListPage() {
     setSearchQuery(searchInput.trim())
   }
 
-  function removeSelectedRecords() {
+  async function removeSelectedRecords() {
     if (!selectedRowKeys.length) {
       window.alert('삭제할 폐기목록을 선택해주세요.')
       return
@@ -3156,13 +3225,13 @@ export function DisposalListPage() {
       return
     }
     if (!window.confirm('선택한 폐기목록을 삭제할까요?')) return
+    await deleteDisposalRecordsFromServer(targetRecordIds)
     const nextRecords = records.filter(record => !targetRecordIds.includes(record.id))
-    saveRecords(nextRecords)
     setRecords(nextRecords)
     setSelectedRowKeys([])
   }
 
-  function moveToSettlement(recordId) {
+  async function moveToSettlement(recordId) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
     const { hasEligibleItems } = getRecordSettlementEligibility(target)
@@ -3172,8 +3241,9 @@ export function DisposalListPage() {
     }
     const alreadyTransferred = !!target?.settlementTransferredAt
     const nextTransferredAt = alreadyTransferred ? target.settlementTransferredAt : new Date().toISOString()
-    const nextRecords = records.map(record => record.id === recordId ? normalizeRecordShape({ ...record, settlementTransferredAt: nextTransferredAt }) : record)
-    saveRecords(nextRecords)
+    const updatedRecord = normalizeRecordShape({ ...target, settlementTransferredAt: nextTransferredAt })
+    const savedRecord = await upsertDisposalRecordToServer(updatedRecord)
+    const nextRecords = records.map(record => record.id === recordId ? savedRecord : record)
     setRecords(nextRecords)
     window.alert(alreadyTransferred ? '현재 결산 가능 품목 기준으로 폐기결산 화면을 갱신합니다.' : '결산처리가 완료되어 폐기결산에 저장되었습니다.')
     navigate('/disposal/settlements')
@@ -3851,11 +3921,20 @@ export function DisposalSettlementsPage() {
   const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
 
   useEffect(() => {
-    const loaded = loadRecords().filter(record => !!record?.settlementTransferredAt && getSettlementEligibleItems(record).length > 0)
-    setRecords(loaded)
-    if (loaded.length) {
-      setMonthKey(getMonthKey(getSettlementMonthSource(loaded[0]) || new Date().toISOString()))
+    let cancelled = false
+    async function loadServerRecords() {
+      let loaded = loadRecords().filter(record => !!record?.settlementTransferredAt && getSettlementEligibleItems(record).length > 0)
+      try {
+        loaded = (await bootstrapDisposalRecords()).filter(record => !!record?.settlementTransferredAt && getSettlementEligibleItems(record).length > 0)
+      } catch {}
+      if (cancelled) return
+      setRecords(loaded)
+      if (loaded.length) {
+        setMonthKey(getMonthKey(getSettlementMonthSource(loaded[0]) || new Date().toISOString()))
+      }
     }
+    loadServerRecords()
+    return () => { cancelled = true }
   }, [])
 
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])

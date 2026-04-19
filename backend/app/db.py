@@ -783,6 +783,27 @@ CREATE TABLE IF NOT EXISTS disposal_jurisdiction_mappings (
     UNIQUE(place_prefix),
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS disposal_records (
+    id TEXT PRIMARY KEY,
+    disposal_date TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    district TEXT NOT NULL DEFAULT '',
+    final_status TEXT NOT NULL DEFAULT '',
+    platform TEXT NOT NULL DEFAULT '',
+    customer_name TEXT NOT NULL DEFAULT '',
+    items_json TEXT NOT NULL DEFAULT '[]',
+    totals_json TEXT NOT NULL DEFAULT '{}',
+    settlement_transferred_at TEXT NOT NULL DEFAULT '',
+    created_by_user_id INTEGER,
+    created_by_username TEXT NOT NULL DEFAULT '',
+    created_by_grade INTEGER,
+    saved_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
 """
 
 def insert_notification(conn: sqlite3.Connection, user_id: int, type_: str, title: str, body: str) -> None:
@@ -2059,6 +2080,24 @@ CREATE TABLE IF NOT EXISTS quote_workbook_formula_labels (
             'image_data': "TEXT DEFAULT ''",
             'sync_group_id': "TEXT DEFAULT ''",
             'sync_role': "TEXT DEFAULT ''",
+        })
+
+        _ensure_columns(conn, 'disposal_records', {
+            'disposal_date': "TEXT NOT NULL DEFAULT ''",
+            'location': "TEXT NOT NULL DEFAULT ''",
+            'district': "TEXT NOT NULL DEFAULT ''",
+            'final_status': "TEXT NOT NULL DEFAULT ''",
+            'platform': "TEXT NOT NULL DEFAULT ''",
+            'customer_name': "TEXT NOT NULL DEFAULT ''",
+            'items_json': "TEXT NOT NULL DEFAULT '[]'",
+            'totals_json': "TEXT NOT NULL DEFAULT '{}'",
+            'settlement_transferred_at': "TEXT NOT NULL DEFAULT ''",
+            'created_by_user_id': 'INTEGER',
+            'created_by_username': "TEXT NOT NULL DEFAULT ''",
+            'created_by_grade': 'INTEGER',
+            'saved_at': "TEXT NOT NULL DEFAULT ''",
+            'created_at': "TEXT NOT NULL DEFAULT ''",
+            'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
         _ensure_columns(conn, 'users', {
             'login_id': "TEXT DEFAULT ''",

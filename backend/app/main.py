@@ -6908,6 +6908,247 @@ def _disposal_jurisdiction_order_by_sql() -> str:
     return 'place_prefix COLLATE NOCASE, id DESC'
 
 
+
+class DisposalRecordItemIn(BaseModel):
+    itemName: str = ''
+    quantity: Any = ''
+    unitCost: Any = ''
+    reportNo: str = ''
+    note: str = ''
+    paymentDone: bool = False
+    reportDone: bool = False
+    paymentSettledAt: str = ''
+
+
+class DisposalRecordIn(BaseModel):
+    id: str = Field(default='')
+    disposalDate: str = ''
+    location: str = ''
+    district: str = ''
+    finalStatus: str = ''
+    platform: str = ''
+    customerName: str = ''
+    items: list[DisposalRecordItemIn] = Field(default_factory=list)
+    totals: dict[str, Any] = Field(default_factory=dict)
+    settlementTransferredAt: str = ''
+    createdByUserId: str = ''
+    createdByUsername: str = ''
+    createdByGrade: str = ''
+    savedAt: str = ''
+
+
+class DisposalRecordDeleteIn(BaseModel):
+    ids: list[str] = Field(default_factory=list)
+
+
+class DisposalRecordBulkMigrateIn(BaseModel):
+    records: list[DisposalRecordIn] = Field(default_factory=list)
+
+
+def _is_admin_like_user(user: dict) -> bool:
+    return _grade_of(user) <= 2
+
+
+def _normalize_disposal_record_payload(payload: dict[str, Any], current_user: dict | None = None, existing_row: dict | None = None) -> dict[str, Any]:
+    user_id = str((existing_row or {}).get('created_by_user_id') or payload.get('createdByUserId') or (current_user or {}).get('id') or '').strip()
+    username = str((existing_row or {}).get('created_by_username') or payload.get('createdByUsername') or (current_user or {}).get('username') or '').strip()
+    user_grade = str((existing_row or {}).get('created_by_grade') or payload.get('createdByGrade') or (current_user or {}).get('grade') or '').strip()
+    items = []
+    for item in list(payload.get('items') or [])[:30]:
+        if isinstance(item, BaseModel):
+            item = item.model_dump()
+        items.append({
+            'itemName': str(item.get('itemName') or ''),
+            'quantity': item.get('quantity') if item.get('quantity') is not None else '',
+            'unitCost': item.get('unitCost') if item.get('unitCost') is not None else '',
+            'reportNo': str(item.get('reportNo') or ''),
+            'note': str(item.get('note') or ''),
+            'paymentDone': bool(item.get('paymentDone')),
+            'reportDone': bool(item.get('reportDone')),
+            'paymentSettledAt': str(item.get('paymentSettledAt') or ''),
+        })
+    totals = payload.get('totals') if isinstance(payload.get('totals'), dict) else {}
+    return {
+        'id': str(payload.get('id') or (existing_row or {}).get('id') or f"disposal-{int(time.time() * 1000)}").strip(),
+        'disposalDate': str(payload.get('disposalDate') or ''),
+        'location': str(payload.get('location') or ''),
+        'district': str(payload.get('district') or ''),
+        'finalStatus': str(payload.get('finalStatus') or ''),
+        'platform': str(payload.get('platform') or ''),
+        'customerName': str(payload.get('customerName') or ''),
+        'items': items,
+        'totals': {
+            'totalQty': totals.get('totalQty', 0),
+            'totalUnitCost': totals.get('totalUnitCost', 0),
+            'totalReport': totals.get('totalReport', 0),
+            'totalFinal': totals.get('totalFinal', 0),
+        },
+        'settlementTransferredAt': str(payload.get('settlementTransferredAt') or ''),
+        'createdByUserId': user_id,
+        'createdByUsername': username,
+        'createdByGrade': user_grade,
+        'savedAt': str(payload.get('savedAt') or utcnow()),
+    }
+
+
+def _disposal_record_row_to_dict(row) -> dict[str, Any]:
+    data = row_to_dict(row)
+    return {
+        'id': str(data.get('id') or ''),
+        'disposalDate': str(data.get('disposal_date') or ''),
+        'location': str(data.get('location') or ''),
+        'district': str(data.get('district') or ''),
+        'finalStatus': str(data.get('final_status') or ''),
+        'platform': str(data.get('platform') or ''),
+        'customerName': str(data.get('customer_name') or ''),
+        'items': json_loads(data.get('items_json'), []),
+        'totals': json_loads(data.get('totals_json'), {}),
+        'settlementTransferredAt': str(data.get('settlement_transferred_at') or ''),
+        'createdByUserId': str(data.get('created_by_user_id') or ''),
+        'createdByUsername': str(data.get('created_by_username') or ''),
+        'createdByGrade': str(data.get('created_by_grade') or ''),
+        'savedAt': str(data.get('saved_at') or data.get('updated_at') or data.get('created_at') or ''),
+    }
+
+
+def _ensure_disposal_record_access(row_dict: dict[str, Any], user: dict) -> None:
+    if _is_admin_like_user(user):
+        return
+    owner_id = str(row_dict.get('created_by_user_id') or '').strip()
+    owner_username = str(row_dict.get('created_by_username') or '').strip()
+    current_id = str(user.get('id') or '').strip()
+    current_username = str(user.get('username') or '').strip()
+    if owner_id and current_id and owner_id == current_id:
+        return
+    if owner_username and current_username and owner_username == current_username:
+        return
+    raise HTTPException(status_code=403, detail='해당 폐기 데이터에 접근할 수 없습니다.')
+
+
+@app.get('/api/disposal/records')
+def get_disposal_records(user=Depends(require_user)):
+    with get_conn() as conn:
+        if _is_admin_like_user(user):
+            rows = conn.execute("SELECT * FROM disposal_records ORDER BY saved_at DESC, updated_at DESC, created_at DESC").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM disposal_records WHERE CAST(COALESCE(created_by_user_id, '') AS TEXT) = ? OR created_by_username = ? ORDER BY saved_at DESC, updated_at DESC, created_at DESC",
+                (str(user.get('id') or ''), str(user.get('username') or '')),
+            ).fetchall()
+        return {'records': [_disposal_record_row_to_dict(row) for row in rows]}
+
+
+@app.post('/api/disposal/records/upsert')
+def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_user)):
+    incoming = payload.model_dump()
+    with get_conn() as conn:
+        existing = None
+        record_id = str(incoming.get('id') or '').strip()
+        if record_id:
+            row = conn.execute("SELECT * FROM disposal_records WHERE id = ?", (record_id,)).fetchone()
+            existing = row_to_dict(row) if row else None
+            if existing:
+                _ensure_disposal_record_access(existing, user)
+        normalized = _normalize_disposal_record_payload(incoming, user, existing)
+        now = utcnow()
+        if existing:
+            conn.execute(
+                """
+                UPDATE disposal_records
+                SET disposal_date = ?, location = ?, district = ?, final_status = ?, platform = ?, customer_name = ?,
+                    items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?,
+                    created_by_username = ?, created_by_grade = ?, saved_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
+                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                    int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
+                    normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
+                    normalized['savedAt'], now, normalized['id'],
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO disposal_records(
+                    id, disposal_date, location, district, final_status, platform, customer_name,
+                    items_json, totals_json, settlement_transferred_at, created_by_user_id,
+                    created_by_username, created_by_grade, saved_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
+                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                    int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
+                    normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
+                    normalized['savedAt'], now, now,
+                ),
+            )
+        row = conn.execute("SELECT * FROM disposal_records WHERE id = ?", (normalized['id'],)).fetchone()
+        return {'record': _disposal_record_row_to_dict(row)}
+
+
+@app.post('/api/disposal/records/delete')
+def delete_disposal_records(payload: DisposalRecordDeleteIn, user=Depends(require_user)):
+    ids = [str(item or '').strip() for item in payload.ids if str(item or '').strip()]
+    deleted_ids: list[str] = []
+    with get_conn() as conn:
+        for record_id in ids:
+            row = conn.execute("SELECT * FROM disposal_records WHERE id = ?", (record_id,)).fetchone()
+            if not row:
+                continue
+            row_dict = row_to_dict(row)
+            _ensure_disposal_record_access(row_dict, user)
+            conn.execute("DELETE FROM disposal_records WHERE id = ?", (record_id,))
+            deleted_ids.append(record_id)
+    return {'ok': True, 'deletedIds': deleted_ids}
+
+
+@app.post('/api/disposal/records/migrate-local')
+def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_user)):
+    migrated: list[dict[str, Any]] = []
+    with get_conn() as conn:
+        for item in payload.records[:500]:
+            incoming = item.model_dump() if isinstance(item, BaseModel) else dict(item or {})
+            record_id = str(incoming.get('id') or '').strip()
+            existing = None
+            if record_id:
+                row = conn.execute("SELECT * FROM disposal_records WHERE id = ?", (record_id,)).fetchone()
+                existing = row_to_dict(row) if row else None
+                if existing:
+                    try:
+                        _ensure_disposal_record_access(existing, user)
+                    except HTTPException:
+                        continue
+            normalized = _normalize_disposal_record_payload(incoming, user, existing)
+            now = utcnow()
+            if existing:
+                conn.execute(
+                    "UPDATE disposal_records SET disposal_date = ?, location = ?, district = ?, final_status = ?, platform = ?, customer_name = ?, items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?, created_by_username = ?, created_by_grade = ?, saved_at = ?, updated_at = ? WHERE id = ?",
+                    (
+                        normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
+                        json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                        int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
+                        normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
+                        normalized['savedAt'], now, normalized['id'],
+                    )
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO disposal_records(id, disposal_date, location, district, final_status, platform, customer_name, items_json, totals_json, settlement_transferred_at, created_by_user_id, created_by_username, created_by_grade, saved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
+                        json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                        int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
+                        normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
+                        normalized['savedAt'], now, now,
+                    )
+                )
+            migrated.append(normalized)
+    return {'ok': True, 'count': len(migrated)}
+
+
 @app.get('/api/disposal/jurisdictions')
 def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_admin_or_subadmin)):
     keyword = str(q or '').strip()
