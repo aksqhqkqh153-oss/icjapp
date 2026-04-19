@@ -5565,13 +5565,18 @@ button.danger:hover {
 }
 
 .soomgo-review-page {
-  gap: 12px;
+  gap: 8px;
+}
+
+.soomgo-review-hero {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .soomgo-review-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -5579,14 +5584,34 @@ button.danger:hover {
   min-width: 0;
 }
 
+.soomgo-review-title-block h2,
+.soomgo-memo-grid > .card h3,
+.soomgo-ai-result-card h3,
+.soomgo-settings-modal h3 {
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+
+.soomgo-review-title-block .muted {
+  line-height: 1.2;
+}
+
 .soomgo-review-action-row {
   justify-content: flex-end;
+  gap: 6px;
+}
+
+.soomgo-review-action-row button,
+.soomgo-slot-head button {
+  min-height: 34px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .soomgo-memo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .soomgo-memo-grid > .card,
@@ -5598,7 +5623,7 @@ button.danger:hover {
 .soomgo-slot-list-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .soomgo-slot-list-grid-six {
@@ -5608,7 +5633,7 @@ button.danger:hover {
 .soomgo-slot-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   padding-top: 2px;
   padding-bottom: 2px;
 }
@@ -5616,9 +5641,13 @@ button.danger:hover {
 .soomgo-slot-head,
 .soomgo-slot-name-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: space-between;
   align-items: center;
+}
+
+.soomgo-slot-head strong {
+  line-height: 1.1;
 }
 
 .soomgo-slot-name-row > input {
@@ -5628,7 +5657,7 @@ button.danger:hover {
 .soomgo-slot-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .soomgo-slot-name-row > input,
@@ -5638,27 +5667,32 @@ button.danger:hover {
 .soomgo-hidden-textarea {
   width: 100%;
   border: 1px solid var(--border-color, #d1d5db);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px;
   resize: vertical;
   background: #fff;
   color: #111827;
+  line-height: 1.25;
 }
 
 .soomgo-slot-name-row > input {
-  min-height: 44px;
+  min-height: 36px;
 }
 
 .soomgo-slot-grid textarea,
 .soomgo-prompt-textarea,
 .soomgo-side-memo,
 .soomgo-hidden-textarea {
-  min-height: 110px;
+  min-height: 72px;
 }
 
-.soomgo-prompt-textarea.short,
+.soomgo-side-memo,
+.soomgo-prompt-textarea.short {
+  min-height: 64px;
+}
+
 .soomgo-hidden-textarea.short {
-  min-height: 84px;
+  min-height: 60px;
 }
 
 .soomgo-settings-modal {
