@@ -5589,6 +5589,12 @@ button.danger:hover {
   gap: 12px;
 }
 
+.soomgo-memo-grid > .card,
+.soomgo-ai-result-card {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
 .soomgo-slot-list-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -5603,6 +5609,8 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .soomgo-slot-head,
