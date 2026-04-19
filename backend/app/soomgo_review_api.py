@@ -19,6 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data' / 'soomgo_review'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 STATE_PATH = DATA_DIR / 'state.json'
+SOOMGO_REVIEW_SETTING_KEY = 'soomgo_review_state_json'
 SCREENSHOT_DIR = DATA_DIR / 'screenshots'
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -115,40 +116,82 @@ def _default_state() -> dict[str, Any]:
     }
 
 
-def _load_state() -> dict[str, Any]:
-    if not STATE_PATH.exists():
-        state = _default_state()
-        STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
-        return state
-    try:
-        state = json.loads(STATE_PATH.read_text(encoding='utf-8'))
-        default = _default_state()
-        for key, value in default.items():
-            if key not in state:
-                state[key] = value
-        if not isinstance(state.get('slots'), list):
-            state['slots'] = default['slots']
-        while len(state['slots']) < SLOT_COUNT:
-            idx = len(state['slots'])
-            state['slots'].append({
-                'index': idx,
-                'masked_name': '',
-                'real_name': '',
-                'review': '',
-                'reply': '',
-                'situation': '',
-                'specifics': '',
+def _normalize_state(state: Any) -> dict[str, Any]:
+    default = _default_state()
+    if not isinstance(state, dict):
+        state = {}
+    normalized = json.loads(json.dumps(default, ensure_ascii=False))
+    for section in ('settings', 'memos', 'results', 'last_scan'):
+        incoming = state.get(section)
+        if isinstance(incoming, dict):
+            normalized[section].update(incoming)
+    incoming_slots = state.get('slots')
+    if isinstance(incoming_slots, list):
+        normalized_slots: list[dict[str, Any]] = []
+        for index in range(SLOT_COUNT):
+            src = incoming_slots[index] if index < len(incoming_slots) and isinstance(incoming_slots[index], dict) else {}
+            normalized_slots.append({
+                'index': index,
+                'masked_name': str(src.get('masked_name', '')),
+                'real_name': str(src.get('real_name', '')),
+                'review': str(src.get('review', '')),
+                'reply': str(src.get('reply', '')),
+                'situation': str(src.get('situation', '')),
+                'specifics': str(src.get('specifics', '')),
             })
-        return state
+        normalized['slots'] = normalized_slots
+    return normalized
+
+
+def _load_state_from_file() -> dict[str, Any]:
+    if not STATE_PATH.exists():
+        return _default_state()
+    try:
+        return _normalize_state(json.loads(STATE_PATH.read_text(encoding='utf-8')))
     except Exception:
-        state = _default_state()
-        STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
+        return _default_state()
+
+
+def _load_state() -> dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute('SELECT value FROM admin_settings WHERE key = ?', (SOOMGO_REVIEW_SETTING_KEY,)).fetchone()
+        if row and row['value']:
+            try:
+                state = _normalize_state(json.loads(row['value']))
+                conn.execute(
+                    "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                    (SOOMGO_REVIEW_SETTING_KEY, json.dumps(state, ensure_ascii=False), utcnow()),
+                )
+                return state
+            except Exception:
+                pass
+
+        state = _load_state_from_file()
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (SOOMGO_REVIEW_SETTING_KEY, json.dumps(state, ensure_ascii=False), utcnow()),
+        )
+        if not STATE_PATH.exists():
+            try:
+                STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
+            except Exception:
+                pass
         return state
 
 
 def _save_state(state: dict[str, Any]) -> dict[str, Any]:
-    STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
-    return state
+    normalized = _normalize_state(state)
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (SOOMGO_REVIEW_SETTING_KEY, json.dumps(normalized, ensure_ascii=False), utcnow()),
+        )
+    try:
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        STATE_PATH.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception:
+        pass
+    return normalized
 
 
 def _parse_reviews_from_outer_html(outer_html: str) -> list[dict[str, Any]]:
