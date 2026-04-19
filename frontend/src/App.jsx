@@ -20073,8 +20073,8 @@ function MaterialsPage({ user }) {
 }
 
 
-function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onManualMatch }) {
-  if (!open) return null
+function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onManualMatch, canManageHiddenSettings }) {
+  if (!open || !canManageHiddenSettings) return null
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card soomgo-settings-modal" onClick={e => e.stopPropagation()}>
@@ -20085,6 +20085,7 @@ function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onM
         <div className="stack compact-gap">
           <label className="stack compact-gap"><span>숨고 로그인 이메일</span><input value={state.settings.soomgo_email || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_email: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>숨고 로그인 비밀번호</span><input type="password" value={state.settings.soomgo_password || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_password: e.target.value } }))} /></label>
+          <label className="stack compact-gap"><span>리뷰초안 프롬프트</span><textarea className="soomgo-hidden-textarea" value={state.settings.prompt || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, prompt: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>outer HTML 코드</span><textarea className="soomgo-hidden-textarea" value={state.settings.outer_html || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, outer_html: e.target.value } }))} /></label>
           <div className="soomgo-hidden-grid">
             <label className="stack compact-gap"><span>익명 이름</span><input value={state.settings.anonymous_name || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, anonymous_name: e.target.value } }))} /></label>
@@ -20116,48 +20117,62 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
         <button type="button" className="small" onClick={() => onGenerate(index)}>리뷰초안생성</button>
       </div>
       <div className="soomgo-slot-name-row">
-        <label className="stack compact-gap"><span>가명</span><input value={slot.masked_name || ''} onChange={e => onChange(index, 'masked_name', e.target.value)} /></label>
-        <label className="stack compact-gap"><span>실명</span><input value={slot.real_name || ''} onChange={e => onChange(index, 'real_name', e.target.value)} /></label>
+        <input value={slot.masked_name || ''} placeholder="가명" onChange={e => onChange(index, 'masked_name', e.target.value)} />
+        <input value={slot.real_name || ''} placeholder="실명" onChange={e => onChange(index, 'real_name', e.target.value)} />
       </div>
       <div className="soomgo-slot-grid">
-        <label className="stack compact-gap"><span>리뷰 내용</span><textarea value={slot.review || ''} onChange={e => onChange(index, 'review', e.target.value)} /></label>
-        <label className="stack compact-gap"><span>AI 결과</span><textarea value={slot.reply || ''} onChange={e => onChange(index, 'reply', e.target.value)} /></label>
-        <label className="stack compact-gap"><span>이사현장상황</span><textarea value={slot.situation || ''} onChange={e => onChange(index, 'situation', e.target.value)} /></label>
-        <label className="stack compact-gap"><span>현장특이사항</span><textarea value={slot.specifics || ''} onChange={e => onChange(index, 'specifics', e.target.value)} /></label>
+        <textarea value={slot.review || ''} placeholder="리뷰내용" onChange={e => onChange(index, 'review', e.target.value)} />
+        <textarea value={slot.reply || ''} placeholder="AI 결과" onChange={e => onChange(index, 'reply', e.target.value)} />
+        <textarea value={slot.situation || ''} placeholder="이사현장상황" onChange={e => onChange(index, 'situation', e.target.value)} />
+        <textarea value={slot.specifics || ''} placeholder="현장특이사항" onChange={e => onChange(index, 'specifics', e.target.value)} />
       </div>
     </section>
   )
 }
 
-function SoomgoReviewFinderPage() {
-  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 10 }, (_, index) => ({ index, masked_name: '', real_name: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
+function SoomgoReviewFinderPage({ user }) {
+  const canManageHiddenSettings = Number(user?.grade || 6) <= 2
+  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [extraOpen, setExtraOpen] = useState(false)
 
   async function loadState() {
     const data = await api('/api/soomgo-review/state')
-    setState(prev => ({ ...prev, ...data }))
+    setState(prev => ({
+      ...prev,
+      ...data,
+      slots: Array.from({ length: 6 }, (_, index) => ({
+        index,
+        masked_name: data?.slots?.[index]?.masked_name || '',
+        real_name: data?.slots?.[index]?.real_name || '',
+        review: data?.slots?.[index]?.review || '',
+        reply: data?.slots?.[index]?.reply || '',
+        situation: data?.slots?.[index]?.situation || '',
+        specifics: data?.slots?.[index]?.specifics || '',
+      })),
+    }))
     return data
   }
 
   useEffect(() => {
     let ignore = false
     loadState().then(data => {
-      if (!ignore && data?.settings?.auto_scan_on_open) {
+      if (!ignore && canManageHiddenSettings && data?.settings?.auto_scan_on_open) {
         handleAutoScan()
       }
     }).catch(() => {})
     return () => { ignore = true }
-  }, [])
+  }, [canManageHiddenSettings])
 
   async function persistState(nextState = state) {
     setSaving(true)
     try {
+      const payload = { memos: nextState.memos, results: nextState.results, slots: nextState.slots }
+      if (canManageHiddenSettings) payload.settings = nextState.settings
       const saved = await api('/api/soomgo-review/state', {
         method: 'POST',
-        body: JSON.stringify({ settings: nextState.settings, memos: nextState.memos, results: nextState.results, slots: nextState.slots }),
+        body: JSON.stringify(payload),
       })
       setState(prev => ({ ...prev, ...saved }))
     } catch (error) {
@@ -20168,6 +20183,7 @@ function SoomgoReviewFinderPage() {
   }
 
   async function handleAutoScan() {
+    if (!canManageHiddenSettings) return window.alert('관리자 / 부관리자만 실행할 수 있습니다.')
     setLoading(true)
     try {
       const data = await api('/api/soomgo-review/scan-auto', { method: 'POST' })
@@ -20180,6 +20196,7 @@ function SoomgoReviewFinderPage() {
   }
 
   async function handleManualScan() {
+    if (!canManageHiddenSettings) return window.alert('관리자 / 부관리자만 실행할 수 있습니다.')
     setLoading(true)
     try {
       const data = await api('/api/soomgo-review/scan-manual', { method: 'POST' })
@@ -20192,6 +20209,7 @@ function SoomgoReviewFinderPage() {
   }
 
   async function handleManualMatch() {
+    if (!canManageHiddenSettings) return window.alert('관리자 / 부관리자만 실행할 수 있습니다.')
     setLoading(true)
     try {
       const data = await api('/api/soomgo-review/manual-match', {
@@ -20232,49 +20250,36 @@ function SoomgoReviewFinderPage() {
   return (
     <div className="stack-page soomgo-review-page">
       <section className="card soomgo-review-hero">
-        <div className="between wrap gap">
-          <div>
-            <h2>숨고리뷰찾기</h2>
-            <div className="muted">첨부한 리뷰 찾기 스크립트의 핵심 흐름을 앱 화면에 옮긴 페이지입니다.</div>
+        <div className="soomgo-review-toolbar">
+          <div className="soomgo-review-title-block">
+            <h2>숨고 리뷰 찾기</h2>
             <div className="muted">최근 검사 {state.last_scan?.updated_at ? String(state.last_scan.updated_at).replace('T', ' ').slice(0, 16) : '-'} · {state.last_scan?.message || '대기중'}</div>
           </div>
-          <div className="row gap wrap">
-            <button type="button" onClick={handleAutoScan} disabled={loading}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
-            <button type="button" className="ghost" onClick={handleManualScan} disabled={loading}>{loading ? '진행중...' : '수동 리뷰 찾기'}</button>
-            <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>숨은 설정</button>
+          <div className="row gap wrap soomgo-review-action-row">
+            <button type="button" onClick={handleAutoScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
+            <button type="button" className="ghost" onClick={handleManualScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '수동 리뷰 찾기'}</button>
+            {canManageHiddenSettings ? <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>숨은 설정</button> : null}
             <button type="button" className="ghost" onClick={() => persistState()} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
         </div>
       </section>
 
-      <section className="soomgo-review-layout">
-        <div className="soomgo-review-main stack-page">
-          <section className="card soomgo-prompt-card">
-            <div className="between"><h3>리뷰초안 프롬프트</h3><span className="muted">리뷰초안생성 기준</span></div>
-            <textarea value={state.settings.prompt || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, prompt: e.target.value } }))} className="soomgo-prompt-textarea" />
-          </section>
-
-          <section className="card soomgo-ai-result-card">
-            <div className="between"><h3>AI 리뷰 답변 결과</h3><button type="button" className="ghost small" onClick={() => navigator.clipboard?.writeText(state.results.ai_result || '')}>복사</button></div>
-            <textarea value={state.results.ai_result || ''} onChange={e => setState(prev => ({ ...prev, results: { ...prev.results, ai_result: e.target.value } }))} className="soomgo-prompt-textarea short" />
-          </section>
-
-          <section className="soomgo-slot-list-grid">
-            {state.slots.slice(0, 5).map((slot, index) => <SoomgoReviewSlotCard key={`slot-top-${index}`} slot={slot} index={index} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}
-          </section>
-
-          <section className="card soomgo-extra-slots-card">
-            <div className="between"><h3>추가 슬롯 5개</h3><button type="button" className="ghost small" onClick={() => setExtraOpen(v => !v)}>{extraOpen ? '접기' : '펼치기'}</button></div>
-            {extraOpen && <div className="soomgo-slot-list-grid">{state.slots.slice(5, 10).map((slot, index) => <SoomgoReviewSlotCard key={`slot-extra-${index + 5}`} slot={slot} index={index + 5} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}</div>}
-          </section>
-        </div>
-
-        <aside className="soomgo-review-side stack-page">
-          <section className="card"><h3>상시 메모장 1. 숨고</h3><textarea className="soomgo-side-memo" value={state.memos.soomgo || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, soomgo: e.target.value } }))} /></section>
-          <section className="card"><h3>상시 메모장 2. 오늘</h3><textarea className="soomgo-side-memo" value={state.memos.today || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, today: e.target.value } }))} /></section>
-          <section className="card"><h3>상시 메모장 3. 공홈</h3><textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, site: e.target.value } }))} /></section>
-        </aside>
+      <section className="soomgo-memo-grid">
+        <section className="card"><h3>상시 메모장 1. 숨고</h3><textarea className="soomgo-side-memo" value={state.memos.soomgo || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, soomgo: e.target.value } }))} /></section>
+        <section className="card"><h3>상시 메모장 2. 오늘</h3><textarea className="soomgo-side-memo" value={state.memos.today || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, today: e.target.value } }))} /></section>
+        <section className="card"><h3>상시 메모장 3. 공홈</h3><textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, site: e.target.value } }))} /></section>
       </section>
+
+      <section className="card soomgo-ai-result-card">
+        <div className="between"><h3>AI 리뷰 답변 결과</h3><button type="button" className="ghost small" onClick={() => navigator.clipboard?.writeText(state.results.ai_result || '')}>복사</button></div>
+        <textarea value={state.results.ai_result || ''} onChange={e => setState(prev => ({ ...prev, results: { ...prev.results, ai_result: e.target.value } }))} className="soomgo-prompt-textarea short" />
+      </section>
+
+      <section className="soomgo-slot-list-grid soomgo-slot-list-grid-six">
+        {state.slots.slice(0, 6).map((slot, index) => <SoomgoReviewSlotCard key={`slot-${index}`} slot={slot} index={index} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}
+      </section>
+
+      {!canManageHiddenSettings ? <div className="card muted">숨은 설정, 자동/수동 리뷰 찾기 기능은 관리자 / 부관리자만 사용할 수 있습니다.</div> : null}
 
       <SoomgoReviewSettingsModal
         open={settingsOpen}
@@ -20283,6 +20288,7 @@ function SoomgoReviewFinderPage() {
         setState={setState}
         onSave={() => persistState()}
         onManualMatch={handleManualMatch}
+        canManageHiddenSettings={canManageHiddenSettings}
       />
     </div>
   )
@@ -20671,7 +20677,7 @@ function App() {
         <Route path="/disposal/settlements" element={staffAllowed ? <DisposalSettlementsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/disposal/jurisdictions" element={staffAllowed ? <DisposalJurisdictionRegistryPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/complaints-check" element={staffAllowed ? <PlaceholderFeaturePage title="컴플확인" description="컴플확인 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/ladder-dispatch" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <LadderDispatchPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/handover" element={staffAllowed ? <PlaceholderFeaturePage title="인수인계서" description="인수인계서 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

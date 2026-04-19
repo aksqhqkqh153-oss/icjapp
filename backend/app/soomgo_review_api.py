@@ -30,6 +30,26 @@ DEFAULT_PROMPT = (
 )
 
 
+SLOT_COUNT = 6
+ADMIN_GRADES = {1, 2}
+SENSITIVE_SETTING_KEYS = {'soomgo_email', 'soomgo_password', 'prompt', 'outer_html', 'anonymous_name', 'review_input', 'target_file_dir', 'auto_scan_on_open'}
+
+
+def _is_soomgo_admin(user: Optional[dict[str, Any]]) -> bool:
+    return int(user.get('grade') or 6) in ADMIN_GRADES if user else False
+
+
+def _sanitize_state_for_user(state: dict[str, Any], user: Optional[dict[str, Any]]) -> dict[str, Any]:
+    if _is_soomgo_admin(user):
+        return state
+    masked = json.loads(json.dumps(state, ensure_ascii=False))
+    settings = masked.get('settings', {})
+    for key in SENSITIVE_SETTING_KEYS:
+        if key in settings:
+            settings[key] = '' if isinstance(settings.get(key), str) else False
+    return masked
+
+
 def _parse_token(authorization: Optional[str]) -> str:
     raw = str(authorization or '').strip()
     if raw.startswith('Bearer '):
@@ -50,7 +70,7 @@ def _require_user(authorization: Optional[str]) -> dict[str, Any]:
 
 def _default_state() -> dict[str, Any]:
     slots = []
-    for index in range(10):
+    for index in range(SLOT_COUNT):
         slots.append({
             'index': index,
             'masked_name': '',
@@ -107,7 +127,7 @@ def _load_state() -> dict[str, Any]:
                 state[key] = value
         if not isinstance(state.get('slots'), list):
             state['slots'] = default['slots']
-        while len(state['slots']) < 10:
+        while len(state['slots']) < SLOT_COUNT:
             idx = len(state['slots'])
             state['slots'].append({
                 'index': idx,
@@ -308,7 +328,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 break
         review_items = review_list.find_elements(By.CSS_SELECTOR, '.profile-review-item')
         for item in review_items:
-            if len(found) >= 10:
+            if len(found) >= SLOT_COUNT:
                 break
             try:
                 text_blocks = item.find_elements(By.XPATH, ".//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary')]")
@@ -346,7 +366,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 pass
 
     slots = state.get('slots', [])
-    for idx in range(10):
+    for idx in range(SLOT_COUNT):
         slot = slots[idx]
         if idx < len(found):
             slot['masked_name'] = found[idx].get('masked_name', '')
@@ -438,23 +458,26 @@ class SoomgoDraftIn(BaseModel):
 
 @router.get('/state')
 def get_state(authorization: Optional[str] = Header(default=None)):
-    _require_user(authorization)
-    return _load_state()
+    user = _require_user(authorization)
+    return _sanitize_state_for_user(_load_state(), user)
 
 
 @router.post('/state')
 def save_state(payload: SoomgoReviewStateIn, authorization: Optional[str] = Header(default=None)):
-    _require_user(authorization)
+    user = _require_user(authorization)
     state = _load_state()
     if payload.settings:
-        state['settings'].update(payload.settings)
+        if not _is_soomgo_admin(user):
+            raise HTTPException(status_code=403, detail='관리자 / 부관리자만 숨은 설정을 확인하거나 수정할 수 있습니다.')
+        allowed_settings = {key: value for key, value in payload.settings.items() if key in SENSITIVE_SETTING_KEYS}
+        state['settings'].update(allowed_settings)
     if payload.memos:
         state['memos'].update(payload.memos)
     if payload.results:
         state['results'].update(payload.results)
     if payload.slots is not None:
         normalized = []
-        for index in range(10):
+        for index in range(SLOT_COUNT):
             src = payload.slots[index] if index < len(payload.slots) else {}
             normalized.append({
                 'index': index,
@@ -467,12 +490,14 @@ def save_state(payload: SoomgoReviewStateIn, authorization: Optional[str] = Head
             })
         state['slots'] = normalized
     _save_state(state)
-    return state
+    return _sanitize_state_for_user(state, user)
 
 
 @router.post('/scan-auto')
 def scan_auto(authorization: Optional[str] = Header(default=None)):
-    _require_user(authorization)
+    user = _require_user(authorization)
+    if not _is_soomgo_admin(user):
+        raise HTTPException(status_code=403, detail='관리자 / 부관리자만 자동 숨고리뷰 찾기를 실행할 수 있습니다.')
     state = _load_state()
     try:
         state = _scan_unanswered_reviews(state, headless=True)
@@ -486,7 +511,9 @@ def scan_auto(authorization: Optional[str] = Header(default=None)):
 
 @router.post('/scan-manual')
 def scan_manual(authorization: Optional[str] = Header(default=None)):
-    _require_user(authorization)
+    user = _require_user(authorization)
+    if not _is_soomgo_admin(user):
+        raise HTTPException(status_code=403, detail='관리자 / 부관리자만 수동 리뷰 찾기를 실행할 수 있습니다.')
     state = _load_state()
     try:
         state = _scan_unanswered_reviews(state, headless=False)
@@ -500,7 +527,9 @@ def scan_manual(authorization: Optional[str] = Header(default=None)):
 
 @router.post('/manual-match')
 def manual_match(payload: SoomgoManualMatchIn, authorization: Optional[str] = Header(default=None)):
-    _require_user(authorization)
+    user = _require_user(authorization)
+    if not _is_soomgo_admin(user):
+        raise HTTPException(status_code=403, detail='관리자 / 부관리자만 숨은 설정을 사용할 수 있습니다.')
     state = _load_state()
     result = _manual_match(payload.outer_html, payload.anonymous_name, payload.review_input)
     state['results']['candidate_names'] = result['candidate_names']

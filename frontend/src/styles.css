@@ -5568,14 +5568,24 @@ button.danger:hover {
   gap: 12px;
 }
 
-.soomgo-review-layout {
+.soomgo-review-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: center;
 }
 
-.soomgo-review-main,
-.soomgo-review-side {
+.soomgo-review-title-block {
+  min-width: 0;
+}
+
+.soomgo-review-action-row {
+  justify-content: flex-end;
+}
+
+.soomgo-memo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -5583,6 +5593,10 @@ button.danger:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
+}
+
+.soomgo-slot-list-grid-six {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .soomgo-slot-card {
@@ -5599,7 +5613,7 @@ button.danger:hover {
   align-items: center;
 }
 
-.soomgo-slot-name-row > label {
+.soomgo-slot-name-row > input {
   flex: 1 1 0;
 }
 
@@ -5609,18 +5623,29 @@ button.danger:hover {
   gap: 8px;
 }
 
+.soomgo-slot-name-row > input,
 .soomgo-slot-grid textarea,
 .soomgo-prompt-textarea,
 .soomgo-side-memo,
 .soomgo-hidden-textarea {
   width: 100%;
-  min-height: 110px;
   border: 1px solid var(--border-color, #d1d5db);
   border-radius: 10px;
   padding: 10px;
   resize: vertical;
   background: #fff;
   color: #111827;
+}
+
+.soomgo-slot-name-row > input {
+  min-height: 44px;
+}
+
+.soomgo-slot-grid textarea,
+.soomgo-prompt-textarea,
+.soomgo-side-memo,
+.soomgo-hidden-textarea {
+  min-height: 110px;
 }
 
 .soomgo-prompt-textarea.short,
@@ -5647,15 +5672,24 @@ button.danger:hover {
   margin: 8px 0 0;
 }
 
-@media (max-width: 900px) {
-  .soomgo-review-layout {
-    grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+  .soomgo-slot-list-grid-six {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+@media (max-width: 900px) {
+  .soomgo-review-toolbar,
+  .soomgo-memo-grid,
+  .soomgo-slot-list-grid-six,
   .soomgo-slot-grid,
   .soomgo-hidden-grid,
   .soomgo-result-grid {
     grid-template-columns: 1fr;
+  }
+
+  .soomgo-review-action-row {
+    justify-content: flex-start;
   }
 }
 
