@@ -3818,6 +3818,20 @@ function getSettlementMonthlyGroupKey(record, field = 'disposalDate') {
   return String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
 }
 
+function buildSettlementExpandKeys(rows, includeItems = false) {
+  const next = {}
+  rows.forEach((row) => {
+    if (row.kind === 'summary' && row.toggleKey) {
+      next[row.toggleKey] = true
+    }
+    if (includeItems && row.kind === 'detail') {
+      if (row.parentKey) next[row.parentKey] = true
+      if (row.toggleKey) next[row.toggleKey] = true
+    }
+  })
+  return next
+}
+
 function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', direction = 'asc') {
   const byDate = new Map()
   monthlyRecords.forEach(record => {
@@ -4013,6 +4027,7 @@ export function DisposalSettlementsPage() {
   const [settlementDateEnd, setSettlementDateEnd] = useState('')
   const [settlementSortDirection, setSettlementSortDirection] = useState('asc')
   const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
+  const [settlementExpandStage, setSettlementExpandStage] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -4084,8 +4099,28 @@ export function DisposalSettlementsPage() {
     return false
   }), [settlementRows, effectiveExpandedKeys])
 
+  useEffect(() => {
+    setExpandedKeys({})
+    setSettlementExpandStage(0)
+  }, [monthKey, settlementFilterField, settlementDateStart, settlementDateEnd, settlementSortDirection])
+
   function toggleRow(key) {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function handleExpandSettlementRows() {
+    if (settlementExpandStage === 0) {
+      setExpandedKeys(prev => ({ ...prev, ...buildSettlementExpandKeys(settlementRows, false) }))
+      setSettlementExpandStage(1)
+      return
+    }
+    if (settlementExpandStage === 1) {
+      setExpandedKeys(prev => ({ ...prev, ...buildSettlementExpandKeys(settlementRows, true) }))
+      setSettlementExpandStage(2)
+      return
+    }
+    setExpandedKeys({})
+    setSettlementExpandStage(0)
   }
 
   function applySettlementSearch() {
@@ -4093,6 +4128,7 @@ export function DisposalSettlementsPage() {
     setSettlementSearchQuery(trimmedQuery)
     if (!trimmedQuery) {
       setExpandedKeys({})
+      setSettlementExpandStage(0)
     }
   }
 
@@ -4164,7 +4200,17 @@ export function DisposalSettlementsPage() {
       </section>
 
       <section className="card disposal-monthly-sheet-card">
-        <div className="disposal-sheet-title">월 결산표</div>
+        <div className="disposal-sheet-title-row">
+          <div className="disposal-sheet-title">월 결산표</div>
+          <button
+            type="button"
+            className="ghost disposal-action-button disposal-search-text-button disposal-settlement-expand-step-button"
+            onClick={handleExpandSettlementRows}
+            aria-label="월 결산표 펼치기 단계 실행"
+          >
+            {settlementExpandStage === 0 ? '펼치기' : settlementExpandStage === 1 ? '2차 펼치기' : '전체 접기'}
+          </button>
+        </div>
         <div className="disposal-settlement-inline-controls disposal-settlement-inline-controls-single-row">
           <label
             className={`disposal-settlement-custom-date-field disposal-settlement-date-placeholder ${!settlementDateStartInput ? 'is-empty' : ''}`}

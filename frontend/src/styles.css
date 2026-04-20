@@ -31495,6 +31495,19 @@ button.danger {
 }
 
 
+.disposal-sheet-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.disposal-settlement-expand-step-button {
+  flex: 0 0 auto;
+  min-width: 92px;
+  height: 34px;
+}
+
 /* 2026-04-20 settlement toolbar height + date placeholder + total row */
 .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row {
   display: flex;
@@ -31575,6 +31588,17 @@ button.danger {
 }
 
 @media (max-width: 768px) {
+  .disposal-sheet-title-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .disposal-settlement-expand-step-button {
+    width: auto;
+    min-width: 88px;
+    height: 32px;
+  }
+
   .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row {
     gap: 6px;
   }
