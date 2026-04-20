@@ -5708,6 +5708,12 @@ button.danger:hover {
   gap: 10px;
 }
 
+.soomgo-error-modal-head {
+  cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .soomgo-error-modal-head h3 {
   margin: 0;
 }

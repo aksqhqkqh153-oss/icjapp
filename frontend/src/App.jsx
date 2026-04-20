@@ -20138,10 +20138,14 @@ function SoomgoReviewFinderPage({ user }) {
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' })
+  const [errorDialogPosition, setErrorDialogPosition] = useState(null)
+  const errorDialogCardRef = useRef(null)
+  const errorDialogDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 })
 
   function openCopyableErrorDialog(title, error, fallbackMessage) {
     const message = String(error?.message || fallbackMessage || '오류가 발생했습니다.').trim()
     setErrorDialog({ open: true, title: title || '오류', message })
+    setErrorDialogPosition(null)
   }
 
   function shouldOpenCopyableAlertMessage(message) {
@@ -20155,6 +20159,92 @@ function SoomgoReviewFinderPage({ user }) {
     return text.length >= 180 || lineCount >= 5
   }
 
+  function closeErrorDialog() {
+    errorDialogDragRef.current = { dragging: false, offsetX: 0, offsetY: 0 }
+    setErrorDialog({ open: false, title: '', message: '' })
+    setErrorDialogPosition(null)
+  }
+
+  function clampErrorDialogPosition(nextLeft, nextTop) {
+    const card = errorDialogCardRef.current
+    if (!card) return { left: Math.max(12, nextLeft), top: Math.max(12, nextTop) }
+    const maxLeft = Math.max(12, window.innerWidth - card.offsetWidth - 12)
+    const maxTop = Math.max(12, window.innerHeight - card.offsetHeight - 12)
+    return {
+      left: Math.min(Math.max(12, nextLeft), maxLeft),
+      top: Math.min(Math.max(12, nextTop), maxTop),
+    }
+  }
+
+  function beginErrorDialogDrag(clientX, clientY) {
+    const card = errorDialogCardRef.current
+    if (!card) return
+    const rect = card.getBoundingClientRect()
+    errorDialogDragRef.current = {
+      dragging: true,
+      offsetX: clientX - rect.left,
+      offsetY: clientY - rect.top,
+    }
+    setErrorDialogPosition({ left: rect.left, top: rect.top })
+  }
+
+  function handleErrorDialogHeaderMouseDown(event) {
+    if (event.button !== 0) return
+    if (event.target.closest('button')) return
+    beginErrorDialogDrag(event.clientX, event.clientY)
+    event.preventDefault()
+  }
+
+  function handleErrorDialogHeaderTouchStart(event) {
+    const touch = event.touches?.[0]
+    if (!touch) return
+    beginErrorDialogDrag(touch.clientX, touch.clientY)
+  }
+
+  useEffect(() => {
+    if (!errorDialog.open) return undefined
+
+    function handleMove(clientX, clientY) {
+      const dragState = errorDialogDragRef.current
+      if (!dragState.dragging) return
+      const nextLeft = clientX - dragState.offsetX
+      const nextTop = clientY - dragState.offsetY
+      setErrorDialogPosition(clampErrorDialogPosition(nextLeft, nextTop))
+    }
+
+    function handleMouseMove(event) {
+      handleMove(event.clientX, event.clientY)
+    }
+
+    function handleTouchMove(event) {
+      const touch = event.touches?.[0]
+      if (!touch) return
+      handleMove(touch.clientX, touch.clientY)
+    }
+
+    function stopDrag() {
+      errorDialogDragRef.current = { ...errorDialogDragRef.current, dragging: false }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', stopDrag)
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+    window.addEventListener('touchend', stopDrag)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', stopDrag)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', stopDrag)
+    }
+  }, [errorDialog.open])
+
+  useEffect(() => {
+    if (errorDialog.open) {
+      setErrorDialogPosition(null)
+    }
+  }, [errorDialog.open, errorDialog.title, errorDialog.message])
+
   useEffect(() => {
     const nativeAlert = window.alert
     window.alert = function patchedSoomgoReviewAlert(message) {
@@ -20164,6 +20254,7 @@ function SoomgoReviewFinderPage({ user }) {
           title: '숨고리뷰찾기 오류 상세',
           message: String(message || '').trim(),
         })
+        setErrorDialogPosition(null)
         return
       }
       return nativeAlert.call(window, message)
@@ -20337,24 +20428,31 @@ function SoomgoReviewFinderPage({ user }) {
       />
 
       {errorDialog.open ? createPortal(
-        <div className="modal-overlay" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>
-          <div className="modal-card soomgo-error-modal" onClick={event => event.stopPropagation()}>
-            <div className="between soomgo-error-modal-head">
+        <div className="modal-overlay" onClick={closeErrorDialog}>
+          <div
+            ref={errorDialogCardRef}
+            className="modal-card soomgo-error-modal"
+            onClick={event => event.stopPropagation()}
+            style={errorDialogPosition ? { position: 'fixed', left: `${errorDialogPosition.left}px`, top: `${errorDialogPosition.top}px`, margin: 0 } : undefined}
+          >
+            <div
+              className="between soomgo-error-modal-head"
+              onMouseDown={handleErrorDialogHeaderMouseDown}
+              onTouchStart={handleErrorDialogHeaderTouchStart}
+            >
               <h3>{errorDialog.title || '오류'}</h3>
-              <button type="button" className="ghost small" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>닫기</button>
+              <button type="button" className="ghost small" onClick={closeErrorDialog}>닫기</button>
             </div>
-            <div className="muted small soomgo-error-modal-note">아래 내용을 드래그하거나 복사 버튼으로 복사해서 그대로 전달할 수 있습니다.</div>
+            <div className="muted small soomgo-error-modal-note">상단 제목줄을 마우스로 끌어서 이동할 수 있습니다. 아래 내용은 드래그하거나 복사 버튼으로 복사할 수 있습니다.</div>
             <textarea
               className="soomgo-error-textarea"
               value={errorDialog.message || ''}
               readOnly
               spellCheck={false}
-              onFocus={event => event.target.select()}
-              onClick={event => event.target.select()}
             />
             <div className="row gap wrap" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="ghost" onClick={copyErrorDialogMessage}>복사</button>
-              <button type="button" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>확인</button>
+              <button type="button" onClick={closeErrorDialog}>확인</button>
             </div>
           </div>
         </div>,
