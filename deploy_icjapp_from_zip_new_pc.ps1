@@ -22,6 +22,19 @@ function Invoke-Wrangler {
     return $LASTEXITCODE
 }
 
+function Stop-IfRunning {
+    param([string[]]$Names)
+    foreach ($name in $Names) {
+        $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
+        if ($procs) {
+            $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+            Write-Host ("- stopped: " + $name)
+        } else {
+            Write-Host ("- not running: " + $name)
+        }
+    }
+}
+
 if (!(Test-Path $Repo)) { throw "Repo folder not found: $Repo" }
 if (!(Test-Path $Zip)) { throw "ZIP file not found: $Zip" }
 if (!(Test-Path (Join-Path $Repo ".git"))) { throw ".git folder not found under repo: $Repo" }
@@ -32,11 +45,7 @@ $backendStatic = Join-Path $Repo "backend\static"
 $stashCreated = $false
 
 Write-Host "1) Stop running processes"
-Get-Process python,node,npm,uvicorn -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-taskkill /F /IM python.exe /T *> $null
-taskkill /F /IM node.exe /T *> $null
-taskkill /F /IM npm.cmd /T *> $null
-taskkill /F /IM uvicorn.exe /T *> $null
+Stop-IfRunning -Names @("python", "node", "uvicorn")
 
 Write-Host "2) Overwrite project from ZIP"
 Expand-Archive -LiteralPath $Zip -DestinationPath $Repo -Force
@@ -73,10 +82,8 @@ if ($stashCreated) {
 
 Write-Host "4) Frontend install/build"
 Set-Location $frontend
-if (!(Test-Path (Join-Path $frontend "node_modules"))) {
-    npm install
-    Assert-LastExitCode "npm install"
-}
+npm install
+Assert-LastExitCode "npm install"
 npm run build
 Assert-LastExitCode "npm run build"
 if (!(Test-Path $dist)) { throw "dist folder not found after build: $dist" }

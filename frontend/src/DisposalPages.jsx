@@ -39,7 +39,6 @@ const SORT_DIRECTION_OPTIONS = [
 ]
 
 const SETTLEMENT_PRIMARY_FILTER_OPTIONS = [
-  { value: 'platform', label: '구분' },
   { value: 'customerName', label: '고객명' },
   { value: 'disposalDate', label: '폐기일자' },
   { value: 'paymentDate', label: '입금일자' },
@@ -3314,7 +3313,7 @@ export function DisposalListPage() {
             ) : null}
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="검색창" />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="키워드 검색" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySearch}>검색</button>
             <button type="button" className="ghost disposal-action-button disposal-delete-button" onClick={removeSelectedRecords}>삭제</button>
           </div>
@@ -3771,15 +3770,30 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
     byDate.get(dateKey).push(record)
   })
   const rows = []
-  const groupedEntries = Array.from(byDate.entries()).sort((a, b) => {
-    if (field !== 'disposalDate') return 0
-    const aTime = getDateValueParts(a[0])?.date?.getTime?.()
-    const bTime = getDateValueParts(b[0])?.date?.getTime?.()
-    const aValue = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY
-    const bValue = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY
-    return direction === 'desc' ? bValue - aValue : aValue - bValue
-  })
-  groupedEntries.forEach(([dateKey, records]) => {
+  const groupedEntries = Array.from(byDate.entries())
+    .map(([dateKey, records]) => ({
+      dateKey,
+      records: sortSettlementRecords(records, field, direction),
+    }))
+    .sort((a, b) => {
+      if (field === 'disposalDate') {
+        const aTime = getDateValueParts(a.dateKey)?.date?.getTime?.()
+        const bTime = getDateValueParts(b.dateKey)?.date?.getTime?.()
+        const aValue = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY
+        const bValue = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY
+        return direction === 'desc' ? bValue - aValue : aValue - bValue
+      }
+      const aRecord = a.records[0] || {}
+      const bRecord = b.records[0] || {}
+      const aValue = getSettlementSortPrimitive(aRecord, field)
+      const bValue = getSettlementSortPrimitive(bRecord, field)
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return direction === 'desc' ? bValue - aValue : aValue - bValue
+      }
+      const result = String(aValue || '').localeCompare(String(bValue || ''), 'ko')
+      return direction === 'desc' ? -result : result
+    })
+  groupedEntries.forEach(({ dateKey, records }) => {
     const summary = records.reduce((acc, record) => {
       const metrics = getRecordSettlementMetrics(record)
       acc.customerCount += 1
@@ -3930,14 +3944,12 @@ export function DisposalSettlementsPage() {
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
   const [expandedKeys, setExpandedKeys] = useState({})
   const [settlementFilterFieldInput, setSettlementFilterFieldInput] = useState('disposalDate')
-  const [settlementDateFilterInput, setSettlementDateFilterInput] = useState('all')
   const [settlementDateStartInput, setSettlementDateStartInput] = useState('')
   const [settlementDateEndInput, setSettlementDateEndInput] = useState('')
   const [settlementSortDirectionInput, setSettlementSortDirectionInput] = useState('asc')
   const [settlementSearchInput, setSettlementSearchInput] = useState('')
 
   const [settlementFilterField, setSettlementFilterField] = useState('disposalDate')
-  const [settlementDateFilter, setSettlementDateFilter] = useState('all')
   const [settlementDateStart, setSettlementDateStart] = useState('')
   const [settlementDateEnd, setSettlementDateEnd] = useState('')
   const [settlementSortDirection, setSettlementSortDirection] = useState('asc')
@@ -3963,12 +3975,12 @@ export function DisposalSettlementsPage() {
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
   const filteredSettlementRecords = useMemo(() => {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
-    const dateFiltered = records.filter(record => matchesDateFilter(record, settlementDateFilter, settlementDateStart, settlementDateEnd, 'disposalDate'))
+    const dateFiltered = monthlyRecords.filter(record => isWithinCustomDateRange(record?.disposalDate, settlementDateStart, settlementDateEnd))
     const filtered = normalizedQuery
       ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
     return sortSettlementRecords(filtered, settlementFilterField, settlementSortDirection)
-  }, [records, settlementFilterField, settlementDateFilter, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
+  }, [monthlyRecords, settlementFilterField, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
   const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredSettlementRecords, settlementFilterField, settlementSortDirection), [filteredSettlementRecords, settlementFilterField, settlementSortDirection])
@@ -4006,17 +4018,12 @@ export function DisposalSettlementsPage() {
   }
 
   useEffect(() => {
-    setSettlementDateFilter(settlementDateFilterInput)
-    if (settlementDateFilterInput === 'custom') {
-      setSettlementDateStart(settlementDateStartInput)
-      setSettlementDateEnd(settlementDateEndInput)
-      return
-    }
-    setSettlementDateStart('')
-    setSettlementDateEnd('')
-    setSettlementDateStartInput('')
-    setSettlementDateEndInput('')
-  }, [settlementDateFilterInput, settlementDateStartInput, settlementDateEndInput])
+    setSettlementDateStart(settlementDateStartInput)
+  }, [settlementDateStartInput])
+
+  useEffect(() => {
+    setSettlementDateEnd(settlementDateEndInput)
+  }, [settlementDateEndInput])
 
   useEffect(() => {
     setSettlementFilterField(settlementFilterFieldInput)
@@ -4069,21 +4076,14 @@ export function DisposalSettlementsPage() {
         <div className="disposal-sheet-title">월 결산표</div>
         <div className="disposal-settlement-inline-controls">
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable">
-            <select value={settlementDateFilterInput} onChange={e => setSettlementDateFilterInput(e.target.value)} aria-label="월 결산표 날짜 필터">
-              {DATE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            {settlementDateFilterInput === 'custom' ? (
-              <div className="disposal-settlement-custom-date-group">
-                <label className="disposal-settlement-custom-date-field">
-                  <span>시작일</span>
-                  <input type="date" value={settlementDateStartInput} onChange={e => setSettlementDateStartInput(e.target.value)} aria-label="월 결산표 시작일 필터" />
-                </label>
-                <label className="disposal-settlement-custom-date-field">
-                  <span>종료일</span>
-                  <input type="date" value={settlementDateEndInput} onChange={e => setSettlementDateEndInput(e.target.value)} aria-label="월 결산표 종료일 필터" />
-                </label>
-              </div>
-            ) : null}
+            <label className="disposal-settlement-custom-date-field">
+              <span>최소기간</span>
+              <input type="date" value={settlementDateStartInput} onChange={e => setSettlementDateStartInput(e.target.value)} aria-label="월 결산표 최소기간 필터" />
+            </label>
+            <label className="disposal-settlement-custom-date-field">
+              <span>최대기간</span>
+              <input type="date" value={settlementDateEndInput} onChange={e => setSettlementDateEndInput(e.target.value)} aria-label="월 결산표 최대기간 필터" />
+            </label>
             <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 구분 필터">
               {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -4092,7 +4092,7 @@ export function DisposalSettlementsPage() {
             </select>
           </div>
           <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
-            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="검색창" aria-label="월 결산표 검색" />
+            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="키워드 검색" aria-label="월 결산표 검색" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
           </div>
         </div>
