@@ -290,6 +290,105 @@ def _parse_reviews_from_outer_html(outer_html: str) -> list[dict[str, Any]]:
     return []
 
 
+def _merge_review_sources(*sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for source in sources:
+        for row in source or []:
+            if not isinstance(row, dict):
+                continue
+            author = _normalize_review_text(row.get('author', ''))
+            contents = _normalize_review_text(row.get('contents', ''))
+            if not author or not contents:
+                continue
+            key = (author, contents)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append({'author': author, 'contents': contents, **row})
+    return merged
+
+
+def _build_review_line_candidates(item_text: str) -> list[str]:
+    raw_lines = re.split(r'[\r\n]+', str(item_text or ''))
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_lines:
+        value = _normalize_review_text(raw)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _pick_review_content_from_lines(lines: list[str], author_name: str = '', real_name: str = '') -> str:
+    blocked_tokens = [
+        '더보기', '답글', '답변', '고마워요', '도움이 돼요', '신고', '수정', '삭제', '확인',
+        '프로필', '리뷰', '고수', '숨고', '작성', '서비스', '추천', '공유', '채팅', '문의',
+    ]
+    blocked_exact = {v for v in [_normalize_review_text(author_name), _normalize_review_text(real_name), _mask_name(real_name)] if v}
+    candidates: list[str] = []
+    for line in lines:
+        value = _normalize_review_text(line)
+        if not value or value in blocked_exact:
+            continue
+        if any(token in value for token in blocked_tokens):
+            continue
+        if _is_likely_name_line(value) and len(value) <= 10:
+            continue
+        if re.fullmatch(r'[★☆\d\s.,!~^]+', value):
+            continue
+        if len(value) < 8:
+            continue
+        candidates.append(value)
+    return max(candidates, key=len) if candidates else ''
+
+
+def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
+    js = r"""
+() => {
+  const norm = (value) => String(value || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  const items = Array.from(document.querySelectorAll('.review-list .profile-review-item'));
+  return items.map((item, index) => {
+    const allElements = Array.from(item.querySelectorAll('*'));
+    const textRows = [];
+    const pushRow = (text, className, tagName) => {
+      const value = norm(text);
+      if (!value) return;
+      textRows.push({ text: value, className: String(className || ''), tagName: String(tagName || '') });
+    };
+    pushRow(item.innerText || item.textContent || '', item.className || '', item.tagName || '');
+    allElements.forEach((el) => {
+      pushRow(el.innerText || el.textContent || '', el.className || '', el.tagName || '');
+    });
+    const authorCandidates = textRows
+      .filter((row) => row.className.includes('body14:semibold') || row.className.includes('body13:semibold') || row.className.includes('author') || row.className.includes('reviewer'))
+      .map((row) => row.text);
+    const contentCandidates = textRows
+      .filter((row) => row.className.includes('review-content'))
+      .map((row) => row.text);
+    const regularPrimaryRows = textRows.filter((row) => row.className.includes('body14:regular') && row.className.includes('primary'));
+    const hasReply = regularPrimaryRows.some((row) => !row.className.includes('review-content'));
+    return {
+      index,
+      itemText: norm(item.innerText || item.textContent || ''),
+      authorCandidates,
+      contentCandidates,
+      regularPrimaryRows,
+      textRows,
+      hasReply,
+    };
+  });
+}
+"""
+    try:
+        rows = page.evaluate(js) or []
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
 def _find_real_name_by_content(reviews_data: list[dict[str, Any]], target_content: str) -> str:
     target = _normalize_review_text(target_content)
     target_compact = _compact_review_text(target_content)
@@ -345,7 +444,7 @@ def _guess_masked_name_from_item_text(item_text: str, review_text: str, real_nam
     return '익명'
 
 
-def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]]) -> tuple[str, str, str]:
+def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], preloaded: Optional[dict[str, Any]] = None) -> tuple[str, str, str]:
     try:
         expand_locator = item.locator("xpath=.//*[contains(normalize-space(text()), '더보기')]").first
         if expand_locator.count() > 0:
@@ -355,6 +454,18 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]]) -
                 pass
     except Exception:
         pass
+
+    preloaded = preloaded or {}
+    author_candidates = [
+        _normalize_review_text(value)
+        for value in (preloaded.get('authorCandidates') or [])
+        if _normalize_review_text(value)
+    ]
+    content_candidates = [
+        _normalize_review_text(value)
+        for value in (preloaded.get('contentCandidates') or [])
+        if _normalize_review_text(value)
+    ]
 
     content_text = ''
     content_selectors = [
@@ -375,19 +486,18 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]]) -
         except Exception:
             continue
 
-    item_text = ''
-    try:
-        item_text = _normalize_review_text(item.inner_text(timeout=3000))
-    except Exception:
-        item_text = ''
+    if not content_text:
+        for candidate in content_candidates:
+            if candidate and len(candidate) >= 8:
+                content_text = candidate
+                break
 
-    if not content_text and item_text:
-        lines = [_normalize_review_text(line) for line in str(item_text).splitlines() if _normalize_review_text(line)]
-        long_lines = [line for line in lines if len(line) >= 8 and '더보기' not in line]
-        if long_lines:
-            content_text = max(long_lines, key=len)
-
-    real_name = _find_real_name_by_content(reviews_data, content_text)
+    item_text = _normalize_review_text(preloaded.get('itemText', ''))
+    if not item_text:
+        try:
+            item_text = _normalize_review_text(item.inner_text(timeout=3000))
+        except Exception:
+            item_text = ''
 
     author_name = ''
     author_selectors = [
@@ -411,9 +521,30 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]]) -
             continue
 
     if not author_name:
+        for candidate in author_candidates:
+            if candidate and _is_likely_name_line(candidate):
+                author_name = candidate
+                break
+
+    line_candidates = _build_review_line_candidates(item_text)
+    if not content_text:
+        content_text = _pick_review_content_from_lines(line_candidates, author_name=author_name)
+
+    real_name = _find_real_name_by_content(reviews_data, content_text)
+
+    if not author_name:
         author_name = _guess_masked_name_from_item_text(item_text, content_text, real_name)
     if (not author_name or author_name == '익명') and real_name:
         author_name = _mask_name(real_name)
+
+    if (not content_text or content_text == '(내용 없음)') and line_candidates:
+        ref_author = author_name or _mask_name(real_name) if real_name else author_name
+        content_text = _pick_review_content_from_lines(line_candidates, author_name=ref_author, real_name=real_name)
+
+    if (not real_name) and content_text:
+        real_name = _find_real_name_by_content(reviews_data, content_text)
+        if (not author_name or author_name == '익명') and real_name:
+            author_name = _mask_name(real_name)
 
     return author_name or '익명', real_name, content_text or '(내용 없음)'
 
@@ -642,6 +773,12 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
         page.goto('https://soomgo.com/profile#id_profile_review', wait_until='domcontentloaded', timeout=30000)
         page.wait_for_selector('.grid-item.span-8.profile-section', timeout=20000)
+        try:
+            profile_outer_html = _extract_next_data_outer_html(page)
+            if profile_outer_html:
+                reviews_data = _merge_review_sources(reviews_data, _parse_reviews_from_outer_html(profile_outer_html))
+        except Exception:
+            pass
 
         for _ in range(10):
             more_button = page.locator("xpath=//button[.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'secondary') and contains(normalize-space(text()), '더보기')]]").last
@@ -654,18 +791,24 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             except Exception:
                 break
 
+        preloaded_items = _collect_unanswered_review_items(page)
         review_items = page.locator('.review-list .profile-review-item')
         item_count = review_items.count()
         for index in range(item_count):
             if len(found) >= SLOT_COUNT:
                 break
             item = review_items.nth(index)
+            preloaded = preloaded_items[index] if index < len(preloaded_items) and isinstance(preloaded_items[index], dict) else {}
             try:
-                has_reply = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]").count() > 0
+                has_reply = bool(preloaded.get('hasReply')) if preloaded else False
+                if not preloaded:
+                    has_reply = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]").count() > 0
                 if has_reply:
                     continue
 
-                masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data)
+                masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
+                if not content_text or content_text == '(내용 없음)':
+                    continue
                 found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
             except Exception:
                 continue
@@ -712,9 +855,12 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         slot['situation'] = slot.get('situation', '')
         slot['specifics'] = slot.get('specifics', '')
 
+    message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
+    if not found:
+        message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
     state['last_scan'] = {
         'ok': True,
-        'message': f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.',
+        'message': message,
         'updated_at': utcnow(),
         'found_count': len(found),
     }
