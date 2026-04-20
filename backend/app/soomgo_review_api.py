@@ -340,15 +340,81 @@ def _playwright_login_page(email: str, password: str, headless: bool = True):
         ) from exc
 
 
+def _extract_next_data_outer_html(page: Any) -> str:
+    candidates = [
+        'script#__NEXT_DATA__',
+        'script[type="application/json"]#__NEXT_DATA__',
+        'body > script[type="application/json"]',
+        'body script[type="application/json"]',
+    ]
+
+    for selector in candidates:
+        try:
+            locator = page.locator(selector).first
+            if locator.count() == 0:
+                continue
+            locator.wait_for(state='attached', timeout=10000)
+            outer_html = locator.evaluate('el => el.outerHTML || ""') or ''
+            if outer_html:
+                return outer_html
+        except Exception:
+            continue
+
+    try:
+        scripts = page.locator('script').evaluate_all(
+            """els => els.map(el => ({
+                id: el.id || '',
+                type: el.type || '',
+                outerHTML: el.outerHTML || '',
+                text: el.textContent || '',
+            }))"""
+        )
+        for script in scripts or []:
+            outer_html = str(script.get('outerHTML', '') or '')
+            text = str(script.get('text', '') or '')
+            script_id = str(script.get('id', '') or '')
+            script_type = str(script.get('type', '') or '')
+            if '__NEXT_DATA__' in outer_html or script_id == '__NEXT_DATA__':
+                return outer_html
+            if script_type == 'application/json' and '"pageProps"' in text and '"session"' in text:
+                return f'<script type="application/json">{text}</script>'
+    except Exception:
+        pass
+
+    try:
+        html = page.content()
+        match = re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>.*?</script>', html, re.DOTALL)
+        if match:
+            return match.group(0)
+        match = re.search(r'<script[^>]*type=["\']application/json["\'][^>]*>\s*(\{.*?"pageProps".*?\})\s*</script>', html, re.DOTALL)
+        if match:
+            return f'<script type="application/json">{match.group(1)}</script>'
+    except Exception:
+        pass
+
+    return ''
+
+
 def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) -> str:
     playwright = browser = context = page = None
     try:
         playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
         page.goto('https://soomgo.com/mypage/cash-dashboard', wait_until='domcontentloaded', timeout=30000)
         page.wait_for_load_state('domcontentloaded')
-        script_locator = page.locator('xpath=/html/body/script[1]').first
-        script_locator.wait_for(timeout=20000)
-        return script_locator.evaluate('el => el.outerHTML || ""') or ''
+        try:
+            page.wait_for_load_state('networkidle', timeout=10000)
+        except Exception:
+            pass
+
+        outer_html = _extract_next_data_outer_html(page)
+        if outer_html:
+            return outer_html
+
+        try:
+            page.screenshot(path=str(SCREENSHOT_DIR / 'soomgo_cash_dashboard_missing_next_data.png'), full_page=True)
+        except Exception:
+            pass
+        raise RuntimeError('숨고 대시보드에서 리뷰 데이터를 담은 __NEXT_DATA__ 스크립트를 찾지 못했습니다. 숨고 페이지 구조 변경 또는 로그인 세션 상태를 확인해 주세요.')
     finally:
         if context is not None:
             try:
@@ -365,7 +431,6 @@ def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) 
                 playwright.stop()
             except Exception:
                 pass
-
 
 def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> dict[str, Any]:
     settings = state.get('settings', {})
