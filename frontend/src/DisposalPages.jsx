@@ -4078,11 +4078,25 @@ export function DisposalSettlementsPage() {
           <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable">
             <label className="disposal-settlement-custom-date-field">
               <span>최소기간</span>
-              <input type="date" value={settlementDateStartInput} onChange={e => setSettlementDateStartInput(e.target.value)} aria-label="월 결산표 최소기간 필터" />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={settlementDateStartInput}
+                onChange={e => setSettlementDateStartInput(e.target.value)}
+                placeholder="YYYY-MM-DD"
+                aria-label="월 결산표 최소기간 필터"
+              />
             </label>
             <label className="disposal-settlement-custom-date-field">
               <span>최대기간</span>
-              <input type="date" value={settlementDateEndInput} onChange={e => setSettlementDateEndInput(e.target.value)} aria-label="월 결산표 최대기간 필터" />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={settlementDateEndInput}
+                onChange={e => setSettlementDateEndInput(e.target.value)}
+                placeholder="YYYY-MM-DD"
+                aria-label="월 결산표 최대기간 필터"
+              />
             </label>
             <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 구분 필터">
               {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}

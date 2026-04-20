@@ -1,13 +1,19 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [string]$Zip,
     [string]$Repo = "C:\Users\icj24\Downloads\icjapp",
     [string]$Branch = "main",
-    [string]$CommitMessage = "update: railway disposal db primary sync",
+    [string]$CommitMessage = "update: disposal settlement range text filter and sort",
     [string]$PagesProjectName = "icjapp-frontend"
 )
 
 $ErrorActionPreference = "Stop"
+
+$frontend = Join-Path $Repo "frontend"
+$dist = Join-Path $frontend "dist"
+$backendStatic = Join-Path $Repo "backend\static"
+$buildLog = Join-Path $Repo ("build_log_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".txt")
+$stashCreated = $false
 
 function Assert-LastExitCode {
     param([string]$Step)
@@ -18,43 +24,23 @@ function Assert-LastExitCode {
 
 function Invoke-Wrangler {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    & npx --yes wrangler@4 @Args
+    & npx.cmd --yes wrangler@4 @Args
     return $LASTEXITCODE
 }
 
-function Stop-IfRunning {
-    param([string[]]$Names)
-    foreach ($name in $Names) {
-        $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
-        if ($procs) {
-            $procs | Stop-Process -Force -ErrorAction SilentlyContinue
-            Write-Host ("- stopped: " + $name)
-        } else {
-            Write-Host ("- not running: " + $name)
-        }
-    }
-}
-
-if (!(Test-Path $Repo)) { throw "Repo folder not found: $Repo" }
+if (!(Test-Path $Repo)) { throw "Project folder not found: $Repo" }
 if (!(Test-Path $Zip)) { throw "ZIP file not found: $Zip" }
-if (!(Test-Path (Join-Path $Repo ".git"))) { throw ".git folder not found under repo: $Repo" }
+if (!(Test-Path (Join-Path $Repo ".git"))) { throw ".git folder not found: $Repo" }
 
-$frontend = Join-Path $Repo "frontend"
-$dist = Join-Path $frontend "dist"
-$backendStatic = Join-Path $Repo "backend\static"
-$stashCreated = $false
-
-Write-Host "1) Stop running processes"
-Stop-IfRunning -Names @("python", "node", "uvicorn")
-
-Write-Host "2) Overwrite project from ZIP"
+Write-Host "1) Overwrite project from ZIP"
 Expand-Archive -LiteralPath $Zip -DestinationPath $Repo -Force
 
 Set-Location $Repo
 
-Write-Host "3) Sync git first to avoid push reject"
+Write-Host "2) Sync git first to avoid push reject"
 $gitChanges = git status --porcelain
 Assert-LastExitCode "git status"
+
 if ($gitChanges) {
     git stash push --include-untracked -m ("zip-overwrite-before-sync-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     Assert-LastExitCode "git stash push"
@@ -76,50 +62,72 @@ Assert-LastExitCode "git clean -fd"
 if ($stashCreated) {
     git stash pop
     if ($LASTEXITCODE -ne 0) {
-        throw "git stash pop failed. Resolve conflicts in repo, then rerun from build step."
+        throw "git stash pop conflict. Run git status, resolve conflicts, then retry."
     }
 }
 
-Write-Host "4) Frontend install/build"
+Write-Host "3) Frontend build"
+if (!(Test-Path $frontend)) { throw "frontend folder not found: $frontend" }
 Set-Location $frontend
-npm install
-Assert-LastExitCode "npm install"
-npm run build
-Assert-LastExitCode "npm run build"
-if (!(Test-Path $dist)) { throw "dist folder not found after build: $dist" }
 
-Write-Host "5) Mirror dist to backend/static"
+Remove-Item $buildLog -Force -ErrorAction SilentlyContinue
+& npm.cmd run build 2>&1 | Tee-Object -FilePath $buildLog
+$buildExit = $LASTEXITCODE
+
+if ($buildExit -ne 0) {
+    Write-Host "- npm build returned non-zero exit code: $buildExit"
+    Write-Host "- If dist from ZIP exists, continue with that output"
+}
+
+if (!(Test-Path (Join-Path $dist "index.html"))) {
+    throw "dist/index.html not found. Build failed and ZIP fallback output is also missing. See log: $buildLog"
+}
+
+Write-Host "4) Copy dist to backend/static"
 if (!(Test-Path $backendStatic)) {
     New-Item -ItemType Directory -Path $backendStatic | Out-Null
 }
-cmd /c robocopy "$dist" "$backendStatic" /MIR /R:1 /W:1 /NFL /NDL /NJH /NJS /NP
-if ($LASTEXITCODE -ge 8) {
-    throw "robocopy failed while mirroring dist to backend/static. exit code=$LASTEXITCODE"
-}
+Get-ChildItem -Path $backendStatic -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item -Path (Join-Path $dist "*") -Destination $backendStatic -Recurse -Force
 
-Write-Host "6) Commit and push"
+Write-Host "5) Commit and push"
 Set-Location $Repo
+
 git add .
 Assert-LastExitCode "git add"
+
 $staged = git diff --cached --name-only
 Assert-LastExitCode "git diff --cached"
+
 if ($staged) {
     git commit -m $CommitMessage
     Assert-LastExitCode "git commit"
+
     git push origin $Branch
     Assert-LastExitCode "git push"
-} else {
-    Write-Host "No git changes to commit. Skipping commit/push."
+}
+else {
+    Write-Host "No changes to commit. Skip commit/push"
 }
 
-Write-Host "7) Cloudflare Pages login check and deploy"
+Write-Host "6) Cloudflare Pages deploy"
 Set-Location $frontend
-Invoke-Wrangler whoami > $null 2>&1
+
+Invoke-Wrangler whoami *> $null
 if ($LASTEXITCODE -ne 0) {
+    Write-Host "Wrangler login required. Browser login will open"
     Invoke-Wrangler login
     Assert-LastExitCode "wrangler login"
 }
-Invoke-Wrangler pages deploy $dist --project-name $PagesProjectName
+
+Invoke-Wrangler pages deploy dist --project-name $PagesProjectName
 Assert-LastExitCode "wrangler pages deploy"
 
+Write-Host ""
 Write-Host "Done"
+Write-Host "- ZIP overwrite complete"
+Write-Host "- Git sync complete"
+Write-Host "- Frontend build complete"
+Write-Host "- backend/static copy complete"
+Write-Host "- Git push complete"
+Write-Host "- Cloudflare Pages deploy complete"
