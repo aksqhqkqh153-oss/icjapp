@@ -31504,7 +31504,9 @@ button.danger {
 
 .disposal-settlement-expand-step-button {
   flex: 0 0 auto;
-  min-width: 92px;
+  width: auto;
+  min-width: 0;
+  padding: 0 10px;
   height: 34px;
 }
 
@@ -31595,7 +31597,8 @@ button.danger {
 
   .disposal-settlement-expand-step-button {
     width: auto;
-    min-width: 88px;
+    min-width: 0;
+    padding: 0 8px;
     height: 32px;
   }
 
