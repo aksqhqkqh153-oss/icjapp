@@ -3966,16 +3966,15 @@ export function DisposalSettlementsPage() {
   const [records, setRecords] = useState([])
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
   const [expandedKeys, setExpandedKeys] = useState({})
-  const initialMonthRange = useMemo(() => getMonthDateRangeForKey(monthKey), [monthKey])
   const [settlementFilterFieldInput, setSettlementFilterFieldInput] = useState('paymentDate')
-  const [settlementDateStartInput, setSettlementDateStartInput] = useState(initialMonthRange.start)
-  const [settlementDateEndInput, setSettlementDateEndInput] = useState(initialMonthRange.end)
+  const [settlementDateStartInput, setSettlementDateStartInput] = useState('')
+  const [settlementDateEndInput, setSettlementDateEndInput] = useState('')
   const [settlementSortDirectionInput, setSettlementSortDirectionInput] = useState('asc')
   const [settlementSearchInput, setSettlementSearchInput] = useState('')
 
   const [settlementFilterField, setSettlementFilterField] = useState('paymentDate')
-  const [settlementDateStart, setSettlementDateStart] = useState(initialMonthRange.start)
-  const [settlementDateEnd, setSettlementDateEnd] = useState(initialMonthRange.end)
+  const [settlementDateStart, setSettlementDateStart] = useState('')
+  const [settlementDateEnd, setSettlementDateEnd] = useState('')
   const [settlementSortDirection, setSettlementSortDirection] = useState('asc')
   const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
 
@@ -4014,6 +4013,16 @@ export function DisposalSettlementsPage() {
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
   const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredSettlementRecords, settlementFilterField, settlementSortDirection), [filteredSettlementRecords, settlementFilterField, settlementSortDirection])
+  const settlementTotals = useMemo(() => filteredSettlementRecords.reduce((acc, record) => {
+    const metrics = getRecordSettlementMetrics(record)
+    acc.count += 1
+    acc.totalQty += metrics.totalQty
+    acc.totalReport += metrics.reportAmount
+    acc.totalFee += metrics.feeAmount
+    acc.totalCancel += metrics.cancelAmount
+    acc.totalSales += metrics.minimumFee
+    return acc
+  }, { count: 0, totalQty: 0, totalReport: 0, totalFee: 0, totalCancel: 0, totalSales: 0 }), [filteredSettlementRecords])
   const effectiveExpandedKeys = useMemo(() => {
     const next = { ...expandedKeys }
     const normalizedQuery = String(settlementSearchQuery || '').trim()
@@ -4065,11 +4074,10 @@ export function DisposalSettlementsPage() {
 
 
   useEffect(() => {
-    const nextRange = getMonthDateRangeForKey(monthKey)
-    setSettlementDateStartInput(nextRange.start)
-    setSettlementDateEndInput(nextRange.end)
-    setSettlementDateStart(nextRange.start)
-    setSettlementDateEnd(nextRange.end)
+    setSettlementDateStartInput('')
+    setSettlementDateEndInput('')
+    setSettlementDateStart('')
+    setSettlementDateEnd('')
     setSettlementFilterFieldInput('paymentDate')
     setSettlementFilterField('paymentDate')
     setSettlementSortDirectionInput('asc')
@@ -4117,39 +4125,44 @@ export function DisposalSettlementsPage() {
 
       <section className="card disposal-monthly-sheet-card">
         <div className="disposal-sheet-title">월 결산표</div>
-        <div className="disposal-settlement-inline-controls">
-          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable disposal-settlement-toolbar-row">
-            <label className="disposal-settlement-custom-date-field">
-              <span>최소기간</span>
-              <input
-                type="date"
-                value={settlementDateStartInput}
-                onChange={e => setSettlementDateStartInput(e.target.value)}
-                placeholder="YYYY-MM-DD"
-                aria-label="월 결산표 최소기간 필터"
-              />
-            </label>
-            <label className="disposal-settlement-custom-date-field">
-              <span>최대기간</span>
-              <input
-                type="date"
-                value={settlementDateEndInput}
-                onChange={e => setSettlementDateEndInput(e.target.value)}
-                placeholder="YYYY-MM-DD"
-                aria-label="월 결산표 최대기간 필터"
-              />
-            </label>
-            <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 구분 필터">
-              {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            <select value={settlementSortDirectionInput} onChange={e => setSettlementSortDirectionInput(e.target.value)} aria-label="월 결산표 정렬기준 필터">
-              {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </div>
-          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact disposal-settlement-search-group">
-            <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="키워드 검색" aria-label="월 결산표 검색" />
-            <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
-          </div>
+        <div className="disposal-settlement-inline-controls disposal-settlement-inline-controls-single-row">
+          <label
+            className={`disposal-settlement-custom-date-field disposal-settlement-date-placeholder ${!settlementDateStartInput ? 'is-empty' : ''}`}
+            data-placeholder="최소기간입력"
+          >
+            <input
+              type="date"
+              value={settlementDateStartInput}
+              onChange={e => setSettlementDateStartInput(e.target.value)}
+              aria-label="월 결산표 최소기간 필터"
+            />
+          </label>
+          <label
+            className={`disposal-settlement-custom-date-field disposal-settlement-date-placeholder ${!settlementDateEndInput ? 'is-empty' : ''}`}
+            data-placeholder="최대기간입력"
+          >
+            <input
+              type="date"
+              value={settlementDateEndInput}
+              onChange={e => setSettlementDateEndInput(e.target.value)}
+              aria-label="월 결산표 최대기간 필터"
+            />
+          </label>
+          <select value={settlementFilterFieldInput} onChange={e => setSettlementFilterFieldInput(e.target.value)} aria-label="월 결산표 구분 필터">
+            {SETTLEMENT_PRIMARY_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <select value={settlementSortDirectionInput} onChange={e => setSettlementSortDirectionInput(e.target.value)} aria-label="월 결산표 정렬기준 필터">
+            {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <input
+            className="disposal-settlement-search-input"
+            value={settlementSearchInput}
+            onChange={e => setSettlementSearchInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }}
+            placeholder="키워드 검색"
+            aria-label="월 결산표 검색"
+          />
+          <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
         </div>
         {settlementRows.length === 0 ? (
           <div className="empty-state">저장된 폐기결산 내역이 없습니다.</div>
@@ -4203,6 +4216,19 @@ export function DisposalSettlementsPage() {
                 ))}
               </div>
             ))}
+            <div className="disposal-month-settlement-row disposal-month-settlement-total">
+              <div>합계</div>
+              <div>-</div>
+              <div>{`${formatNumber(settlementTotals.count)}건`}</div>
+              <div>합계</div>
+              <div>[전체 합계]</div>
+              <div>{`${formatNumber(settlementTotals.totalQty)}개`}</div>
+              <div>{`${formatNumber(settlementTotals.totalReport)}원`}</div>
+              <div>{`${formatNumber(settlementTotals.totalFee)}원`}</div>
+              <div>{`${formatNumber(settlementTotals.totalCancel)}원`}</div>
+              <div>{`${formatNumber(settlementTotals.totalSales)}원`}</div>
+              <div>-</div>
+            </div>
           </div>
         )}
       </section>

@@ -31493,3 +31493,116 @@ button.danger {
     padding-bottom: 8px;
   }
 }
+
+
+/* 2026-04-20 settlement toolbar height + date placeholder + total row */
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-custom-date-field,
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row select,
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-search-input,
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-search-text-button {
+  height: 34px;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-custom-date-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 0;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-custom-date-field > span {
+  display: none;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-custom-date-field input[type="date"] {
+  width: 140px !important;
+  min-width: 140px !important;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-date-placeholder.is-empty::after {
+  content: attr(data-placeholder);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-date-placeholder.is-empty input[type="date"]::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: fit-content;
+  padding: 0 10px;
+}
+
+.disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-search-input {
+  flex: 1 1 320px;
+  min-width: 320px;
+  padding: 0 10px;
+}
+
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-total {
+  background: #eef6ff;
+}
+
+.disposal-month-settlement-table.simple-sheet .disposal-month-settlement-total > div {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+@media (max-width: 768px) {
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row {
+    gap: 6px;
+  }
+
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-custom-date-field input[type="date"] {
+    width: 122px !important;
+    min-width: 122px !important;
+    height: 32px;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row select,
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-search-input,
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-search-text-button {
+    height: 32px;
+    min-height: 32px;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-search-input {
+    flex: 1 1 220px;
+    min-width: 220px;
+  }
+
+  .disposal-settlement-inline-controls.disposal-settlement-inline-controls-single-row .disposal-settlement-date-placeholder.is-empty::after {
+    left: 10px;
+    font-size: 11px;
+  }
+}
