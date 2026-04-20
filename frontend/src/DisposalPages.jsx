@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, getStoredUser } from './api'
 import { DISPOSAL_TEMPLATE } from './disposalTemplateData'
 
-const STORAGE_KEY = 'icj_disposal_records_v2'
-const LEGACY_STORAGE_KEY = 'icj_disposal_records_v1'
+const LEGACY_STORAGE_KEYS = ['icj_disposal_records_v2', 'icj_disposal_records_v1']
+let disposalRecordsMemoryCache = []
 const DISPOSAL_NAV_TABS = [
   { key: 'forms', label: '폐기양식', path: '/disposal/forms' },
   { key: 'list', label: '폐기목록', path: '/disposal/list' },
@@ -363,20 +363,35 @@ function attachDisposalRecordOwner(record, user = getDisposalCurrentUser()) {
   }
 }
 
-function loadAllRecords() {
-  try {
-    const primary = localStorage.getItem(STORAGE_KEY)
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
-    const raw = primary || legacy || '[]'
-    const parsed = JSON.parse(raw)
-    const list = Array.isArray(parsed) ? parsed.map(normalizeRecordShape).filter(Boolean) : []
-    if (!primary && list.length) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+function loadLegacyLocalDisposalRecords() {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try {
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw)
+      const records = Array.isArray(parsed) ? parsed.map(normalizeRecordShape).filter(Boolean) : []
+      if (records.length) {
+        return records
+      }
+    } catch {
+      // ignore broken local legacy payloads and continue checking the next key
     }
-    return list
-  } catch {
-    return []
   }
+  return []
+}
+
+function clearLegacyLocalDisposalRecords() {
+  LEGACY_STORAGE_KEYS.forEach((key) => {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
+  })
+}
+
+function loadAllRecords() {
+  return [...disposalRecordsMemoryCache]
 }
 
 function loadRecords(user = getDisposalCurrentUser()) {
@@ -384,7 +399,7 @@ function loadRecords(user = getDisposalCurrentUser()) {
 }
 
 function saveRecords(records) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify((records || []).map(normalizeRecordShape).filter(Boolean)))
+  disposalRecordsMemoryCache = (records || []).map(normalizeRecordShape).filter(Boolean)
   try {
     window.dispatchEvent(new CustomEvent('icj-disposal-records-updated'))
   } catch {}
@@ -397,10 +412,19 @@ async function fetchDisposalRecordsFromServer() {
   return records
 }
 
-async function migrateLocalDisposalRecordsToServer(records = loadAllRecords()) {
+async function migrateLocalDisposalRecordsToServer(records = loadLegacyLocalDisposalRecords()) {
   const normalized = (records || []).map(normalizeRecordShape).filter(Boolean)
   if (!normalized.length) return { ok: true, count: 0 }
   return api('/api/disposal/records/migrate-local', {
+    method: 'POST',
+    body: JSON.stringify({ records: normalized }),
+  })
+}
+
+async function replaceLocalDisposalRecordsToServer(records = loadLegacyLocalDisposalRecords()) {
+  const normalized = (records || []).map(normalizeRecordShape).filter(Boolean)
+  if (!normalized.length) return { ok: true, count: 0 }
+  return api('/api/disposal/records/replace-local', {
     method: 'POST',
     body: JSON.stringify({ records: normalized }),
   })
@@ -433,11 +457,10 @@ async function deleteDisposalRecordsFromServer(ids = []) {
 }
 
 async function bootstrapDisposalRecords() {
-  const localRecords = loadAllRecords()
-  if (localRecords.length) {
-    try {
-      await migrateLocalDisposalRecordsToServer(localRecords)
-    } catch {}
+  const legacyLocalRecords = loadLegacyLocalDisposalRecords()
+  if (legacyLocalRecords.length) {
+    await replaceLocalDisposalRecordsToServer(legacyLocalRecords)
+    clearLegacyLocalDisposalRecords()
   }
   return fetchDisposalRecordsFromServer()
 }

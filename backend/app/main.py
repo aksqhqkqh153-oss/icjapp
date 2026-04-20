@@ -7417,6 +7417,37 @@ def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=De
     return {'ok': True, 'count': len(migrated)}
 
 
+@app.post('/api/disposal/records/replace-local')
+def replace_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_user)):
+    normalized_records = []
+    for item in payload.records[:500]:
+        incoming = item.model_dump() if isinstance(item, BaseModel) else dict(item or {})
+        normalized_records.append(_normalize_disposal_record_payload(incoming, user, None))
+
+    with get_conn() as conn:
+        if _is_admin_like_user(user):
+            conn.execute("DELETE FROM disposal_records")
+        else:
+            conn.execute(
+                "DELETE FROM disposal_records WHERE CAST(COALESCE(created_by_user_id, '') AS TEXT) = ? OR created_by_username = ?",
+                (str(user.get('id') or ''), str(user.get('username') or '')),
+            )
+
+        now = utcnow()
+        for normalized in normalized_records:
+            conn.execute(
+                "INSERT INTO disposal_records(id, disposal_date, location, district, final_status, platform, customer_name, items_json, totals_json, settlement_transferred_at, created_by_user_id, created_by_username, created_by_grade, saved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
+                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                    int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
+                    normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
+                    normalized['savedAt'], now, now,
+                )
+            )
+    return {'ok': True, 'count': len(normalized_records)}
+
+
 @app.get('/api/disposal/jurisdictions')
 def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require_admin_or_subadmin)):
     keyword = str(q or '').strip()
