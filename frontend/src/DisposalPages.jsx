@@ -49,6 +49,29 @@ const SETTLEMENT_SORT_DIRECTION_OPTIONS = [
   { value: 'desc', label: '내림차순' },
 ]
 
+function getMonthDateRangeForKey(monthKey) {
+  const [yearText, monthText] = String(monthKey || '').split('-')
+  const year = Number(yearText)
+  const month = Number(monthText)
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = now.getMonth() + 1
+    const first = new Date(y, m - 1, 1)
+    const last = new Date(y, m, 0)
+    return {
+      start: formatShortDate(first),
+      end: formatShortDate(last),
+    }
+  }
+  const first = new Date(year, month - 1, 1)
+  const last = new Date(year, month, 0)
+  return {
+    start: formatShortDate(first),
+    end: formatShortDate(last),
+  }
+}
+
 const FINAL_STATUS_OPTIONS = ['입금전 / 신고전', '입금완 / 신고전', '입금완 / 신고완']
 const DEFAULT_CUSTOMER_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
 const DEFAULT_COMPANY_EXPORT_TEMPLATE = '[{platform} {customerName} {disposalDate}] {suffix}'
@@ -3295,7 +3318,7 @@ export function DisposalListPage() {
       <DisposalCategoryTabs current="list" onNavigate={handleCategoryNavigate} />
       <section className="card disposal-records-card disposal-list-board-card">
         <div className="disposal-list-top-controls disposal-list-top-controls-single-row">
-          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable">
+          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable disposal-settlement-toolbar-row">
             <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} aria-label="폐기목록 날짜 필터">
               {DATE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -3312,7 +3335,7 @@ export function DisposalListPage() {
               </>
             ) : null}
           </div>
-          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
+          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact disposal-settlement-search-group">
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySearch() }} placeholder="키워드 검색" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySearch}>검색</button>
             <button type="button" className="ghost disposal-action-button disposal-delete-button" onClick={removeSelectedRecords}>삭제</button>
@@ -3943,15 +3966,16 @@ export function DisposalSettlementsPage() {
   const [records, setRecords] = useState([])
   const [monthKey, setMonthKey] = useState(getMonthKey(new Date().toISOString()))
   const [expandedKeys, setExpandedKeys] = useState({})
-  const [settlementFilterFieldInput, setSettlementFilterFieldInput] = useState('disposalDate')
-  const [settlementDateStartInput, setSettlementDateStartInput] = useState('')
-  const [settlementDateEndInput, setSettlementDateEndInput] = useState('')
+  const initialMonthRange = useMemo(() => getMonthDateRangeForKey(monthKey), [monthKey])
+  const [settlementFilterFieldInput, setSettlementFilterFieldInput] = useState('paymentDate')
+  const [settlementDateStartInput, setSettlementDateStartInput] = useState(initialMonthRange.start)
+  const [settlementDateEndInput, setSettlementDateEndInput] = useState(initialMonthRange.end)
   const [settlementSortDirectionInput, setSettlementSortDirectionInput] = useState('asc')
   const [settlementSearchInput, setSettlementSearchInput] = useState('')
 
-  const [settlementFilterField, setSettlementFilterField] = useState('disposalDate')
-  const [settlementDateStart, setSettlementDateStart] = useState('')
-  const [settlementDateEnd, setSettlementDateEnd] = useState('')
+  const [settlementFilterField, setSettlementFilterField] = useState('paymentDate')
+  const [settlementDateStart, setSettlementDateStart] = useState(initialMonthRange.start)
+  const [settlementDateEnd, setSettlementDateEnd] = useState(initialMonthRange.end)
   const [settlementSortDirection, setSettlementSortDirection] = useState('asc')
   const [settlementSearchQuery, setSettlementSearchQuery] = useState('')
 
@@ -3975,7 +3999,13 @@ export function DisposalSettlementsPage() {
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
   const filteredSettlementRecords = useMemo(() => {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
-    const dateFiltered = monthlyRecords.filter(record => isWithinCustomDateRange(record?.disposalDate, settlementDateStart, settlementDateEnd))
+    const dateFiltered = monthlyRecords.filter(record => {
+      const paymentDateValue = getSettlementSortPrimitive(record, 'paymentDate')
+      if (Number.isFinite(paymentDateValue)) {
+        return isWithinCustomDateRange(new Date(paymentDateValue).toISOString(), settlementDateStart, settlementDateEnd)
+      }
+      return false
+    })
     const filtered = normalizedQuery
       ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
@@ -4033,6 +4063,19 @@ export function DisposalSettlementsPage() {
     setSettlementSortDirection(settlementSortDirectionInput)
   }, [settlementSortDirectionInput])
 
+
+  useEffect(() => {
+    const nextRange = getMonthDateRangeForKey(monthKey)
+    setSettlementDateStartInput(nextRange.start)
+    setSettlementDateEndInput(nextRange.end)
+    setSettlementDateStart(nextRange.start)
+    setSettlementDateEnd(nextRange.end)
+    setSettlementFilterFieldInput('paymentDate')
+    setSettlementFilterField('paymentDate')
+    setSettlementSortDirectionInput('asc')
+    setSettlementSortDirection('asc')
+  }, [monthKey])
+
   return (
     <div className="stack-page disposal-page">
       <DisposalCategoryTabs current="settlements" onNavigate={(path) => navigate(path)} />
@@ -4075,12 +4118,11 @@ export function DisposalSettlementsPage() {
       <section className="card disposal-monthly-sheet-card">
         <div className="disposal-sheet-title">월 결산표</div>
         <div className="disposal-settlement-inline-controls">
-          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable">
+          <div className="disposal-filter-inline-group disposal-filter-inline-group-compact disposal-filter-inline-group-stackable disposal-settlement-toolbar-row">
             <label className="disposal-settlement-custom-date-field">
               <span>최소기간</span>
               <input
-                type="text"
-                inputMode="numeric"
+                type="date"
                 value={settlementDateStartInput}
                 onChange={e => setSettlementDateStartInput(e.target.value)}
                 placeholder="YYYY-MM-DD"
@@ -4090,8 +4132,7 @@ export function DisposalSettlementsPage() {
             <label className="disposal-settlement-custom-date-field">
               <span>최대기간</span>
               <input
-                type="text"
-                inputMode="numeric"
+                type="date"
                 value={settlementDateEndInput}
                 onChange={e => setSettlementDateEndInput(e.target.value)}
                 placeholder="YYYY-MM-DD"
@@ -4105,7 +4146,7 @@ export function DisposalSettlementsPage() {
               {SETTLEMENT_SORT_DIRECTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
-          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact">
+          <div className="disposal-filter-inline-group disposal-filter-search-group disposal-filter-search-group-compact disposal-settlement-search-group">
             <input value={settlementSearchInput} onChange={e => setSettlementSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') applySettlementSearch() }} placeholder="키워드 검색" aria-label="월 결산표 검색" />
             <button type="button" className="ghost disposal-action-button disposal-search-text-button" onClick={applySettlementSearch} aria-label="월 결산표 검색 실행">검색</button>
           </div>

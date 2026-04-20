@@ -24048,39 +24048,57 @@ textarea,
 
 
 /* 2026-04-13 disposal single row + schedule copy/comment controls */
-.disposal-list-top-controls-single-row,
-.disposal-settlement-inline-controls {
+.disposal-list-top-controls-single-row {
   display:grid;
   grid-template-columns: 96px 96px 96px minmax(0,1fr) 64px 64px;
   gap:8px;
   align-items:center;
 }
 .disposal-settlement-inline-controls {
-  grid-template-columns: 96px 96px 96px minmax(0,1fr) 64px;
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  padding-bottom:2px;
 }
 .disposal-list-top-controls-single-row .disposal-filter-inline-group-compact,
-.disposal-list-top-controls-single-row .disposal-filter-search-group-compact,
-.disposal-settlement-inline-controls .disposal-filter-inline-group-compact,
-.disposal-settlement-inline-controls .disposal-filter-search-group-compact {
+.disposal-list-top-controls-single-row .disposal-filter-search-group-compact {
   display: contents;
 }
 .disposal-list-top-controls-single-row select,
 .disposal-list-top-controls-single-row input,
-.disposal-list-top-controls-single-row button,
-.disposal-settlement-inline-controls select,
-.disposal-settlement-inline-controls input,
-.disposal-settlement-inline-controls button {
+.disposal-list-top-controls-single-row button {
   min-width:0;
   width:100%;
 }
+.disposal-settlement-inline-controls .disposal-settlement-toolbar-row {
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex:0 0 auto;
+}
+.disposal-settlement-inline-controls .disposal-settlement-search-group {
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex:1 1 auto;
+  min-width:320px;
+}
+.disposal-settlement-inline-controls .disposal-settlement-search-group input {
+  flex:1 1 auto;
+  min-width:260px;
+}
+.disposal-settlement-inline-controls select,
+.disposal-settlement-inline-controls button {
+  width:auto;
+  min-width:fit-content;
+  white-space:nowrap;
+}
 @media (max-width: 768px) {
-  .disposal-list-top-controls-single-row,
-  .disposal-settlement-inline-controls {
+  .disposal-list-top-controls-single-row {
     grid-template-columns: 48px 48px 48px minmax(0,1fr) 42px 42px;
     gap:4px;
-  }
-  .disposal-settlement-inline-controls {
-    grid-template-columns: 48px 48px 48px minmax(0,1fr) 42px;
   }
   .disposal-list-top-controls-single-row select,
   .disposal-list-top-controls-single-row input,
@@ -24092,6 +24110,15 @@ textarea,
     padding:0 4px;
     font-size:11px;
     letter-spacing:-0.2px;
+  }
+  .disposal-settlement-inline-controls {
+    gap:6px;
+  }
+  .disposal-settlement-inline-controls .disposal-settlement-search-group {
+    min-width:220px;
+  }
+  .disposal-settlement-inline-controls .disposal-settlement-search-group input {
+    min-width:180px;
   }
 }
 .schedule-tagged-name.is-me {
@@ -24724,22 +24751,28 @@ button.danger {
 }
 
 .disposal-settlement-custom-date-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 112px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  flex:0 0 auto;
 }
 
 .disposal-settlement-custom-date-field > span {
-  font-size: 11px;
-  font-weight: 700;
-  color: #475569;
-  line-height: 1;
+  font-size:11px;
+  font-weight:700;
+  color:#475569;
+  line-height:1;
 }
 
 .disposal-settlement-custom-date-field input[type="date"] {
-  width: 118px !important;
-  min-width: 118px !important;
+  width:136px !important;
+  min-width:136px !important;
+}
+
+.disposal-settlement-inline-controls select {
+  flex:0 0 auto;
+  width:auto;
+  min-width:110px;
 }
 
 @media (max-width: 768px) {
