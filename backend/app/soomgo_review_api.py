@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import html
 import json
 import os
 import re
@@ -194,35 +195,227 @@ def _save_state(state: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_review_text(value: Any) -> str:
+    text = html.unescape(str(value or ''))
+    text = text.replace(' ', ' ')
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _compact_review_text(value: Any) -> str:
+    text = _normalize_review_text(value).lower()
+    return re.sub(r'[^0-9a-z가-힣]+', '', text)
+
+
+def _mask_name(name: str) -> str:
+    raw = str(name or '').strip()
+    if not raw:
+        return ''
+    if '*' in raw:
+        return raw
+    if len(raw) <= 1:
+        return raw
+    if len(raw) == 2:
+        return raw[0] + '*'
+    return raw[0] + ('*' * (len(raw) - 2)) + raw[-1]
+
+
+def _is_likely_name_line(text: str) -> bool:
+    value = _normalize_review_text(text)
+    if not value:
+        return False
+    if len(value) > 12:
+        return False
+    blocked_tokens = ['더보기', '답글', '리뷰', '서비스', '고수', '작성', '수정', '삭제', '별점']
+    if any(token in value for token in blocked_tokens):
+        return False
+    if re.search(r'\d{2,4}[./-]\d{1,2}[./-]\d{1,2}', value):
+        return False
+    if re.search(r'\d+분|\d+시간|\d+일', value):
+        return False
+    return bool(re.search(r'[가-힣A-Za-z*]', value))
+
+
+def _extract_reviews_from_json_node(node: Any) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            author = _normalize_review_text(value.get('author', '')) if 'author' in value else ''
+            contents = _normalize_review_text(value.get('contents', '')) if 'contents' in value else ''
+            if author and contents:
+                key = (author, contents)
+                if key not in seen:
+                    seen.add(key)
+                    found.append({'author': author, 'contents': contents, **value})
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(node)
+    return found
+
+
 def _parse_reviews_from_outer_html(outer_html: str) -> list[dict[str, Any]]:
     text = str(outer_html or '').strip()
     if not text:
         return []
-    try:
-        match = re.search(r'<script[^>]*>\s*(\{.*?\})\s*</script>', text, re.DOTALL)
-        json_text = match.group(1) if match else text
-        parsed = json.loads(json_text)
-        return parsed.get('props', {}).get('pageProps', {}).get('session', {}).get('me', {}).get('provider', {}).get('reviews', []) or []
-    except Exception:
-        return []
+    candidates: list[str] = []
+    match = re.search(r'<script[^>]*>\s*(\{.*\})\s*</script>', text, re.DOTALL)
+    if match:
+        candidates.append(match.group(1))
+    candidates.append(text)
+
+    for json_text in candidates:
+        try:
+            parsed = json.loads(json_text)
+        except Exception:
+            continue
+        fixed_path = parsed.get('props', {}).get('pageProps', {}).get('session', {}).get('me', {}).get('provider', {}).get('reviews', []) or []
+        normalized_fixed = []
+        for row in fixed_path:
+            if isinstance(row, dict):
+                author = _normalize_review_text(row.get('author', ''))
+                contents = _normalize_review_text(row.get('contents', ''))
+                if author and contents:
+                    normalized_fixed.append({'author': author, 'contents': contents, **row})
+        if normalized_fixed:
+            return normalized_fixed
+        discovered = _extract_reviews_from_json_node(parsed)
+        if discovered:
+            return discovered
+    return []
 
 
 def _find_real_name_by_content(reviews_data: list[dict[str, Any]], target_content: str) -> str:
-    target = str(target_content or '').strip()
+    target = _normalize_review_text(target_content)
+    target_compact = _compact_review_text(target_content)
     if not reviews_data or not target:
         return ''
     best_name = ''
     best_score = 0.0
     for review in reviews_data:
-        content = str(review.get('contents', '')).strip()
-        author = str(review.get('author', '')).strip()
+        content = _normalize_review_text(review.get('contents', ''))
+        content_compact = _compact_review_text(review.get('contents', ''))
+        author = _normalize_review_text(review.get('author', ''))
         if not content or not author:
             continue
-        score = difflib.SequenceMatcher(None, target, content).ratio()
+        score_candidates = [
+            difflib.SequenceMatcher(None, target, content).ratio(),
+            difflib.SequenceMatcher(None, target_compact, content_compact).ratio() if target_compact and content_compact else 0.0,
+        ]
+        if target_compact and content_compact:
+            if target_compact == content_compact:
+                score_candidates.append(1.0)
+            elif target_compact in content_compact or content_compact in target_compact:
+                score_candidates.append(0.93)
+        score = max(score_candidates)
         if score > best_score:
             best_score = score
             best_name = author
-    return best_name if best_score > 0.6 else ''
+    return best_name if best_score >= 0.45 else ''
+
+
+def _guess_masked_name_from_item_text(item_text: str, review_text: str, real_name: str = '') -> str:
+    review_norm = _normalize_review_text(review_text)
+    lines = [_normalize_review_text(line) for line in str(item_text or '').splitlines()]
+    filtered = []
+    for line in lines:
+        if not line:
+            continue
+        if review_norm and line == review_norm:
+            continue
+        if review_norm and review_norm in line and len(line) > len(review_norm) + 8:
+            continue
+        filtered.append(line)
+
+    masked_candidates = [line for line in filtered if _is_likely_name_line(line) and ('*' in line or '•' in line)]
+    if masked_candidates:
+        return masked_candidates[0]
+
+    short_candidates = [line for line in filtered if _is_likely_name_line(line)]
+    if short_candidates:
+        return short_candidates[0]
+
+    if real_name:
+        return _mask_name(real_name)
+    return '익명'
+
+
+def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]]) -> tuple[str, str, str]:
+    try:
+        expand_locator = item.locator("xpath=.//*[contains(normalize-space(text()), '더보기')]").first
+        if expand_locator.count() > 0:
+            try:
+                expand_locator.click(force=True, timeout=1500)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    content_text = ''
+    content_selectors = [
+        ".review-content",
+        "[class*='review-content']",
+        "xpath=.//*[contains(@class, 'review-content')]",
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and contains(@class, 'review-content')]",
+    ]
+    for selector in content_selectors:
+        try:
+            locator = item.locator(selector).first
+            if locator.count() == 0:
+                continue
+            value = _normalize_review_text(locator.inner_text(timeout=3000))
+            if value:
+                content_text = value
+                break
+        except Exception:
+            continue
+
+    item_text = ''
+    try:
+        item_text = _normalize_review_text(item.inner_text(timeout=3000))
+    except Exception:
+        item_text = ''
+
+    if not content_text and item_text:
+        lines = [_normalize_review_text(line) for line in str(item_text).splitlines() if _normalize_review_text(line)]
+        long_lines = [line for line in lines if len(line) >= 8 and '더보기' not in line]
+        if long_lines:
+            content_text = max(long_lines, key=len)
+
+    real_name = _find_real_name_by_content(reviews_data, content_text)
+
+    author_name = ''
+    author_selectors = [
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]",
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body13:semibold') and contains(@class, 'primary')]",
+        "[data-testid*='author']",
+        "[class*='author']",
+        "[class*='reviewer']",
+        ".reviewer-name",
+    ]
+    for selector in author_selectors:
+        try:
+            locator = item.locator(selector).first
+            if locator.count() == 0:
+                continue
+            value = _normalize_review_text(locator.inner_text(timeout=2000))
+            if value and _is_likely_name_line(value):
+                author_name = value
+                break
+        except Exception:
+            continue
+
+    if not author_name:
+        author_name = _guess_masked_name_from_item_text(item_text, content_text, real_name)
+    if (not author_name or author_name == '익명') and real_name:
+        author_name = _mask_name(real_name)
+
+    return author_name or '익명', real_name, content_text or '(내용 없음)'
 
 
 def _manual_match(outer_html: str, anonymous_name: str, review_input: str) -> dict[str, str]:
@@ -472,19 +665,8 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 if has_reply:
                     continue
 
-                content_text = ''
-                content_locator = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and contains(@class, 'review-content')]").first
-                if content_locator.count() > 0:
-                    content_text = content_locator.inner_text(timeout=3000).strip()
-                elif item.locator('.review-content').count() > 0:
-                    content_text = item.locator('.review-content').first.inner_text(timeout=3000).strip()
-                else:
-                    content_text = '(내용 없음)'
-
-                author_locator = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]").first
-                author_name = author_locator.inner_text(timeout=3000).strip() if author_locator.count() > 0 else '익명'
-                real_name = _find_real_name_by_content(reviews_data, content_text)
-                found.append({'masked_name': author_name, 'real_name': real_name, 'review': content_text})
+                masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data)
+                found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
             except Exception:
                 continue
     finally:
@@ -519,9 +701,13 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             slot['real_name'] = found[idx].get('real_name', '')
             slot['review'] = found[idx].get('review', '')
         else:
-            slot['masked_name'] = slot.get('masked_name', '')
-            slot['real_name'] = slot.get('real_name', '')
-            slot['review'] = slot.get('review', '')
+            slot['masked_name'] = ''
+            slot['real_name'] = ''
+            slot['review'] = ''
+            slot['reply'] = ''
+            slot['situation'] = ''
+            slot['specifics'] = ''
+            continue
         slot['reply'] = slot.get('reply', '')
         slot['situation'] = slot.get('situation', '')
         slot['specifics'] = slot.get('specifics', '')
