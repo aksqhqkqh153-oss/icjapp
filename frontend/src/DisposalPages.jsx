@@ -3696,7 +3696,29 @@ function buildSettlementMonthlySalesTable(monthLabel, monthlyRecords) {
   ]
 }
 
+function splitSettlementRecordByPaymentDate(record) {
+  const grouped = new Map()
+  getSettlementEligibleItems(record).forEach((item, index) => {
+    const rawValue = String(item?.paymentSettledAt || '').trim()
+    const dateKey = rawValue ? getSavedDateKey(rawValue) : '날짜 미지정'
+    if (!grouped.has(dateKey)) grouped.set(dateKey, [])
+    grouped.get(dateKey).push({ ...item, __settlementOriginalIndex: index })
+  })
+  if (!grouped.size) return [record]
+  return Array.from(grouped.entries())
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'ko'))
+    .map(([dateKey, items], index) => ({
+      ...record,
+      items: items.map(item => ({ ...item })),
+      __settlementPaymentDateKey: dateKey,
+      __settlementSegmentKey: `${String(record?.id || 'record')}-${dateKey}-${index}`,
+    }))
+}
+
 function getSettlementPaymentDateDisplay(record) {
+  if (record?.__settlementPaymentDateKey) {
+    return formatShortDate(record.__settlementPaymentDateKey) || '-'
+  }
   const dates = Array.from(new Set(
     getSettlementEligibleItems(record)
       .map(item => formatShortDate(item?.paymentSettledAt))
@@ -3722,6 +3744,10 @@ function compareSettlementFieldValue(record, field) {
 
 function getSettlementSortPrimitive(record, field) {
   if (field === 'paymentDate') {
+    if (record?.__settlementPaymentDateKey) {
+      const segmentTime = getDateValueParts(record.__settlementPaymentDateKey)?.date?.getTime?.()
+      return Number.isFinite(segmentTime) ? segmentTime : Number.POSITIVE_INFINITY
+    }
     const timestamps = getSettlementEligibleItems(record)
       .map(item => getDateValueParts(item?.paymentSettledAt)?.date?.getTime?.())
       .filter(value => Number.isFinite(value))
@@ -3785,10 +3811,17 @@ function sortSettlementRecords(records, field = 'disposalDate', direction = 'des
   return direction === 'desc' ? sorted.reverse() : sorted
 }
 
+function getSettlementMonthlyGroupKey(record, field = 'disposalDate') {
+  if (field === 'paymentDate') {
+    return String(record?.__settlementPaymentDateKey || getSettlementPaymentDateKey(record) || '날짜 미지정')
+  }
+  return String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
+}
+
 function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', direction = 'asc') {
   const byDate = new Map()
   monthlyRecords.forEach(record => {
-    const dateKey = String(record?.disposalDate || getSavedDateKey(record?.savedAt) || '날짜 미지정')
+    const dateKey = getSettlementMonthlyGroupKey(record, field)
     if (!byDate.has(dateKey)) byDate.set(dateKey, [])
     byDate.get(dateKey).push(record)
   })
@@ -3799,12 +3832,10 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
       records: sortSettlementRecords(records, field, direction),
     }))
     .sort((a, b) => {
-      if (field === 'disposalDate') {
-        const aTime = getDateValueParts(a.dateKey)?.date?.getTime?.()
-        const bTime = getDateValueParts(b.dateKey)?.date?.getTime?.()
-        const aValue = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY
-        const bValue = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY
-        return direction === 'desc' ? bValue - aValue : aValue - bValue
+      const aTime = getDateValueParts(a.dateKey)?.date?.getTime?.()
+      const bTime = getDateValueParts(b.dateKey)?.date?.getTime?.()
+      if (Number.isFinite(aTime) && Number.isFinite(bTime)) {
+        return direction === 'desc' ? bTime - aTime : aTime - bTime
       }
       const aRecord = a.records[0] || {}
       const bRecord = b.records[0] || {}
@@ -3827,14 +3858,18 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
       acc.totalSales += metrics.minimumFee
       return acc
     }, { customerCount:0, totalQty:0, totalReport:0, totalFee:0, totalCancel:0, totalSales:0 })
+    const summaryDisposalDateCell = field === 'paymentDate' ? '-' : dateKey
+    const summaryPaymentDateCell = field === 'paymentDate'
+      ? (formatShortDate(dateKey) || '-')
+      : (Array.from(new Set(records.map(getSettlementPaymentDateDisplay).filter(value => value && value !== '-'))).join(' / ') || '-')
     rows.push({
-      key: `summary-${dateKey}`,
+      key: `summary-${field}-${dateKey}`,
       kind: 'summary',
       dateKey,
-      toggleKey: dateKey,
+      toggleKey: `${field}-${dateKey}`,
       cells: [
-        dateKey,
-        Array.from(new Set(records.map(getSettlementPaymentDateDisplay).filter(value => value && value !== '-'))).join(' / ') || '-',
+        summaryDisposalDateCell,
+        summaryPaymentDateCell,
         `${formatNumber(summary.customerCount)}건`,
         '합계',
         `[${formatMonthDayLabel(dateKey)} 합계]`,
@@ -3848,15 +3883,16 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
     })
     records.forEach((record, index) => {
       const metrics = getRecordSettlementMetrics(record)
-      const detailToggleKey = `detail-items-${record.id}`
+      const recordKey = String(record?.__settlementSegmentKey || record?.id || `record-${field}-${dateKey}-${index}`)
+      const detailToggleKey = `detail-items-${recordKey}`
       rows.push({
-        key: `detail-${record.id}-${index}`,
+        key: `detail-${recordKey}`,
         kind: 'detail',
-        parentKey: dateKey,
+        parentKey: `${field}-${dateKey}`,
         toggleKey: detailToggleKey,
         recordId: record.id,
         cells: [
-          dateKey,
+          record?.disposalDate || getSavedDateKey(record?.savedAt) || '-',
           getSettlementPaymentDateDisplay(record),
           String(index + 1),
           record?.platform || '-',
@@ -3879,9 +3915,9 @@ function buildSettlementMonthlyRows(monthlyRecords, field = 'disposalDate', dire
         const reportNoText = String(item?.reportNo || '').trim()
         const itemNote = [reportNoText ? `번호 ${reportNoText}` : '', noteText].filter(Boolean).join(' · ') || '-'
         rows.push({
-          key: `detail-item-${record.id}-${itemIndex}`,
+          key: `detail-item-${recordKey}-${itemIndex}`,
           kind: 'item',
-          parentKey: dateKey,
+          parentKey: `${field}-${dateKey}`,
           detailParentKey: detailToggleKey,
           recordId: record.id,
           cells: [
@@ -3996,9 +4032,13 @@ export function DisposalSettlementsPage() {
   }, [])
 
   const monthlyRecords = useMemo(() => filterRecordsByMonth(records, monthKey), [records, monthKey])
+  const settlementDisplayRecords = useMemo(() => {
+    if (settlementFilterField !== 'paymentDate') return monthlyRecords
+    return monthlyRecords.flatMap(record => splitSettlementRecordByPaymentDate(record))
+  }, [monthlyRecords, settlementFilterField])
   const filteredSettlementRecords = useMemo(() => {
     const normalizedQuery = String(settlementSearchQuery || '').replace(/\s+/g, '').toLowerCase()
-    const dateFiltered = monthlyRecords.filter(record => {
+    const dateFiltered = settlementDisplayRecords.filter(record => {
       const paymentDateValue = getSettlementSortPrimitive(record, 'paymentDate')
       if (Number.isFinite(paymentDateValue)) {
         return isWithinCustomDateRange(new Date(paymentDateValue).toISOString(), settlementDateStart, settlementDateEnd)
@@ -4009,7 +4049,7 @@ export function DisposalSettlementsPage() {
       ? dateFiltered.filter(record => matchesSettlementSearch(record, normalizedQuery, settlementFilterField))
       : dateFiltered
     return sortSettlementRecords(filtered, settlementFilterField, settlementSortDirection)
-  }, [monthlyRecords, settlementFilterField, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
+  }, [settlementDisplayRecords, settlementFilterField, settlementDateStart, settlementDateEnd, settlementSortDirection, settlementSearchQuery])
   const monthLabel = useMemo(() => formatMonthShortLabel(monthKey), [monthKey])
   const salesTableRows = useMemo(() => buildSettlementMonthlySalesTable(monthLabel, monthlyRecords), [monthLabel, monthlyRecords])
   const settlementRows = useMemo(() => buildSettlementMonthlyRows(filteredSettlementRecords, settlementFilterField, settlementSortDirection), [filteredSettlementRecords, settlementFilterField, settlementSortDirection])
