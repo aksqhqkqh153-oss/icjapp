@@ -5701,6 +5701,36 @@ button.danger:hover {
   overflow: auto;
 }
 
+.soomgo-error-modal {
+  width: min(720px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.soomgo-error-modal-head h3 {
+  margin: 0;
+}
+
+.soomgo-error-modal-note {
+  white-space: pre-line;
+}
+
+.soomgo-error-textarea {
+  width: 100%;
+  min-height: 220px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  padding: 12px;
+  resize: vertical;
+  background: #fff;
+  color: #111827;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .soomgo-hidden-grid,
 .soomgo-result-grid {
   display: grid;

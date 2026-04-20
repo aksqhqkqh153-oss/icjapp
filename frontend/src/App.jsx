@@ -20137,6 +20137,21 @@ function SoomgoReviewFinderPage({ user }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' })
+
+  function openCopyableErrorDialog(title, error, fallbackMessage) {
+    const message = String(error?.message || fallbackMessage || '오류가 발생했습니다.').trim()
+    setErrorDialog({ open: true, title: title || '오류', message })
+  }
+
+  async function copyErrorDialogMessage() {
+    try {
+      await navigator.clipboard.writeText(String(errorDialog.message || ''))
+      window.alert('오류 내용을 복사했습니다.')
+    } catch (_error) {
+      window.alert('클립보드 복사에 실패했습니다. 브라우저 권한을 확인해주세요.')
+    }
+  }
 
   async function loadState() {
     const data = await api('/api/soomgo-review/state')
@@ -20177,7 +20192,7 @@ function SoomgoReviewFinderPage({ user }) {
       })
       setState(prev => ({ ...prev, ...saved }))
     } catch (error) {
-      window.alert(error.message || '숨고리뷰찾기 저장 중 오류가 발생했습니다.')
+      openCopyableErrorDialog('숨고리뷰찾기 저장 오류', error, '숨고리뷰찾기 저장 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
     }
@@ -20190,7 +20205,7 @@ function SoomgoReviewFinderPage({ user }) {
       const data = await api('/api/soomgo-review/scan-auto', { method: 'POST' })
       setState(prev => ({ ...prev, ...data }))
     } catch (error) {
-      window.alert(error.message || '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+      openCopyableErrorDialog('자동 숨고리뷰 찾기 오류', error, '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -20203,7 +20218,7 @@ function SoomgoReviewFinderPage({ user }) {
       const data = await api('/api/soomgo-review/scan-manual', { method: 'POST' })
       setState(prev => ({ ...prev, ...data }))
     } catch (error) {
-      window.alert(error.message || '수동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+      openCopyableErrorDialog('수동 숨고리뷰 찾기 오류', error, '수동 숨고리뷰 찾기 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -20219,7 +20234,7 @@ function SoomgoReviewFinderPage({ user }) {
       })
       setState(prev => ({ ...prev, ...(data.state || {}), results: { ...prev.results, candidate_names: data.candidate_names || '', candidate_scores: data.candidate_scores || '' } }))
     } catch (error) {
-      window.alert(error.message || '수기 작성자 찾기 중 오류가 발생했습니다.')
+      openCopyableErrorDialog('수기 작성자 찾기 오류', error, '수기 작성자 찾기 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -20235,7 +20250,7 @@ function SoomgoReviewFinderPage({ user }) {
       })
       setState(prev => ({ ...prev, ...(data.state || {}), results: { ...prev.results, ai_result: data.draft || '' } }))
     } catch (error) {
-      window.alert(error.message || '리뷰초안 생성 중 오류가 발생했습니다.')
+      openCopyableErrorDialog('리뷰초안 생성 오류', error, '리뷰초안 생성 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -20291,6 +20306,29 @@ function SoomgoReviewFinderPage({ user }) {
         onManualMatch={handleManualMatch}
         canManageHiddenSettings={canManageHiddenSettings}
       />
+
+      {errorDialog.open ? createPortal(
+        <div className="modal-overlay" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>
+          <div className="modal-card soomgo-error-modal" onClick={event => event.stopPropagation()}>
+            <div className="between soomgo-error-modal-head">
+              <h3>{errorDialog.title || '오류'}</h3>
+              <button type="button" className="ghost small" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>닫기</button>
+            </div>
+            <div className="muted small soomgo-error-modal-note">아래 내용을 드래그하거나 복사 버튼으로 복사해서 그대로 전달할 수 있습니다.</div>
+            <textarea
+              className="soomgo-error-textarea"
+              value={errorDialog.message || ''}
+              readOnly
+              onFocus={event => event.target.select()}
+            />
+            <div className="row gap wrap" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="ghost" onClick={copyErrorDialogMessage}>복사</button>
+              <button type="button" onClick={() => setErrorDialog({ open: false, title: '', message: '' })}>확인</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   )
 }
