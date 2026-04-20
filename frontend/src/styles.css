@@ -5729,6 +5729,9 @@ button.danger:hover {
   font-size: 13px;
   line-height: 1.45;
   white-space: pre-wrap;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .soomgo-hidden-grid,

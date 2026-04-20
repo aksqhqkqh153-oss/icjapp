@@ -20144,6 +20144,35 @@ function SoomgoReviewFinderPage({ user }) {
     setErrorDialog({ open: true, title: title || '오류', message })
   }
 
+  function shouldOpenCopyableAlertMessage(message) {
+    const text = String(message || '').trim()
+    if (!text) return false
+    if (text.includes('Call log:')) return true
+    if (text.includes('Traceback')) return true
+    if (text.includes('Timeout') && text.includes('locator')) return true
+    if (text.includes('playwright') || text.includes('Playwright')) return true
+    const lineCount = text.split(/\r?\n/).length
+    return text.length >= 180 || lineCount >= 5
+  }
+
+  useEffect(() => {
+    const nativeAlert = window.alert
+    window.alert = function patchedSoomgoReviewAlert(message) {
+      if (shouldOpenCopyableAlertMessage(message)) {
+        setErrorDialog({
+          open: true,
+          title: '숨고리뷰찾기 오류 상세',
+          message: String(message || '').trim(),
+        })
+        return
+      }
+      return nativeAlert.call(window, message)
+    }
+    return () => {
+      window.alert = nativeAlert
+    }
+  }, [])
+
   async function copyErrorDialogMessage() {
     try {
       await navigator.clipboard.writeText(String(errorDialog.message || ''))
@@ -20319,7 +20348,9 @@ function SoomgoReviewFinderPage({ user }) {
               className="soomgo-error-textarea"
               value={errorDialog.message || ''}
               readOnly
+              spellCheck={false}
               onFocus={event => event.target.select()}
+              onClick={event => event.target.select()}
             />
             <div className="row gap wrap" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="ghost" onClick={copyErrorDialogMessage}>복사</button>
