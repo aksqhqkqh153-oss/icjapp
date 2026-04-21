@@ -24996,84 +24996,95 @@ button.danger {
   outline: none;
 }
 
-.storage-status-table-monthly th.is-selected-cross,
-.storage-status-table-monthly td.is-selected-cross {
-  box-shadow: inset 0 0 0 2px #111111;
+.storage-status-table-monthly th.is-guide-corner,
+.storage-status-table-monthly th.is-guide-column-head,
+.storage-status-table-monthly th.is-guide-row-head,
+.storage-status-table-monthly td.is-guide-row-line,
+.storage-status-table-monthly td.is-guide-column-line {
   position: relative;
   z-index: 2;
 }
 
-.storage-status-table-monthly td.is-selected-cell,
-.storage-status-table-monthly th.is-selected-cell {
-  box-shadow: inset 0 0 0 2px #111111;
-  position: relative;
-  z-index: 3;
+.storage-status-table-monthly th.is-guide-corner,
+.storage-status-table-monthly th.is-guide-column-head,
+.storage-status-table-monthly th.is-guide-row-head {
+  background: #eceff3;
+  color: #111111;
 }
 
-.storage-status-table-monthly thead th.is-selected-cross,
-.storage-status-table-monthly tbody th.is-selected-cross {
+.storage-status-table-monthly th.is-guide-column-head,
+.storage-status-table-monthly th.is-guide-row-head,
+.storage-status-table-monthly td.is-guide-row-line,
+.storage-status-table-monthly td.is-guide-column-line {
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+.storage-status-table-monthly thead th.is-guide-column-head {
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+.storage-status-table-monthly tbody th.is-guide-row-head {
   box-shadow: inset 0 0 0 2px #111111, 1px 0 0 #e5e7eb;
 }
 
-.storage-status-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.36);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  z-index: 1400;
+.storage-status-table-monthly td.is-guide-row-line,
+.storage-status-table-monthly td.is-guide-column-line {
+  background-image: linear-gradient(180deg, rgba(17, 17, 17, 0.12), rgba(17, 17, 17, 0.12));
 }
 
-.storage-status-modal {
-  width: min(960px, 100%);
-  max-height: min(88vh, 920px);
-  overflow: hidden;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+.storage-status-table-monthly td.is-selected-cell,
+.storage-status-table-monthly th.is-selected-cell {
+  position: relative;
+  z-index: 3;
+  background: #111111 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+.storage-status-detail-panel {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.storage-status-modal-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+.storage-status-detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.storage-status-detail-panel-title-wrap {
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
 }
 
-.storage-status-modal-header strong {
-  justify-self: center;
+.storage-status-detail-panel-title-wrap strong {
   font-size: 16px;
   font-weight: 800;
   color: #111827;
 }
 
-.storage-status-modal-date {
+.storage-status-detail-panel-date {
   font-size: 12px;
   font-weight: 700;
   color: #475569;
   white-space: nowrap;
-  justify-self: end;
 }
 
-.storage-status-modal-back {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  font-size: 18px;
-  line-height: 1;
-  justify-self: start;
+.storage-status-detail-clear {
+  white-space: nowrap;
 }
 
-.storage-status-modal-body {
-  overflow: auto;
-  padding: 14px 16px 16px;
+.storage-status-detail-wrap {
+  padding: 10px;
 }
 
 .storage-status-detail-table {
@@ -25083,6 +25094,7 @@ button.danger {
   border-collapse: collapse;
   table-layout: auto;
   border: 2px solid #000;
+  background: #ffffff;
 }
 
 .storage-status-detail-table th,
@@ -25103,24 +25115,17 @@ button.danger {
 }
 
 @media (max-width: 768px) {
-  .storage-status-modal {
-    width: 100%;
-    max-height: 90vh;
-    border-radius: 14px;
+  .storage-status-detail-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  .storage-status-modal-header {
-    grid-template-columns: auto 1fr auto;
-    gap: 8px;
-  }
-
-  .storage-status-modal-header strong {
-    justify-self: center;
+  .storage-status-detail-panel-title-wrap strong {
     font-size: 15px;
   }
 
-  .storage-status-modal-date {
-    justify-self: end;
+  .storage-status-detail-panel-date {
+    white-space: normal;
   }
 
   .storage-status-detail-table th,

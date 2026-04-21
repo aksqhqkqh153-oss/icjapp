@@ -344,16 +344,14 @@ async function buildMonthlyTableCanvas(monthlyRows, selectedMonthlyCell) {
     })
     row.days.forEach((value, dayIndex) => {
       const day = dayIndex + 1
-      const isSelectedColumn = selectedMonthlyCell?.day === day
-      const isSelectedCell = isSelectedRow && isSelectedColumn
-      const isSelectedCross = !isSelectedCell && (isSelectedRow || isSelectedColumn)
+      const guideState = getMonthlyGuideState(selectedMonthlyCell, row.month, day)
       const baseFill = getMonthlyCellFillStyle(value)
       drawCell(originX + monthColWidth + (dayIndex * dayColWidth), y, dayColWidth, rowHeight, value || '', {
-        fill: getMonthlyCrossFillStyle({ isSelectedCell, isSelectedCross, baseFill }),
-        color: getMonthlyCrossTextStyle({ isSelectedCell, isHeader: false }),
+        fill: getMonthlyCrossFillStyle({ isSelectedCell: guideState.isSelectedCell, isSelectedCross: guideState.isGuideLine, baseFill }),
+        color: getMonthlyCrossTextStyle({ isSelectedCell: guideState.isSelectedCell, isHeader: false }),
         font: value ? '800 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif' : '500 12px Pretendard, Apple SD Gothic Neo, Malgun Gothic, sans-serif',
-        border: (isSelectedCell || isSelectedCross) ? strongBorder : borderColor,
-        lineWidth: (isSelectedCell || isSelectedCross) ? 2 : 1,
+        border: guideState.isGuideLine ? strongBorder : borderColor,
+        lineWidth: guideState.isGuideLine ? 2 : 1,
       })
     })
   })
@@ -380,6 +378,47 @@ function getMonthlyCellTone(value) {
   return 'is-danger'
 }
 
+function getMonthlyGuideState(selectedCell, month, day) {
+  const hasSelection = Boolean(selectedCell?.month && selectedCell?.day)
+  const isSelectedMonth = hasSelection && selectedCell.month === month
+  const isSelectedDay = hasSelection && selectedCell.day === day
+  const isSelectedCell = isSelectedMonth && isSelectedDay
+  const isGuideRow = hasSelection && isSelectedMonth && day <= selectedCell.day
+  const isGuideColumn = hasSelection && isSelectedDay && month <= selectedCell.month
+  const isGuideRowOnly = !isSelectedCell && isGuideRow
+  const isGuideColumnOnly = !isSelectedCell && isGuideColumn
+  return {
+    hasSelection,
+    isSelectedMonth,
+    isSelectedDay,
+    isSelectedCell,
+    isGuideRow,
+    isGuideColumn,
+    isGuideRowOnly,
+    isGuideColumnOnly,
+    isGuideLine: isSelectedCell || isGuideRowOnly || isGuideColumnOnly,
+  }
+}
+
+function sortDetailRows(rows = []) {
+  return [...rows].sort((a, b) => {
+    const aDate = parseDate(a.start_date)
+    const bDate = parseDate(b.start_date)
+    if (aDate && bDate) {
+      const compare = aDate.getTime() - bDate.getTime()
+      if (compare !== 0) return compare
+    } else if (aDate && !bDate) {
+      return -1
+    } else if (!aDate && bDate) {
+      return 1
+    }
+
+    const customerCompare = String(a.customer_name || '').localeCompare(String(b.customer_name || ''), 'ko')
+    if (customerCompare !== 0) return customerCompare
+    return String(a.id || '').localeCompare(String(b.id || ''), 'en')
+  })
+}
+
 export default function StorageStatusPage() {
   const [tab, setTab] = useState('input')
   const [rows, setRows] = useState([])
@@ -388,7 +427,7 @@ export default function StorageStatusPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
-  const [detailModalDate, setDetailModalDate] = useState(null)
+  const [detailDate, setDetailDate] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState([])
   const [searchInput, setSearchInput] = useState('')
@@ -402,15 +441,6 @@ export default function StorageStatusPage() {
     [rows, baselineRows],
   )
 
-
-  useEffect(() => {
-    if (!detailModalDate) return undefined
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') setDetailModalDate(null)
-    }
-    window.addEventListener('keydown', handleEscape)
-    return () => window.removeEventListener('keydown', handleEscape)
-  }, [detailModalDate])
 
   useEffect(() => {
     if (!isDirty) return undefined
@@ -626,7 +656,7 @@ export default function StorageStatusPage() {
       setError(err?.message || '월별현황 표 복사에 실패했습니다.')
     }
   }, [monthlyRows, selectedMonthlyCell])
-  const detailRows = useMemo(() => rows.filter((row) => isDateWithinRow(detailModalDate, row)), [rows, detailModalDate])
+  const detailRows = useMemo(() => sortDetailRows(rows.filter((row) => isDateWithinRow(detailDate, row))), [rows, detailDate])
 
   const changedCellMap = useMemo(() => {
     const map = {}
@@ -646,7 +676,13 @@ export default function StorageStatusPage() {
   const handleMonthlyCellClick = useCallback((month, day) => {
     const targetDate = new Date(new Date().getFullYear(), month - 1, day)
     targetDate.setHours(0, 0, 0, 0)
-    setDetailModalDate(targetDate)
+    setSelectedMonthlyCell({ month, day })
+    setDetailDate(targetDate)
+  }, [])
+
+  const clearMonthlySelection = useCallback(() => {
+    setSelectedMonthlyCell(null)
+    setDetailDate(null)
   }, [])
 
   return (
@@ -792,33 +828,32 @@ export default function StorageStatusPage() {
               <table className="storage-status-table is-monthly storage-status-table-monthly">
                 <thead>
                   <tr>
-                    <th className={selectedMonthlyCell ? 'is-selected-cross' : ''}>월</th>
+                    <th className={selectedMonthlyCell ? 'is-guide-corner' : ''}>월</th>
                     {Array.from({ length: 31 }, (_, index) => {
                       const day = index + 1
-                      const isSelectedColumn = selectedMonthlyCell?.day === day
-                      return <th key={day} className={isSelectedColumn ? 'is-selected-cross' : ''}>{day}</th>
+                      const isGuideHeader = selectedMonthlyCell?.day === day
+                      return <th key={day} className={isGuideHeader ? 'is-guide-column-head' : ''}>{day}</th>
                     })}
                   </tr>
                 </thead>
                 <tbody>
                   {monthlyRows.map((row) => {
-                    const isSelectedRow = selectedMonthlyCell?.month === row.month
+                    const monthGuideClass = selectedMonthlyCell?.month === row.month ? 'is-guide-row-head' : ''
                     return (
                     <tr key={row.month}>
-                      <th className={isSelectedRow ? 'is-selected-cross' : ''}>{row.month}월</th>
+                      <th className={monthGuideClass}>{row.month}월</th>
                       {row.days.map((value, index) => {
                         const day = index + 1
                         const toneClass = getMonthlyCellTone(value)
                         const clickableClass = value ? 'is-clickable' : ''
-                        const isSelectedColumn = selectedMonthlyCell?.day === day
-                        const isSelectedCell = isSelectedRow && isSelectedColumn
-                        const crossClass = isSelectedCell
+                        const guideState = getMonthlyGuideState(selectedMonthlyCell, row.month, day)
+                        const guideClass = guideState.isSelectedCell
                           ? 'is-selected-cell'
-                          : (isSelectedRow || isSelectedColumn ? 'is-selected-cross' : '')
+                          : (guideState.isGuideRowOnly ? 'is-guide-row-line' : (guideState.isGuideColumnOnly ? 'is-guide-column-line' : ''))
                         return (
                           <td
                             key={day}
-                            className={`${toneClass} ${clickableClass} ${crossClass}`.trim()}
+                            className={`${toneClass} ${clickableClass} ${guideClass}`.trim()}
                             onClick={value ? () => handleMonthlyCellClick(row.month, day) : undefined}
                             role={value ? 'button' : undefined}
                             tabIndex={value ? 0 : undefined}
@@ -828,7 +863,7 @@ export default function StorageStatusPage() {
                                 handleMonthlyCellClick(row.month, day)
                               }
                             } : undefined}
-                            aria-label={value ? `${row.month}월 ${day}일 짐규모 세부현황 열기` : undefined}
+                            aria-label={value ? `${row.month}월 ${day}일 짐규모 세부현황 보기` : undefined}
                           >
                             {value}
                           </td>
@@ -843,49 +878,48 @@ export default function StorageStatusPage() {
         </div>
       ) : null}
 
-      {detailModalDate ? (
-        <div className="storage-status-modal-backdrop" role="dialog" aria-modal="true" aria-label="짐규모 세부현황" onClick={() => setDetailModalDate(null)}>
-          <div className="storage-status-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="storage-status-modal-header">
-              <button
-                type="button"
-                className="ghost storage-status-modal-back"
-                onClick={() => setDetailModalDate(null)}
-                aria-label="뒤로가기"
-              >
-                ←
-              </button>
+      {!loading && tab === 'monthly' && detailDate ? (
+        <div className="storage-status-detail-panel" aria-live="polite">
+          <div className="storage-status-detail-panel-header">
+            <div className="storage-status-detail-panel-title-wrap">
               <strong>짐규모 세부현황</strong>
-              <span className="storage-status-modal-date">{formatSelectionLabel(detailModalDate)}</span>
+              <span className="storage-status-detail-panel-date">{formatSelectionLabel(detailDate)}</span>
             </div>
-            <div className="storage-status-modal-body">
-              <table className="storage-status-detail-table">
-                <thead>
+            <button
+              type="button"
+              className="small ghost storage-status-detail-clear"
+              onClick={clearMonthlySelection}
+            >
+              선택해제
+            </button>
+          </div>
+          <div className="storage-status-table-wrap storage-status-detail-wrap">
+            <table className="storage-status-detail-table">
+              <thead>
+                <tr>
+                  <th>고객명</th>
+                  <th>담당대표</th>
+                  <th>시작일</th>
+                  <th>종료일</th>
+                  <th>짐규모</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailRows.length === 0 ? (
                   <tr>
-                    <th>고객명</th>
-                    <th>담당대표</th>
-                    <th>시작일</th>
-                    <th>종료일</th>
-                    <th>짐규모</th>
+                    <td colSpan={5} className="storage-status-empty">해당 일자의 짐보관 일정이 없습니다.</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {detailRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="storage-status-empty">해당 일자의 짐보관 일정이 없습니다.</td>
-                    </tr>
-                  ) : detailRows.map((row) => (
-                    <tr key={`detail-${row.id}`}>
-                      <td>{row.customer_name || '-'}</td>
-                      <td>{row.manager_name || '-'}</td>
-                      <td>{row.start_date || '-'}</td>
-                      <td>{row.end_date || '-'}</td>
-                      <td>{row.scale || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ) : detailRows.map((row) => (
+                  <tr key={`detail-${row.id}`}>
+                    <td>{row.customer_name || '-'}</td>
+                    <td>{row.manager_name || '-'}</td>
+                    <td>{row.start_date || '-'}</td>
+                    <td>{row.end_date || '-'}</td>
+                    <td>{row.scale || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : null}
