@@ -2411,8 +2411,8 @@ function SignupPage({ onLogin }) {
           )}
           <input type="email" placeholder="계정복구 이메일 *" value={form.recovery_email} onChange={e => updateField('recovery_email', e.target.value)} required />
           {!isCustomerType() && <input type="email" placeholder="구글 이메일*(구글 시트 공유목적)" value={form.google_email} onChange={e => updateField('google_email', e.target.value)} required />}
-          {!isCustomerType() && <input placeholder={isBusinessType() ? '계좌번호*(사업자 발행된 경우, 이사비용 정산에 쓸 계좌번호 입력)' : '계좌번호 *'} value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)} required />}
-          {!isCustomerType() && <input placeholder={isBusinessType() ? '은행명*(사업자 발행된 경우, 이사비용 정산에 쓸 은행명 입력)' : '은행명 *'} value={form.bank_name} onChange={e => updateField('bank_name', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder={isBusinessType() ? '계좌번호*(사업자 발행된 경우, 이사비용 정산에 쓸 계좌번호 입력)' : isEmployeeType() ? '계좌번호*(이사현장 투입 후 정산 받는 계좌번호)' : '계좌번호 *'} value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder={isBusinessType() ? '은행명*(사업자 발행된 경우, 이사비용 정산에 쓸 은행명 입력)' : isEmployeeType() ? '은행명*(이사현장 투입 후 정산 받는 은행명)' : '은행명 *'} value={form.bank_name} onChange={e => updateField('bank_name', e.target.value)} required />}
 
           {isBusinessType() && (
             <>
