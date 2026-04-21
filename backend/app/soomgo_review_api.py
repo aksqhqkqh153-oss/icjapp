@@ -279,6 +279,29 @@ def _mask_name(name: str) -> str:
     return raw[0] + ('*' * (len(raw) - 2)) + raw[-1]
 
 
+def _normalize_masked_name(value: Any) -> str:
+    masked = _normalize_review_text(value).replace('•', '*')
+    masked = re.sub(r'\s+', '', masked)
+    return masked
+
+
+def _mask_matches(masked_name: str, real_name: str) -> bool:
+    masked = _normalize_masked_name(masked_name)
+    real = _normalize_review_text(real_name)
+    if not masked or not real:
+        return False
+    if masked == _normalize_masked_name(_mask_name(real)):
+        return True
+    if len(masked) != len(real):
+        return False
+    for masked_char, real_char in zip(masked, real):
+        if masked_char in {'*', '•'}:
+            continue
+        if masked_char != real_char:
+            return False
+    return True
+
+
 def _is_likely_name_line(text: str) -> bool:
     value = _normalize_review_text(text)
     if not value:
@@ -486,6 +509,59 @@ def _find_real_name_by_content(reviews_data: list[dict[str, Any]], target_conten
     return best_name if best_score >= 0.45 else ''
 
 
+def _score_review_record(review: dict[str, Any], masked_name: str, candidate_lines: list[str], item_text: str) -> float:
+    author = _normalize_review_text(review.get('author', ''))
+    contents = _normalize_review_text(review.get('contents', ''))
+    if not author or not contents:
+        return 0.0
+
+    compact_item = _compact_review_text(item_text)
+    compact_contents = _compact_review_text(contents)
+    best_score = 0.0
+
+    if masked_name and _mask_matches(masked_name, author):
+        best_score += 0.32
+
+    if compact_item and compact_contents:
+        if compact_contents in compact_item or compact_item in compact_contents:
+            best_score += 0.42
+
+    for line in candidate_lines:
+        norm_line = _normalize_review_text(line)
+        compact_line = _compact_review_text(line)
+        score = difflib.SequenceMatcher(None, norm_line, contents).ratio()
+        if compact_line and compact_contents:
+            score = max(score, difflib.SequenceMatcher(None, compact_line, compact_contents).ratio())
+            if compact_line == compact_contents:
+                score = max(score, 1.0)
+            elif compact_line in compact_contents or compact_contents in compact_line:
+                score = max(score, 0.93)
+        best_score = max(best_score, score)
+
+    return best_score
+
+
+def _resolve_review_record_from_outer_html(reviews_data: list[dict[str, Any]], masked_name: str, item_text: str, candidate_lines: list[str]) -> tuple[str, str, str]:
+    if not reviews_data:
+        return '', '', ''
+    normalized_mask = _normalize_masked_name(masked_name)
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for review in reviews_data:
+        score = _score_review_record(review, normalized_mask, candidate_lines, item_text)
+        if score > 0:
+            scored.append((score, review))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    if not scored:
+        return '', '', ''
+    best_score, best_review = scored[0]
+    if best_score < 0.58:
+        return '', '', ''
+    real_name = _normalize_review_text(best_review.get('author', ''))
+    review_text = _normalize_review_text(best_review.get('contents', ''))
+    masked = normalized_mask or _mask_name(real_name)
+    return masked, real_name, review_text
+
+
 def _guess_masked_name_from_item_text(item_text: str, review_text: str, real_name: str = '') -> str:
     review_norm = _normalize_review_text(review_text)
     lines = [_normalize_review_text(line) for line in str(item_text or '').splitlines()]
@@ -614,6 +690,21 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         real_name = _find_real_name_by_content(reviews_data, content_text)
         if (not author_name or author_name == '익명') and real_name:
             author_name = _mask_name(real_name)
+
+    resolved_masked, resolved_real, resolved_review = _resolve_review_record_from_outer_html(
+        reviews_data,
+        author_name,
+        item_text,
+        review_content_rows + content_candidates + line_candidates,
+    )
+    if resolved_review and (not content_text or content_text == '(내용 없음)'):
+        content_text = resolved_review
+    if resolved_real and not real_name:
+        real_name = resolved_real
+    if resolved_masked and (not author_name or author_name == '익명'):
+        author_name = resolved_masked
+    elif real_name and (not author_name or author_name == '익명'):
+        author_name = _mask_name(real_name)
 
     return author_name or '익명', real_name, content_text or '(내용 없음)'
 
@@ -874,8 +965,22 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
 
                 masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
                 content_text = _normalize_review_text(content_text)
+                if (not content_text or content_text == '(내용 없음)') and isinstance(preloaded, dict):
+                    fallback_masked, fallback_real, fallback_review = _resolve_review_record_from_outer_html(
+                        reviews_data,
+                        masked_name or _guess_masked_name_from_item_text(str(preloaded.get('itemText', '')), '', real_name),
+                        str(preloaded.get('itemText', '')),
+                        _build_review_line_candidates(str(preloaded.get('itemText', ''))),
+                    )
+                    masked_name = masked_name or fallback_masked
+                    real_name = real_name or fallback_real
+                    content_text = _normalize_review_text(fallback_review)
                 if not content_text or content_text == '(내용 없음)':
                     continue
+                if not real_name:
+                    real_name = _find_real_name_by_content(reviews_data, content_text)
+                if (not masked_name or masked_name == '익명') and real_name:
+                    masked_name = _mask_name(real_name)
                 found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
             except Exception:
                 continue
@@ -923,7 +1028,9 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         slot['specifics'] = slot.get('specifics', '')
 
     message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
-    if not found:
+    if not found and preloaded_items:
+        message = '미답변 리뷰 DOM 추출이 불안정해 outer HTML 대조를 시도했지만 슬롯 입력까지 이어지지 못했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
+    elif not found:
         message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
     state['last_scan'] = {
         'ok': True,
