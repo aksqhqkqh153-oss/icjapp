@@ -6,6 +6,7 @@ import json
 import os
 import re
 import traceback
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -70,6 +71,64 @@ def _require_user(authorization: Optional[str]) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail='로그인이 필요합니다.')
     return user
 
+
+
+
+def _current_kst_timestamp() -> str:
+    return datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0, tzinfo=None).isoformat(timespec='seconds')
+
+
+def _extract_review_content_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
+    rows = []
+    if isinstance(preloaded, dict):
+        rows = preloaded.get('reviewContentRows') or preloaded.get('contentCandidates') or []
+    normalized = []
+    seen: set[str] = set()
+    for value in rows:
+        text = _normalize_review_text(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
+    return normalized
+
+
+def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
+    rows = []
+    if isinstance(preloaded, dict):
+        rows = preloaded.get('replyRows') or []
+    normalized = []
+    seen: set[str] = set()
+    for value in rows:
+        text = _normalize_review_text(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
+    return normalized
+
+
+def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any = None) -> bool:
+    reply_rows = _extract_reply_rows(preloaded)
+    if reply_rows:
+        return True
+    if item is None:
+        return False
+    selectors = [
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
+        "xpath=.//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
+    ]
+    for selector in selectors:
+        try:
+            locator = item.locator(selector)
+            count = locator.count()
+            for idx in range(count):
+                value = _normalize_review_text(locator.nth(idx).inner_text(timeout=1200))
+                if value:
+                    return True
+        except Exception:
+            continue
+    return False
 
 def _default_state() -> dict[str, Any]:
     slots = []
@@ -365,16 +424,25 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
     const authorCandidates = textRows
       .filter((row) => row.className.includes('body14:semibold') || row.className.includes('body13:semibold') || row.className.includes('author') || row.className.includes('reviewer'))
       .map((row) => row.text);
-    const contentCandidates = textRows
-      .filter((row) => row.className.includes('review-content'))
+    const reviewContentRows = textRows
+      .filter((row) => row.className.includes('body14:regular') && row.className.includes('primary') && row.className.includes('review-content'))
       .map((row) => row.text);
+    const contentCandidates = reviewContentRows.length
+      ? reviewContentRows
+      : textRows.filter((row) => row.className.includes('review-content')).map((row) => row.text);
+    const replyRows = textRows
+      .filter((row) => row.className.includes('body14:regular') && row.className.includes('primary') && !row.className.includes('review-content'))
+      .map((row) => row.text)
+      .filter((text) => text && text !== '더보기');
     const regularPrimaryRows = textRows.filter((row) => row.className.includes('body14:regular') && row.className.includes('primary'));
-    const hasReply = regularPrimaryRows.some((row) => !row.className.includes('review-content'));
+    const hasReply = replyRows.length > 0;
     return {
       index,
       itemText: norm(item.innerText || item.textContent || ''),
       authorCandidates,
+      reviewContentRows,
       contentCandidates,
+      replyRows,
       regularPrimaryRows,
       textRows,
       hasReply,
@@ -461,13 +529,14 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         for value in (preloaded.get('authorCandidates') or [])
         if _normalize_review_text(value)
     ]
+    review_content_rows = _extract_review_content_rows(preloaded)
     content_candidates = [
         _normalize_review_text(value)
         for value in (preloaded.get('contentCandidates') or [])
         if _normalize_review_text(value)
     ]
 
-    content_text = ''
+    content_text = review_content_rows[0] if review_content_rows else ''
     content_selectors = [
         ".review-content",
         "[class*='review-content']",
@@ -800,13 +869,11 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             item = review_items.nth(index)
             preloaded = preloaded_items[index] if index < len(preloaded_items) and isinstance(preloaded_items[index], dict) else {}
             try:
-                has_reply = bool(preloaded.get('hasReply')) if preloaded else False
-                if not preloaded:
-                    has_reply = item.locator("xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]").count() > 0
-                if has_reply:
+                if _has_meaningful_reply(preloaded=preloaded, item=item):
                     continue
 
                 masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
+                content_text = _normalize_review_text(content_text)
                 if not content_text or content_text == '(내용 없음)':
                     continue
                 found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
@@ -861,7 +928,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
     state['last_scan'] = {
         'ok': True,
         'message': message,
-        'updated_at': utcnow(),
+        'updated_at': _current_kst_timestamp(),
         'found_count': len(found),
     }
     return state
@@ -991,7 +1058,7 @@ def scan_auto(authorization: Optional[str] = Header(default=None)):
     except Exception as exc:
         detail = str(exc).strip() or '자동 숨고 리뷰 찾기 실행 중 알 수 없는 오류가 발생했습니다.'
         trace = traceback.format_exc(limit=5)
-        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': utcnow(), 'found_count': 0}
+        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': _current_kst_timestamp(), 'found_count': 0}
         state.setdefault('results', {})['ai_result'] = ''
         _save_state(state)
         raise HTTPException(status_code=500, detail=f'{detail}\n\n[debug] {trace}')
@@ -1011,7 +1078,7 @@ def scan_manual(authorization: Optional[str] = Header(default=None)):
     except Exception as exc:
         detail = str(exc).strip() or '수동 숨고 리뷰 찾기 실행 중 알 수 없는 오류가 발생했습니다.'
         trace = traceback.format_exc(limit=5)
-        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': utcnow(), 'found_count': 0}
+        state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': _current_kst_timestamp(), 'found_count': 0}
         _save_state(state)
         raise HTTPException(status_code=500, detail=f'{detail}\n\n[debug] {trace}')
 
