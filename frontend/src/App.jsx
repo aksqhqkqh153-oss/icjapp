@@ -881,6 +881,24 @@ const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부�
 const GENDER_OPTIONS = ['남성', '여성']
 const MARITAL_STATUS_OPTIONS = ['미혼', '기혼', '기타']
 const MBTI_OPTIONS = ['ISTJ', 'ISTP', 'ISFJ', 'ISFP', 'INTJ', 'INTP', 'INFJ', 'INFP', 'ESTJ', 'ESTP', 'ESFJ', 'ESFP', 'ENTJ', 'ENTP', 'ENFJ', 'ENFP', '기타']
+const SIGNUP_MBTI_OPTIONS = ['미정', ...MBTI_OPTIONS]
+const SIGNUP_MEMBER_TYPE_OPTIONS = [
+  {
+    value: 'business',
+    label: '사업자',
+    description: '차량을 운행하여 사업자 대표로 하는 경우',
+  },
+  {
+    value: 'employee',
+    label: '직원',
+    description: '사업자 대표를 도와 이사 현장에서 업무를 보조 하는 경우',
+  },
+  {
+    value: 'customer',
+    label: '고객',
+    description: '이사 서비스를 제공 받는 고객인 경우',
+  },
+]
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
@@ -1039,6 +1057,33 @@ function normalizeFlexibleLoginId(value) {
     .filter(char => /[a-z0-9]/.test(char))
     .join('')
     .slice(0, 30)
+}
+
+function deriveRegionFromAddress(value) {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0]} ${parts[1]}`
+  return parts[0] || '서울'
+}
+
+function signupMemberTypeMeta(value) {
+  return SIGNUP_MEMBER_TYPE_OPTIONS.find(option => option.value === value) || null
+}
+
+function signupMemberTypeLabel(value) {
+  return signupMemberTypeMeta(value)?.label || '회원'
+}
+
+function signupApprovalGradeByAccount(item) {
+  const accountType = String(item?.account_type || '').trim().toLowerCase()
+  const positionTitle = String(item?.position_title || '').trim()
+  if (accountType === 'business' || positionTitle === '호점대표') return 4
+  if (accountType === 'employee_field' || accountType === 'employee_hq' || ['직원', '팀장', '부팀장', '본부장', '상담실장', '상담팀장', '상담사원'].includes(positionTitle)) return 5
+  return 6
+}
+
+function signupApprovalGradeLabel(item) {
+  const grade = signupApprovalGradeByAccount(item)
+  return grade === 4 ? '사업자권한' : grade === 5 ? '직원권한' : '일반권한'
 }
 
 function parseRequesterMeta(request) {
@@ -2165,52 +2210,136 @@ function AuthPage({ onLogin }) {
 
 function SignupPage({ onLogin }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const memberType = String(searchParams.get('type') || '').trim().toLowerCase()
+  const memberMeta = signupMemberTypeMeta(memberType)
   const [form, setForm] = useState({
-    email: '',
+    member_type: memberType,
+    login_id: '',
     password: '',
+    name: '',
     nickname: '',
     gender: '',
-    birth_year: '',
-    region: '',
+    birth_date: '',
+    resident_address: '',
     phone: '',
+    marital_status: '',
+    mbti: '',
     recovery_email: '',
+    google_email: '',
+    bank_account: '',
+    bank_name: '',
+    business_name: '',
+    business_number: '',
+    business_type: '',
+    business_item: '',
+    business_address: '',
     vehicle_number: '',
     branch_no: '',
+    resident_id: '',
   })
   const [error, setError] = useState('')
   const branchOptions = BRANCH_NUMBER_OPTIONS
 
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      member_type: memberType,
+      vehicle_number: memberType === 'business' && !String(prev.vehicle_number || '').trim() ? '미정' : prev.vehicle_number,
+    }))
+    setError('')
+  }, [memberType])
+
+  function updateField(key, value) {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function goToMemberType(nextType) {
+    navigate(`/signup?type=${nextType}`)
+  }
+
+  function isBusinessType() {
+    return memberType === 'business'
+  }
+
+  function isEmployeeType() {
+    return memberType === 'employee'
+  }
+
+  function isCustomerType() {
+    return memberType === 'customer'
+  }
+
   async function submit(e) {
     e.preventDefault()
     setError('')
+    if (!memberMeta) {
+      setError('회원 유형을 먼저 선택해 주세요.')
+      return
+    }
+
     const requiredFields = [
-      ['아이디', form.email],
+      ['아이디', form.login_id],
       ['비밀번호', form.password],
-      ['닉네임', form.nickname],
+      ['이름', form.name],
       ['성별', form.gender],
-      ['생년', form.birth_year],
-      ['지역', form.region],
+      ['거주지 주소', form.resident_address],
       ['연락처', form.phone],
-      ['복구 이메일', form.recovery_email],
+      ['계정복구 이메일', form.recovery_email],
     ]
+
+    if (!isCustomerType()) requiredFields.push(['닉네임', form.nickname])
+    if (!isEmployeeType()) requiredFields.push(['생년월일', form.birth_date])
+    if (!isCustomerType()) requiredFields.push(['결혼여부', form.marital_status])
+    if (!isCustomerType()) requiredFields.push(['MBTI', form.mbti])
+    if (!isCustomerType()) requiredFields.push(['구글 이메일', form.google_email])
+    if (!isCustomerType()) requiredFields.push(['계좌번호', form.bank_account])
+    if (!isCustomerType()) requiredFields.push(['은행명', form.bank_name])
+    if (isBusinessType()) {
+      requiredFields.push(['사업자명', form.business_name])
+      requiredFields.push(['사업자번호', form.business_number])
+      requiredFields.push(['업태', form.business_type])
+      requiredFields.push(['종목', form.business_item])
+      requiredFields.push(['사업장주소', form.business_address])
+      requiredFields.push(['차량번호', form.vehicle_number])
+      requiredFields.push(['호점선택', form.branch_no])
+    }
+    if (isEmployeeType()) requiredFields.push(['주민등록번호', form.resident_id])
+
     const missing = requiredFields.filter(([, value]) => !String(value || '').trim()).map(([label]) => label)
     if (missing.length) {
       setError(`다음 필수 항목을 입력해 주세요: ${missing.join(', ')}`)
       return
     }
+
     try {
+      const normalizedBranch = isBusinessType() ? normalizeBranchNo(form.branch_no) : null
       const payload = {
-        ...form,
-        email: form.email.trim(),
-        password: form.password.trim(),
-        nickname: form.nickname.trim(),
-        gender: form.gender.trim(),
-        birth_year: Number(form.birth_year),
-        region: form.region.trim(),
-        phone: form.phone.trim(),
-        recovery_email: form.recovery_email.trim(),
-        vehicle_number: form.vehicle_number.trim(),
-        branch_no: normalizeBranchNo(form.branch_no),
+        member_type: memberType,
+        login_id: normalizeFlexibleLoginId(form.login_id),
+        email: normalizeFlexibleLoginId(form.login_id),
+        password: String(form.password || '').trim(),
+        name: String(form.name || '').trim(),
+        nickname: isCustomerType() ? String(form.name || '').trim() : String(form.nickname || '').trim(),
+        gender: String(form.gender || '').trim(),
+        birth_date: isEmployeeType() ? '' : String(form.birth_date || '').trim(),
+        resident_address: String(form.resident_address || '').trim(),
+        region: deriveRegionFromAddress(form.resident_address),
+        phone: String(form.phone || '').trim(),
+        marital_status: isCustomerType() ? '' : String(form.marital_status || '').trim(),
+        mbti: isCustomerType() ? '' : String(form.mbti || '').trim(),
+        recovery_email: String(form.recovery_email || '').trim(),
+        google_email: isCustomerType() ? '' : String(form.google_email || '').trim(),
+        bank_account: isCustomerType() ? '' : String(form.bank_account || '').trim(),
+        bank_name: isCustomerType() ? '' : String(form.bank_name || '').trim(),
+        business_name: isBusinessType() ? String(form.business_name || '').trim() : '',
+        business_number: isBusinessType() ? String(form.business_number || '').trim() : '',
+        business_type: isBusinessType() ? String(form.business_type || '').trim() : '',
+        business_item: isBusinessType() ? String(form.business_item || '').trim() : '',
+        business_address: isBusinessType() ? String(form.business_address || '').trim() : '',
+        vehicle_number: isBusinessType() ? String(form.vehicle_number || '').trim() : '',
+        branch_no: isBusinessType() ? (normalizedBranch === null ? null : normalizedBranch) : null,
+        resident_id: isEmployeeType() ? String(form.resident_id || '').trim() : '',
       }
       const data = await api('/api/auth/signup', {
         method: 'POST',
@@ -2229,24 +2358,81 @@ function SignupPage({ onLogin }) {
     }
   }
 
+  if (!memberMeta) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-card">
+          <h1>회원 유형 선택</h1>
+          <p className="muted">어떤 회원으로 계정을 만들지 먼저 선택해 주세요.</p>
+          <div className="stack">
+            {SIGNUP_MEMBER_TYPE_OPTIONS.map(option => (
+              <button key={option.value} type="button" className="card" onClick={() => goToMemberType(option.value)} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                <strong>{option.label}</strong>
+                <div className="muted" style={{ marginTop: 6 }}>{option.description}</div>
+              </button>
+            ))}
+          </div>
+          <Link to="/login" className="ghost-link">로그인으로 돌아가기</Link>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="auth-shell">
-      <section className="auth-card">
-        <h1>회원가입</h1>
+      <section className="auth-card wide">
+        <h1>{memberMeta.label} 회원가입</h1>
+        <p className="muted">{memberMeta.description}</p>
+        <div className="inline-actions wrap" style={{ marginBottom: 12 }}>
+          <button type="button" className="small ghost" onClick={() => navigate('/signup')}>회원유형 다시 선택</button>
+        </div>
         <form onSubmit={submit} className="stack">
-          <input type="text" placeholder="아이디 *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-          <input type="password" placeholder="비밀번호 *" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
-          <input placeholder="닉네임 *" value={form.nickname} onChange={e => setForm({ ...form, nickname: e.target.value })} required />
-          <select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} required><option value="">성별 선택 *</option>{GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>
-          <input type="number" placeholder="생년 *" value={form.birth_year} onChange={e => setForm({ ...form, birth_year: e.target.value })} required />
-          <input placeholder="지역 *" value={form.region} onChange={e => setForm({ ...form, region: e.target.value })} required />
-          <input placeholder="연락처 *" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
-          <input type="email" placeholder="복구 이메일 *" value={form.recovery_email} onChange={e => setForm({ ...form, recovery_email: e.target.value })} required />
-          <input placeholder="차량번호 (선택)" value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value })} />
-          <select value={form.branch_no} onChange={e => setForm({ ...form, branch_no: e.target.value })}>
-            <option value="">호점 선택 (선택)</option>
-            {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
+          <input type="text" placeholder="아이디 *" value={form.login_id} onChange={e => updateField('login_id', normalizeFlexibleLoginId(e.target.value))} autoComplete="username" required />
+          <input type="password" placeholder="비밀번호 *" value={form.password} onChange={e => updateField('password', e.target.value)} autoComplete="new-password" required />
+          <input placeholder="이름 *" value={form.name} onChange={e => updateField('name', e.target.value)} required />
+          {!isCustomerType() && <input placeholder="닉네임 *" value={form.nickname} onChange={e => updateField('nickname', e.target.value)} required />}
+          <select value={form.gender} onChange={e => updateField('gender', e.target.value)} required>
+            <option value="">성별 선택 *</option>
+            {GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
+          {!isEmployeeType() && <input type="date" placeholder="생년월일 *" value={form.birth_date} onChange={e => updateField('birth_date', e.target.value)} required />}
+          <input placeholder="거주지 주소 *" value={form.resident_address} onChange={e => updateField('resident_address', e.target.value)} required />
+          <input placeholder="연락처 *" value={form.phone} onChange={e => updateField('phone', e.target.value)} required />
+          {!isCustomerType() && (
+            <select value={form.marital_status} onChange={e => updateField('marital_status', e.target.value)} required>
+              <option value="">결혼여부 선택 *</option>
+              {MARITAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
+          )}
+          {!isCustomerType() && (
+            <select value={form.mbti} onChange={e => updateField('mbti', e.target.value)} required>
+              <option value="">MBTI 선택 *</option>
+              {SIGNUP_MBTI_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
+          )}
+          <input type="email" placeholder="계정복구 이메일 *" value={form.recovery_email} onChange={e => updateField('recovery_email', e.target.value)} required />
+          {!isCustomerType() && <input type="email" placeholder="구글 이메일 *" value={form.google_email} onChange={e => updateField('google_email', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder="계좌번호 *" value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder="은행명 *" value={form.bank_name} onChange={e => updateField('bank_name', e.target.value)} required />}
+
+          {isBusinessType() && (
+            <>
+              <input placeholder="사업자명 * (없는 경우 미정 입력)" value={form.business_name} onChange={e => updateField('business_name', e.target.value)} required />
+              <input placeholder="사업자번호 * (없는 경우 미정 입력)" value={form.business_number} onChange={e => updateField('business_number', e.target.value)} required />
+              <input placeholder="업태 * (없는 경우 미정 입력)" value={form.business_type} onChange={e => updateField('business_type', e.target.value)} required />
+              <input placeholder="종목 * (없는 경우 미정 입력)" value={form.business_item} onChange={e => updateField('business_item', e.target.value)} required />
+              <input placeholder="사업장주소 * (없는 경우 미정 입력)" value={form.business_address} onChange={e => updateField('business_address', e.target.value)} required />
+              <input placeholder="차량번호 * (없는 경우 미정 입력)" value={form.vehicle_number} onChange={e => updateField('vehicle_number', e.target.value)} required />
+              <select value={form.branch_no} onChange={e => updateField('branch_no', e.target.value)} required>
+                <option value="">호점선택 *</option>
+                <option value="-1">미정</option>
+                {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
+              </select>
+            </>
+          )}
+
+          {isEmployeeType() && <input placeholder="주민등록번호 *" value={form.resident_id} onChange={e => updateField('resident_id', e.target.value)} required />}
+
           <button>가입 후 로그인</button>
           {error && <div className="error">{error}</div>}
         </form>
@@ -15612,19 +15798,21 @@ function AdminModePage() {
 
   async function approvePendingSignup(target) {
     if (!target?.id) return
+    const targetGrade = signupApprovalGradeByAccount(target)
+    const targetLabel = signupApprovalGradeLabel(target)
     await api('/api/admin/accounts/bulk', {
       method: 'POST',
       body: JSON.stringify({
         accounts: [{
           id: target.id,
-          grade: 6,
+          grade: targetGrade,
           approved: true,
           position_title: target.position_title || '',
           vehicle_available: parseVehicleAvailable(target.vehicle_available),
         }],
       }),
     })
-    setMessage(`${target.name || target.nickname || target.email || '계정'} 계정을 일반 권한으로 승인했습니다.`)
+    setMessage(`${target.name || target.nickname || target.email || '계정'} 계정을 ${targetLabel}으로 승인했습니다.`)
     if (pendingSignupAccounts.filter(item => Number(item.id) !== Number(target.id)).length === 0) {
       const nextParams = new URLSearchParams(searchParams)
       nextParams.delete('panel')
@@ -16858,6 +17046,7 @@ function AdminModePage() {
                         <strong>{item.name || item.nickname || '이름 미입력'}</strong>
                         <span>{item.email || '-'}</span>
                         <span>{item.phone || '-'}</span>
+                        <span>{signupMemberTypeLabel(signupApprovalGradeByAccount(item) === 4 ? 'business' : signupApprovalGradeByAccount(item) === 5 ? 'employee' : 'customer')}</span>
                         <span>{item.created_at ? String(item.created_at).replace('T', ' ').slice(0, 16) : '-'}</span>
                       </div>
                       <div className="signup-approval-actions">

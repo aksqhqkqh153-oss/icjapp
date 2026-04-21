@@ -174,6 +174,7 @@ app.include_router(soomgo_review_router)
 ALLOWED_GENDERS = {'남성', '여성'}
 ALLOWED_MARITAL_STATUS = {'', '미혼', '기혼', '기타'}
 ALLOWED_MBTI = {'', 'ISTJ', 'ISTP', 'ISFJ', 'ISFP', 'INTJ', 'INTP', 'INFJ', 'INFP', 'ESTJ', 'ESTP', 'ESFJ', 'ESFP', 'ENTJ', 'ENTP', 'ENFJ', 'ENFP', '기타'}
+ALLOWED_SIGNUP_MEMBER_TYPES = {'business', 'employee', 'customer'}
 
 
 def _origin_allowed(origin: str) -> bool:
@@ -267,27 +268,79 @@ def _validate_marital_status_value(value: Any, allow_empty: bool = True) -> str:
     return marital_status
 
 def _validate_mbti_value(value: Any, allow_empty: bool = True) -> str:
-    mbti = str(value or '').strip().upper()
-    if not mbti and allow_empty:
+    raw_mbti = str(value or '').strip()
+    if not raw_mbti and allow_empty:
         return ''
+    if raw_mbti == '미정':
+        return '미정'
+    mbti = raw_mbti.upper()
     if mbti == '기타':
         return '기타'
     if mbti not in ALLOWED_MBTI:
         raise HTTPException(status_code=400, detail='MBTI 값을 다시 확인해 주세요.')
     return mbti
+
+def _validate_signup_member_type_value(value: Any) -> str:
+    member_type = str(value or '').strip().lower()
+    if member_type not in ALLOWED_SIGNUP_MEMBER_TYPES:
+        raise HTTPException(status_code=400, detail='회원 유형을 다시 선택해 주세요.')
+    return member_type
+
+def _derive_region_from_address(value: Any, fallback: str = '서울') -> str:
+    raw = str(value or '').strip()
+    if not raw:
+        return fallback
+    parts = [part for part in re.split(r'\s+', raw) if part]
+    if len(parts) >= 2:
+        return f"{parts[0]} {parts[1]}"
+    return parts[0] or fallback
+
+def _derive_birth_year_from_values(birth_date: Any = '', resident_id: Any = '') -> int:
+    birth_date_text = str(birth_date or '').strip()
+    if birth_date_text:
+        match = re.match(r'^(\d{4})[-./]?(\d{2})[-./]?(\d{2})$', birth_date_text)
+        if match:
+            year = int(match.group(1))
+            if 1900 <= year <= 2100:
+                return year
+    digits = ''.join(ch for ch in str(resident_id or '') if ch.isdigit())
+    if len(digits) >= 6:
+        yy = int(digits[:2])
+        if len(digits) >= 7 and digits[6] in {'1', '2', '5', '6'}:
+            return 1900 + yy
+        if len(digits) >= 7 and digits[6] in {'3', '4', '7', '8'}:
+            return 2000 + yy
+        now_year = datetime.utcnow().year % 100
+        return (2000 + yy) if yy <= now_year else (1900 + yy)
+    return 1990
+
 class SignupIn(BaseModel):
+    member_type: str = 'customer'
     login_id: str
     email: str = ""
     google_email: str = ""
     password: str
-    nickname: str
+    name: str = ""
+    nickname: str = ""
     gender: str = ""
+    birth_date: str = ""
     birth_year: int = 1990
     region: str = "서울"
+    resident_address: str = ""
     phone: str = ""
+    marital_status: str = ""
+    mbti: str = ""
     recovery_email: str = ""
+    bank_account: str = ""
+    bank_name: str = ""
     vehicle_number: str = ""
     branch_no: Optional[int] = None
+    business_name: str = ""
+    business_number: str = ""
+    business_type: str = ""
+    business_item: str = ""
+    business_address: str = ""
+    resident_id: str = ""
 class LoginIn(BaseModel):
     login_id: str = ""
     email: str = ""
@@ -2632,33 +2685,93 @@ class AdminIpUnlockIn(BaseModel):
 
 @app.post("/api/auth/signup")
 def signup(payload: SignupIn):
+    member_type = _validate_signup_member_type_value(payload.member_type)
     login_id = _validate_login_id_value(payload.login_id)
-    account_email = _normalize_email_value(payload.email)
+    account_email = _normalize_email_value(payload.email) or login_id
     password = payload.password.strip()
-    nickname = payload.nickname.strip()
+    name = str(payload.name or '').strip()
+    nickname = str(payload.nickname or '').strip()
     gender = _validate_gender_value(payload.gender, allow_empty=False)
-    region = payload.region.strip()
+    resident_address = str(payload.resident_address or '').strip()
+    region = str(payload.region or '').strip() or _derive_region_from_address(resident_address)
     phone = payload.phone.strip()
     recovery_email = _normalize_email_value(payload.recovery_email)
-    actual_email = account_email
     google_email = _normalize_email_value(payload.google_email)
-    vehicle_number = payload.vehicle_number.strip()
+    marital_status = _validate_marital_status_value(payload.marital_status, allow_empty=True)
+    mbti = _validate_mbti_value(payload.mbti, allow_empty=True)
+    bank_account = str(payload.bank_account or '').strip()
+    bank_name = str(payload.bank_name or '').strip()
+    vehicle_number = str(payload.vehicle_number or '').strip()
+    business_name = str(payload.business_name or '').strip()
+    business_number = str(payload.business_number or '').strip()
+    business_type = str(payload.business_type or '').strip()
+    business_item = str(payload.business_item or '').strip()
+    business_address = str(payload.business_address or '').strip()
+    resident_id = str(payload.resident_id or '').strip()
+    birth_date = str(payload.birth_date or '').strip()
+    actual_name = name or nickname
+    actual_nickname = nickname or actual_name
 
     required_fields = [
         ('아이디', login_id),
         ('비밀번호', password),
-        ('닉네임', nickname),
+        ('이름', actual_name),
         ('성별', gender),
-        ('생년', str(payload.birth_year or '').strip()),
-        ('지역', region),
+        ('거주지 주소', resident_address),
         ('연락처', phone),
-        ('복구 이메일', recovery_email),
+        ('계정복구 이메일', recovery_email),
     ]
-    missing = [label for label, value in required_fields if not value]
+    if member_type != 'customer':
+        required_fields.append(('닉네임', actual_nickname))
+    if member_type != 'employee':
+        required_fields.append(('생년월일', birth_date))
+    if member_type != 'customer':
+        required_fields.extend([
+            ('결혼여부', marital_status),
+            ('MBTI', mbti),
+            ('구글 이메일', google_email),
+            ('계좌번호', bank_account),
+            ('은행명', bank_name),
+        ])
+    if member_type == 'business':
+        required_fields.extend([
+            ('사업자명', business_name),
+            ('사업자번호', business_number),
+            ('업태', business_type),
+            ('종목', business_item),
+            ('사업장주소', business_address),
+            ('차량번호', vehicle_number),
+            ('호점선택', '' if payload.branch_no is None else str(payload.branch_no)),
+        ])
+    if member_type == 'employee':
+        required_fields.append(('주민등록번호', resident_id))
+
+    missing = [label for label, value in required_fields if not str(value or '').strip()]
     if missing:
         raise HTTPException(status_code=400, detail=f"다음 필수 항목을 입력해 주세요: {', '.join(missing)}")
-    if payload.birth_year < 1900 or payload.birth_year > 2100:
-        raise HTTPException(status_code=400, detail='생년 값이 올바르지 않습니다.')
+
+    derived_birth_year = _derive_birth_year_from_values(birth_date, resident_id)
+    if member_type != 'employee' and (derived_birth_year < 1900 or derived_birth_year > 2100):
+        raise HTTPException(status_code=400, detail='생년월일 값을 다시 확인해 주세요.')
+
+    if member_type == 'business':
+        position_title = '호점대표'
+    elif member_type == 'employee':
+        position_title = '직원'
+    else:
+        position_title = ''
+
+    pending_user_data = _normalize_account_admin_flags({
+        'grade': 7,
+        'approved': 0,
+        'account_status': 'pending',
+        'position_title': position_title,
+        'branch_no': payload.branch_no if member_type == 'business' else None,
+        'role': 'business' if member_type == 'business' else ('employee' if member_type == 'employee' else 'user'),
+        'vehicle_available': member_type == 'business',
+        'permission_codes_json': '[]',
+    })
+
     with get_conn() as conn:
         exists = _find_user_by_login_id_ci(conn, login_id)
         if exists:
@@ -2666,24 +2779,54 @@ def signup(payload: SignupIn):
         generated_unique_id = generate_account_unique_id(conn, login_id)
         conn.execute(
             """
-            INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, account_unique_id, group_number, group_number_text, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'user', 7, 0, 'pending', '[]', 'general', '', ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
+            INSERT INTO users(
+                login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status,
+                permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email,
+                vehicle_number, branch_no, position_title, marital_status, resident_address, business_name, business_number,
+                business_type, business_item, business_address, bank_account, bank_name, mbti, resident_id,
+                vehicle_available, show_in_branch_status, show_in_employee_status, show_in_field_employee_status,
+                show_in_hq_status, account_unique_id, group_number, group_number_text, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
             """,
             (
                 login_id,
-                actual_email,
+                account_email,
                 google_email,
                 hash_password(password),
-                nickname,
-                nickname,
+                actual_name,
+                actual_nickname,
+                pending_user_data['role'],
+                7,
+                0,
+                'pending',
+                pending_user_data['permission_codes_json'],
+                pending_user_data['account_type'],
+                pending_user_data['branch_code'],
                 gender,
-                payload.birth_year,
+                derived_birth_year,
                 region,
                 phone,
                 recovery_email,
-                vehicle_number,
-                payload.branch_no,
-                payload.branch_no if payload.branch_no is not None else -1,
+                vehicle_number if member_type == 'business' else '',
+                pending_user_data.get('branch_no'),
+                pending_user_data.get('position_title') or '',
+                marital_status if member_type != 'customer' else '',
+                resident_address,
+                business_name if member_type == 'business' else '',
+                business_number if member_type == 'business' else '',
+                business_type if member_type == 'business' else '',
+                business_item if member_type == 'business' else '',
+                business_address if member_type == 'business' else '',
+                bank_account if member_type != 'customer' else '',
+                bank_name if member_type != 'customer' else '',
+                mbti if member_type != 'customer' else '',
+                resident_id if member_type == 'employee' else '',
+                int(bool(pending_user_data.get('vehicle_available'))),
+                int(bool(pending_user_data.get('show_in_branch_status'))),
+                int(bool(pending_user_data.get('show_in_employee_status'))),
+                int(bool(pending_user_data.get('show_in_field_employee_status'))),
+                int(bool(pending_user_data.get('show_in_hq_status'))),
                 generated_unique_id,
                 utcnow(),
             ),
@@ -2696,22 +2839,25 @@ def signup(payload: SignupIn):
         admin_rows = conn.execute(
             "SELECT id FROM users WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)"
         ).fetchall()
+        member_type_label = {'business': '사업자', 'employee': '직원', 'customer': '고객'}[member_type]
         notification_title = '회원가입 승인 요청'
-        notification_body = f"신규 회원가입 신청: {nickname} ({login_id})"
+        notification_body = f"신규 {member_type_label} 회원가입 신청: {actual_name or actual_nickname} ({login_id})"
         for admin_row in admin_rows:
             insert_notification(conn, int(admin_row['id']), 'signup_request', notification_title, notification_body)
         return {
             'ok': True,
             'pending_approval': True,
-            'message': '회원가입 신청이 완료되었습니다. 관리자 승인 후 일반 권한으로 로그인할 수 있습니다.',
+            'message': '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
             'user': {
                 'id': user_id,
                 'login_id': login_id,
-                'email': actual_email,
-                'nickname': nickname,
+                'email': account_email,
+                'name': actual_name,
+                'nickname': actual_nickname,
                 'grade': 7,
                 'grade_label': '기타',
                 'approved': False,
+                'account_type': pending_user_data['account_type'],
             },
         }
 
@@ -6519,10 +6665,25 @@ def update_admin_account(user_id: int, payload: AdminAccountUpdateIn, admin=Depe
             raise HTTPException(status_code=403, detail='해당 권한을 수정할 수 없습니다.')
         approved = int(payload.approved) if payload.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
         next_position_title = str((payload.position_title if payload.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
-        if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
-            next_position_title = '호점대표'
-        vehicle_available_value = 0 if _is_staff_grade(target_grade) else (1 if payload.vehicle_available else 0)
-        conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, vehicle_available_value, user_id))
+        normalized = _normalize_account_admin_flags({**row_to_dict(existing), 'grade': target_grade, 'approved': approved, 'position_title': next_position_title, 'vehicle_available': payload.vehicle_available})
+        conn.execute(
+            "UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ?, role = ?, account_type = ?, branch_code = ?, account_status = ?, show_in_branch_status = ?, show_in_employee_status = ?, show_in_field_employee_status = ?, show_in_hq_status = ? WHERE id = ?",
+            (
+                target_grade,
+                approved,
+                str(normalized.get('position_title') or ''),
+                int(bool(normalized.get('vehicle_available'))),
+                str(normalized.get('role') or 'user'),
+                str(normalized.get('account_type') or 'general'),
+                str(normalized.get('branch_code') or ''),
+                str(normalized.get('account_status') or 'active'),
+                int(bool(normalized.get('show_in_branch_status'))),
+                int(bool(normalized.get('show_in_employee_status'))),
+                int(bool(normalized.get('show_in_field_employee_status'))),
+                int(bool(normalized.get('show_in_hq_status'))),
+                user_id,
+            ),
+        )
         _sync_all_day_note_available_vehicle_counts(conn)
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return user_public_dict(row)
@@ -6540,10 +6701,25 @@ def update_admin_accounts_bulk(payload: AdminAccountsBulkUpdateIn, admin=Depends
                 continue
             approved = int(item.approved) if item.approved is not None else int(existing['approved'] if existing['approved'] is not None else 1)
             next_position_title = str((item.position_title if item.position_title is not None else (existing['position_title'] if 'position_title' in existing.keys() else '')) or '').strip()
-            if not next_position_title and existing['branch_no'] not in (None, '') and int(existing['branch_no']) > 0:
-                next_position_title = '호점대표'
-            vehicle_available_value = 0 if _is_staff_grade(target_grade) else (1 if item.vehicle_available else 0)
-            conn.execute("UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ? WHERE id = ?", (target_grade, approved, next_position_title, vehicle_available_value, user_id))
+            normalized = _normalize_account_admin_flags({**row_to_dict(existing), 'grade': target_grade, 'approved': approved, 'position_title': next_position_title, 'vehicle_available': item.vehicle_available})
+            conn.execute(
+                "UPDATE users SET grade = ?, approved = ?, position_title = ?, vehicle_available = ?, role = ?, account_type = ?, branch_code = ?, account_status = ?, show_in_branch_status = ?, show_in_employee_status = ?, show_in_field_employee_status = ?, show_in_hq_status = ? WHERE id = ?",
+                (
+                    target_grade,
+                    approved,
+                    str(normalized.get('position_title') or ''),
+                    int(bool(normalized.get('vehicle_available'))),
+                    str(normalized.get('role') or 'user'),
+                    str(normalized.get('account_type') or 'general'),
+                    str(normalized.get('branch_code') or ''),
+                    str(normalized.get('account_status') or 'active'),
+                    int(bool(normalized.get('show_in_branch_status'))),
+                    int(bool(normalized.get('show_in_employee_status'))),
+                    int(bool(normalized.get('show_in_field_employee_status'))),
+                    int(bool(normalized.get('show_in_hq_status'))),
+                    user_id,
+                ),
+            )
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             updated.append(user_public_dict(row))
         _sync_all_day_note_available_vehicle_counts(conn)
