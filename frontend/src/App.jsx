@@ -1036,7 +1036,7 @@ function formatRequesterBranchLabel(value) {
 
 function normalizeFlexibleLoginId(value) {
   return Array.from(String(value || '').trim().toLowerCase())
-    .filter(char => /[^\W_]/u.test(char))
+    .filter(char => /[a-z0-9]/.test(char))
     .join('')
     .slice(0, 30)
 }
@@ -15341,7 +15341,7 @@ function AdminModePage() {
   const [selectedSwitchAccountId, setSelectedSwitchAccountId] = useState(null)
   const [switchLoading, setSwitchLoading] = useState(false)
   const [createForm, setCreateForm] = useState({
-    login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
+    login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_number: '', business_type: '', business_item: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -15406,7 +15406,18 @@ function AdminModePage() {
   function normalizeAdminRow(item) {
     const accountType = item?.account_type || ((item?.role === 'business' || Number(item?.branch_no || 0) > 0) ? 'business' : 'employee')
     const rawGroupNumber = item?.group_number_text ?? item?.group_number ?? '0'
-    return enforceVehicleRules({ ...item, group_number: String(rawGroupNumber || '0'), group_number_text: String(rawGroupNumber || '0'), gender: normalizeGenderValue(item?.gender), vehicle_available: parseVehicleAvailable(item?.vehicle_available), approved: !!item?.approved, account_type: accountType, new_password: '' })
+    const normalizedLoginId = normalizeFlexibleLoginId(item?.login_id || item?.email || '')
+    return enforceVehicleRules({
+      ...item,
+      login_id: normalizedLoginId,
+      group_number: String(rawGroupNumber || '0'),
+      group_number_text: String(rawGroupNumber || '0'),
+      gender: normalizeGenderValue(item?.gender),
+      vehicle_available: parseVehicleAvailable(item?.vehicle_available),
+      approved: !!item?.approved,
+      account_type: accountType,
+      new_password: '',
+    })
   }
 
   function vehicleAvailableSelectValue(item) {
@@ -15760,7 +15771,7 @@ function AdminModePage() {
       bank_account: row.bank_account || '',
       bank_name: row.bank_name || '',
       mbti: row.mbti || '',
-      login_id: row.login_id || '',
+      login_id: normalizeFlexibleLoginId(row.login_id || row.email || ''),
       email: row.email || '',
       google_email: row.google_email || '',
       account_status: row.account_status || 'active',
@@ -15861,6 +15872,9 @@ function AdminModePage() {
         marital_status: String(createForm.marital_status || '').trim(),
         resident_address: String(createForm.resident_address || '').trim(),
         business_name: String(createForm.business_name || '').trim(),
+        business_number: String(createForm.business_number || '').trim(),
+        business_type: String(createForm.business_type || '').trim(),
+        business_item: String(createForm.business_item || '').trim(),
         business_address: String(createForm.business_address || '').trim(),
         bank_account: String(createForm.bank_account || '').trim(),
         bank_name: String(createForm.bank_name || '').trim(),
@@ -15875,7 +15889,7 @@ function AdminModePage() {
       }),
     })
     setMessage('계정이 생성되었습니다.')
-    setCreateForm({ login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
+    setCreateForm({ login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_number: '', business_type: '', business_item: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
     await load()
   }
 
@@ -16447,6 +16461,9 @@ function AdminModePage() {
                     </label>
                     <label>거주지주소 <input value={createForm.resident_address} onChange={e => setCreateForm({ ...createForm, resident_address: e.target.value })} /></label>
                     <label>사업자명 <input value={createForm.business_name} onChange={e => setCreateForm({ ...createForm, business_name: e.target.value })} /></label>
+                    <label>사업자번호 <input value={createForm.business_number} onChange={e => setCreateForm({ ...createForm, business_number: e.target.value })} /></label>
+                    <label>업태 <input value={createForm.business_type} onChange={e => setCreateForm({ ...createForm, business_type: e.target.value })} /></label>
+                    <label>종목 <input value={createForm.business_item} onChange={e => setCreateForm({ ...createForm, business_item: e.target.value })} /></label>
                     <label>사업장주소 <input value={createForm.business_address} onChange={e => setCreateForm({ ...createForm, business_address: e.target.value })} /></label>
                     <label>계좌번호 <input value={createForm.bank_account} onChange={e => setCreateForm({ ...createForm, bank_account: e.target.value })} /></label>
                     <label>은행명 <input value={createForm.bank_name} onChange={e => setCreateForm({ ...createForm, bank_name: e.target.value })} /></label>

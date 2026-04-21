@@ -590,6 +590,9 @@ class AdminCreateAccountIn(BaseModel):
     marital_status: str = ''
     resident_address: str = ''
     business_name: str = ''
+    business_number: str = ''
+    business_type: str = ''
+    business_item: str = ''
     business_address: str = ''
     bank_account: str = ''
     bank_name: str = ''
@@ -1022,10 +1025,8 @@ def _validate_login_id_value(value: Any) -> str:
     login_id = _normalize_login_id_value(value)
     if not login_id:
         raise HTTPException(status_code=400, detail='아이디를 입력해 주세요.')
-    if len(login_id) > 30:
-        raise HTTPException(status_code=400, detail='아이디는 30자 이하로 입력해 주세요.')
-    if not re.fullmatch(r'[^\W_]+', login_id, re.UNICODE):
-        raise HTTPException(status_code=400, detail='아이디는 특수문자, -, _ 없이 입력해 주세요.')
+    if not re.fullmatch(r'[a-z0-9]{4,30}', login_id):
+        raise HTTPException(status_code=400, detail='아이디는 영문 또는 숫자만 4~30자로 입력해 주세요. 한글, 특수문자, -, _ 는 사용할 수 없습니다.')
     return login_id
 
 def _normalize_account_status_value(value: Any, approved: Any = None, grade: Any = None) -> str:
@@ -6684,11 +6685,12 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                 INSERT INTO users(
                     login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json,
                     account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title,
-                    marital_status, resident_address, business_name, business_address, bank_account, bank_name, mbti, resident_id,
+                    marital_status, resident_address, business_name, business_number, business_type, business_item, business_address,
+                    bank_account, bank_name, mbti, resident_id,
                     vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status,
                     show_in_field_employee_status, show_in_hq_status, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     login_id,
@@ -6715,6 +6717,9 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                     payload_marital_status,
                     str(payload.resident_address or '').strip(),
                     str(payload.business_name or '').strip(),
+                    str(payload.business_number or '').strip(),
+                    str(payload.business_type or '').strip(),
+                    str(payload.business_item or '').strip(),
                     str(payload.business_address or '').strip(),
                     str(payload.bank_account or '').strip(),
                     str(payload.bank_name or '').strip(),
@@ -6731,7 +6736,10 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
                     utcnow(),
                 ),
             )
-            user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            if DB_ENGINE == 'postgresql':
+                user_id = conn.execute("SELECT id FROM users WHERE login_id = ? ORDER BY id DESC LIMIT 1", (login_id,)).fetchone()[0]
+            else:
+                user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
             row = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
         return {'ok': True, 'user': user_public_dict(row)}

@@ -6,8 +6,8 @@ import TurnstileWidget from '../components/TurnstileWidget'
 import { TextField } from '../components/ui'
 
 function normalizeAuthLoginId(value) {
-  return Array.from(String(value || '').toLowerCase())
-    .filter(char => /[^\W_]/u.test(char))
+  return Array.from(String(value || '').trim().toLowerCase())
+    .filter(char => /[a-z0-9]/.test(char))
     .join('')
     .slice(0, 30)
 }
