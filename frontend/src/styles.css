@@ -31677,3 +31677,128 @@ button.danger {
     font-size: 11px;
   }
 }
+
+
+/* 2026-04-21 materials catalog + 4x2 tabs */
+.materials-page .materials-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.materials-page button.materials-tab {
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 4px;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: normal;
+  word-break: keep-all;
+  letter-spacing: -0.2px;
+}
+.materials-catalog-panel {
+  gap: 12px;
+}
+.materials-catalog-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.materials-catalog-actions-right {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.materials-catalog-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+}
+.materials-catalog-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.materials-catalog-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.materials-catalog-table th,
+.materials-catalog-table td {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  text-align: center;
+  vertical-align: middle;
+}
+.materials-catalog-table th {
+  background: rgba(226, 232, 240, 0.55);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.materials-catalog-table td {
+  background: #fff;
+}
+.materials-catalog-table tr.is-selected td {
+  background: rgba(191, 219, 254, 0.38);
+}
+.materials-catalog-table input,
+.materials-catalog-table select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 10px;
+  padding: 8px 9px;
+  font-size: 12px;
+  background: #fff;
+}
+.materials-catalog-table input:focus,
+.materials-catalog-table select:focus {
+  outline: none;
+  border-color: rgba(29, 155, 240, 0.65);
+  box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
+}
+.materials-catalog-empty {
+  padding: 24px 12px !important;
+  color: #64748b;
+}
+@media (max-width: 768px) {
+  .materials-page .materials-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .materials-page button.materials-tab {
+    min-height: 46px;
+    padding: 7px 3px;
+    font-size: 11.2px;
+    letter-spacing: -0.35px;
+  }
+  .materials-catalog-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .materials-catalog-actions-right {
+    justify-content: stretch;
+  }
+  .materials-catalog-actions-right .materials-bottom-button {
+    flex: 1 1 calc(50% - 4px);
+  }
+  .materials-catalog-table {
+    min-width: 690px;
+  }
+  .materials-catalog-table th,
+  .materials-catalog-table td {
+    padding: 5px;
+  }
+  .materials-catalog-table input,
+  .materials-catalog-table select {
+    padding: 7px 7px;
+    font-size: 11px;
+  }
+}

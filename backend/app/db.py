@@ -1795,26 +1795,27 @@ def seed_imported_accounts(conn) -> None:
             conn.execute(
                 """
                 UPDATE users SET
-                    password_hash = ?, name = ?, nickname = ?, role = ?, grade = ?, approved = ?, gender = ?, birth_year = ?, region = ?,
+                    login_id = ?, password_hash = ?, name = ?, nickname = ?, role = ?, grade = ?, approved = ?, gender = ?, birth_year = ?, region = ?,
                     bio = ?, one_liner = ?, interests = ?, tendencies = ?, photo_url = ?, latitude = ?, longitude = ?, phone = ?,
                     recovery_email = ?, vehicle_number = ?, branch_no = ?, marital_status = ?, resident_address = ?, business_name = ?,
                     business_number = ?, business_type = ?, business_item = ?, business_address = ?, bank_account = ?, bank_name = ?,
                     mbti = ?, google_email = ?, resident_id = ?, position_title = ?, account_unique_id = ?
                 WHERE email = ?
                 """,
-                payload + (account['email'],),
+                (account['email'],) + payload + (account['email'],),
             )
         else:
             conn.execute(
                 """
                 INSERT INTO users(
-                    email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, bio, one_liner,
+                    login_id, email, password_hash, name, nickname, role, grade, approved, gender, birth_year, region, bio, one_liner,
                     interests, tendencies, photo_url, latitude, longitude, phone, recovery_email, vehicle_number, branch_no,
                     marital_status, resident_address, business_name, business_number, business_type, business_item,
                     business_address, bank_account, bank_name, mbti, google_email, resident_id, position_title, account_unique_id, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
+                    account['email'],
                     account['email'],
                     *payload,
                     utcnow(),
@@ -2330,6 +2331,10 @@ CREATE TABLE IF NOT EXISTS material_products (
     short_name TEXT NOT NULL DEFAULT '',
     unit_label TEXT NOT NULL DEFAULT '개',
     unit_price INTEGER NOT NULL DEFAULT 0,
+    purchase_price INTEGER NOT NULL DEFAULT 0,
+    sale_price INTEGER NOT NULL DEFAULT 0,
+    purchase_enabled INTEGER NOT NULL DEFAULT 1,
+    received_at TEXT NOT NULL DEFAULT '',
     current_stock INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -2387,6 +2392,10 @@ CREATE TABLE IF NOT EXISTS material_products (
     short_name TEXT NOT NULL DEFAULT '',
     unit_label TEXT NOT NULL DEFAULT '개',
     unit_price INTEGER NOT NULL DEFAULT 0,
+    purchase_price INTEGER NOT NULL DEFAULT 0,
+    sale_price INTEGER NOT NULL DEFAULT 0,
+    purchase_enabled INTEGER NOT NULL DEFAULT 1,
+    received_at TEXT NOT NULL DEFAULT '',
     current_stock INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -2442,12 +2451,25 @@ CREATE TABLE IF NOT EXISTS material_inventory_daily (
             'short_name': "TEXT NOT NULL DEFAULT ''",
             'unit_label': "TEXT NOT NULL DEFAULT '개'",
             'unit_price': 'INTEGER NOT NULL DEFAULT 0',
+            'purchase_price': 'INTEGER NOT NULL DEFAULT 0',
+            'sale_price': 'INTEGER NOT NULL DEFAULT 0',
+            'purchase_enabled': 'INTEGER NOT NULL DEFAULT 1',
+            'received_at': "TEXT NOT NULL DEFAULT ''",
             'current_stock': 'INTEGER NOT NULL DEFAULT 0',
             'display_order': 'INTEGER NOT NULL DEFAULT 0',
             'is_active': 'INTEGER NOT NULL DEFAULT 1',
             'created_at': "TEXT NOT NULL DEFAULT ''",
             'updated_at': "TEXT NOT NULL DEFAULT ''",
         })
+        conn.execute(
+            """
+            UPDATE material_products
+            SET purchase_price = CASE WHEN COALESCE(purchase_price, 0) = 0 THEN COALESCE(unit_price, 0) ELSE purchase_price END,
+                sale_price = CASE WHEN COALESCE(sale_price, 0) = 0 THEN COALESCE(unit_price, 0) ELSE sale_price END,
+                received_at = CASE WHEN COALESCE(received_at, '') = '' THEN COALESCE(created_at, '') ELSE received_at END,
+                unit_price = CASE WHEN COALESCE(unit_price, 0) = 0 THEN COALESCE(sale_price, 0) ELSE unit_price END
+            """
+        )
         _ensure_columns(conn, 'material_purchase_requests', {
             'requester_name': "TEXT NOT NULL DEFAULT ''",
             'requester_unique_id': "TEXT NOT NULL DEFAULT ''",

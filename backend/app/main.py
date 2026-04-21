@@ -697,6 +697,20 @@ class MaterialIncomingSaveIn(BaseModel):
     force_apply: bool = False
     rows: list[MaterialInventoryRowIn] = []
 
+
+class MaterialCatalogRowIn(BaseModel):
+    id: Optional[int] = None
+    received_at: str = ''
+    code: str = ''
+    name: str = ''
+    purchase_price: int = 0
+    sale_price: int = 0
+    purchase_enabled: bool = True
+
+class MaterialCatalogSaveIn(BaseModel):
+    rows: list[MaterialCatalogRowIn] = []
+    deleted_ids: list[int] = []
+
 class InquiryIn(BaseModel):
     category: str
     title: str
@@ -1614,6 +1628,8 @@ def _materials_scope_allowed(user: dict, scope: str) -> bool:
         return grade <= 2
     if scope == 'inventory_manage':
         return grade <= 2
+    if scope == 'catalog':
+        return grade <= 2
     return False
 
 def _require_materials_scope(user: dict, scope: str):
@@ -1639,6 +1655,21 @@ def _material_products(conn):
         "SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1 ORDER BY display_order, id"
     ).fetchall()]
 
+def _material_catalog_rows(conn, include_inactive: bool = False):
+    query = "SELECT * FROM material_products"
+    if not include_inactive:
+        query += " WHERE COALESCE(is_active, 1) = 1"
+    query += " ORDER BY display_order, id"
+    rows = []
+    for row in conn.execute(query).fetchall():
+        item = row_to_dict(row)
+        item['purchase_price'] = int(item.get('purchase_price') or item.get('unit_price') or 0)
+        item['sale_price'] = int(item.get('sale_price') or item.get('unit_price') or 0)
+        item['purchase_enabled'] = bool(int(item.get('purchase_enabled') if item.get('purchase_enabled') is not None else 1))
+        item['received_at'] = str(item.get('received_at') or item.get('created_at') or '')
+        rows.append(item)
+    return rows
+
 def _material_permissions(user: dict) -> dict:
     return {
         'can_view_sales': _materials_scope_allowed(user, 'sales'),
@@ -1649,6 +1680,8 @@ def _material_permissions(user: dict) -> dict:
         'can_manage_inventory': _materials_scope_allowed(user, 'inventory_manage'),
         'can_manage_incoming': _materials_scope_allowed(user, 'inventory_manage'),
         'can_view_my_requests': _materials_scope_allowed(user, 'my_requests'),
+        'can_view_catalog': _materials_scope_allowed(user, 'catalog'),
+        'can_manage_catalog': _materials_scope_allowed(user, 'catalog'),
     }
 
 
@@ -2071,6 +2104,7 @@ def _material_overview_payload(conn, user: dict) -> dict:
         'history_requests': history_rows if permissions['can_view_history'] else [],
         'my_requests': my_request_rows if permissions['can_view_my_requests'] else [],
         'inventory_rows': inventory_rows if permissions['can_view_inventory'] else [],
+        'catalog_rows': _material_catalog_rows(conn, include_inactive=False) if permissions['can_view_catalog'] else [],
         'share_text': _material_share_text(settled_requests[:30]) if permissions['can_view_settlements'] else '',
     }
     logger.info(
@@ -8008,6 +8042,101 @@ def save_materials_table_layout(payload: PreferenceIn, user=Depends(require_admi
             (_get_materials_table_layout_key(device), json.dumps(layouts, ensure_ascii=False), now),
         )
     return {'ok': True, 'device': device, 'layouts': layouts}
+@app.get('/api/materials/catalog')
+def get_materials_catalog(include_inactive: int = 0, user=Depends(require_user)):
+    _require_materials_scope(user, 'catalog')
+    with get_conn() as conn:
+        rows = _material_catalog_rows(conn, include_inactive=bool(int(include_inactive or 0)))
+    return {'rows': rows}
+
+@app.post('/api/materials/catalog')
+def save_materials_catalog(payload: MaterialCatalogSaveIn, user=Depends(require_user)):
+    _require_materials_scope(user, 'catalog')
+    raw_rows = payload.rows or []
+    deleted_ids = sorted({int(item or 0) for item in (payload.deleted_ids or []) if int(item or 0) > 0})
+    normalized_rows = []
+    seen_codes: set[str] = set()
+    for index, row in enumerate(raw_rows):
+        code = re.sub(r'\s+', '', str(row.code or '').strip())
+        name = str(row.name or '').strip()
+        if not code and not name:
+            continue
+        if not code:
+            raise HTTPException(status_code=400, detail=f'{index + 1}행 품목코드를 입력해 주세요.')
+        if not name:
+            raise HTTPException(status_code=400, detail=f'{index + 1}행 품목명을 입력해 주세요.')
+        normalized_code = code.lower()
+        if normalized_code in seen_codes:
+            raise HTTPException(status_code=400, detail=f'중복된 품목코드가 있습니다: {code}')
+        seen_codes.add(normalized_code)
+        try:
+            purchase_price = max(0, int(row.purchase_price or 0))
+            sale_price = max(0, int(row.sale_price or 0))
+        except Exception:
+            raise HTTPException(status_code=400, detail=f'{index + 1}행 구매가/판매가는 숫자만 입력해 주세요.')
+        received_at = str(row.received_at or '').strip() or utcnow()
+        normalized_rows.append({
+            'id': int(row.id or 0),
+            'code': code,
+            'name': name,
+            'short_name': name,
+            'purchase_price': purchase_price,
+            'sale_price': sale_price,
+            'unit_price': sale_price,
+            'purchase_enabled': 1 if bool(row.purchase_enabled) else 0,
+            'received_at': received_at,
+            'display_order': index + 1,
+        })
+    now = utcnow()
+    with get_conn() as conn:
+        if deleted_ids:
+            placeholders = ','.join('?' for _ in deleted_ids)
+            conn.execute(
+                f"UPDATE material_products SET is_active = 0, purchase_enabled = 0, updated_at = ? WHERE id IN ({placeholders})",
+                tuple([now, *deleted_ids]),
+            )
+        existing_by_id = {int(row['id']): row_to_dict(row) for row in conn.execute('SELECT * FROM material_products').fetchall()}
+        existing_by_code = {str(row['code']).strip().lower(): row_to_dict(row) for row in conn.execute('SELECT * FROM material_products').fetchall() if str(row['code'] or '').strip()}
+        keep_ids = []
+        for row in normalized_rows:
+            matched = None
+            if row['id'] > 0 and row['id'] in existing_by_id:
+                matched = existing_by_id[row['id']]
+            elif row['code'].lower() in existing_by_code:
+                matched = existing_by_code[row['code'].lower()]
+            if matched:
+                keep_ids.append(int(matched['id']))
+                conn.execute(
+                    """
+                    UPDATE material_products
+                    SET code = ?, name = ?, short_name = ?, unit_price = ?, purchase_price = ?, sale_price = ?, purchase_enabled = ?, received_at = ?, display_order = ?, is_active = 1, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, int(matched['id'])),
+                )
+            else:
+                if DB_ENGINE == 'postgresql':
+                    inserted = conn.execute(
+                        """
+                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, current_stock, display_order, is_active, created_at, updated_at)
+                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
+                        RETURNING id
+                        """,
+                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, now),
+                    ).fetchone()
+                    keep_ids.append(int((inserted or {}).get('id') or 0))
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, current_stock, display_order, is_active, created_at, updated_at)
+                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
+                        """,
+                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, now),
+                    )
+                    keep_ids.append(int(conn.execute('SELECT last_insert_rowid()').fetchone()[0] or 0))
+        rows = _material_catalog_rows(conn, include_inactive=True)
+    return {'ok': True, 'rows': rows}
+
 @app.get('/api/materials/overview')
 def get_materials_overview(user=Depends(require_user)):
     with get_conn() as conn:
@@ -8027,7 +8156,7 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
         raise HTTPException(status_code=400, detail='구매 개수를 1개 이상 입력해 주세요.')
     now = utcnow()
     with get_conn() as conn:
-        products = {int(row['id']): row_to_dict(row) for row in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1").fetchall()}
+        products = {int(row['id']): row_to_dict(row) for row in conn.execute("SELECT * FROM material_products WHERE COALESCE(is_active, 1) = 1 AND COALESCE(purchase_enabled, 1) = 1").fetchall()}
         total_amount = 0
         request_items = []
         for item in valid_items:
@@ -8035,7 +8164,7 @@ def create_material_purchase_request(payload: MaterialPurchaseCreateIn, user=Dep
             if not product:
                 continue
             qty = max(0, int(item.quantity or 0))
-            unit_price = int(product.get('unit_price') or 0)
+            unit_price = int(product.get('sale_price') or product.get('unit_price') or 0)
             line_total = qty * unit_price
             total_amount += line_total
             request_items.append((int(product['id']), qty, unit_price, line_total, str(item.memo or '').strip()))
