@@ -19041,6 +19041,7 @@ function MaterialsPage({ user }) {
   const [catalogDeletedIds, setCatalogDeletedIds] = useState([])
   const [catalogSettingsOpen, setCatalogSettingsOpen] = useState(false)
   const [catalogShowInactive, setCatalogShowInactive] = useState(false)
+  const [catalogSortField, setCatalogSortField] = useState('received_at')
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
@@ -19137,6 +19138,8 @@ function MaterialsPage({ user }) {
   }
 
   const visibleTabs = buildVisibleTabs(data?.permissions || {})
+  const paddedVisibleTabs = [...visibleTabs]
+  while (paddedVisibleTabs.length < 8) paddedVisibleTabs.push(null)
   const productRows = data?.products || []
   const purchasableProductRows = productRows.filter(product => Number(product.purchase_enabled ?? 1) !== 0)
   const pendingRequests = data?.pending_requests || []
@@ -19658,12 +19661,30 @@ function MaterialsPage({ user }) {
       received_at: String(row?.received_at || row?.created_at || '').slice(0, 16),
       code: String(row?.code || ''),
       name: String(row?.name || ''),
-      purchase_price: Number(row?.purchase_price ?? row?.unit_price ?? 0) || 0,
-      sale_price: Number(row?.sale_price ?? row?.unit_price ?? 0) || 0,
+      bundle_count: Math.max(0, Number(row?.bundle_count ?? 0) || 0),
+      purchase_price: Math.max(0, Number(row?.purchase_price ?? row?.unit_price ?? 0) || 0),
+      sale_price: Math.max(0, Number(row?.sale_price ?? row?.unit_price ?? 0) || 0),
       purchase_enabled: Number(row?.purchase_enabled ?? 1) !== 0,
       is_active: Number(row?.is_active ?? 1) !== 0,
     }
   }
+
+  function getCatalogSortValue(row, field) {
+    if (field === 'received_at') return String(row?.received_at || '')
+    if (field === 'code') return String(row?.code || '').toLowerCase()
+    if (field === 'name') return String(row?.name || '').toLowerCase()
+    if (field === 'purchase_price') return Number(row?.purchase_price || 0)
+    if (field === 'sale_price') return Number(row?.sale_price || 0)
+    if (field === 'purchase_enabled') return Number(row?.purchase_enabled ? 1 : 0)
+    return String(row?.received_at || '')
+  }
+
+  const sortedCatalogRows = [...catalogRows].sort((a, b) => {
+    const av = getCatalogSortValue(a, catalogSortField)
+    const bv = getCatalogSortValue(b, catalogSortField)
+    if (typeof av === 'number' && typeof bv === 'number') return av - bv
+    return String(av).localeCompare(String(bv), 'ko-KR', { numeric: true, sensitivity: 'base' })
+  })
 
   async function loadCatalogRows(includeInactive = catalogShowInactive) {
     if (!data?.permissions?.can_view_catalog) return
@@ -19697,23 +19718,58 @@ function MaterialsPage({ user }) {
     const dd = String(now.getDate()).padStart(2, '0')
     const hh = String(now.getHours()).padStart(2, '0')
     const mi = String(now.getMinutes()).padStart(2, '0')
-    setCatalogRows(prev => ([...prev, normalizeCatalogRow({ received_at: `${yyyy}-${mm}-${dd}T${hh}:${mi}`, purchase_enabled: true }, prev.length)]))
+    setCatalogRows(prev => ([normalizeCatalogRow({ received_at: `${yyyy}-${mm}-${dd}T${hh}:${mi}`, bundle_count: 0, purchase_enabled: true }, prev.length), ...prev]))
   }
 
   function toggleCatalogRowSelection(key) {
     setCatalogSelectedKeys(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key])
   }
 
-  function deleteSelectedCatalogRows() {
+  async function deleteSelectedCatalogRows() {
     if (!catalogSelectedKeys.length) {
       setNotice('삭제할 자재목록 행을 선택해 주세요.')
       return
     }
     const selectedRows = catalogRows.filter(row => catalogSelectedKeys.includes(row.key))
-    setCatalogDeletedIds(prev => ([...new Set([...prev, ...selectedRows.map(row => Number(row.id || 0)).filter(Boolean)])]))
-    setCatalogRows(prev => prev.filter(row => !catalogSelectedKeys.includes(row.key)))
-    setCatalogSelectedKeys([])
-    setNotice('선택한 자재목록 행을 삭제 목록에 반영했습니다. 저장 버튼을 눌러 확정해 주세요.')
+    if (!selectedRows.length) {
+      setNotice('삭제할 자재목록 행을 선택해 주세요.')
+      return
+    }
+    const confirmText = selectedRows.length === 1
+      ? `(${selectedRows[0].code || '-'})(${selectedRows[0].name || '-'})을 삭제하시겠습니까?`
+      : `아래 품목을 삭제하시겠습니까?\n\n${selectedRows.map(row => `(${row.code || '-'})(${row.name || '-'})`).join('\n')}`
+    const confirmed = window.confirm(confirmText)
+    if (!confirmed) return
+
+    const nextDeletedIds = [...new Set([...catalogDeletedIds, ...selectedRows.map(row => Number(row.id || 0)).filter(Boolean)])]
+    const nextRows = catalogRows.filter(row => !catalogSelectedKeys.includes(row.key))
+    setCatalogSaving(true)
+    try {
+      const payloadRows = nextRows.map((row) => ({
+        id: row.id || undefined,
+        received_at: row.received_at || '',
+        code: String(row.code || '').trim(),
+        name: String(row.name || '').trim(),
+        bundle_count: Number(row.bundle_count || 0),
+        purchase_price: Number(row.purchase_price || 0),
+        sale_price: Number(row.sale_price || 0),
+        purchase_enabled: Boolean(row.purchase_enabled),
+      }))
+      const result = await api('/api/materials/catalog', {
+        method: 'POST',
+        body: JSON.stringify({ rows: payloadRows, deleted_ids: nextDeletedIds }),
+      })
+      const nextSavedRows = Array.isArray(result?.rows) ? result.rows : []
+      setCatalogRows(nextSavedRows.filter(row => catalogShowInactive || Number(row.is_active ?? 1) !== 0).map((row, index) => normalizeCatalogRow(row, index)))
+      setCatalogDeletedIds([])
+      setCatalogSelectedKeys([])
+      setNotice(selectedRows.length === 1 ? '선택한 품목이 삭제되었습니다.' : '선택한 품목들이 삭제되었습니다.')
+      await loadOverview(activeTab)
+    } catch (error) {
+      setNotice(error.message || '자재목록 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setCatalogSaving(false)
+    }
   }
 
   async function saveCatalogRows() {
@@ -19724,6 +19780,7 @@ function MaterialsPage({ user }) {
         received_at: row.received_at || '',
         code: String(row.code || '').trim(),
         name: String(row.name || '').trim(),
+        bundle_count: Number(row.bundle_count || 0),
         purchase_price: Number(row.purchase_price || 0),
         sale_price: Number(row.sale_price || 0),
         purchase_enabled: Boolean(row.purchase_enabled),
@@ -19752,10 +19809,22 @@ function MaterialsPage({ user }) {
     return (
       <section className="card materials-panel materials-catalog-panel">
         <div className="materials-catalog-actions">
-          <div className="materials-catalog-actions-left muted tiny-text">행 클릭 후 삭제할 항목을 선택할 수 있습니다.</div>
+          <div className="materials-catalog-actions-left">
+            <label className="materials-catalog-filter-label">
+              <span>필터</span>
+              <select value={catalogSortField} onChange={(event) => setCatalogSortField(event.target.value)}>
+                <option value="received_at">입고일시</option>
+                <option value="code">품목코드</option>
+                <option value="name">품목명</option>
+                <option value="purchase_price">구매가</option>
+                <option value="sale_price">판매가</option>
+                <option value="purchase_enabled">자재구매 품목반영여부</option>
+              </select>
+            </label>
+          </div>
           <div className="materials-catalog-actions-right">
             <button type="button" className="ghost materials-bottom-button" onClick={addCatalogRow}>행추가</button>
-            <button type="button" className="ghost materials-bottom-button" onClick={deleteSelectedCatalogRows}>삭제</button>
+            <button type="button" className="ghost materials-bottom-button" disabled={catalogSaving} onClick={deleteSelectedCatalogRows}>삭제</button>
             <button type="button" className="ghost active materials-bottom-button" disabled={catalogSaving} onClick={saveCatalogRows}>저장</button>
             <button type="button" className={catalogSettingsOpen ? 'ghost active materials-bottom-button' : 'ghost materials-bottom-button'} onClick={() => setCatalogSettingsOpen(prev => !prev)}>설정</button>
           </div>
@@ -19766,33 +19835,39 @@ function MaterialsPage({ user }) {
               <input type="checkbox" checked={catalogShowInactive} onChange={(event) => setCatalogShowInactive(event.target.checked)} />
               <span>삭제/비활성 처리된 품목도 함께 보기</span>
             </label>
-            <div className="muted tiny-text">품목코드는 같은 품목명이라도 중복 없이 구분 저장됩니다. 판매가는 자재구매/신청현황/신청목록/자재입고/구매결산 연동 기준값으로 사용됩니다.</div>
+            <div className="muted tiny-text">품목코드는 같은 품목명이라도 코드별로 구분 저장됩니다. 묶음별개수는 1묶음 기준 낱개 개수입니다. 판매가는 자재구매/신청현황/신청목록/자재입고/구매결산 연동 기준값으로 사용됩니다.</div>
           </div>
         ) : null}
         <div className="materials-catalog-table-wrap">
           <table className="materials-catalog-table">
             <thead>
               <tr>
+                <th>체크박스</th>
                 <th>입고일시</th>
                 <th>품목코드</th>
                 <th>품목명</th>
+                <th>묶음별개수</th>
                 <th>구매가</th>
                 <th>판매가</th>
                 <th>자재구매 품목반영여부</th>
               </tr>
             </thead>
             <tbody>
-              {catalogRows.length ? catalogRows.map((row) => {
+              {sortedCatalogRows.length ? sortedCatalogRows.map((row) => {
                 const selected = catalogSelectedKeys.includes(row.key)
                 return (
-                  <tr key={row.key} className={selected ? 'is-selected' : ''} onClick={() => toggleCatalogRowSelection(row.key)}>
-                    <td><input type="datetime-local" value={row.received_at} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'received_at', e.target.value)} /></td>
-                    <td><input value={row.code} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'code', e.target.value.replace(/\s+/g, ''))} placeholder="예: tape-001" /></td>
-                    <td><input value={row.name} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'name', e.target.value)} placeholder="품목명 입력" /></td>
-                    <td><input inputMode="numeric" value={row.purchase_price} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'purchase_price', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
-                    <td><input inputMode="numeric" value={row.sale_price} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'sale_price', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
+                  <tr key={row.key} className={selected ? 'is-selected' : ''}>
+                    <td className="materials-catalog-checkbox-cell">
+                      <input type="checkbox" checked={selected} onChange={() => toggleCatalogRowSelection(row.key)} />
+                    </td>
+                    <td><input type="datetime-local" value={row.received_at} onChange={(e) => updateCatalogRow(row.key, 'received_at', e.target.value)} /></td>
+                    <td><input value={row.code} onChange={(e) => updateCatalogRow(row.key, 'code', e.target.value.replace(/\s+/g, ''))} placeholder="예: tape-001" /></td>
+                    <td><input value={row.name} onChange={(e) => updateCatalogRow(row.key, 'name', e.target.value)} placeholder="품목명 입력" /></td>
+                    <td><input inputMode="numeric" value={row.bundle_count} onChange={(e) => updateCatalogRow(row.key, 'bundle_count', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
+                    <td><input inputMode="numeric" value={row.purchase_price} onChange={(e) => updateCatalogRow(row.key, 'purchase_price', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
+                    <td><input inputMode="numeric" value={row.sale_price} onChange={(e) => updateCatalogRow(row.key, 'sale_price', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
                     <td>
-                      <select value={row.purchase_enabled ? '1' : '0'} onClick={(e) => e.stopPropagation()} onChange={(e) => updateCatalogRow(row.key, 'purchase_enabled', e.target.value === '1')}>
+                      <select value={row.purchase_enabled ? '1' : '0'} onChange={(e) => updateCatalogRow(row.key, 'purchase_enabled', e.target.value === '1')}>
                         <option value="1">반영</option>
                         <option value="0">미반영</option>
                       </select>
@@ -19801,7 +19876,7 @@ function MaterialsPage({ user }) {
                 )
               }) : (
                 <tr>
-                  <td colSpan={6} className="materials-catalog-empty">등록된 자재목록이 없습니다. 행추가 버튼으로 항목을 추가해 주세요.</td>
+                  <td colSpan={8} className="materials-catalog-empty">등록된 자재목록이 없습니다. 행추가 버튼으로 항목을 추가해 주세요.</td>
                 </tr>
               )}
             </tbody>
@@ -19856,7 +19931,10 @@ function MaterialsPage({ user }) {
   }
 
 
-  function renderTabButton(tab) {
+  function renderTabButton(tab, index) {
+    if (!tab) {
+      return <div key={`materials-tab-empty-${index}`} className="materials-tab materials-tab-empty" aria-hidden="true" />
+    }
     const active = activeTab === tab.id
     return (
       <button key={tab.id} type="button" title={tab.label} className={active ? 'ghost materials-tab active' : 'ghost materials-tab'} onClick={() => {
@@ -20429,7 +20507,7 @@ function MaterialsPage({ user }) {
     <div className="stack-page materials-page">
       <section className="card materials-hero">
         <div className="materials-tabs" role="tablist" aria-label="자재 카테고리">
-          {visibleTabs.map(renderTabButton)}
+          {paddedVisibleTabs.map(renderTabButton)}
         </div>
         {notice ? <div className="card notice-text">{notice}</div> : null}
       </section>

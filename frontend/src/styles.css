@@ -31698,12 +31698,41 @@ button.danger {
 .materials-catalog-panel {
   gap: 12px;
 }
+.materials-tab.materials-tab-empty {
+  min-height: 48px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.6);
+  border-radius: 12px;
+}
 .materials-catalog-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+.materials-catalog-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.materials-catalog-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.materials-catalog-filter-label select {
+  min-width: 170px;
+  height: 36px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+  font-size: 12px;
 }
 .materials-catalog-actions-right {
   display: flex;
@@ -31726,7 +31755,7 @@ button.danger {
 }
 .materials-catalog-table {
   width: 100%;
-  min-width: 720px;
+  min-width: 1040px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -31748,6 +31777,14 @@ button.danger {
 .materials-catalog-table tr.is-selected td {
   background: rgba(191, 219, 254, 0.38);
 }
+.materials-catalog-checkbox-cell {
+  width: 56px;
+}
+.materials-catalog-checkbox-cell input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #111827;
+}
 .materials-catalog-table input,
 .materials-catalog-table select {
   width: 100%;
@@ -31759,7 +31796,8 @@ button.danger {
   background: #fff;
 }
 .materials-catalog-table input:focus,
-.materials-catalog-table select:focus {
+.materials-catalog-table select:focus,
+.materials-catalog-filter-label select:focus {
   outline: none;
   border-color: rgba(29, 155, 240, 0.65);
   box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
@@ -31773,7 +31811,8 @@ button.danger {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
   }
-  .materials-page button.materials-tab {
+  .materials-page button.materials-tab,
+  .materials-page .materials-tab.materials-tab-empty {
     min-height: 46px;
     padding: 7px 3px;
     font-size: 11.2px;
@@ -31783,6 +31822,17 @@ button.danger {
     flex-direction: column;
     align-items: stretch;
   }
+  .materials-catalog-actions-left {
+    width: 100%;
+  }
+  .materials-catalog-filter-label {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .materials-catalog-filter-label select {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .materials-catalog-actions-right {
     justify-content: stretch;
   }
@@ -31790,7 +31840,7 @@ button.danger {
     flex: 1 1 calc(50% - 4px);
   }
   .materials-catalog-table {
-    min-width: 690px;
+    min-width: 980px;
   }
   .materials-catalog-table th,
   .materials-catalog-table td {

@@ -703,6 +703,7 @@ class MaterialCatalogRowIn(BaseModel):
     received_at: str = ''
     code: str = ''
     name: str = ''
+    bundle_count: int = 0
     purchase_price: int = 0
     sale_price: int = 0
     purchase_enabled: bool = True
@@ -1663,6 +1664,7 @@ def _material_catalog_rows(conn, include_inactive: bool = False):
     rows = []
     for row in conn.execute(query).fetchall():
         item = row_to_dict(row)
+        item['bundle_count'] = int(item.get('bundle_count') or 0)
         item['purchase_price'] = int(item.get('purchase_price') or item.get('unit_price') or 0)
         item['sale_price'] = int(item.get('sale_price') or item.get('unit_price') or 0)
         item['purchase_enabled'] = bool(int(item.get('purchase_enabled') if item.get('purchase_enabled') is not None else 1))
@@ -8070,16 +8072,18 @@ def save_materials_catalog(payload: MaterialCatalogSaveIn, user=Depends(require_
             raise HTTPException(status_code=400, detail=f'중복된 품목코드가 있습니다: {code}')
         seen_codes.add(normalized_code)
         try:
+            bundle_count = max(0, int(row.bundle_count or 0))
             purchase_price = max(0, int(row.purchase_price or 0))
             sale_price = max(0, int(row.sale_price or 0))
         except Exception:
-            raise HTTPException(status_code=400, detail=f'{index + 1}행 구매가/판매가는 숫자만 입력해 주세요.')
+            raise HTTPException(status_code=400, detail=f'{index + 1}행 묶음별개수/구매가/판매가는 숫자만 입력해 주세요.')
         received_at = str(row.received_at or '').strip() or utcnow()
         normalized_rows.append({
             'id': int(row.id or 0),
             'code': code,
             'name': name,
             'short_name': name,
+            'bundle_count': bundle_count,
             'purchase_price': purchase_price,
             'sale_price': sale_price,
             'unit_price': sale_price,
@@ -8109,29 +8113,29 @@ def save_materials_catalog(payload: MaterialCatalogSaveIn, user=Depends(require_
                 conn.execute(
                     """
                     UPDATE material_products
-                    SET code = ?, name = ?, short_name = ?, unit_price = ?, purchase_price = ?, sale_price = ?, purchase_enabled = ?, received_at = ?, display_order = ?, is_active = 1, updated_at = ?
+                    SET code = ?, name = ?, short_name = ?, unit_price = ?, purchase_price = ?, sale_price = ?, purchase_enabled = ?, received_at = ?, bundle_count = ?, display_order = ?, is_active = 1, updated_at = ?
                     WHERE id = ?
                     """,
-                    (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, int(matched['id'])),
+                    (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['bundle_count'], row['display_order'], now, int(matched['id'])),
                 )
             else:
                 if DB_ENGINE == 'postgresql':
                     inserted = conn.execute(
                         """
-                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, current_stock, display_order, is_active, created_at, updated_at)
-                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
+                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, bundle_count, current_stock, display_order, is_active, created_at, updated_at)
+                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
                         RETURNING id
                         """,
-                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, now),
+                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['bundle_count'], row['display_order'], now, now),
                     ).fetchone()
                     keep_ids.append(int((inserted or {}).get('id') or 0))
                 else:
                     conn.execute(
                         """
-                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, current_stock, display_order, is_active, created_at, updated_at)
-                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
+                        INSERT INTO material_products(code, name, short_name, unit_label, unit_price, purchase_price, sale_price, purchase_enabled, received_at, bundle_count, current_stock, display_order, is_active, created_at, updated_at)
+                        VALUES (?, ?, ?, '개', ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, ?)
                         """,
-                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['display_order'], now, now),
+                        (row['code'], row['name'], row['short_name'], row['unit_price'], row['purchase_price'], row['sale_price'], row['purchase_enabled'], row['received_at'], row['bundle_count'], row['display_order'], now, now),
                     )
                     keep_ids.append(int(conn.execute('SELECT last_insert_rowid()').fetchone()[0] or 0))
         rows = _material_catalog_rows(conn, include_inactive=True)

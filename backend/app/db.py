@@ -2335,6 +2335,7 @@ CREATE TABLE IF NOT EXISTS material_products (
     sale_price INTEGER NOT NULL DEFAULT 0,
     purchase_enabled INTEGER NOT NULL DEFAULT 1,
     received_at TEXT NOT NULL DEFAULT '',
+    bundle_count INTEGER NOT NULL DEFAULT 0,
     current_stock INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -2396,6 +2397,7 @@ CREATE TABLE IF NOT EXISTS material_products (
     sale_price INTEGER NOT NULL DEFAULT 0,
     purchase_enabled INTEGER NOT NULL DEFAULT 1,
     received_at TEXT NOT NULL DEFAULT '',
+    bundle_count INTEGER NOT NULL DEFAULT 0,
     current_stock INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -2455,6 +2457,7 @@ CREATE TABLE IF NOT EXISTS material_inventory_daily (
             'sale_price': 'INTEGER NOT NULL DEFAULT 0',
             'purchase_enabled': 'INTEGER NOT NULL DEFAULT 1',
             'received_at': "TEXT NOT NULL DEFAULT ''",
+            'bundle_count': 'INTEGER NOT NULL DEFAULT 0',
             'current_stock': 'INTEGER NOT NULL DEFAULT 0',
             'display_order': 'INTEGER NOT NULL DEFAULT 0',
             'is_active': 'INTEGER NOT NULL DEFAULT 1',
@@ -2467,6 +2470,7 @@ CREATE TABLE IF NOT EXISTS material_inventory_daily (
             SET purchase_price = CASE WHEN COALESCE(purchase_price, 0) = 0 THEN COALESCE(unit_price, 0) ELSE purchase_price END,
                 sale_price = CASE WHEN COALESCE(sale_price, 0) = 0 THEN COALESCE(unit_price, 0) ELSE sale_price END,
                 received_at = CASE WHEN COALESCE(received_at, '') = '' THEN COALESCE(created_at, '') ELSE received_at END,
+                bundle_count = COALESCE(bundle_count, 0),
                 unit_price = CASE WHEN COALESCE(unit_price, 0) = 0 THEN COALESCE(sale_price, 0) ELSE unit_price END
             """
         )
