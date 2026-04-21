@@ -2755,16 +2755,19 @@ def signup(payload: SignupIn):
         raise HTTPException(status_code=400, detail='생년월일 값을 다시 확인해 주세요.')
 
     if member_type == 'business':
+        target_grade = 4
         position_title = '호점대표'
     elif member_type == 'employee':
+        target_grade = 5
         position_title = '직원'
     else:
+        target_grade = 6
         position_title = ''
 
-    pending_user_data = _normalize_account_admin_flags({
-        'grade': 7,
-        'approved': 0,
-        'account_status': 'pending',
+    signup_user_data = _normalize_account_admin_flags({
+        'grade': target_grade,
+        'approved': 1,
+        'account_status': 'active',
         'position_title': position_title,
         'branch_no': payload.branch_no if member_type == 'business' else None,
         'role': 'business' if member_type == 'business' else ('employee' if member_type == 'employee' else 'user'),
@@ -2787,7 +2790,7 @@ def signup(payload: SignupIn):
                 vehicle_available, show_in_branch_status, show_in_employee_status, show_in_field_employee_status,
                 show_in_hq_status, account_unique_id, group_number, group_number_text, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '0', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 login_id,
@@ -2796,21 +2799,21 @@ def signup(payload: SignupIn):
                 hash_password(password),
                 actual_name,
                 actual_nickname,
-                pending_user_data['role'],
-                7,
-                0,
-                'pending',
-                pending_user_data['permission_codes_json'],
-                pending_user_data['account_type'],
-                pending_user_data['branch_code'],
+                signup_user_data['role'],
+                target_grade,
+                1,
+                'active',
+                signup_user_data['permission_codes_json'],
+                signup_user_data['account_type'],
+                signup_user_data['branch_code'],
                 gender,
                 derived_birth_year,
                 region,
                 phone,
                 recovery_email,
                 vehicle_number if member_type == 'business' else '',
-                pending_user_data.get('branch_no'),
-                pending_user_data.get('position_title') or '',
+                signup_user_data.get('branch_no'),
+                signup_user_data.get('position_title') or '',
                 marital_status if member_type != 'customer' else '',
                 resident_address,
                 business_name if member_type == 'business' else '',
@@ -2822,12 +2825,14 @@ def signup(payload: SignupIn):
                 bank_name if member_type != 'customer' else '',
                 mbti if member_type != 'customer' else '',
                 resident_id if member_type == 'employee' else '',
-                int(bool(pending_user_data.get('vehicle_available'))),
-                int(bool(pending_user_data.get('show_in_branch_status'))),
-                int(bool(pending_user_data.get('show_in_employee_status'))),
-                int(bool(pending_user_data.get('show_in_field_employee_status'))),
-                int(bool(pending_user_data.get('show_in_hq_status'))),
+                int(bool(signup_user_data.get('vehicle_available'))),
+                int(bool(signup_user_data.get('show_in_branch_status'))),
+                int(bool(signup_user_data.get('show_in_employee_status'))),
+                int(bool(signup_user_data.get('show_in_field_employee_status'))),
+                int(bool(signup_user_data.get('show_in_hq_status'))),
                 generated_unique_id,
+                0,
+                '0',
                 utcnow(),
             ),
         )
@@ -2836,29 +2841,13 @@ def signup(payload: SignupIn):
             "INSERT INTO preferences(user_id, data) VALUES (?, ?)",
             (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)),
         )
-        admin_rows = conn.execute(
-            "SELECT id FROM users WHERE COALESCE(approved, 1) = 1 AND grade IN (1, 2)"
-        ).fetchall()
-        member_type_label = {'business': '사업자', 'employee': '직원', 'customer': '고객'}[member_type]
-        notification_title = '회원가입 승인 요청'
-        notification_body = f"신규 {member_type_label} 회원가입 신청: {actual_name or actual_nickname} ({login_id})"
-        for admin_row in admin_rows:
-            insert_notification(conn, int(admin_row['id']), 'signup_request', notification_title, notification_body)
+        token = make_token()
+        conn.execute("INSERT INTO auth_tokens(token, user_id, created_at) VALUES (?, ?, ?)", (token, user_id, utcnow()))
+        account = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return {
             'ok': True,
-            'pending_approval': True,
-            'message': '회원가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
-            'user': {
-                'id': user_id,
-                'login_id': login_id,
-                'email': account_email,
-                'name': actual_name,
-                'nickname': actual_nickname,
-                'grade': 7,
-                'grade_label': '기타',
-                'approved': False,
-                'account_type': pending_user_data['account_type'],
-            },
+            'access_token': token,
+            'user': user_public_dict(account),
         }
 
 @app.post('/api/auth/find-account')
