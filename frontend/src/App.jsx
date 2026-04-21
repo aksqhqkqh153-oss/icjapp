@@ -2245,7 +2245,6 @@ function SignupPage({ onLogin }) {
     setForm(prev => ({
       ...prev,
       member_type: memberType,
-      vehicle_number: memberType === 'business' && !String(prev.vehicle_number || '').trim() ? '미정' : prev.vehicle_number,
     }))
     setError('')
   }, [memberType])
@@ -2366,9 +2365,9 @@ function SignupPage({ onLogin }) {
           <p className="muted">어떤 회원으로 계정을 만들지 먼저 선택해 주세요.</p>
           <div className="stack">
             {SIGNUP_MEMBER_TYPE_OPTIONS.map(option => (
-              <button key={option.value} type="button" className="card" onClick={() => goToMemberType(option.value)} style={{ textAlign: 'left', cursor: 'pointer' }}>
-                <strong>{option.label}</strong>
-                <div className="muted" style={{ marginTop: 6 }}>{option.description}</div>
+              <button key={option.value} type="button" className="card" onClick={() => goToMemberType(option.value)} style={{ textAlign: 'left', cursor: 'pointer', color: '#111111' }}>
+                <strong style={{ color: '#111111' }}>{option.label}</strong>
+                <div style={{ marginTop: 6, color: '#333333' }}>{option.description}</div>
               </button>
             ))}
           </div>
@@ -2395,7 +2394,7 @@ function SignupPage({ onLogin }) {
             <option value="">성별 선택 *</option>
             {GENDER_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
-          {!isEmployeeType() && <input type="date" placeholder="생년월일 *" value={form.birth_date} onChange={e => updateField('birth_date', e.target.value)} required />}
+          {!isEmployeeType() && <input type={form.birth_date ? 'date' : 'text'} placeholder="생년월일선택*" value={form.birth_date} onFocus={e => { if (!form.birth_date) e.target.type = 'date' }} onBlur={e => { if (!e.target.value) e.target.type = 'text' }} onChange={e => updateField('birth_date', e.target.value)} required />}
           <input placeholder="거주지 주소 *" value={form.resident_address} onChange={e => updateField('resident_address', e.target.value)} required />
           <input placeholder="연락처 *" value={form.phone} onChange={e => updateField('phone', e.target.value)} required />
           {!isCustomerType() && (
@@ -2406,14 +2405,14 @@ function SignupPage({ onLogin }) {
           )}
           {!isCustomerType() && (
             <select value={form.mbti} onChange={e => updateField('mbti', e.target.value)} required>
-              <option value="">MBTI 선택 *</option>
+              <option value="">MBTI 선택*(모를 경우 미정 선택)</option>
               {SIGNUP_MBTI_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
             </select>
           )}
           <input type="email" placeholder="계정복구 이메일 *" value={form.recovery_email} onChange={e => updateField('recovery_email', e.target.value)} required />
-          {!isCustomerType() && <input type="email" placeholder="구글 이메일 *" value={form.google_email} onChange={e => updateField('google_email', e.target.value)} required />}
-          {!isCustomerType() && <input placeholder="계좌번호 *" value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)} required />}
-          {!isCustomerType() && <input placeholder="은행명 *" value={form.bank_name} onChange={e => updateField('bank_name', e.target.value)} required />}
+          {!isCustomerType() && <input type="email" placeholder="구글 이메일*(구글 시트 공유목적)" value={form.google_email} onChange={e => updateField('google_email', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder={isBusinessType() ? '계좌번호*(사업자 발행된 경우, 이사비용 정산에 쓸 계좌번호 입력)' : '계좌번호 *'} value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)} required />}
+          {!isCustomerType() && <input placeholder={isBusinessType() ? '은행명*(사업자 발행된 경우, 이사비용 정산에 쓸 은행명 입력)' : '은행명 *'} value={form.bank_name} onChange={e => updateField('bank_name', e.target.value)} required />}
 
           {isBusinessType() && (
             <>
@@ -2422,9 +2421,9 @@ function SignupPage({ onLogin }) {
               <input placeholder="업태 * (없는 경우 미정 입력)" value={form.business_type} onChange={e => updateField('business_type', e.target.value)} required />
               <input placeholder="종목 * (없는 경우 미정 입력)" value={form.business_item} onChange={e => updateField('business_item', e.target.value)} required />
               <input placeholder="사업장주소 * (없는 경우 미정 입력)" value={form.business_address} onChange={e => updateField('business_address', e.target.value)} required />
-              <input placeholder="차량번호 * (없는 경우 미정 입력)" value={form.vehicle_number} onChange={e => updateField('vehicle_number', e.target.value)} required />
+              <input placeholder="차량번호*(없는 경우 미정 입력)" value={form.vehicle_number} onChange={e => updateField('vehicle_number', e.target.value)} required />
               <select value={form.branch_no} onChange={e => updateField('branch_no', e.target.value)} required>
-                <option value="">호점선택 *</option>
+                <option value="">호점선택*(없는 경우 미정 선택)</option>
                 <option value="-1">미정</option>
                 {branchOptions.map(num => <option key={num} value={num}>{branchOptionLabel(num)}</option>)}
               </select>
