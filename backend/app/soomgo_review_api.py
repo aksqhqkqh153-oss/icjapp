@@ -114,6 +114,7 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
         return True
     if item is None:
         return False
+    review_rows = set(_extract_review_content_rows(preloaded))
     selectors = [
         "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
         "xpath=.//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
@@ -124,8 +125,9 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
             count = locator.count()
             for idx in range(count):
                 value = _normalize_review_text(locator.nth(idx).inner_text(timeout=1200))
-                if value:
-                    return True
+                if not value or value == '더보기' or value in review_rows:
+                    continue
+                return True
         except Exception:
             continue
     return False
@@ -431,44 +433,47 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
     js = r"""
 () => {
   const norm = (value) => String(value || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  const uniq = (rows) => {
+    const seen = new Set();
+    return rows.filter((value) => {
+      const text = norm(value);
+      if (!text || seen.has(text)) return false;
+      seen.add(text);
+      return true;
+    }).map((value) => norm(value));
+  };
   const items = Array.from(document.querySelectorAll('.review-list .profile-review-item'));
   return items.map((item, index) => {
-    const allElements = Array.from(item.querySelectorAll('*'));
-    const textRows = [];
-    const pushRow = (text, className, tagName) => {
-      const value = norm(text);
-      if (!value) return;
-      textRows.push({ text: value, className: String(className || ''), tagName: String(tagName || '') });
-    };
-    pushRow(item.innerText || item.textContent || '', item.className || '', item.tagName || '');
-    allElements.forEach((el) => {
-      pushRow(el.innerText || el.textContent || '', el.className || '', el.tagName || '');
+    const queryTexts = (selector) => uniq(Array.from(item.querySelectorAll(selector)).map((el) => el.innerText || el.textContent || ''));
+    const authorCandidates = uniq([
+      ...queryTexts('.prisma-typography.body14\:semibold.primary'),
+      ...queryTexts('.prisma-typography.body13\:semibold.primary'),
+      ...queryTexts('[class*="author"]'),
+      ...queryTexts('[class*="reviewer"]'),
+    ]);
+    const reviewContentRows = uniq([
+      ...queryTexts('.prisma-typography.body14\:regular.primary.review-content'),
+      ...queryTexts('.review-content'),
+      ...queryTexts('[class*="review-content"]'),
+    ]);
+    const regularPrimaryRows = uniq(queryTexts('.prisma-typography.body14\:regular.primary'));
+    const contentCandidateSet = new Set(reviewContentRows.map((value) => norm(value)));
+    const replyRows = regularPrimaryRows.filter((value) => {
+      const text = norm(value);
+      if (!text || text === '더보기') return false;
+      if (contentCandidateSet.has(text)) return false;
+      return true;
     });
-    const authorCandidates = textRows
-      .filter((row) => row.className.includes('body14:semibold') || row.className.includes('body13:semibold') || row.className.includes('author') || row.className.includes('reviewer'))
-      .map((row) => row.text);
-    const reviewContentRows = textRows
-      .filter((row) => row.className.includes('body14:regular') && row.className.includes('primary') && row.className.includes('review-content'))
-      .map((row) => row.text);
-    const contentCandidates = reviewContentRows.length
-      ? reviewContentRows
-      : textRows.filter((row) => row.className.includes('review-content')).map((row) => row.text);
-    const replyRows = textRows
-      .filter((row) => row.className.includes('body14:regular') && row.className.includes('primary') && !row.className.includes('review-content'))
-      .map((row) => row.text)
-      .filter((text) => text && text !== '더보기');
-    const regularPrimaryRows = textRows.filter((row) => row.className.includes('body14:regular') && row.className.includes('primary'));
-    const hasReply = replyRows.length > 0;
     return {
       index,
       itemText: norm(item.innerText || item.textContent || ''),
       authorCandidates,
       reviewContentRows,
-      contentCandidates,
+      contentCandidates: reviewContentRows.slice(),
       replyRows,
       regularPrimaryRows,
-      textRows,
-      hasReply,
+      textRows: [],
+      hasReply: replyRows.length > 0,
     };
   });
 }
@@ -965,22 +970,37 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
 
                 masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
                 content_text = _normalize_review_text(content_text)
+                candidate_lines = []
+                if isinstance(preloaded, dict):
+                    candidate_lines = (
+                        _extract_review_content_rows(preloaded)
+                        + [
+                            _normalize_review_text(value)
+                            for value in (preloaded.get('authorCandidates') or [])
+                            if _normalize_review_text(value)
+                        ]
+                        + _build_review_line_candidates(str(preloaded.get('itemText', '')))
+                    )
+                if (not content_text or content_text == '(내용 없음)') and candidate_lines:
+                    content_text = _pick_review_content_from_lines(candidate_lines, author_name=masked_name, real_name=real_name)
                 if (not content_text or content_text == '(내용 없음)') and isinstance(preloaded, dict):
                     fallback_masked, fallback_real, fallback_review = _resolve_review_record_from_outer_html(
                         reviews_data,
                         masked_name or _guess_masked_name_from_item_text(str(preloaded.get('itemText', '')), '', real_name),
                         str(preloaded.get('itemText', '')),
-                        _build_review_line_candidates(str(preloaded.get('itemText', ''))),
+                        candidate_lines,
                     )
                     masked_name = masked_name or fallback_masked
                     real_name = real_name or fallback_real
-                    content_text = _normalize_review_text(fallback_review)
+                    content_text = _normalize_review_text(fallback_review or content_text)
                 if not content_text or content_text == '(내용 없음)':
                     continue
                 if not real_name:
                     real_name = _find_real_name_by_content(reviews_data, content_text)
                 if (not masked_name or masked_name == '익명') and real_name:
                     masked_name = _mask_name(real_name)
+                if not masked_name:
+                    masked_name = _guess_masked_name_from_item_text(str(preloaded.get('itemText', '')) if isinstance(preloaded, dict) else '', content_text, real_name)
                 found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
             except Exception:
                 continue
@@ -1029,7 +1049,14 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
 
     message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
     if not found and preloaded_items:
-        message = '미답변 리뷰 DOM 추출이 불안정해 outer HTML 대조를 시도했지만 슬롯 입력까지 이어지지 못했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
+        try:
+            (SCREENSHOT_DIR / 'soomgo_unanswered_items_debug.json').write_text(
+                json.dumps(preloaded_items, ensure_ascii=False, indent=2),
+                encoding='utf-8',
+            )
+        except Exception:
+            pass
+        message = '미답변 리뷰 DOM 추출이 불안정해 outer HTML 대조를 시도했지만 슬롯 입력까지 이어지지 못했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요. debug json 저장됨'
     elif not found:
         message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
     state['last_scan'] = {
