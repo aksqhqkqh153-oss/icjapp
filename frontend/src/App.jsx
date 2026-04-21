@@ -879,6 +879,8 @@ const ROLE_OPTIONS = [
 
 const POSITION_OPTIONS = ['대표', '부대표', '호점대표', '팀장', '부팀장', '직원', '본부장', '상담실장', '상담팀장', '상담사원']
 const GENDER_OPTIONS = ['남성', '여성']
+const MARITAL_STATUS_OPTIONS = ['미혼', '기혼', '기타']
+const MBTI_OPTIONS = ['ISTJ', 'ISTP', 'ISFJ', 'ISFP', 'INTJ', 'INTP', 'INFJ', 'INFP', 'ESTJ', 'ESTP', 'ESFJ', 'ESFP', 'ENTJ', 'ENTP', 'ENFJ', 'ENFP', '기타']
 
 const POSITION_PERMISSION_OPTIONS = ['미지정', ...POSITION_OPTIONS]
 
@@ -15339,7 +15341,7 @@ function AdminModePage() {
   const [selectedSwitchAccountId, setSelectedSwitchAccountId] = useState(null)
   const [switchLoading, setSwitchLoading] = useState(false)
   const [createForm, setCreateForm] = useState({
-    login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
+    login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true,
   })
   const [configForm, setConfigForm] = useState({
     total_vehicle_count: '',
@@ -15855,6 +15857,15 @@ function AdminModePage() {
         phone: String(createForm.phone || '').trim(),
         recovery_email: String(createForm.recovery_email || '').trim(),
         vehicle_number: String(createForm.vehicle_number || '').trim(),
+        group_number: String(createForm.group_number || '0').replace(/[^0-9]/g, '') || '0',
+        marital_status: String(createForm.marital_status || '').trim(),
+        resident_address: String(createForm.resident_address || '').trim(),
+        business_name: String(createForm.business_name || '').trim(),
+        business_address: String(createForm.business_address || '').trim(),
+        bank_account: String(createForm.bank_account || '').trim(),
+        bank_name: String(createForm.bank_name || '').trim(),
+        mbti: String(createForm.mbti || '').trim(),
+        resident_id: String(createForm.resident_id || '').trim(),
         birth_year: Number(createForm.birth_year || 1995),
         branch_no: createForm.branch_no ? Number(createForm.branch_no) : null,
         grade: Number(createForm.grade || 6),
@@ -15864,7 +15875,7 @@ function AdminModePage() {
       }),
     })
     setMessage('계정이 생성되었습니다.')
-    setCreateForm({ login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
+    setCreateForm({ login_id: '', email: '', google_email: '', account_status: 'active', password: '', name: '', nickname: '', gender: '', birth_year: 1995, region: '서울', phone: '', recovery_email: '', vehicle_number: '', branch_no: '', group_number: '0', marital_status: '', mbti: '', resident_address: '', business_name: '', business_address: '', bank_account: '', bank_name: '', resident_id: '', grade: 6, position_title: '', approved: true, vehicle_available: true })
     await load()
   }
 
@@ -16421,6 +16432,25 @@ function AdminModePage() {
                     <label>지역 <input value={createForm.region} onChange={e => setCreateForm({ ...createForm, region: e.target.value })} /></label>
                     <label>연락처 <input autoComplete="tel" value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
                     <label>복구이메일 <input value={createForm.recovery_email} onChange={e => setCreateForm({ ...createForm, recovery_email: e.target.value })} /></label>
+                    <label>구분숫자 <input type="text" inputMode="numeric" pattern="[0-9]*" value={createForm.group_number || '0'} onChange={e => setCreateForm({ ...createForm, group_number: e.target.value.replace(/[^0-9]/g, '') || '0' })} /></label>
+                    <label>결혼여부
+                      <select value={createForm.marital_status} onChange={e => setCreateForm({ ...createForm, marital_status: e.target.value })}>
+                        <option value="">선택</option>
+                        {MARITAL_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label>MBTI
+                      <select value={createForm.mbti} onChange={e => setCreateForm({ ...createForm, mbti: e.target.value })}>
+                        <option value="">선택</option>
+                        {MBTI_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </label>
+                    <label>거주지주소 <input value={createForm.resident_address} onChange={e => setCreateForm({ ...createForm, resident_address: e.target.value })} /></label>
+                    <label>사업자명 <input value={createForm.business_name} onChange={e => setCreateForm({ ...createForm, business_name: e.target.value })} /></label>
+                    <label>사업장주소 <input value={createForm.business_address} onChange={e => setCreateForm({ ...createForm, business_address: e.target.value })} /></label>
+                    <label>계좌번호 <input value={createForm.bank_account} onChange={e => setCreateForm({ ...createForm, bank_account: e.target.value })} /></label>
+                    <label>은행명 <input value={createForm.bank_name} onChange={e => setCreateForm({ ...createForm, bank_name: e.target.value })} /></label>
+                    <label>주민등록번호 <input value={createForm.resident_id} onChange={e => setCreateForm({ ...createForm, resident_id: e.target.value })} /></label>
                     <label>계정상태
                       <select value={createForm.account_status} onChange={e => setCreateForm({ ...createForm, account_status: e.target.value })}>
                         <option value="active">사용중</option>

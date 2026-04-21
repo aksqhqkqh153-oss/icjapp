@@ -172,6 +172,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 app.include_router(soomgo_review_router)
 
 ALLOWED_GENDERS = {'남성', '여성'}
+ALLOWED_MARITAL_STATUS = {'', '미혼', '기혼', '기타'}
+ALLOWED_MBTI = {'', 'ISTJ', 'ISTP', 'ISFJ', 'ISFP', 'INTJ', 'INTP', 'INFJ', 'INFP', 'ESTJ', 'ESTP', 'ESFJ', 'ESFP', 'ENTJ', 'ENTP', 'ENFJ', 'ENFP', '기타'}
 
 
 def _origin_allowed(origin: str) -> bool:
@@ -255,6 +257,24 @@ def _validate_gender_value(value: str, allow_empty: bool = True) -> str:
     if gender not in ALLOWED_GENDERS:
         raise HTTPException(status_code=400, detail='성별은 남성 또는 여성만 선택할 수 있습니다.')
     return gender
+
+def _validate_marital_status_value(value: Any, allow_empty: bool = True) -> str:
+    marital_status = str(value or '').strip()
+    if not marital_status and allow_empty:
+        return ''
+    if marital_status not in ALLOWED_MARITAL_STATUS:
+        raise HTTPException(status_code=400, detail='결혼여부는 미혼, 기혼, 기타 중에서 선택해 주세요.')
+    return marital_status
+
+def _validate_mbti_value(value: Any, allow_empty: bool = True) -> str:
+    mbti = str(value or '').strip().upper()
+    if not mbti and allow_empty:
+        return ''
+    if mbti == '기타':
+        return '기타'
+    if mbti not in ALLOWED_MBTI:
+        raise HTTPException(status_code=400, detail='MBTI 값을 다시 확인해 주세요.')
+    return mbti
 class SignupIn(BaseModel):
     login_id: str
     email: str = ""
@@ -567,6 +587,14 @@ class AdminCreateAccountIn(BaseModel):
     recovery_email: str = ''
     vehicle_number: str = ''
     branch_no: Optional[int] = None
+    marital_status: str = ''
+    resident_address: str = ''
+    business_name: str = ''
+    business_address: str = ''
+    bank_account: str = ''
+    bank_name: str = ''
+    mbti: str = ''
+    resident_id: str = ''
     grade: int = 6
     approved: bool = True
     vehicle_available: bool = True
@@ -6625,6 +6653,13 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
     if not str(payload.nickname or '').strip():
         raise HTTPException(status_code=400, detail='닉네임을 입력해주세요.')
     payload_gender = _validate_gender_value(payload.gender, allow_empty=False)
+    payload_marital_status = _validate_marital_status_value(payload.marital_status, allow_empty=True)
+    payload_mbti = _validate_mbti_value(payload.mbti, allow_empty=True)
+    cleaned_group_number = ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0'
+    try:
+        payload_birth_year = int(payload.birth_year or 1995)
+    except Exception:
+        payload_birth_year = 1995
     try:
         with get_conn() as conn:
             login_id = _validate_login_id_value(payload.login_id or payload.email)
@@ -6635,7 +6670,7 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             exists_email = _find_user_by_email_ci(conn, normalized_email)
             if exists_email:
                 raise HTTPException(status_code=400, detail='이미 존재하는 아이디입니다.')
-            generated_unique_id = generate_account_unique_id(conn, normalized_email)
+            generated_unique_id = generate_account_unique_id(conn, normalized_email or login_id)
             normalized_new_user = _normalize_account_admin_flags({
                 'grade': int(payload.grade),
                 'branch_no': payload.branch_no,
@@ -6646,10 +6681,55 @@ def create_admin_account(payload: AdminCreateAccountIn, admin=Depends(require_ad
             })
             conn.execute(
                 """
-                INSERT INTO users(login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json, account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title, vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status, show_in_field_employee_status, show_in_hq_status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users(
+                    login_id, email, google_email, password_hash, name, nickname, role, grade, approved, account_status, permission_codes_json,
+                    account_type, branch_code, gender, birth_year, region, phone, recovery_email, vehicle_number, branch_no, position_title,
+                    marital_status, resident_address, business_name, business_address, bank_account, bank_name, mbti, resident_id,
+                    vehicle_available, account_unique_id, group_number, group_number_text, show_in_branch_status, show_in_employee_status,
+                    show_in_field_employee_status, show_in_hq_status, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (login_id, normalized_email, _normalize_email_value(payload.google_email), hash_password(payload.password), str(payload.name or '').strip(), str(payload.nickname or '').strip(), normalized_new_user['role'], int(payload.grade), int(bool(payload.approved)), _normalize_account_status_value(payload.account_status, payload.approved, payload.grade), normalized_new_user['permission_codes_json'], normalized_new_user['account_type'], normalized_new_user['branch_code'], payload_gender, payload.birth_year, payload.region, payload.phone, _normalize_email_value(payload.recovery_email), payload.vehicle_number, payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None), normalized_new_user['position_title'], normalized_new_user['vehicle_available'], generated_unique_id, int(''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or 0), ''.join(ch for ch in str(payload.group_number or '0') if ch.isdigit()) or '0', normalized_new_user['show_in_branch_status'], normalized_new_user['show_in_employee_status'], normalized_new_user['show_in_field_employee_status'], normalized_new_user['show_in_hq_status'], utcnow()),
+                (
+                    login_id,
+                    normalized_email,
+                    _normalize_email_value(payload.google_email),
+                    hash_password(payload.password),
+                    str(payload.name or '').strip(),
+                    str(payload.nickname or '').strip(),
+                    normalized_new_user['role'],
+                    int(payload.grade),
+                    int(bool(payload.approved)),
+                    _normalize_account_status_value(payload.account_status, payload.approved, payload.grade),
+                    normalized_new_user['permission_codes_json'],
+                    normalized_new_user['account_type'],
+                    normalized_new_user['branch_code'],
+                    payload_gender,
+                    payload_birth_year,
+                    str(payload.region or '').strip() or '서울',
+                    str(payload.phone or '').strip(),
+                    _normalize_email_value(payload.recovery_email),
+                    str(payload.vehicle_number or '').strip(),
+                    payload.branch_no if payload.branch_no is not None else (-1 if int(payload.grade or 6) == 4 else None),
+                    normalized_new_user['position_title'],
+                    payload_marital_status,
+                    str(payload.resident_address or '').strip(),
+                    str(payload.business_name or '').strip(),
+                    str(payload.business_address or '').strip(),
+                    str(payload.bank_account or '').strip(),
+                    str(payload.bank_name or '').strip(),
+                    payload_mbti,
+                    str(payload.resident_id or '').strip(),
+                    normalized_new_user['vehicle_available'],
+                    generated_unique_id,
+                    int(cleaned_group_number),
+                    cleaned_group_number,
+                    normalized_new_user['show_in_branch_status'],
+                    normalized_new_user['show_in_employee_status'],
+                    normalized_new_user['show_in_field_employee_status'],
+                    normalized_new_user['show_in_hq_status'],
+                    utcnow(),
+                ),
             )
             user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute('INSERT INTO preferences(user_id, data) VALUES (?, ?)', (user_id, json.dumps({"groupChatNotifications": True, "directChatNotifications": True, "likeNotifications": True, "theme": "dark"}, ensure_ascii=False)))
