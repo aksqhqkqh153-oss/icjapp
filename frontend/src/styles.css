@@ -31985,3 +31985,100 @@ button.danger {
     font-size: 11px;
   }
 }
+
+
+/* 2026-04-22 schedule desktop reset for border / size / arrangement */
+@media (min-width: 769px) {
+  .schedule-page,
+  .schedule-page .schedule-card,
+  .schedule-page .calendar-toolbar.upgraded,
+  .schedule-page .calendar-toolbar.upgraded .inline-actions,
+  .schedule-page .calendar-weekdays,
+  .schedule-page .schedule-grid.detail-mode,
+  .schedule-page .schedule-cell.detail-cell,
+  .schedule-page .calendar-cell-topline,
+  .schedule-page .schedule-header-line,
+  .schedule-page .calendar-date-select,
+  .schedule-page .calendar-top-actions,
+  .schedule-page .calendar-entry-band,
+  .schedule-page .calendar-entry-band.filled,
+  .schedule-page .calendar-entry-band.secondary,
+  .schedule-page .calendar-day-summary-button.redesigned,
+  .schedule-page .calendar-handless-banner,
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .calendar-lanes,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .calendar-plus-row,
+  .schedule-page .calendar-more-indicator.single-plus {
+    gap: unset !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    width: unset !important;
+    min-height: unset !important;
+    max-height: unset !important;
+    height: unset !important;
+    border: none !important;
+    border-color: unset !important;
+    border-radius: unset !important;
+    box-shadow: none !important;
+    background: unset !important;
+    background-color: unset !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .schedule-header-line,
+  .schedule-page .calendar-top-actions,
+  .schedule-page .calendar-weekdays,
+  .schedule-page .schedule-grid.detail-mode,
+  .schedule-page .calendar-lanes {
+    grid-template-columns: unset !important;
+    grid-template-rows: unset !important;
+  }
+
+  .schedule-page .calendar-weekdays,
+  .schedule-page .schedule-grid.detail-mode,
+  .schedule-page .schedule-header-line,
+  .schedule-page .calendar-top-actions,
+  .schedule-page .calendar-lanes {
+    display: unset !important;
+  }
+
+  .schedule-page .weekday,
+  .schedule-page .calendar-date,
+  .schedule-page .calendar-entry-label,
+  .schedule-page .calendar-entry-label.two-line,
+  .schedule-page .calendar-day-summary-vehicle,
+  .schedule-page .calendar-day-summary-chip,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .calendar-more-indicator.single-plus {
+    min-width: unset !important;
+    min-height: unset !important;
+    width: unset !important;
+    height: unset !important;
+    padding: unset !important;
+    margin: unset !important;
+    font-size: unset !important;
+    font-weight: unset !important;
+    line-height: unset !important;
+    color: unset !important;
+    background: unset !important;
+    border: none !important;
+    border-radius: unset !important;
+    box-shadow: none !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell.selected,
+  .schedule-page .schedule-cell.detail-cell.today,
+  .schedule-page .schedule-cell.detail-cell.weekend,
+  .schedule-page .schedule-cell.detail-cell.handless-day-cell,
+  .schedule-page .calendar-entry-band:hover,
+  .schedule-page .calendar-date-select:hover,
+  .schedule-page .calendar-lane.filled.clickable:hover,
+  .schedule-page .calendar-more-indicator.single-plus:hover {
+    background: unset !important;
+    background-color: unset !important;
+    border-color: unset !important;
+    box-shadow: none !important;
+  }
+}
