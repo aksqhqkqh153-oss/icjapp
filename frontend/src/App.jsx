@@ -20595,7 +20595,91 @@ ${state.results.special_note || ''}`.trim()} readOnly /></div>
   )
 }
 
+function parseSoomgoRatingValue(rawValue) {
+  const text = String(rawValue || '').trim()
+  if (!text) return null
+  const match = text.match(/([0-5](?:\.\d)?)/)
+  if (!match) return null
+  const parsed = Number(match[1])
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function isPerfectSoomgoRating(rawValue) {
+  const rating = parseSoomgoRatingValue(rawValue)
+  return rating !== null && rating >= 5
+}
+
+function formatSoomgoFileSize(bytes) {
+  const size = Number(bytes || 0)
+  if (!Number.isFinite(size) || size <= 0) return '0B'
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)}MB`
+  if (size >= 1024) return `${Math.round(size / 1024)}KB`
+  return `${size}B`
+}
+
+function buildSoomgoDragMimeType(name) {
+  const lower = String(name || '').toLowerCase()
+  if (lower.endsWith('.png')) return 'image/png'
+  if (lower.endsWith('.webp')) return 'image/webp'
+  if (lower.endsWith('.gif')) return 'image/gif'
+  if (lower.endsWith('.bmp')) return 'image/bmp'
+  return 'image/jpeg'
+}
+
+function SoomgoReviewImageLibraryPanel({ imageLibrary, imageLibraryLoading, onRefresh }) {
+  const files = Array.isArray(imageLibrary?.files) ? imageLibrary.files : []
+
+  function handleDragStart(event, item) {
+    const absoluteUrl = resolveMediaUrl(item?.url || '')
+    if (!absoluteUrl) return
+    event.dataTransfer.effectAllowed = 'copy'
+    event.dataTransfer.setData('text/plain', absoluteUrl)
+    event.dataTransfer.setData('text/uri-list', absoluteUrl)
+    event.dataTransfer.setData('DownloadURL', `${buildSoomgoDragMimeType(item?.name)}:${item?.name || 'image'}:${absoluteUrl}`)
+  }
+
+  return (
+    <section className="card soomgo-support-card soomgo-image-library-card">
+      <div className="between">
+        <h3>리뷰 이미지 목록</h3>
+        <button type="button" className="ghost small" onClick={onRefresh} disabled={imageLibraryLoading}>{imageLibraryLoading ? '불러오는중...' : '새로고침'}</button>
+      </div>
+      <div className="muted small soomgo-directory-text">폴더: {imageLibrary?.directory || '-'}</div>
+      {!imageLibrary?.exists ? <div className="card muted small">지정된 폴더를 찾지 못했습니다. 현재 PC에서 해당 드라이브와 폴더 경로가 실제로 열리는지 먼저 확인해 주세요.</div> : null}
+      <div className="muted small">이미지를 클릭해서 열거나, 썸네일을 카카오톡으로 드래그해서 첨부를 시도할 수 있습니다.</div>
+      <div className="soomgo-image-library-list">
+        {files.length ? files.map(item => {
+          const imageUrl = resolveMediaUrl(item?.url || '')
+          return (
+            <a
+              key={item.relative_path || item.name}
+              className="soomgo-image-library-item"
+              href={imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              draggable
+              onDragStart={event => handleDragStart(event, item)}
+              title={`${item.name || ''}
+${item.relative_path || ''}`.trim()}
+            >
+              <img src={imageUrl} alt={item.name || 'review image'} loading="lazy" />
+              <div className="soomgo-image-library-meta">
+                <strong>{item.name || '-'}</strong>
+                <span>{item.relative_path || '-'}</span>
+                <span>{formatSoomgoFileSize(item.size)} · {String(item.modified_at || '').replace('T', ' ')}</span>
+              </div>
+            </a>
+          )
+        }) : <div className="card muted small">표시할 이미지가 없습니다.</div>}
+      </div>
+    </section>
+  )
+}
+
 function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
+  const ratingValue = String(slot.rating || '')
+  const ratingClassName = `soomgo-rating-input${ratingValue && !isPerfectSoomgoRating(ratingValue) ? ' soomgo-rating-input-warning' : ''}`
+
   return (
     <section className="card soomgo-slot-card">
       <div className="soomgo-slot-head">
@@ -20614,7 +20698,7 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
         </label>
         <label className="soomgo-slot-field soomgo-slot-field-rating">
           <span>별점</span>
-          <input className="soomgo-rating-input" value={slot.rating || ''} placeholder="별점" onChange={e => onChange(index, 'rating', e.target.value)} />
+          <input className={ratingClassName} value={ratingValue} placeholder="별점" onChange={e => onChange(index, 'rating', e.target.value)} />
         </label>
       </div>
 
@@ -20648,6 +20732,8 @@ function SoomgoReviewFinderPage({ user }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' })
   const [errorDialogPosition, setErrorDialogPosition] = useState(null)
+  const [imageLibrary, setImageLibrary] = useState({ directory: '', exists: false, count: 0, files: [] })
+  const [imageLibraryLoading, setImageLibraryLoading] = useState(false)
   const errorDialogCardRef = useRef(null)
   const errorDialogDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 })
 
@@ -20801,13 +20887,35 @@ function SoomgoReviewFinderPage({ user }) {
     return data
   }
 
+  async function loadImageLibrary() {
+    setImageLibraryLoading(true)
+    try {
+      const data = await api('/api/soomgo-review/image-library')
+      setImageLibrary({
+        directory: data?.directory || '',
+        exists: !!data?.exists,
+        count: Number(data?.count || 0),
+        files: Array.isArray(data?.files) ? data.files : [],
+      })
+    } catch (_error) {
+      setImageLibrary(prev => ({ ...prev, files: [] }))
+    } finally {
+      setImageLibraryLoading(false)
+    }
+  }
+
   useEffect(() => {
     let ignore = false
     loadState().then(data => {
+      if (!ignore) {
+        loadImageLibrary().catch(() => {})
+      }
       if (!ignore && canManageHiddenSettings && data?.settings?.auto_scan_on_open) {
         handleAutoScan()
       }
-    }).catch(() => {})
+    }).catch(() => {
+      if (!ignore) loadImageLibrary().catch(() => {})
+    })
     return () => { ignore = true }
   }, [canManageHiddenSettings])
 
@@ -20821,6 +20929,7 @@ function SoomgoReviewFinderPage({ user }) {
         body: JSON.stringify(payload),
       })
       setState(prev => ({ ...prev, ...saved }))
+      loadImageLibrary().catch(() => {})
     } catch (error) {
       openCopyableErrorDialog('숨고리뷰찾기 저장 오류', error, '숨고리뷰찾기 저장 중 오류가 발생했습니다.')
     } finally {
@@ -20903,7 +21012,6 @@ function SoomgoReviewFinderPage({ user }) {
           </div>
           <div className="row gap wrap soomgo-review-action-row">
             <button type="button" onClick={handleAutoScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
-            <button type="button" className="ghost" onClick={handleManualScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '수동 리뷰 찾기'}</button>
             {canManageHiddenSettings ? <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>설정</button> : null}
             <button type="button" className="ghost" onClick={() => persistState()} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
@@ -20916,16 +21024,34 @@ function SoomgoReviewFinderPage({ user }) {
         <section className="card"><h3>상시 메모장 3. 공홈</h3><textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, site: e.target.value } }))} /></section>
       </section>
 
-      <section className="card soomgo-ai-result-card">
-        <div className="between"><h3>AI 리뷰 답변 결과</h3><button type="button" className="ghost small" onClick={() => navigator.clipboard?.writeText(state.results.ai_result || '')}>복사</button></div>
-        <textarea value={state.results.ai_result || ''} onChange={e => setState(prev => ({ ...prev, results: { ...prev.results, ai_result: e.target.value } }))} className="soomgo-prompt-textarea short" />
+      <section className="soomgo-support-grid">
+        <section className="card soomgo-support-card">
+          <h3>최근 스캔 요약</h3>
+          <div className="soomgo-summary-block"><strong>상태</strong><span>{state.last_scan?.ok ? '정상' : '대기/실패'}</span></div>
+          <div className="soomgo-summary-block"><strong>검사시각</strong><span>{state.last_scan?.updated_at ? String(state.last_scan.updated_at).replace('T', ' ').slice(0, 16) : '-'}</span></div>
+          <div className="soomgo-summary-block"><strong>감지건수</strong><span>{Number(state.last_scan?.found_count || 0)}건</span></div>
+          <div className="card muted small soomgo-support-note">{state.last_scan?.message || '대기중'}</div>
+        </section>
+
+        <section className="card soomgo-support-card">
+          <h3>감지된 리뷰 정보</h3>
+          <div className="soomgo-support-detail"><strong>고객리뷰</strong><p>{state.results.customer_review || '-'}</p></div>
+          <div className="soomgo-support-detail"><strong>이사현장상황</strong><p>{state.results.field_status || '-'}</p></div>
+          <div className="soomgo-support-detail"><strong>현장특이사항</strong><p>{state.results.special_note || '-'}</p></div>
+        </section>
+
+        <SoomgoReviewImageLibraryPanel
+          imageLibrary={imageLibrary}
+          imageLibraryLoading={imageLibraryLoading}
+          onRefresh={() => loadImageLibrary()}
+        />
       </section>
 
       <section className="soomgo-slot-list-grid soomgo-slot-list-grid-six">
         {state.slots.slice(0, 6).map((slot, index) => <SoomgoReviewSlotCard key={`slot-${index}`} slot={slot} index={index} onChange={updateSlot} onGenerate={handleGenerateSlot} />)}
       </section>
 
-      {!canManageHiddenSettings ? <div className="card muted">설정, 자동/수동 리뷰 찾기 기능은 관리자 / 부관리자만 사용할 수 있습니다.</div> : null}
+      {!canManageHiddenSettings ? <div className="card muted">설정 및 자동 숨고리뷰 찾기 기능은 관리자 / 부관리자만 사용할 수 있습니다.</div> : null}
 
       <SoomgoReviewSettingsModal
         open={settingsOpen}

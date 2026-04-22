@@ -8,10 +8,12 @@ import re
 import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any, Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
+from fastapi.responses import FileResponse
 
 from .db import get_conn, get_user_by_token, utcnow
 
@@ -24,6 +26,7 @@ STATE_PATH = DATA_DIR / 'state.json'
 SOOMGO_REVIEW_SETTING_KEY = 'soomgo_review_state_json'
 SCREENSHOT_DIR = DATA_DIR / 'screenshots'
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_TARGET_FILE_DIR = r'G:\내 드라이브\1. 이청잘\이청잘 견적서\임시저장사진\1. 리뷰'
 
 DEFAULT_PROMPT = (
     "1. 고객님 리뷰 문맥을 자연스럽게 반영할 것\n"
@@ -72,6 +75,61 @@ def _require_user(authorization: Optional[str]) -> dict[str, Any]:
     return user
 
 
+
+
+def _require_user_from_header_or_query(authorization: Optional[str], token: Optional[str] = None) -> dict[str, Any]:
+    auth_token = _parse_token(authorization) or _parse_token(token)
+    if not auth_token:
+        raise HTTPException(status_code=401, detail='로그인이 필요합니다.')
+    with get_conn() as conn:
+        user = get_user_by_token(conn, auth_token)
+    if not user:
+        raise HTTPException(status_code=401, detail='로그인이 필요합니다.')
+    return user
+
+
+def _effective_target_file_dir(state: Optional[dict[str, Any]] = None) -> Path:
+    raw = ''
+    if isinstance(state, dict):
+        raw = str(state.get('settings', {}).get('target_file_dir', '') or '').strip()
+    legacy = str(SCREENSHOT_DIR)
+    if not raw or raw == legacy:
+        raw = DEFAULT_TARGET_FILE_DIR
+    return Path(raw).expanduser()
+
+
+def _list_target_images(state: Optional[dict[str, Any]] = None, max_count: int = 300) -> tuple[Path, list[dict[str, Any]]]:
+    target_dir = _effective_target_file_dir(state)
+    if not target_dir.exists() or not target_dir.is_dir():
+        return target_dir, []
+    allowed_exts = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'}
+    collected: list[dict[str, Any]] = []
+    for file_path in target_dir.rglob('*'):
+        if not file_path.is_file() or file_path.suffix.lower() not in allowed_exts:
+            continue
+        try:
+            stat = file_path.stat()
+            relative_path = file_path.relative_to(target_dir).as_posix()
+            collected.append({
+                'relative_path': relative_path,
+                'name': file_path.name,
+                'size': stat.st_size,
+                'modified_at': datetime.fromtimestamp(stat.st_mtime).isoformat(timespec='seconds'),
+            })
+        except Exception:
+            continue
+    collected.sort(key=lambda item: (item.get('modified_at', ''), item.get('name', '')), reverse=True)
+    return target_dir, collected[:max_count]
+
+
+def _resolve_image_path_or_404(relative_path: str, state: Optional[dict[str, Any]] = None) -> Path:
+    target_dir = _effective_target_file_dir(state).resolve()
+    candidate = (target_dir / str(relative_path or '')).resolve()
+    if target_dir not in candidate.parents and candidate != target_dir:
+        raise HTTPException(status_code=400, detail='잘못된 이미지 경로입니다.')
+    if not candidate.exists() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail='이미지 파일을 찾을 수 없습니다.')
+    return candidate
 
 
 def _current_kst_timestamp() -> str:
@@ -256,7 +314,7 @@ def _default_state() -> dict[str, Any]:
             'outer_html': '',
             'anonymous_name': '',
             'review_input': '',
-            'target_file_dir': str(SCREENSHOT_DIR),
+            'target_file_dir': DEFAULT_TARGET_FILE_DIR,
             'auto_scan_on_open': True,
         },
         'memos': {
@@ -1576,6 +1634,35 @@ def scan_manual(authorization: Optional[str] = Header(default=None)):
         state['last_scan'] = {'ok': False, 'message': detail, 'updated_at': _current_kst_timestamp(), 'found_count': 0}
         _save_state(state)
         raise HTTPException(status_code=500, detail=f'{detail}\n\n[debug] {trace}')
+
+
+@router.get('/image-library')
+def get_image_library(authorization: Optional[str] = Header(default=None)):
+    _require_user(authorization)
+    state = _load_state()
+    target_dir, files = _list_target_images(state)
+    token = _parse_token(authorization)
+    return {
+        'ok': True,
+        'directory': str(target_dir),
+        'exists': target_dir.exists() and target_dir.is_dir(),
+        'count': len(files),
+        'files': [
+            {
+                **item,
+                'url': f"/api/soomgo-review/image-file/{quote(item['relative_path'])}?token={quote(token)}",
+            }
+            for item in files
+        ],
+    }
+
+
+@router.get('/image-file/{relative_path:path}')
+def get_image_file(relative_path: str, token: Optional[str] = Query(default=None), authorization: Optional[str] = Header(default=None)):
+    _require_user_from_header_or_query(authorization, token)
+    state = _load_state()
+    file_path = _resolve_image_path_or_404(relative_path, state)
+    return FileResponse(path=str(file_path), filename=file_path.name)
 
 
 @router.post('/manual-match')
