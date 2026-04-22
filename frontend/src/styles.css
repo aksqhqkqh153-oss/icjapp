@@ -5654,6 +5654,30 @@ button.danger:hover {
   flex: 1 1 0;
 }
 
+.soomgo-slot-name-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 92px;
+  align-items: end;
+}
+
+.soomgo-slot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.soomgo-slot-field > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.1;
+}
+
+.soomgo-slot-field-rating > span,
+.soomgo-slot-field-rating .soomgo-rating-input {
+  text-align: center;
+}
+
 .soomgo-slot-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5774,6 +5798,10 @@ button.danger:hover {
   .soomgo-hidden-grid,
   .soomgo-result-grid {
     grid-template-columns: 1fr;
+  }
+
+  .soomgo-slot-name-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
   }
 
   .soomgo-review-action-row {

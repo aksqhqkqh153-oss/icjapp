@@ -20602,10 +20602,19 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
         <strong>슬롯 {index + 1}</strong>
         <button type="button" className="small" onClick={() => onGenerate(index)}>리뷰초안생성</button>
       </div>
-      <div className="soomgo-slot-name-row">
-        <input value={slot.masked_name || ''} placeholder="가명" onChange={e => onChange(index, 'masked_name', e.target.value)} />
-        <input value={slot.real_name || ''} placeholder="실명" onChange={e => onChange(index, 'real_name', e.target.value)} />
-        <input className="soomgo-rating-input" value={slot.rating || ''} placeholder="별점" onChange={e => onChange(index, 'rating', e.target.value)} />
+      <div className="soomgo-slot-name-row soomgo-slot-name-grid">
+        <label className="soomgo-slot-field">
+          <span>가명</span>
+          <input value={slot.masked_name || ''} placeholder="가명" onChange={e => onChange(index, 'masked_name', e.target.value)} />
+        </label>
+        <label className="soomgo-slot-field">
+          <span>실명</span>
+          <input value={slot.real_name || ''} placeholder="실명" onChange={e => onChange(index, 'real_name', e.target.value)} />
+        </label>
+        <label className="soomgo-slot-field soomgo-slot-field-rating">
+          <span>별점</span>
+          <input className="soomgo-rating-input" value={slot.rating || ''} placeholder="별점" onChange={e => onChange(index, 'rating', e.target.value)} />
+        </label>
       </div>
       <div className="soomgo-slot-grid">
         <textarea value={slot.review || ''} placeholder="리뷰내용" onChange={e => onChange(index, 'review', e.target.value)} />
