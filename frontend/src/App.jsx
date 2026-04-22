@@ -20736,7 +20736,8 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
 
 function SoomgoReviewFinderPage({ user }) {
   const canManageHiddenSettings = Number(user?.grade || 6) <= 2
-  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', rating: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
+  const createEmptySoomgoSlots = () => Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', rating: '', review: '', reply: '', situation: '', specifics: '' }))
+  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: createEmptySoomgoSlots(), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -20883,8 +20884,8 @@ function SoomgoReviewFinderPage({ user }) {
     setState(prev => ({
       ...prev,
       ...data,
-      slots: Array.from({ length: 6 }, (_, index) => ({
-        index,
+      slots: createEmptySoomgoSlots().map((slot, index) => ({
+        ...slot,
         masked_name: data?.slots?.[index]?.masked_name || '',
         real_name: data?.slots?.[index]?.real_name || '',
         rating: data?.slots?.[index]?.rating || '',
@@ -20914,6 +20915,13 @@ function SoomgoReviewFinderPage({ user }) {
     }
   }
 
+  function clearSlotsBeforeAutoScan() {
+    setState(prev => ({
+      ...prev,
+      slots: createEmptySoomgoSlots(),
+    }))
+  }
+
   useEffect(() => {
     let ignore = false
     loadState().then(data => {
@@ -20921,7 +20929,8 @@ function SoomgoReviewFinderPage({ user }) {
         loadImageLibrary().catch(() => {})
       }
       if (!ignore && canManageHiddenSettings && data?.settings?.auto_scan_on_open) {
-        handleAutoScan()
+        clearSlotsBeforeAutoScan()
+        handleAutoScan({ skipPreClear: true })
       }
     }).catch(() => {
       if (!ignore) loadImageLibrary().catch(() => {})
@@ -20947,8 +20956,12 @@ function SoomgoReviewFinderPage({ user }) {
     }
   }
 
-  async function handleAutoScan() {
+  async function handleAutoScan(options = {}) {
     if (!canManageHiddenSettings) return window.alert('관리자 / 부관리자만 실행할 수 있습니다.')
+    const shouldPreClear = !options?.skipPreClear
+    if (shouldPreClear) {
+      clearSlotsBeforeAutoScan()
+    }
     setLoading(true)
     try {
       const data = await api('/api/soomgo-review/scan-auto', { method: 'POST' })
