@@ -231,8 +231,8 @@ def _strip_rating_prefix(text: Any) -> str:
     if not value:
         return ''
     patterns = [
-        r'^[가-힣A-Za-z\s]+별점\s*[0-5](?:\.\d)?\s*',
-        r'^[가-힣A-Za-z\s]+\s[0-5](?:\.\d)?\s*',
+        r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-]+)\s*)+별점\s*[0-5](?:\.\d)?\s*',
+        r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-]+)\s*)+[0-5](?:\.\d)?\s*',
         r'^별점\s*[0-5](?:\.\d)?\s*',
     ]
     for pattern in patterns:
@@ -280,12 +280,20 @@ def _sanitize_review_body(text: Any) -> str:
             continue
         if _is_service_rating_header_line(normalized):
             continue
-        cleaned_lines.append(normalized)
-    cleaned = '\n'.join(cleaned_lines).strip() if cleaned_lines else _normalize_review_text(value)
+        stripped = re.sub(r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s*)+별점\s*[0-5](?:\.\d)?\s*', '', normalized).strip()
+        stripped = re.sub(r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s*)+[0-5](?:\.\d)?\s*', '', stripped).strip()
+        if not stripped:
+            continue
+        cleaned_lines.append(stripped)
+    cleaned = '\n'.join(cleaned_lines).strip()
+    if not cleaned:
+        fallback = _normalize_review_text(value)
+        if fallback and not _is_service_rating_header_line(fallback):
+            cleaned = fallback
     if cleaned and _is_service_rating_header_line(cleaned):
         cleaned = ''
-    cleaned = re.sub(r'^(?:[가-힣A-Za-z0-9/&·ㆍ,()\-]+\s+)?(?:서비스|이사)\s*(?:별점\s*)?[0-5](?:\.\d)?\s*', '', cleaned).strip()
-    cleaned = re.sub(r'^(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s+[0-5](?:\.\d)?\s*', '', cleaned).strip()
+    cleaned = re.sub(r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s*)+별점\s*[0-5](?:\.\d)?\s*', '', cleaned).strip()
+    cleaned = re.sub(r'^(?:(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s*)+[0-5](?:\.\d)?\s*', '', cleaned).strip()
     return cleaned
 
 
@@ -803,11 +811,15 @@ def _pick_review_content_from_lines(lines: list[str], author_name: str = '', rea
             continue
         if _is_likely_name_line(value) and len(value) <= 10:
             continue
+        if _is_service_rating_header_line(value):
+            continue
         if _extract_rating_value(value):
             stripped = _strip_rating_prefix(value)
             if stripped != value:
                 value = stripped
-            else:
+            if not value:
+                continue
+            if _is_service_rating_header_line(value):
                 continue
         if re.fullmatch(r'[★☆\d\s.,!~^]+', value):
             continue

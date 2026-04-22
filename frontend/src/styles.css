@@ -32266,3 +32266,175 @@ button.danger {
     min-width: 0 !important;
   }
 }
+
+
+/* 2026-04-22 desktop schedule lane font/gap/row-height compact refinement */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+    grid-auto-rows: minmax(108px, auto) !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .schedule-cell.detail-cell {
+    min-height: 108px !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 20px !important;
+    height: 20px !important;
+    flex: 0 0 20px !important;
+  }
+
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    margin: 0 !important;
+    padding: 0 2px !important;
+    min-height: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+    gap: 0 !important;
+    column-gap: 0 !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: 0 0 64px !important;
+    min-height: 64px !important;
+    height: 64px !important;
+    max-height: 64px !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes {
+    display: grid !important;
+    grid-template-rows: repeat(4, 13px) !important;
+    grid-auto-rows: 13px !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    align-content: start !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
+    min-height: 13px !important;
+    height: 13px !important;
+    max-height: 13px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+
+  .schedule-page .calendar-lane-color-block,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-color-block,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane-color-block {
+    display: block !important;
+    width: 18px !important;
+    min-width: 18px !important;
+    max-width: 18px !important;
+    height: 13px !important;
+    min-height: 13px !important;
+    max-height: 13px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-self: stretch !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane-title {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 3px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .schedule-page .calendar-lane.filled span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled span {
+    font-size: 10px !important;
+    line-height: 1 !important;
+    padding-left: 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-plus-row {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 12px !important;
+    height: 12px !important;
+    max-height: 12px !important;
+    flex: 0 0 12px !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+
+  .schedule-page .calendar-more-indicator.single-plus,
+  .schedule-page .schedule-cell.detail-cell .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-more-indicator.single-plus {
+    min-width: 18px !important;
+    width: 18px !important;
+    min-height: 12px !important;
+    height: 12px !important;
+    max-height: 12px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    border-radius: 0 !important;
+  }
+}
