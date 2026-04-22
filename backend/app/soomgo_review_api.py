@@ -402,20 +402,57 @@ def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]
 
 def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any = None) -> bool:
     section_rows = _extract_section_rows(preloaded)
-    ranked_sections = _preferred_review_section_rows(section_rows)
-    review_max_index = max((int(row.get('index', -1) or -1) for row in ranked_sections), default=1)
+
+    review_indexes: list[int] = []
+    for row in section_rows:
+        row_index = int(row.get('index', -1) or -1)
+        if row_index < 0 or row.get('has_nested_article'):
+            continue
+        review_rows = row.get('review_rows') or []
+        rating_rows = row.get('rating_rows') or []
+        lines = row.get('lines') or []
+        has_review_signal = bool(review_rows or rating_rows)
+        if not has_review_signal and row_index in (1, 2):
+            has_review_signal = any(len(_normalize_review_text(value)) >= 8 for value in lines)
+        if has_review_signal:
+            review_indexes.append(row_index)
+
+    review_start_index = min(review_indexes) if review_indexes else 1
 
     for row in section_rows:
         row_index = int(row.get('index', -1) or -1)
-        if row_index <= review_max_index:
+        if row_index <= review_start_index:
             continue
-        if row.get('reply_rows') or row.get('has_nested_article'):
+        if row.get('has_nested_article'):
+            return True
+        if row.get('reply_rows'):
+            meaningful_reply_rows = [
+                value for value in (row.get('reply_rows') or [])
+                if _normalize_review_text(value) not in {'더보기', '리뷰', '답글', '답변'}
+            ]
+            if meaningful_reply_rows:
+                return True
+        lines = row.get('lines') or []
+        if any('답변' in _normalize_review_text(value) or '답글' in _normalize_review_text(value) for value in lines):
             return True
 
     if item is None:
         return False
 
+    article_selectors = [
+        "xpath=.//article/section[position()=3 or position()=4]//article",
+        "xpath=.//article/section[position()=3 or position()=4]/div/article",
+    ]
+    for selector in article_selectors:
+        try:
+            locator = item.locator(selector)
+            if locator.count() > 0:
+                return True
+        except Exception:
+            continue
+
     selectors = [
+        "xpath=.//article/section[position()=3 or position()=4]/div/article/span",
         "xpath=.//article/section[position()=3 or position()=4]//article/span",
         "xpath=.//article/section[position()=3 or position()=4]//article//*[contains(@class, 'body14:regular') and contains(@class, 'primary')]",
     ]
@@ -1416,7 +1453,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 break
 
         preloaded_items = _collect_unanswered_review_items(page)
-        review_items = page.locator('.review-list .profile-review-item, .review-list > [id], .review-list [id]')
+        review_items = page.locator('.review-list > [id], .review-list > .profile-review-item')
         try:
             item_count = review_items.count()
         except Exception:
@@ -1425,8 +1462,18 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         for index in range(total_items):
             if len(found) >= SLOT_COUNT:
                 break
-            item = review_items.nth(index) if index < item_count else None
             preloaded = preloaded_items[index] if index < len(preloaded_items) and isinstance(preloaded_items[index], dict) else {}
+            item = None
+            root_id = str(preloaded.get('rootId', '')).strip() if isinstance(preloaded, dict) else ''
+            if root_id:
+                try:
+                    by_id = page.locator(f"xpath=//div[@class='review-list']/*[@id={json.dumps(root_id)}]").first
+                    if by_id.count() > 0:
+                        item = by_id
+                except Exception:
+                    item = None
+            if item is None and index < item_count:
+                item = review_items.nth(index)
             try:
                 if _has_meaningful_reply(preloaded=preloaded, item=item):
                     continue
