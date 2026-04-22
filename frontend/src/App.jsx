@@ -7226,6 +7226,21 @@ function fmtDate(date) {
   return `${year}-${month}-${day}`
 }
 
+function fmtMonthKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function parseMonthKey(value) {
+  const normalized = String(value || '').trim()
+  if (!/^\d{4}-\d{2}$/.test(normalized)) return null
+  const [yearText, monthText] = normalized.split('-')
+  const year = Number(yearText)
+  const monthIndex = Number(monthText) - 1
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) return null
+  return new Date(year, monthIndex, 1)
+}
+
 function buildMonthDays(date) {
   const start = startOfMonth(date)
   const firstGridDate = addDays(start, -start.getDay())
@@ -7644,6 +7659,8 @@ function CalendarPage() {
   const canEditAssignmentFields = canEditScheduleAssignments(currentUser)
   const initialDate = searchParams.get('date') || fmtDate(new Date())
   const initialMonth = (() => {
+    const presetMonth = parseMonthKey(searchParams.get('month'))
+    if (presetMonth) return presetMonth
     const parsed = new Date(`${initialDate}T00:00:00`)
     return Number.isNaN(parsed.getTime()) ? startOfMonth(new Date()) : startOfMonth(parsed)
   })()
@@ -7684,8 +7701,15 @@ function CalendarPage() {
   useEffect(() => { load().catch(() => {}) }, [monthCursor, days])
   useEffect(() => {
     const preset = searchParams.get('date')
+    const presetMonth = parseMonthKey(searchParams.get('month'))
     if (preset) {
       setSelectedDate(preset)
+    }
+    if (presetMonth) {
+      setMonthCursor(presetMonth)
+      return
+    }
+    if (preset) {
       const parsed = new Date(`${preset}T00:00:00`)
       if (!Number.isNaN(parsed.getTime())) {
         setMonthCursor(startOfMonth(parsed))
@@ -7724,10 +7748,21 @@ function CalendarPage() {
     navigate(`/schedule/new?date=${fmtDate(date)}`)
   }
 
-  function selectDate(date) {
+  function buildScheduleMonthQuery(dateKey, monthDate = monthCursor) {
+    const key = String(dateKey || '').trim() || fmtDate(monthDate || new Date())
+    const monthKey = fmtMonthKey(monthDate || new Date())
+    return monthKey ? `/schedule?date=${key}&month=${monthKey}` : `/schedule?date=${key}`
+  }
+
+  function selectDate(date, options = {}) {
     const key = fmtDate(date)
+    const keepVisibleMonth = options.keepVisibleMonth !== false
+    const targetMonth = keepVisibleMonth ? monthCursor : startOfMonth(date)
     setSelectedDate(key)
-    navigate(`/schedule?date=${key}`, { replace: true })
+    if (!keepVisibleMonth) {
+      setMonthCursor(targetMonth)
+    }
+    navigate(buildScheduleMonthQuery(key, targetMonth), { replace: true })
   }
 
   function moveMonth(amount) {
@@ -7735,15 +7770,16 @@ function CalendarPage() {
     setMonthCursor(nextMonth)
     const nextSelected = fmtDate(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1))
     setSelectedDate(nextSelected)
-    navigate(`/schedule?date=${nextSelected}`, { replace: true })
+    navigate(buildScheduleMonthQuery(nextSelected, nextMonth), { replace: true })
   }
 
   function goToToday() {
     const today = new Date()
     const todayKey = fmtDate(today)
-    setMonthCursor(startOfMonth(today))
+    const todayMonth = startOfMonth(today)
+    setMonthCursor(todayMonth)
     setSelectedDate(todayKey)
-    navigate(`/schedule?date=${todayKey}`, { replace: true })
+    navigate(buildScheduleMonthQuery(todayKey, todayMonth), { replace: true })
   }
 
   function openOverflowPopup(date, dayItems, event, title = '일정목록', daySummaryOverride = null) {
@@ -8009,7 +8045,7 @@ function CalendarPage() {
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
-                      <button type="button" className={`calendar-date-select ${dayCapacityClass} ${isSelected ? 'is-selected' : ''}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
+                      <button type="button" className={`calendar-date-select ${dayCapacityClass} ${isSelected ? 'is-selected' : ''}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date, { keepVisibleMonth: true })}>
                         <span className="calendar-date">{date.getDate()}</span>
                       </button>
                       {!isMobile && (
@@ -8025,7 +8061,7 @@ function CalendarPage() {
                     </div>
 
                     {isMobile ? (
-                      <button type="button" className={`calendar-day-summary-button redesigned mobile-compact`} title={dayCapacity?.detail || ''} onClick={() => selectDate(date)}>
+                      <button type="button" className={`calendar-day-summary-button redesigned mobile-compact`} title={dayCapacity?.detail || ''} onClick={() => selectDate(date, { keepVisibleMonth: true })}>
                         <div className="calendar-mobile-summary-stack compact-topline">
                           <span className={`calendar-handless-pill mobile-compact ${daySummary?.is_handless_day ? 'active' : 'inactive'}${shouldHighlightDayKind ? ' special-attention' : ''}`}>{daySummary?.is_handless_day ? '손없는날' : '일반'}</span>
                         </div>
@@ -8043,7 +8079,7 @@ function CalendarPage() {
                     )}
 
                     {!isMobile && (
-                      <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date)}>
+                      <div className="calendar-lanes-stack" role="button" tabIndex={0} onClick={() => selectDate(date, { keepVisibleMonth: true })}>
                         <div className="calendar-lanes">
                           {visibleItems.map(item => (
                             <button
