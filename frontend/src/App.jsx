@@ -20560,6 +20560,13 @@ function MaterialsPage({ user }) {
 
 function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onManualMatch, canManageHiddenSettings }) {
   if (!open || !canManageHiddenSettings) return null
+
+  function handleTargetDirectoryPrompt() {
+    const nextValue = window.prompt('리뷰 이미지 폴더 경로를 입력하세요.', state.settings.target_file_dir || '')
+    if (nextValue === null) return
+    setState(prev => ({ ...prev, settings: { ...prev.settings, target_file_dir: nextValue } }))
+  }
+
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card soomgo-settings-modal" onClick={e => e.stopPropagation()}>
@@ -20571,6 +20578,10 @@ function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onM
           <div className="card muted small">이 화면에서 저장하는 로그인 정보와 프롬프트는 계정별 설정이 아닌 앱 전체 공용 설정으로 저장됩니다.</div>
           <label className="stack compact-gap"><span>숨고 로그인 이메일</span><input value={state.settings.soomgo_email || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_email: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>숨고 로그인 비밀번호</span><input type="password" value={state.settings.soomgo_password || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_password: e.target.value } }))} /></label>
+          <label className="stack compact-gap"><span>리뷰 이미지 폴더경로지정</span><input value={state.settings.target_file_dir || ''} placeholder="예: G:\내 드라이브\1. 이청잘\...\1. 리뷰" onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, target_file_dir: e.target.value } }))} /></label>
+          <div className="row gap wrap">
+            <button type="button" className="ghost" onClick={handleTargetDirectoryPrompt}>폴더경로지정</button>
+          </div>
           <label className="stack compact-gap"><span>리뷰초안 프롬프트</span><textarea className="soomgo-hidden-textarea" value={state.settings.prompt || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, prompt: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>outer HTML 코드</span><textarea className="soomgo-hidden-textarea" value={state.settings.outer_html || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, outer_html: e.target.value } }))} /></label>
           <div className="soomgo-hidden-grid">
@@ -20644,8 +20655,7 @@ function SoomgoReviewImageLibraryPanel({ imageLibrary, imageLibraryLoading, onRe
         <h3>리뷰 이미지 목록</h3>
         <button type="button" className="ghost small" onClick={onRefresh} disabled={imageLibraryLoading}>{imageLibraryLoading ? '불러오는중...' : '새로고침'}</button>
       </div>
-      <div className="muted small soomgo-directory-text">폴더: {imageLibrary?.directory || '-'}</div>
-      {!imageLibrary?.exists ? <div className="card muted small">지정된 폴더를 찾지 못했습니다. 현재 PC에서 해당 드라이브와 폴더 경로가 실제로 열리는지 먼저 확인해 주세요.</div> : null}
+            {!imageLibrary?.exists ? <div className="card muted small">지정된 폴더를 찾지 못했습니다. 현재 PC에서 해당 드라이브와 폴더 경로가 실제로 열리는지 먼저 확인해 주세요.</div> : null}
       <div className="muted small">이미지를 클릭해서 열거나, 썸네일을 카카오톡으로 드래그해서 첨부를 시도할 수 있습니다.</div>
       <div className="soomgo-image-library-list">
         {files.length ? files.map(item => {
@@ -21008,7 +21018,7 @@ function SoomgoReviewFinderPage({ user }) {
         <div className="soomgo-review-toolbar">
           <div className="soomgo-review-title-block">
             <h2>숨고 리뷰 찾기</h2>
-            <div className="muted">최근 검사 {state.last_scan?.updated_at ? String(state.last_scan.updated_at).replace('T', ' ').slice(0, 16) : '-'} · {state.last_scan?.message || '대기중'}</div>
+            <div className="muted">자동 숨고리뷰 찾기 실행 결과는 슬롯에 바로 반영됩니다.</div>
           </div>
           <div className="row gap wrap soomgo-review-action-row">
             <button type="button" onClick={handleAutoScan} disabled={loading || !canManageHiddenSettings}>{loading ? '진행중...' : '자동 숨고리뷰 찾기'}</button>
@@ -21025,20 +21035,9 @@ function SoomgoReviewFinderPage({ user }) {
       </section>
 
       <section className="soomgo-support-grid">
-        <section className="card soomgo-support-card">
-          <h3>최근 스캔 요약</h3>
-          <div className="soomgo-summary-block"><strong>상태</strong><span>{state.last_scan?.ok ? '정상' : '대기/실패'}</span></div>
-          <div className="soomgo-summary-block"><strong>검사시각</strong><span>{state.last_scan?.updated_at ? String(state.last_scan.updated_at).replace('T', ' ').slice(0, 16) : '-'}</span></div>
-          <div className="soomgo-summary-block"><strong>감지건수</strong><span>{Number(state.last_scan?.found_count || 0)}건</span></div>
-          <div className="card muted small soomgo-support-note">{state.last_scan?.message || '대기중'}</div>
-        </section>
+        <section className="card soomgo-support-card soomgo-support-card-empty" aria-hidden="true" />
 
-        <section className="card soomgo-support-card">
-          <h3>감지된 리뷰 정보</h3>
-          <div className="soomgo-support-detail"><strong>고객리뷰</strong><p>{state.results.customer_review || '-'}</p></div>
-          <div className="soomgo-support-detail"><strong>이사현장상황</strong><p>{state.results.field_status || '-'}</p></div>
-          <div className="soomgo-support-detail"><strong>현장특이사항</strong><p>{state.results.special_note || '-'}</p></div>
-        </section>
+        <section className="card soomgo-support-card soomgo-support-card-empty" aria-hidden="true" />
 
         <SoomgoReviewImageLibraryPanel
           imageLibrary={imageLibrary}

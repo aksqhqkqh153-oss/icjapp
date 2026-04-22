@@ -247,6 +247,141 @@ def _extract_rating_from_candidates(values: list[str]) -> str:
     return ''
 
 
+def _rank_review_section_rows(section_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked: list[tuple[int, int, dict[str, Any]]] = []
+    for row in section_rows or []:
+        idx = int(row.get('index', 99) or 99)
+        review_rows = row.get('review_rows') or []
+        rating_rows = row.get('rating_rows') or []
+        lines = row.get('lines') or []
+        score = 0
+        if idx in (1, 2):
+            score += 4
+        if review_rows:
+            score += 5
+        if rating_rows:
+            score += 3
+        if any(_extract_rating_value(value) for value in lines):
+            score += 2
+        if any(len(_normalize_review_text(value)) >= 8 for value in review_rows):
+            score += 2
+        if any(len(_normalize_review_text(value)) >= 12 for value in lines):
+            score += 1
+        if row.get('reply_rows'):
+            score -= 3
+        if row.get('has_nested_article'):
+            score -= 4
+        if score > 0:
+            ranked.append((score, idx, row))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return [row for _, _, row in ranked]
+
+
+def _preferred_review_section_rows(section_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = _rank_review_section_rows(section_rows)
+    if ranked:
+        return ranked
+    return [
+        row for row in section_rows or []
+        if not row.get('reply_rows') and not row.get('has_nested_article') and int(row.get('index', 99) or 99) in (1, 2)
+    ]
+
+
+def _best_preloaded_rating_text(section_rows: list[dict[str, Any]], rating_candidates: list[str]) -> str:
+    for row in _preferred_review_section_rows(section_rows):
+        rating = _extract_rating_from_candidates(row.get('rating_rows') or [])
+        if rating:
+            return rating
+        rating = _extract_rating_from_candidates(row.get('lines') or [])
+        if rating:
+            return rating
+    return _extract_rating_from_candidates(rating_candidates)
+
+
+def _best_preloaded_review_text(section_rows: list[dict[str, Any]], author_name: str, content_candidates: list[str], item_text: str) -> str:
+    for row in _preferred_review_section_rows(section_rows):
+        candidate = _pick_review_content_from_lines((row.get('review_rows') or []) + (row.get('lines') or []), author_name=author_name)
+        if candidate:
+            return candidate
+    for candidate in content_candidates or []:
+        if _normalize_review_text(candidate) and len(_normalize_review_text(candidate)) >= 8:
+            return _normalize_review_text(candidate)
+    item_candidates = _build_review_line_candidates(item_text)
+    if item_candidates:
+        candidate = _pick_review_content_from_lines(item_candidates, author_name=author_name)
+        if candidate:
+            return candidate
+    return ''
+
+
+def _extract_item_text_by_selectors(item: Any, selectors: list[str], min_length: int = 1, timeout: int = 2000) -> str:
+    for selector in selectors:
+        try:
+            locator = item.locator(selector).first
+            if locator.count() == 0:
+                continue
+            value = _normalize_review_text(locator.inner_text(timeout=timeout))
+            if value and len(value) >= min_length:
+                return value
+        except Exception:
+            continue
+    return ''
+
+
+def _extract_dom_author_name(item: Any) -> str:
+    selectors = [
+        "xpath=.//article/section[1]//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]",
+        "xpath=.//article/section[1]//*[contains(@class, 'prisma-typography') and contains(@class, 'body13:semibold') and contains(@class, 'primary')]",
+        "xpath=.//article/section[1]//span",
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]",
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body13:semibold') and contains(@class, 'primary')]",
+    ]
+    for selector in selectors:
+        try:
+            locator = item.locator(selector)
+            count = locator.count()
+            for idx in range(count):
+                value = _normalize_review_text(locator.nth(idx).inner_text(timeout=2000))
+                if value and _is_likely_name_line(value):
+                    return value
+        except Exception:
+            continue
+    return ''
+
+
+def _extract_dom_review_content(item: Any) -> str:
+    selectors = [
+        "xpath=.//article/section[position()=2 or position()=3]//*[contains(@class, 'review-content')]",
+        "xpath=.//article/section[position()=2 or position()=3]/div/div[2]/span",
+        "xpath=.//article/section[position()=2 or position()=3]//span[contains(@class, 'review-content')]",
+        "xpath=.//*[contains(@class, 'review-content')]",
+        ".review-content",
+        "[class*='review-content']",
+    ]
+    value = _extract_item_text_by_selectors(item, selectors, min_length=2, timeout=2500)
+    return _strip_rating_prefix(value)
+
+
+def _extract_dom_rating_text(item: Any) -> str:
+    selectors = [
+        "xpath=.//article/section[position()=2 or position()=3]//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
+        "xpath=.//article/section[position()=2 or position()=3]/div/div[1]/div/div/span",
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
+        "[class*='body16:semibold']",
+    ]
+    for selector in selectors:
+        try:
+            locator = item.locator(selector)
+            count = locator.count()
+            for idx in range(count):
+                rating = _extract_rating_value(locator.nth(idx).inner_text(timeout=2000))
+                if rating:
+                    return rating
+        except Exception:
+            continue
+    return ''
+
+
 def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
     rows = []
     if isinstance(preloaded, dict):
@@ -266,18 +401,23 @@ def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]
 
 
 def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any = None) -> bool:
-    reply_rows = _extract_reply_rows(preloaded)
-    if reply_rows:
-        return True
     section_rows = _extract_section_rows(preloaded)
-    if any((row.get('has_nested_article') and row.get('reply_rows')) for row in section_rows):
-        return True
+    ranked_sections = _preferred_review_section_rows(section_rows)
+    review_max_index = max((int(row.get('index', -1) or -1) for row in ranked_sections), default=1)
+
+    for row in section_rows:
+        row_index = int(row.get('index', -1) or -1)
+        if row_index <= review_max_index:
+            continue
+        if row.get('reply_rows') or row.get('has_nested_article'):
+            return True
+
     if item is None:
         return False
-    review_rows = set(_extract_review_content_rows(preloaded))
+
     selectors = [
-        "xpath=.//article//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
-        "xpath=.//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
+        "xpath=.//article/section[position()=3 or position()=4]//article/span",
+        "xpath=.//article/section[position()=3 or position()=4]//article//*[contains(@class, 'body14:regular') and contains(@class, 'primary')]",
     ]
     blocked = {'더보기', '리뷰', '답글', '답변'}
     for selector in selectors:
@@ -286,7 +426,7 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
             count = locator.count()
             for idx in range(count):
                 value = _normalize_review_text(locator.nth(idx).inner_text(timeout=1200))
-                if not value or value in blocked or value in review_rows:
+                if not value or value in blocked:
                     continue
                 return True
         except Exception:
@@ -862,7 +1002,6 @@ def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any
         for value in (preloaded.get('authorCandidates') or [])
         if _normalize_review_text(value)
     ]
-    review_content_rows = _extract_review_content_rows(preloaded)
     rating_candidates = _extract_rating_rows(preloaded) + [
         _normalize_review_text(value)
         for value in (preloaded.get('ratingCandidates') or [])
@@ -887,14 +1026,11 @@ def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any
                 author_name = candidate
                 break
 
-    rating_text = _extract_rating_from_candidates(rating_candidates)
-    content_text = review_content_rows[0] if review_content_rows else ''
+    rating_text = _best_preloaded_rating_text(section_rows, rating_candidates)
+    content_text = _best_preloaded_review_text(section_rows, author_name, content_candidates, item_text)
+
     candidate_lines: list[str] = []
-    for row in section_rows:
-        if row.get('reply_rows'):
-            continue
-        if row.get('index', 0) == 0 and row.get('author_rows'):
-            continue
+    for row in _preferred_review_section_rows(section_rows) or section_rows:
         for value in (row.get('review_rows') or []) + (row.get('lines') or []):
             normalized = _normalize_review_text(value)
             if normalized and normalized not in candidate_lines:
@@ -902,21 +1038,6 @@ def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any
     for value in _build_review_line_candidates(item_text):
         if value and value not in candidate_lines:
             candidate_lines.append(value)
-
-    if not content_text and section_rows:
-        preferred_sections = [row for row in section_rows if not row.get('reply_rows') and not (row.get('index', 0) == 0 and row.get('author_rows'))]
-        preferred_sections.sort(key=lambda row: (0 if row.get('review_rows') else 1, row.get('index', 99)))
-        for row in preferred_sections:
-            candidate = _pick_review_content_from_lines((row.get('review_rows') or []) + (row.get('lines') or []), author_name=author_name)
-            if candidate:
-                content_text = candidate
-                break
-
-    if not content_text and content_candidates:
-        for candidate in content_candidates:
-            if candidate and len(candidate) >= 8:
-                content_text = candidate
-                break
 
     if not content_text and candidate_lines:
         content_text = _pick_review_content_from_lines(candidate_lines, author_name=author_name)
@@ -932,10 +1053,10 @@ def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any
         reviews_data,
         author_name,
         item_text,
-        review_content_rows + content_candidates + candidate_lines,
+        content_candidates + candidate_lines,
     )
-    if resolved_review:
-        content_text = resolved_review or content_text
+    if resolved_review and (not content_text or content_text == '(내용 없음)'):
+        content_text = resolved_review
     if resolved_real and not real_name:
         real_name = resolved_real
     if resolved_masked and (not author_name or author_name == '익명'):
@@ -944,7 +1065,6 @@ def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any
         author_name = _mask_name(real_name)
 
     return author_name or '익명', real_name, rating_text, (content_text or '(내용 없음)')
-
 
 def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], preloaded: Optional[dict[str, Any]] = None) -> tuple[str, str, str, str]:
     try:
@@ -964,7 +1084,6 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         for value in (preloaded.get('authorCandidates') or [])
         if _normalize_review_text(value)
     ]
-    review_content_rows = _extract_review_content_rows(preloaded)
     rating_candidates = _extract_rating_rows(preloaded) + [
         _normalize_review_text(value)
         for value in (preloaded.get('ratingCandidates') or [])
@@ -976,76 +1095,23 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         if _normalize_review_text(value)
     ]
 
-    rating_text = _extract_rating_from_candidates(rating_candidates)
-    content_text = review_content_rows[0] if review_content_rows else ''
-    content_selectors = [
-        ".review-content",
-        "[class*='review-content']",
-        "xpath=.//*[contains(@class, 'review-content')]",
-        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and contains(@class, 'review-content')]",
-    ]
-    for selector in content_selectors:
-        try:
-            locator = item.locator(selector).first
-            if locator.count() == 0:
-                continue
-            value = _normalize_review_text(locator.inner_text(timeout=3000))
-            if value:
-                content_text = value
-                break
-        except Exception:
-            continue
+    rating_text = _extract_dom_rating_text(item) or _best_preloaded_rating_text(section_rows, rating_candidates)
+    preloaded_item_text = _normalize_review_text(preloaded.get('itemText', ''))
+    content_text = _extract_dom_review_content(item) or _best_preloaded_review_text(section_rows, '', content_candidates, preloaded_item_text)
 
-    rating_selectors = [
-        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
-        "[class*='body16:semibold']",
-    ]
-    for selector in rating_selectors:
-        try:
-            locator = item.locator(selector).first
-            if locator.count() == 0:
-                continue
-            rating_candidate = _extract_rating_value(locator.inner_text(timeout=2000))
-            if rating_candidate:
-                rating_text = rating_candidate
-                break
-        except Exception:
-            continue
-
-    item_text = _normalize_review_text(preloaded.get('itemText', ''))
+    item_text = preloaded_item_text
     if not item_text:
         try:
             item_text = _normalize_review_text(item.inner_text(timeout=3000))
         except Exception:
             item_text = ''
 
-    author_name = ''
-    author_selectors = [
-        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]",
-        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body13:semibold') and contains(@class, 'primary')]",
-        "[data-testid*='author']",
-        "[class*='author']",
-        "[class*='reviewer']",
-        ".reviewer-name",
-    ]
-    for selector in author_selectors:
-        try:
-            locator = item.locator(selector).first
-            if locator.count() == 0:
-                continue
-            value = _normalize_review_text(locator.inner_text(timeout=2000))
-            if value and _is_likely_name_line(value):
-                author_name = value
-                break
-        except Exception:
-            continue
-
+    author_name = _extract_dom_author_name(item)
     if not author_name and section_rows:
         for candidate in section_rows[0].get('author_rows') or []:
             if candidate and _is_likely_name_line(candidate):
                 author_name = candidate
                 break
-
     if not author_name:
         for candidate in author_candidates:
             if candidate and _is_likely_name_line(candidate):
@@ -1053,14 +1119,13 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
                 break
 
     line_candidates: list[str] = []
-    if section_rows:
-        for row in section_rows:
-            if row.get('reply_rows'):
-                continue
-            for value in (row.get('review_rows') or []) + (row.get('lines') or []):
-                normalized = _normalize_review_text(value)
-                if normalized and normalized not in line_candidates:
-                    line_candidates.append(normalized)
+    for row in _preferred_review_section_rows(section_rows) or section_rows:
+        if row.get('reply_rows'):
+            continue
+        for value in (row.get('review_rows') or []) + (row.get('lines') or []):
+            normalized = _normalize_review_text(value)
+            if normalized and normalized not in line_candidates:
+                line_candidates.append(normalized)
     for value in _build_review_line_candidates(item_text):
         if value and value not in line_candidates:
             line_candidates.append(value)
@@ -1068,15 +1133,6 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
     if not content_text:
         for candidate in content_candidates:
             if candidate and len(candidate) >= 8:
-                content_text = candidate
-                break
-
-    if not content_text and section_rows:
-        for row in section_rows:
-            if row.get('reply_rows'):
-                continue
-            candidate = _pick_review_content_from_lines(row.get('lines') or [row.get('text', '')], author_name=author_name)
-            if candidate:
                 content_text = candidate
                 break
 
@@ -1104,7 +1160,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         reviews_data,
         author_name,
         item_text,
-        review_content_rows + content_candidates + line_candidates,
+        content_candidates + line_candidates,
     )
     if resolved_review and (not content_text or content_text == '(내용 없음)'):
         content_text = resolved_review
@@ -1116,7 +1172,6 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         author_name = _mask_name(real_name)
 
     return author_name or '익명', real_name, rating_text, (content_text or '(내용 없음)')
-
 
 def _manual_match(outer_html: str, anonymous_name: str, review_input: str) -> dict[str, str]:
     reviews = _parse_reviews_from_outer_html(outer_html)

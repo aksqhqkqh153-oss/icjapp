@@ -5743,6 +5743,10 @@ button.danger:hover {
   min-height: 200px;
 }
 
+.soomgo-support-card-empty {
+  background: transparent;
+}
+
 .soomgo-summary-block,
 .soomgo-support-detail {
   display: flex;
