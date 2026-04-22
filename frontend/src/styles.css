@@ -32186,3 +32186,68 @@ button.danger {
     border-color: #d1d5db !important;
   }
 }
+
+/* 2026-04-22 desktop schedule lanes vertical compact spacing */
+@media (min-width: 769px) {
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack {
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lanes {
+    display: grid !important;
+    grid-template-rows: repeat(4, 14px) !important;
+    grid-auto-rows: 14px !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    padding-top: 1px !important;
+    padding-bottom: 0 !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    align-content: start !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
+    min-height: 14px !important;
+    height: 14px !important;
+    max-height: 14px !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled {
+    grid-template-columns: 24px minmax(0, 1fr) !important;
+    padding: 0 !important;
+  }
+
+  .schedule-page .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title {
+    padding: 0 4px !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+  }
+
+  .schedule-page .calendar-lane.filled span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode .calendar-lane.filled span {
+    font-size: 8px !important;
+    line-height: 1 !important;
+    padding-left: 0 !important;
+  }
+
+  .schedule-page .calendar-lane-color-block,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-color-block {
+    min-width: 0 !important;
+  }
+}
