@@ -78,54 +78,97 @@ def _current_kst_timestamp() -> str:
     return datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0, tzinfo=None).isoformat(timespec='seconds')
 
 
-def _extract_review_content_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
-    rows = []
-    if isinstance(preloaded, dict):
-        rows = preloaded.get('reviewContentRows') or preloaded.get('contentCandidates') or []
-    normalized = []
+def _normalize_unique_text_list(values: Any) -> list[str]:
+    normalized: list[str] = []
     seen: set[str] = set()
-    for value in rows:
+    for value in values or []:
         text = _normalize_review_text(value)
         if not text or text in seen:
             continue
         seen.add(text)
         normalized.append(text)
     return normalized
+
+
+def _extract_section_rows(preloaded: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
+    rows = []
+    if isinstance(preloaded, dict):
+        rows = preloaded.get('sectionRows') or preloaded.get('sections') or []
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized.append({
+            'index': int(row.get('index', len(normalized)) or 0),
+            'text': _normalize_review_text(row.get('text', '')),
+            'raw_text': str(row.get('rawText', '') or ''),
+            'lines': _normalize_unique_text_list(row.get('lines') or []),
+            'author_rows': _normalize_unique_text_list(row.get('authorRows') or []),
+            'review_rows': _normalize_unique_text_list(row.get('reviewRows') or []),
+            'reply_rows': _normalize_unique_text_list(row.get('replyRows') or []),
+            'has_nested_article': bool(row.get('hasNestedArticle')),
+        })
+    return normalized
+
+
+def _extract_review_content_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
+    rows = []
+    if isinstance(preloaded, dict):
+        rows = preloaded.get('reviewContentRows') or preloaded.get('contentCandidates') or []
+    normalized = _normalize_unique_text_list(rows)
+    if normalized:
+        return normalized
+    merged: list[str] = []
+    seen: set[str] = set()
+    for row in _extract_section_rows(preloaded):
+        for value in row.get('review_rows') or []:
+            if value in seen:
+                continue
+            seen.add(value)
+            merged.append(value)
+    return merged
 
 
 def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
     rows = []
     if isinstance(preloaded, dict):
         rows = preloaded.get('replyRows') or []
-    normalized = []
+    normalized = _normalize_unique_text_list(rows)
+    if normalized:
+        return normalized
+    merged: list[str] = []
     seen: set[str] = set()
-    for value in rows:
-        text = _normalize_review_text(value)
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        normalized.append(text)
-    return normalized
+    for row in _extract_section_rows(preloaded):
+        for value in row.get('reply_rows') or []:
+            if value in seen:
+                continue
+            seen.add(value)
+            merged.append(value)
+    return merged
 
 
 def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any = None) -> bool:
     reply_rows = _extract_reply_rows(preloaded)
     if reply_rows:
         return True
+    section_rows = _extract_section_rows(preloaded)
+    if any((row.get('has_nested_article') and row.get('reply_rows')) for row in section_rows):
+        return True
     if item is None:
         return False
     review_rows = set(_extract_review_content_rows(preloaded))
     selectors = [
-        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
+        "xpath=.//article//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
         "xpath=.//*[contains(@class, 'body14:regular') and contains(@class, 'primary') and not(contains(@class, 'review-content'))]",
     ]
+    blocked = {'더보기', '리뷰', '답글', '답변'}
     for selector in selectors:
         try:
             locator = item.locator(selector)
             count = locator.count()
             for idx in range(count):
                 value = _normalize_review_text(locator.nth(idx).inner_text(timeout=1200))
-                if not value or value == '더보기' or value in review_rows:
+                if not value or value in blocked or value in review_rows:
                     continue
                 return True
         except Exception:
@@ -435,35 +478,69 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
   const norm = (value) => String(value || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
   const uniq = (rows) => {
     const seen = new Set();
-    return rows.filter((value) => {
-      const text = norm(value);
-      if (!text || seen.has(text)) return false;
-      seen.add(text);
+    return (rows || []).map((value) => norm(value)).filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
       return true;
-    }).map((value) => norm(value));
+    });
+  };
+  const splitLines = (value) => uniq(String(value || '').split(/[
+]+/g));
+  const queryTexts = (root, selector) => {
+    try {
+      return uniq(Array.from(root.querySelectorAll(selector)).map((el) => el.innerText || el.textContent || ''));
+    } catch (_error) {
+      return [];
+    }
   };
   const items = Array.from(document.querySelectorAll('.review-list .profile-review-item'));
   return items.map((item, index) => {
-    const queryTexts = (selector) => uniq(Array.from(item.querySelectorAll(selector)).map((el) => el.innerText || el.textContent || ''));
+    const sections = Array.from(item.querySelectorAll(':scope > article > section'));
+    const sectionRows = sections.map((section, sectionIndex) => {
+      const sectionTextRaw = section.innerText || section.textContent || '';
+      const nestedArticle = section.querySelector('article');
+      return {
+        index: sectionIndex,
+        text: norm(sectionTextRaw),
+        rawText: String(sectionTextRaw || ''),
+        lines: splitLines(sectionTextRaw),
+        authorRows: uniq([
+          ...queryTexts(section, '.prisma-typography.body14\\:semibold.primary'),
+          ...queryTexts(section, '.prisma-typography.body13\\:semibold.primary'),
+          ...queryTexts(section, '[class*="author"]'),
+          ...queryTexts(section, '[class*="reviewer"]'),
+        ]),
+        reviewRows: uniq([
+          ...queryTexts(section, '.prisma-typography.body14\\:regular.primary.review-content'),
+          ...queryTexts(section, '.review-content'),
+          ...queryTexts(section, '[class*="review-content"]'),
+          ...queryTexts(section, 'span.review-content'),
+        ]),
+        replyRows: nestedArticle ? uniq([
+          ...queryTexts(nestedArticle, '.prisma-typography.body14\\:regular.primary'),
+          ...queryTexts(nestedArticle, 'span'),
+          ...queryTexts(nestedArticle, 'p'),
+          ...queryTexts(nestedArticle, 'div'),
+        ]) : [],
+        hasNestedArticle: !!nestedArticle,
+      };
+    });
     const authorCandidates = uniq([
-      ...queryTexts('.prisma-typography.body14\:semibold.primary'),
-      ...queryTexts('.prisma-typography.body13\:semibold.primary'),
-      ...queryTexts('[class*="author"]'),
-      ...queryTexts('[class*="reviewer"]'),
+      ...sectionRows.flatMap((section) => section.authorRows || []),
+      ...queryTexts(item, '.prisma-typography.body14\\:semibold.primary'),
+      ...queryTexts(item, '.prisma-typography.body13\\:semibold.primary'),
+      ...queryTexts(item, '[class*="author"]'),
+      ...queryTexts(item, '[class*="reviewer"]'),
     ]);
     const reviewContentRows = uniq([
-      ...queryTexts('.prisma-typography.body14\:regular.primary.review-content'),
-      ...queryTexts('.review-content'),
-      ...queryTexts('[class*="review-content"]'),
+      ...sectionRows.flatMap((section) => section.reviewRows || []),
+      ...queryTexts(item, '.prisma-typography.body14\\:regular.primary.review-content'),
+      ...queryTexts(item, '.review-content'),
+      ...queryTexts(item, '[class*="review-content"]'),
     ]);
-    const regularPrimaryRows = uniq(queryTexts('.prisma-typography.body14\:regular.primary'));
-    const contentCandidateSet = new Set(reviewContentRows.map((value) => norm(value)));
-    const replyRows = regularPrimaryRows.filter((value) => {
-      const text = norm(value);
-      if (!text || text === '더보기') return false;
-      if (contentCandidateSet.has(text)) return false;
-      return true;
-    });
+    const replyRows = uniq(sectionRows.flatMap((section) => section.replyRows || []));
+    const regularPrimaryRows = uniq(queryTexts(item, '.prisma-typography.body14\\:regular.primary'));
+    const textRows = uniq(sectionRows.flatMap((section) => section.lines || []));
     return {
       index,
       itemText: norm(item.innerText || item.textContent || ''),
@@ -472,7 +549,8 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       contentCandidates: reviewContentRows.slice(),
       replyRows,
       regularPrimaryRows,
-      textRows: [],
+      textRows,
+      sectionRows,
       hasReply: replyRows.length > 0,
     };
   });
@@ -605,6 +683,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         pass
 
     preloaded = preloaded or {}
+    section_rows = _extract_section_rows(preloaded)
     author_candidates = [
         _normalize_review_text(value)
         for value in (preloaded.get('authorCandidates') or [])
@@ -636,12 +715,6 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         except Exception:
             continue
 
-    if not content_text:
-        for candidate in content_candidates:
-            if candidate and len(candidate) >= 8:
-                content_text = candidate
-                break
-
     item_text = _normalize_review_text(preloaded.get('itemText', ''))
     if not item_text:
         try:
@@ -670,14 +743,47 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         except Exception:
             continue
 
+    if not author_name and section_rows:
+        for candidate in section_rows[0].get('author_rows') or []:
+            if candidate and _is_likely_name_line(candidate):
+                author_name = candidate
+                break
+
     if not author_name:
         for candidate in author_candidates:
             if candidate and _is_likely_name_line(candidate):
                 author_name = candidate
                 break
 
-    line_candidates = _build_review_line_candidates(item_text)
+    line_candidates: list[str] = []
+    if section_rows:
+        for row in section_rows:
+            if row.get('reply_rows'):
+                continue
+            for value in (row.get('review_rows') or []) + (row.get('lines') or []):
+                normalized = _normalize_review_text(value)
+                if normalized and normalized not in line_candidates:
+                    line_candidates.append(normalized)
+    for value in _build_review_line_candidates(item_text):
+        if value and value not in line_candidates:
+            line_candidates.append(value)
+
     if not content_text:
+        for candidate in content_candidates:
+            if candidate and len(candidate) >= 8:
+                content_text = candidate
+                break
+
+    if not content_text and section_rows:
+        for row in section_rows:
+            if row.get('reply_rows'):
+                continue
+            candidate = _pick_review_content_from_lines(row.get('lines') or [row.get('text', '')], author_name=author_name)
+            if candidate:
+                content_text = candidate
+                break
+
+    if not content_text and line_candidates:
         content_text = _pick_review_content_from_lines(line_candidates, author_name=author_name)
 
     real_name = _find_real_name_by_content(reviews_data, content_text)
@@ -688,7 +794,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         author_name = _mask_name(real_name)
 
     if (not content_text or content_text == '(내용 없음)') and line_candidates:
-        ref_author = author_name or _mask_name(real_name) if real_name else author_name
+        ref_author = (author_name or _mask_name(real_name)) if real_name else author_name
         content_text = _pick_review_content_from_lines(line_candidates, author_name=ref_author, real_name=real_name)
 
     if (not real_name) and content_text:
