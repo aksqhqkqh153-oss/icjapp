@@ -5638,8 +5638,7 @@ button.danger:hover {
   padding-bottom: 2px;
 }
 
-.soomgo-slot-head,
-.soomgo-slot-name-row {
+.soomgo-slot-head {
   display: flex;
   gap: 6px;
   justify-content: space-between;
@@ -5650,13 +5649,10 @@ button.danger:hover {
   line-height: 1.1;
 }
 
-.soomgo-slot-name-row > input {
-  flex: 1 1 0;
-}
-
 .soomgo-slot-name-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 92px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 104px;
+  gap: 8px;
   align-items: end;
 }
 
@@ -5664,6 +5660,7 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .soomgo-slot-field > span {
@@ -5673,18 +5670,7 @@ button.danger:hover {
   line-height: 1.1;
 }
 
-.soomgo-slot-field-rating > span,
-.soomgo-slot-field-rating .soomgo-rating-input {
-  text-align: center;
-}
-
-.soomgo-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.soomgo-slot-name-row > input,
+.soomgo-slot-field > input,
 .soomgo-slot-grid textarea,
 .soomgo-prompt-textarea,
 .soomgo-side-memo,
@@ -5697,17 +5683,30 @@ button.danger:hover {
   background: #fff;
   color: #111827;
   line-height: 1.25;
+  box-sizing: border-box;
 }
 
-.soomgo-slot-name-row > input {
+.soomgo-slot-field > input {
   min-height: 36px;
 }
 
-
-.soomgo-slot-name-row > input.soomgo-rating-input {
-  flex: 0 0 88px;
-  max-width: 88px;
+.soomgo-slot-field-rating > span,
+.soomgo-slot-field-rating .soomgo-rating-input {
   text-align: center;
+}
+
+.soomgo-slot-field-rating .soomgo-rating-input {
+  min-width: 0;
+}
+
+.soomgo-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.soomgo-slot-textarea-field > span {
+  margin-bottom: 2px;
 }
 
 .soomgo-slot-grid textarea,
@@ -5801,7 +5800,7 @@ button.danger:hover {
   }
 
   .soomgo-slot-name-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 96px;
   }
 
   .soomgo-review-action-row {
