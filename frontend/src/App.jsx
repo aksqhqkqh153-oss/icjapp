@@ -20737,7 +20737,12 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
 function SoomgoReviewFinderPage({ user }) {
   const canManageHiddenSettings = Number(user?.grade || 6) <= 2
   const createEmptySoomgoSlots = () => Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', rating: '', review: '', reply: '', situation: '', specifics: '' }))
-  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: createEmptySoomgoSlots(), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
+  const normalizeSoomgoMemoState = (memos = {}) => ({
+    soomgo: String(memos?.soomgo || ''),
+    today: String(memos?.today || ''),
+    site: String(memos?.site || ''),
+  })
+  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: normalizeSoomgoMemoState(), results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: createEmptySoomgoSlots(), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -20747,6 +20752,9 @@ function SoomgoReviewFinderPage({ user }) {
   const [imageLibraryLoading, setImageLibraryLoading] = useState(false)
   const errorDialogCardRef = useRef(null)
   const errorDialogDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 })
+  const memoAutosaveTimerRef = useRef(null)
+  const memoLoadedRef = useRef(false)
+  const memoLastSavedRef = useRef(JSON.stringify(normalizeSoomgoMemoState()))
 
   function openCopyableErrorDialog(title, error, fallbackMessage) {
     const message = String(error?.message || fallbackMessage || '오류가 발생했습니다.').trim()
@@ -20881,9 +20889,13 @@ function SoomgoReviewFinderPage({ user }) {
 
   async function loadState() {
     const data = await api('/api/soomgo-review/state')
+    const nextMemos = normalizeSoomgoMemoState(data?.memos)
+    memoLastSavedRef.current = JSON.stringify(nextMemos)
+    memoLoadedRef.current = true
     setState(prev => ({
       ...prev,
       ...data,
+      memos: nextMemos,
       slots: createEmptySoomgoSlots().map((slot, index) => ({
         ...slot,
         masked_name: data?.slots?.[index]?.masked_name || '',
@@ -20937,6 +20949,44 @@ function SoomgoReviewFinderPage({ user }) {
     })
     return () => { ignore = true }
   }, [canManageHiddenSettings])
+
+  useEffect(() => {
+    if (!memoLoadedRef.current) return undefined
+    const normalized = normalizeSoomgoMemoState(state.memos)
+    const serialized = JSON.stringify(normalized)
+    if (serialized === memoLastSavedRef.current) return undefined
+    if (memoAutosaveTimerRef.current) {
+      window.clearTimeout(memoAutosaveTimerRef.current)
+    }
+    memoAutosaveTimerRef.current = window.setTimeout(async () => {
+      try {
+        await api('/api/soomgo-review/state', {
+          method: 'POST',
+          body: JSON.stringify({ memos: normalized }),
+        })
+        memoLastSavedRef.current = serialized
+      } catch (_error) {}
+    }, 500)
+    return () => {
+      if (memoAutosaveTimerRef.current) {
+        window.clearTimeout(memoAutosaveTimerRef.current)
+      }
+    }
+  }, [state.memos])
+
+  function updateMemoField(key, value) {
+    setState(prev => ({
+      ...prev,
+      memos: {
+        ...prev.memos,
+        [key]: value,
+      },
+    }))
+  }
+
+  function clearMemoField(key) {
+    updateMemoField(key, '')
+  }
 
   async function persistState(nextState = state) {
     setSaving(true)
@@ -21042,9 +21092,27 @@ function SoomgoReviewFinderPage({ user }) {
       </section>
 
       <section className="soomgo-memo-grid">
-        <section className="card"><h3>상시 메모장 1. 숨고</h3><textarea className="soomgo-side-memo" value={state.memos.soomgo || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, soomgo: e.target.value } }))} /></section>
-        <section className="card"><h3>상시 메모장 2. 오늘</h3><textarea className="soomgo-side-memo" value={state.memos.today || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, today: e.target.value } }))} /></section>
-        <section className="card"><h3>상시 메모장 3. 공홈</h3><textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => setState(prev => ({ ...prev, memos: { ...prev.memos, site: e.target.value } }))} /></section>
+        <section className="card soomgo-memo-card">
+          <div className="between soomgo-memo-card-head">
+            <h3>상시 메모장 1. 숨고</h3>
+            <button type="button" className="ghost small" onClick={() => clearMemoField('soomgo')}>초기화</button>
+          </div>
+          <textarea className="soomgo-side-memo" value={state.memos.soomgo || ''} onChange={e => updateMemoField('soomgo', e.target.value)} />
+        </section>
+        <section className="card soomgo-memo-card">
+          <div className="between soomgo-memo-card-head">
+            <h3>상시 메모장 2. 오늘</h3>
+            <button type="button" className="ghost small" onClick={() => clearMemoField('today')}>초기화</button>
+          </div>
+          <textarea className="soomgo-side-memo" value={state.memos.today || ''} onChange={e => updateMemoField('today', e.target.value)} />
+        </section>
+        <section className="card soomgo-memo-card">
+          <div className="between soomgo-memo-card-head">
+            <h3>상시 메모장 3. 공홈</h3>
+            <button type="button" className="ghost small" onClick={() => clearMemoField('site')}>초기화</button>
+          </div>
+          <textarea className="soomgo-side-memo" value={state.memos.site || ''} onChange={e => updateMemoField('site', e.target.value)} />
+        </section>
       </section>
 
       <section className="soomgo-support-grid">

@@ -227,6 +227,9 @@ def _strip_rating_prefix(text: Any) -> str:
     value = _normalize_review_text(text)
     if not value:
         return ''
+    value = _sanitize_review_body(value)
+    if not value:
+        return ''
     patterns = [
         r'^[가-힣A-Za-z\s]+별점\s*[0-5](?:\.\d)?\s*',
         r'^[가-힣A-Za-z\s]+\s[0-5](?:\.\d)?\s*',
@@ -245,6 +248,45 @@ def _extract_rating_from_candidates(values: list[str]) -> str:
         if rating:
             return rating
     return ''
+
+
+def _is_service_rating_header_line(text: Any) -> bool:
+    value = _normalize_review_text(text)
+    if not value:
+        return False
+    compact = re.sub(r'\s+', ' ', value).strip()
+    rating = _extract_rating_value(compact)
+    if not rating:
+        return False
+    if len(compact) > 40:
+        return False
+    service_keywords = ['이사', '원룸', '소형', '가정', '국내', '사무실', '포장', '운반', '청소', '설치', '수리', '서비스']
+    if not any(keyword in compact for keyword in service_keywords):
+        return False
+    if re.search(r'(?:별점\s*)?[0-5](?:\.\d)?$', compact):
+        return True
+    return False
+
+
+def _sanitize_review_body(text: Any) -> str:
+    value = str(text or '')
+    if not value.strip():
+        return ''
+    lines = [part.strip() for part in re.split(r'[\r\n]+', value) if str(part or '').strip()]
+    cleaned_lines: list[str] = []
+    for line in lines:
+        normalized = _normalize_review_text(line)
+        if not normalized:
+            continue
+        if _is_service_rating_header_line(normalized):
+            continue
+        cleaned_lines.append(normalized)
+    cleaned = '\n'.join(cleaned_lines).strip() if cleaned_lines else _normalize_review_text(value)
+    if cleaned and _is_service_rating_header_line(cleaned):
+        cleaned = ''
+    cleaned = re.sub(r'^(?:[가-힣A-Za-z0-9/&·ㆍ,()\-]+\s+)?(?:서비스|이사)\s*(?:별점\s*)?[0-5](?:\.\d)?\s*', '', cleaned).strip()
+    cleaned = re.sub(r'^(?:[가-힣A-Za-z0-9/&·ㆍ,()\-/]+)\s+[0-5](?:\.\d)?\s*', '', cleaned).strip()
+    return cleaned
 
 
 def _rank_review_section_rows(section_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -359,7 +401,7 @@ def _extract_dom_review_content(item: Any) -> str:
         "[class*='review-content']",
     ]
     value = _extract_item_text_by_selectors(item, selectors, min_length=2, timeout=2500)
-    return _strip_rating_prefix(value)
+    return _sanitize_review_body(_strip_rating_prefix(value))
 
 
 def _extract_dom_rating_text(item: Any) -> str:
@@ -772,7 +814,8 @@ def _pick_review_content_from_lines(lines: list[str], author_name: str = '', rea
         if len(value) < 8:
             continue
         candidates.append(value)
-    return max(candidates, key=len) if candidates else ''
+    candidate = max(candidates, key=len) if candidates else ''
+    return _sanitize_review_body(candidate)
 
 
 def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
@@ -1485,7 +1528,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 content_text = _normalize_review_text(content_text)
                 if not rating_text:
                     rating_text = _extract_rating_value(content_text)
-                content_text = _strip_rating_prefix(content_text)
+                content_text = _sanitize_review_body(_strip_rating_prefix(content_text))
                 candidate_lines = []
                 if isinstance(preloaded, dict):
                     candidate_lines = (
@@ -1508,7 +1551,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                     )
                     masked_name = masked_name or fallback_masked
                     real_name = real_name or fallback_real
-                    content_text = _strip_rating_prefix(_normalize_review_text(fallback_review or content_text))
+                    content_text = _sanitize_review_body(_strip_rating_prefix(_normalize_review_text(fallback_review or content_text)))
                 if not content_text or content_text == '(내용 없음)':
                     continue
                 if not real_name:
