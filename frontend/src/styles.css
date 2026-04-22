@@ -3632,9 +3632,19 @@ label { font-size: 14px; color: #4f6f8c; }
   .schedule-cell.detail-cell .calendar-date-select,
   .schedule-cell.detail-cell .calendar-top-actions,
   .schedule-cell.detail-cell .calendar-entry-band,
-  .schedule-cell.detail-cell .calendar-entry-label,
-  .schedule-cell.detail-cell .calendar-lanes-stack {
+  .schedule-cell.detail-cell .calendar-entry-label {
     align-self: center;
+  }
+
+  .schedule-cell.detail-cell .calendar-lanes-stack {
+    align-self: stretch;
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
+  .schedule-cell.detail-cell .calendar-plus-row {
+    margin-top: auto;
+    padding-top: 6px;
   }
 
   .schedule-cell.detail-cell .calendar-day-summary-button.redesigned {
