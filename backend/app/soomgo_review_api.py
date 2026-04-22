@@ -1495,29 +1495,25 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             except Exception:
                 pass
 
-    slots = state.get('slots', [])
-    for idx in range(SLOT_COUNT):
-        if idx >= len(slots):
-            slots.append({'index': idx, 'masked_name': '', 'real_name': '', 'rating': '', 'review': '', 'reply': '', 'situation': '', 'specifics': ''})
-        slot = slots[idx]
-        if idx < len(found):
-            slot['masked_name'] = found[idx].get('masked_name', '')
-            slot['real_name'] = found[idx].get('real_name', '')
-            slot['rating'] = found[idx].get('rating', '')
-            slot['review'] = found[idx].get('review', '')
-        else:
-            slot['masked_name'] = ''
-            slot['real_name'] = ''
-            slot['rating'] = ''
-            slot['review'] = ''
-            slot['reply'] = ''
-            slot['situation'] = ''
-            slot['specifics'] = ''
-            continue
-        slot['rating'] = slot.get('rating', '')
-        slot['reply'] = slot.get('reply', '')
-        slot['situation'] = slot.get('situation', '')
-        slot['specifics'] = slot.get('specifics', '')
+    slots = [
+        {
+            'index': idx,
+            'masked_name': '',
+            'real_name': '',
+            'rating': '',
+            'review': '',
+            'reply': '',
+            'situation': '',
+            'specifics': '',
+        }
+        for idx in range(SLOT_COUNT)
+    ]
+    for idx in range(min(len(found), SLOT_COUNT)):
+        slots[idx]['masked_name'] = found[idx].get('masked_name', '')
+        slots[idx]['real_name'] = found[idx].get('real_name', '')
+        slots[idx]['rating'] = found[idx].get('rating', '')
+        slots[idx]['review'] = found[idx].get('review', '')
+    state['slots'] = slots
 
     message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
     if not found:
