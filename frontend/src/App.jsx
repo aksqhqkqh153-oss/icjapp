@@ -20605,6 +20605,7 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
       <div className="soomgo-slot-name-row">
         <input value={slot.masked_name || ''} placeholder="가명" onChange={e => onChange(index, 'masked_name', e.target.value)} />
         <input value={slot.real_name || ''} placeholder="실명" onChange={e => onChange(index, 'real_name', e.target.value)} />
+        <input className="soomgo-rating-input" value={slot.rating || ''} placeholder="별점" onChange={e => onChange(index, 'rating', e.target.value)} />
       </div>
       <div className="soomgo-slot-grid">
         <textarea value={slot.review || ''} placeholder="리뷰내용" onChange={e => onChange(index, 'review', e.target.value)} />
@@ -20618,7 +20619,7 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
 
 function SoomgoReviewFinderPage({ user }) {
   const canManageHiddenSettings = Number(user?.grade || 6) <= 2
-  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
+  const [state, setState] = useState({ settings: { prompt: '', outer_html: '', anonymous_name: '', review_input: '', soomgo_email: '', soomgo_password: '', auto_scan_on_open: true }, memos: { soomgo: '', today: '', site: '' }, results: { candidate_names: '', candidate_scores: '', ai_result: '', customer_review: '', field_status: '', special_note: '' }, slots: Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', rating: '', review: '', reply: '', situation: '', specifics: '' })), last_scan: { ok: false, message: '', updated_at: '', found_count: 0 } })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -20767,6 +20768,7 @@ function SoomgoReviewFinderPage({ user }) {
         index,
         masked_name: data?.slots?.[index]?.masked_name || '',
         real_name: data?.slots?.[index]?.real_name || '',
+        rating: data?.slots?.[index]?.rating || '',
         review: data?.slots?.[index]?.review || '',
         reply: data?.slots?.[index]?.reply || '',
         situation: data?.slots?.[index]?.situation || '',

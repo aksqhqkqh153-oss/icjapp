@@ -5679,6 +5679,13 @@ button.danger:hover {
   min-height: 36px;
 }
 
+
+.soomgo-slot-name-row > input.soomgo-rating-input {
+  flex: 0 0 88px;
+  max-width: 88px;
+  text-align: center;
+}
+
 .soomgo-slot-grid textarea,
 .soomgo-prompt-textarea,
 .soomgo-side-memo,

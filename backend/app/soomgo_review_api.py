@@ -105,6 +105,7 @@ def _extract_section_rows(preloaded: Optional[dict[str, Any]] = None) -> list[di
             'lines': _normalize_unique_text_list(row.get('lines') or []),
             'author_rows': _normalize_unique_text_list(row.get('authorRows') or []),
             'review_rows': _normalize_unique_text_list(row.get('reviewRows') or []),
+            'rating_rows': _normalize_unique_text_list(row.get('ratingRows') or []),
             'reply_rows': _normalize_unique_text_list(row.get('replyRows') or []),
             'has_nested_article': bool(row.get('hasNestedArticle')),
         })
@@ -127,6 +128,65 @@ def _extract_review_content_rows(preloaded: Optional[dict[str, Any]] = None) -> 
             seen.add(value)
             merged.append(value)
     return merged
+
+
+def _extract_rating_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
+    rows = []
+    if isinstance(preloaded, dict):
+        rows = preloaded.get('ratingRows') or preloaded.get('ratingCandidates') or []
+    normalized = _normalize_unique_text_list(rows)
+    if normalized:
+        return normalized
+    merged: list[str] = []
+    seen: set[str] = set()
+    for row in _extract_section_rows(preloaded):
+        for value in row.get('rating_rows') or []:
+            if value in seen:
+                continue
+            seen.add(value)
+            merged.append(value)
+    return merged
+
+
+def _extract_rating_value(text: Any) -> str:
+    value = _normalize_review_text(text)
+    if not value:
+        return ''
+    match = re.search(r'(?<!\d)([0-5](?:\.\d)?)(?!\d)', value)
+    if not match:
+        return ''
+    if '별점' in value:
+        return match.group(1)
+    if value == match.group(1):
+        return match.group(1)
+    compact = re.sub(r'\s+', '', value)
+    if compact.endswith(match.group(1)) and len(compact) <= 20:
+        return match.group(1)
+    return ''
+
+
+def _strip_rating_prefix(text: Any) -> str:
+    value = _normalize_review_text(text)
+    if not value:
+        return ''
+    patterns = [
+        r'^[가-힣A-Za-z\s]+별점\s*[0-5](?:\.\d)?\s*',
+        r'^[가-힣A-Za-z\s]+\s[0-5](?:\.\d)?\s*',
+        r'^별점\s*[0-5](?:\.\d)?\s*',
+    ]
+    for pattern in patterns:
+        stripped = re.sub(pattern, '', value).strip()
+        if stripped != value:
+            return stripped
+    return value
+
+
+def _extract_rating_from_candidates(values: list[str]) -> str:
+    for value in values:
+        rating = _extract_rating_value(value)
+        if rating:
+            return rating
+    return ''
 
 
 def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]:
@@ -182,6 +242,7 @@ def _default_state() -> dict[str, Any]:
             'index': index,
             'masked_name': '',
             'real_name': '',
+            'rating': '',
             'review': '',
             'reply': '',
             'situation': '',
@@ -239,6 +300,7 @@ def _normalize_state(state: Any) -> dict[str, Any]:
                 'index': index,
                 'masked_name': str(src.get('masked_name', '')),
                 'real_name': str(src.get('real_name', '')),
+                'rating': str(src.get('rating', '')),
                 'review': str(src.get('review', '')),
                 'reply': str(src.get('reply', '')),
                 'situation': str(src.get('situation', '')),
@@ -464,6 +526,12 @@ def _pick_review_content_from_lines(lines: list[str], author_name: str = '', rea
             continue
         if _is_likely_name_line(value) and len(value) <= 10:
             continue
+        if _extract_rating_value(value):
+            stripped = _strip_rating_prefix(value)
+            if stripped != value:
+                value = stripped
+            else:
+                continue
         if re.fullmatch(r'[★☆\d\s.,!~^]+', value):
             continue
         if len(value) < 8:
@@ -484,8 +552,7 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       return true;
     });
   };
-  const splitLines = (value) => uniq(String(value || '').split(/[
-]+/g));
+  const splitLines = (value) => uniq(String(value || '').split(/[\n]+/g));
   const queryTexts = (root, selector) => {
     try {
       return uniq(Array.from(root.querySelectorAll(selector)).map((el) => el.innerText || el.textContent || ''));
@@ -493,38 +560,75 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       return [];
     }
   };
-  const items = Array.from(document.querySelectorAll('.review-list .profile-review-item'));
-  return items.map((item, index) => {
-    const sections = Array.from(item.querySelectorAll(':scope > article > section'));
+  const hasArticleSections = (node) => {
+    if (!node || !(node instanceof Element)) return false;
+    return !!node.querySelector(':scope > article > section, article > section');
+  };
+  const reviewList = document.querySelector('.review-list');
+  if (!reviewList) return [];
+
+  const candidates = [];
+  const seen = new Set();
+  const pushCandidate = (node) => {
+    if (!node || !(node instanceof Element)) return;
+    const key = node.id || node.getAttribute('data-review-id') || node.outerHTML.slice(0, 120);
+    if (!key || seen.has(key) || !hasArticleSections(node)) return;
+    seen.add(key);
+    candidates.push(node);
+  };
+
+  Array.from(reviewList.children).forEach(pushCandidate);
+  Array.from(reviewList.querySelectorAll('.profile-review-item')).forEach(pushCandidate);
+  Array.from(reviewList.querySelectorAll(':scope > [id]')).forEach(pushCandidate);
+  Array.from(reviewList.querySelectorAll('[id]')).forEach((node) => {
+    if (node.closest('.review-list') === reviewList) pushCandidate(node);
+  });
+
+  return candidates.map((item, index) => {
+    const sections = Array.from(item.querySelectorAll(':scope > article > section, article > section'));
     const sectionRows = sections.map((section, sectionIndex) => {
       const sectionTextRaw = section.innerText || section.textContent || '';
       const nestedArticle = section.querySelector('article');
+      const sectionReviewRows = uniq([
+        ...queryTexts(section, '.prisma-typography.body14\\:regular.primary.review-content'),
+        ...queryTexts(section, '.review-content'),
+        ...queryTexts(section, '[class*="review-content"]'),
+        ...queryTexts(section, 'div > div > span'),
+        ...queryTexts(section, 'span'),
+      ]).filter((value) => value.length >= 2);
+      const sectionAuthorRows = uniq([
+        ...queryTexts(section, '.prisma-typography.body14\\:semibold.primary'),
+        ...queryTexts(section, '.prisma-typography.body13\\:semibold.primary'),
+        ...queryTexts(section, '[class*="author"]'),
+        ...queryTexts(section, '[class*="reviewer"]'),
+        ...queryTexts(section, 'div > span'),
+        ...queryTexts(section, 'span'),
+      ]).filter((value) => value.length <= 20);
+      const sectionRatingRows = uniq([
+        ...queryTexts(section, '.prisma-typography.body16\\:semibold.primary'),
+        ...queryTexts(section, '[class*="body16:semibold"]'),
+        ...queryTexts(section, 'div > div > div > div > span'),
+      ]).filter((value) => /(^|\\s)[0-5](?:\\.\\d)?($|\\s)/.test(value) || value.includes('별점'));
+      const nestedTexts = nestedArticle ? uniq([
+        ...queryTexts(nestedArticle, '.prisma-typography.body14\\:regular.primary'),
+        ...queryTexts(nestedArticle, 'span'),
+        ...queryTexts(nestedArticle, 'p'),
+        ...queryTexts(nestedArticle, 'div'),
+      ]) : [];
+      const replyRows = nestedTexts.filter((value) => value.length >= 2);
       return {
         index: sectionIndex,
         text: norm(sectionTextRaw),
         rawText: String(sectionTextRaw || ''),
         lines: splitLines(sectionTextRaw),
-        authorRows: uniq([
-          ...queryTexts(section, '.prisma-typography.body14\\:semibold.primary'),
-          ...queryTexts(section, '.prisma-typography.body13\\:semibold.primary'),
-          ...queryTexts(section, '[class*="author"]'),
-          ...queryTexts(section, '[class*="reviewer"]'),
-        ]),
-        reviewRows: uniq([
-          ...queryTexts(section, '.prisma-typography.body14\\:regular.primary.review-content'),
-          ...queryTexts(section, '.review-content'),
-          ...queryTexts(section, '[class*="review-content"]'),
-          ...queryTexts(section, 'span.review-content'),
-        ]),
-        replyRows: nestedArticle ? uniq([
-          ...queryTexts(nestedArticle, '.prisma-typography.body14\\:regular.primary'),
-          ...queryTexts(nestedArticle, 'span'),
-          ...queryTexts(nestedArticle, 'p'),
-          ...queryTexts(nestedArticle, 'div'),
-        ]) : [],
+        authorRows: sectionAuthorRows,
+        reviewRows: sectionReviewRows,
+        ratingRows: sectionRatingRows,
+        replyRows,
         hasNestedArticle: !!nestedArticle,
       };
     });
+
     const authorCandidates = uniq([
       ...sectionRows.flatMap((section) => section.authorRows || []),
       ...queryTexts(item, '.prisma-typography.body14\\:semibold.primary'),
@@ -532,21 +636,42 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       ...queryTexts(item, '[class*="author"]'),
       ...queryTexts(item, '[class*="reviewer"]'),
     ]);
+
+    const likelyReviewSections = sectionRows.filter((section, idx) => {
+      if (section.hasNestedArticle) return false;
+      if (idx === 0 && section.authorRows.length) return false;
+      if ((section.reviewRows || []).length > 0) return true;
+      return (section.lines || []).some((line) => line.length >= 8);
+    });
+
     const reviewContentRows = uniq([
-      ...sectionRows.flatMap((section) => section.reviewRows || []),
+      ...likelyReviewSections.flatMap((section) => section.reviewRows || []),
+      ...sectionRows.flatMap((section, idx) => {
+        if (section.hasNestedArticle) return [];
+        if (idx === 0 && section.authorRows.length) return [];
+        return (section.lines || []).filter((line) => line.length >= 8);
+      }),
       ...queryTexts(item, '.prisma-typography.body14\\:regular.primary.review-content'),
       ...queryTexts(item, '.review-content'),
       ...queryTexts(item, '[class*="review-content"]'),
+    ]);
+
+    const ratingCandidates = uniq([
+      ...sectionRows.flatMap((section) => section.ratingRows || []),
+      ...queryTexts(item, '.prisma-typography.body16\\:semibold.primary'),
+      ...queryTexts(item, '[class*="body16:semibold"]'),
     ]);
     const replyRows = uniq(sectionRows.flatMap((section) => section.replyRows || []));
     const regularPrimaryRows = uniq(queryTexts(item, '.prisma-typography.body14\\:regular.primary'));
     const textRows = uniq(sectionRows.flatMap((section) => section.lines || []));
     return {
       index,
+      rootId: item.id || '',
       itemText: norm(item.innerText || item.textContent || ''),
       authorCandidates,
       reviewContentRows,
       contentCandidates: reviewContentRows.slice(),
+      ratingCandidates,
       replyRows,
       regularPrimaryRows,
       textRows,
@@ -671,7 +796,99 @@ def _guess_masked_name_from_item_text(item_text: str, review_text: str, real_nam
     return '익명'
 
 
-def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], preloaded: Optional[dict[str, Any]] = None) -> tuple[str, str, str]:
+def _extract_review_item_fields_from_preloaded(preloaded: Optional[dict[str, Any]], reviews_data: list[dict[str, Any]]) -> tuple[str, str, str, str]:
+    preloaded = preloaded or {}
+    section_rows = _extract_section_rows(preloaded)
+    author_candidates = [
+        _normalize_review_text(value)
+        for value in (preloaded.get('authorCandidates') or [])
+        if _normalize_review_text(value)
+    ]
+    review_content_rows = _extract_review_content_rows(preloaded)
+    rating_candidates = _extract_rating_rows(preloaded) + [
+        _normalize_review_text(value)
+        for value in (preloaded.get('ratingCandidates') or [])
+        if _normalize_review_text(value)
+    ]
+    content_candidates = [
+        _normalize_review_text(value)
+        for value in (preloaded.get('contentCandidates') or [])
+        if _normalize_review_text(value)
+    ]
+    item_text = _normalize_review_text(preloaded.get('itemText', ''))
+
+    author_name = ''
+    if section_rows:
+        for candidate in section_rows[0].get('author_rows') or []:
+            if candidate and _is_likely_name_line(candidate):
+                author_name = candidate
+                break
+    if not author_name:
+        for candidate in author_candidates:
+            if candidate and _is_likely_name_line(candidate):
+                author_name = candidate
+                break
+
+    rating_text = _extract_rating_from_candidates(rating_candidates)
+    content_text = review_content_rows[0] if review_content_rows else ''
+    candidate_lines: list[str] = []
+    for row in section_rows:
+        if row.get('reply_rows'):
+            continue
+        if row.get('index', 0) == 0 and row.get('author_rows'):
+            continue
+        for value in (row.get('review_rows') or []) + (row.get('lines') or []):
+            normalized = _normalize_review_text(value)
+            if normalized and normalized not in candidate_lines:
+                candidate_lines.append(normalized)
+    for value in _build_review_line_candidates(item_text):
+        if value and value not in candidate_lines:
+            candidate_lines.append(value)
+
+    if not content_text and section_rows:
+        preferred_sections = [row for row in section_rows if not row.get('reply_rows') and not (row.get('index', 0) == 0 and row.get('author_rows'))]
+        preferred_sections.sort(key=lambda row: (0 if row.get('review_rows') else 1, row.get('index', 99)))
+        for row in preferred_sections:
+            candidate = _pick_review_content_from_lines((row.get('review_rows') or []) + (row.get('lines') or []), author_name=author_name)
+            if candidate:
+                content_text = candidate
+                break
+
+    if not content_text and content_candidates:
+        for candidate in content_candidates:
+            if candidate and len(candidate) >= 8:
+                content_text = candidate
+                break
+
+    if not content_text and candidate_lines:
+        content_text = _pick_review_content_from_lines(candidate_lines, author_name=author_name)
+
+    content_text = _strip_rating_prefix(content_text)
+    real_name = _find_real_name_by_content(reviews_data, content_text)
+    if not author_name:
+        author_name = _guess_masked_name_from_item_text(item_text, content_text, real_name)
+    if (not author_name or author_name == '익명') and real_name:
+        author_name = _mask_name(real_name)
+
+    resolved_masked, resolved_real, resolved_review = _resolve_review_record_from_outer_html(
+        reviews_data,
+        author_name,
+        item_text,
+        review_content_rows + content_candidates + candidate_lines,
+    )
+    if resolved_review:
+        content_text = resolved_review or content_text
+    if resolved_real and not real_name:
+        real_name = resolved_real
+    if resolved_masked and (not author_name or author_name == '익명'):
+        author_name = resolved_masked
+    elif real_name and (not author_name or author_name == '익명'):
+        author_name = _mask_name(real_name)
+
+    return author_name or '익명', real_name, rating_text, (content_text or '(내용 없음)')
+
+
+def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], preloaded: Optional[dict[str, Any]] = None) -> tuple[str, str, str, str]:
     try:
         expand_locator = item.locator("xpath=.//*[contains(normalize-space(text()), '더보기')]").first
         if expand_locator.count() > 0:
@@ -690,12 +907,18 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         if _normalize_review_text(value)
     ]
     review_content_rows = _extract_review_content_rows(preloaded)
+    rating_candidates = _extract_rating_rows(preloaded) + [
+        _normalize_review_text(value)
+        for value in (preloaded.get('ratingCandidates') or [])
+        if _normalize_review_text(value)
+    ]
     content_candidates = [
         _normalize_review_text(value)
         for value in (preloaded.get('contentCandidates') or [])
         if _normalize_review_text(value)
     ]
 
+    rating_text = _extract_rating_from_candidates(rating_candidates)
     content_text = review_content_rows[0] if review_content_rows else ''
     content_selectors = [
         ".review-content",
@@ -711,6 +934,22 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
             value = _normalize_review_text(locator.inner_text(timeout=3000))
             if value:
                 content_text = value
+                break
+        except Exception:
+            continue
+
+    rating_selectors = [
+        "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
+        "[class*='body16:semibold']",
+    ]
+    for selector in rating_selectors:
+        try:
+            locator = item.locator(selector).first
+            if locator.count() == 0:
+                continue
+            rating_candidate = _extract_rating_value(locator.inner_text(timeout=2000))
+            if rating_candidate:
+                rating_text = rating_candidate
                 break
         except Exception:
             continue
@@ -786,6 +1025,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
     if not content_text and line_candidates:
         content_text = _pick_review_content_from_lines(line_candidates, author_name=author_name)
 
+    content_text = _strip_rating_prefix(content_text)
     real_name = _find_real_name_by_content(reviews_data, content_text)
 
     if not author_name:
@@ -817,7 +1057,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
     elif real_name and (not author_name or author_name == '익명'):
         author_name = _mask_name(real_name)
 
-    return author_name or '익명', real_name, content_text or '(내용 없음)'
+    return author_name or '익명', real_name, rating_text, (content_text or '(내용 없음)')
 
 
 def _manual_match(outer_html: str, anonymous_name: str, review_input: str) -> dict[str, str]:
@@ -1063,19 +1303,29 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                 break
 
         preloaded_items = _collect_unanswered_review_items(page)
-        review_items = page.locator('.review-list .profile-review-item')
-        item_count = review_items.count()
-        for index in range(item_count):
+        review_items = page.locator('.review-list .profile-review-item, .review-list > [id], .review-list [id]')
+        try:
+            item_count = review_items.count()
+        except Exception:
+            item_count = 0
+        total_items = max(item_count, len(preloaded_items))
+        for index in range(total_items):
             if len(found) >= SLOT_COUNT:
                 break
-            item = review_items.nth(index)
+            item = review_items.nth(index) if index < item_count else None
             preloaded = preloaded_items[index] if index < len(preloaded_items) and isinstance(preloaded_items[index], dict) else {}
             try:
                 if _has_meaningful_reply(preloaded=preloaded, item=item):
                     continue
 
-                masked_name, real_name, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
+                if item is not None:
+                    masked_name, real_name, rating_text, content_text = _extract_review_item_fields(item, reviews_data, preloaded=preloaded)
+                else:
+                    masked_name, real_name, rating_text, content_text = _extract_review_item_fields_from_preloaded(preloaded, reviews_data)
                 content_text = _normalize_review_text(content_text)
+                if not rating_text:
+                    rating_text = _extract_rating_value(content_text)
+                content_text = _strip_rating_prefix(content_text)
                 candidate_lines = []
                 if isinstance(preloaded, dict):
                     candidate_lines = (
@@ -1098,7 +1348,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                     )
                     masked_name = masked_name or fallback_masked
                     real_name = real_name or fallback_real
-                    content_text = _normalize_review_text(fallback_review or content_text)
+                    content_text = _strip_rating_prefix(_normalize_review_text(fallback_review or content_text))
                 if not content_text or content_text == '(내용 없음)':
                     continue
                 if not real_name:
@@ -1107,7 +1357,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
                     masked_name = _mask_name(real_name)
                 if not masked_name:
                     masked_name = _guess_masked_name_from_item_text(str(preloaded.get('itemText', '')) if isinstance(preloaded, dict) else '', content_text, real_name)
-                found.append({'masked_name': masked_name, 'real_name': real_name, 'review': content_text})
+                found.append({'masked_name': masked_name, 'real_name': real_name, 'rating': rating_text, 'review': content_text})
             except Exception:
                 continue
     finally:
@@ -1135,26 +1385,29 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
     slots = state.get('slots', [])
     for idx in range(SLOT_COUNT):
         if idx >= len(slots):
-            slots.append({'index': idx, 'masked_name': '', 'real_name': '', 'review': '', 'reply': '', 'situation': '', 'specifics': ''})
+            slots.append({'index': idx, 'masked_name': '', 'real_name': '', 'rating': '', 'review': '', 'reply': '', 'situation': '', 'specifics': ''})
         slot = slots[idx]
         if idx < len(found):
             slot['masked_name'] = found[idx].get('masked_name', '')
             slot['real_name'] = found[idx].get('real_name', '')
+            slot['rating'] = found[idx].get('rating', '')
             slot['review'] = found[idx].get('review', '')
         else:
             slot['masked_name'] = ''
             slot['real_name'] = ''
+            slot['rating'] = ''
             slot['review'] = ''
             slot['reply'] = ''
             slot['situation'] = ''
             slot['specifics'] = ''
             continue
+        slot['rating'] = slot.get('rating', '')
         slot['reply'] = slot.get('reply', '')
         slot['situation'] = slot.get('situation', '')
         slot['specifics'] = slot.get('specifics', '')
 
     message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
-    if not found and preloaded_items:
+    if not found:
         try:
             (SCREENSHOT_DIR / 'soomgo_unanswered_items_debug.json').write_text(
                 json.dumps(preloaded_items, ensure_ascii=False, indent=2),
@@ -1162,9 +1415,10 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             )
         except Exception:
             pass
-        message = '미답변 리뷰 DOM 추출이 불안정해 outer HTML 대조를 시도했지만 슬롯 입력까지 이어지지 못했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요. debug json 저장됨'
-    elif not found:
-        message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. 숨고 페이지 구조 변경 여부를 확인해 주세요.'
+        if preloaded_items:
+            message = '미답변 리뷰 카드까지는 감지되었지만 슬롯 입력용 작성자/리뷰내용 확정에 실패했습니다. review-list 하위 카드 class/id, article>section 순서, review-content 존재 여부를 확인해 주세요. debug json 저장됨'
+        else:
+            message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. review-list 하위 카드 class/id, article>section 구조, review-content 요소 존재 여부를 확인해 주세요.'
     state['last_scan'] = {
         'ok': True,
         'message': message,
@@ -1274,6 +1528,7 @@ def save_state(payload: SoomgoReviewStateIn, authorization: Optional[str] = Head
                 'index': index,
                 'masked_name': str(src.get('masked_name', '')),
                 'real_name': str(src.get('real_name', '')),
+                'rating': str(src.get('rating', '')),
                 'review': str(src.get('review', '')),
                 'reply': str(src.get('reply', '')),
                 'situation': str(src.get('situation', '')),
