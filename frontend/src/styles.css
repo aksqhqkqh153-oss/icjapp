@@ -33712,3 +33712,81 @@ button.danger {
     border-right: 0 !important;
   }
 }
+
+
+/* 2026-04-23 schedule detail comment order, image strip, centered department, summary bar split */
+.schedule-detail-summary-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 8px;
+  align-items: stretch;
+}
+.schedule-detail-title-line {
+  width: 100%;
+  min-width: 0;
+}
+.schedule-detail-copy-button {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  white-space: nowrap;
+}
+.schedule-detail-chip-department {
+  justify-content: center !important;
+  text-align: center !important;
+}
+.schedule-comment-image-grid {
+  width: 100%;
+}
+.schedule-comment-image-grid.count-1 {
+  display: grid;
+  grid-template-columns: 200px;
+}
+.schedule-comment-image-grid.count-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 100px);
+}
+.schedule-comment-image-grid.count-many {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100px;
+  grid-template-columns: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  justify-content: start;
+  align-items: start;
+}
+.schedule-comment-image-grid.count-1 .schedule-comment-image-tile {
+  width: 200px;
+  height: 200px;
+  min-height: 200px;
+  flex: 0 0 200px;
+}
+.schedule-comment-image-grid.count-2 .schedule-comment-image-tile,
+.schedule-comment-image-grid.count-many .schedule-comment-image-tile {
+  width: 100px;
+  height: 100px;
+  min-height: 100px;
+  flex: 0 0 100px;
+}
+.schedule-comment-image-grid.count-many .schedule-comment-image-tile {
+  border-radius: 10px;
+}
+.schedule-comment-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@media (max-width: 768px) {
+  .schedule-detail-summary-bar {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 6px;
+  }
+  .schedule-detail-copy-button {
+    font-size: 12px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

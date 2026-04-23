@@ -10593,8 +10593,8 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
         (Array.isArray(commentData) ? commentData : []).slice().sort((a, b) => {
           const aTime = new Date(a?.created_at || 0).getTime() || 0
           const bTime = new Date(b?.created_at || 0).getTime() || 0
-          if (bTime !== aTime) return bTime - aTime
-          return Number(b?.id || 0) - Number(a?.id || 0)
+          if (aTime !== bTime) return aTime - bTime
+          return Number(a?.id || 0) - Number(b?.id || 0)
         })
       )
       setEditLogs(Array.isArray(logData) ? logData : [])
@@ -10773,15 +10773,13 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
           </div>
           <div className="schedule-detail-summary-bar">
             <div className="schedule-detail-title-line" title={headerTitle}>{headerTitle}</div>
+            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('출발지', item.start_address)}>출발지 복사</button>
+            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('도착지', item.end_address)}>도착지 복사</button>
           </div>
           <div className="schedule-detail-assignment-bar schedule-detail-assignment-bar-singleline">
             <span className="schedule-detail-chip schedule-detail-chip-department" style={{ backgroundColor: departmentColor, color: departmentTextColor, borderColor: departmentColor }}>{item.department_info || '부서/인원 미지정'}</span>
             <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당대표 : ${reps.length ? reps.join(', ') : '-'}`}>담당대표 : {reps.length ? reps.join(', ') : '-'}</span>
             <span className="schedule-detail-chip schedule-detail-assignee-chip" title={`담당직원 : ${staffs.length ? staffs.join(', ') : '-'}`}>담당직원 : {staffs.length ? staffs.join(', ') : '-'}</span>
-          </div>
-          <div className="schedule-detail-copy-bar">
-            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('출발지', item.start_address)}>출발지 복사</button>
-            <button type="button" className="ghost small schedule-detail-copy-button" onClick={() => handleCopyAddress('도착지', item.end_address)}>도착지 복사</button>
           </div>
         </div>
 
@@ -10815,8 +10813,8 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
                       </div>
                     </div>
                     {commentImages.length ? (
-                      <div className={`schedule-comment-image-grid count-${Math.min(Math.max(commentImages.length, 1), 4)}`}>
-                        {commentImages.slice(0, 4).map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}
+                      <div className={`schedule-comment-image-grid ${commentImages.length === 1 ? 'count-1' : commentImages.length === 2 ? 'count-2' : 'count-many'}`}>
+                        {commentImages.map((src, index) => <div key={`${src}-${index}`} className="schedule-comment-image-tile"><img src={src} alt={`댓글 사진 ${index + 1}`} className="schedule-comment-image" /></div>)}
                       </div>
                     ) : null}
                     {comment.content ? <div className="schedule-comment-content">{comment.content}</div> : null}
