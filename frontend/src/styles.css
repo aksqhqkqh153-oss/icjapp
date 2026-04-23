@@ -33339,3 +33339,46 @@ button.danger {
     z-index: 1 !important;
   }
 }
+
+/* 2026-04-23 desktop schedule outer left/right column borders */
+@media (min-width: 769px){
+  .schedule-page .calendar-weekdays{
+    border-left:1px solid #000 !important;
+    border-right:1px solid #000 !important;
+    box-sizing:border-box !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday:first-child{
+    border-left:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday:last-child{
+    border-right:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode{
+    border-left:1px solid #000 !important;
+    border-right:1px solid #000 !important;
+    box-sizing:border-box !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n+1){
+    border-left:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n){
+    border-right:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n+1) .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n+1) .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n+1) .calendar-lanes-stack{
+    border-left:1px solid #000 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n) .calendar-cell-topline.schedule-header-line,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n) .calendar-day-status-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n) .calendar-lanes-stack{
+    border-right:1px solid #000 !important;
+  }
+}
