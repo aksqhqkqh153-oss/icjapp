@@ -7813,12 +7813,15 @@ function CalendarPage() {
 
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
-    if (String(item?.entry_type || 'calendar') !== 'calendar' || linkedId <= 0) return
+    const entryType = String(item?.entry_type || 'calendar')
+    const canOpenDetail = entryType === 'calendar' && linkedId > 0
+    if (!canOpenDetail) return false
     if (isMobile) {
       navigate(`/schedule/${linkedId}`)
-      return
+      return true
     }
     setDetailPopupEventId(linkedId)
+    return true
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {
@@ -8341,16 +8344,16 @@ function CalendarPage() {
             <div className="schedule-popup-list-title">기본일정들</div>
             <div className="schedule-popup-list">
               {overflowPopup.items.map(item => {
-                const isWorkEntry = item.entry_type === 'manual' || item.source_summary === ''
+                const canOpenDetail = String(item?.entry_type || 'manual') === 'calendar' && Number(item?.event_id || item?.id || 0) > 0
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    className="detail-schedule-item popup-item colorized schedule-popup-item-expanded"
+                    className={`detail-schedule-item popup-item colorized schedule-popup-item-expanded${canOpenDetail ? ' is-detail-openable' : ' is-detail-unavailable'}`}
                     style={{ background: applyAlphaToHex(item.color || '#334155', '24'), borderColor: applyAlphaToHex(item.color || '#334155', '88') }}
                     onClick={() => {
-                      closeOverflowPopup()
-                      if (!isWorkEntry && item.event_id) openScheduleDetailPopup(item)
+                      const opened = openScheduleDetailPopup(item)
+                      if (opened) closeOverflowPopup()
                     }}
                   >
                     <ScheduleCardLine item={item} colorized={false} />
@@ -9127,12 +9130,15 @@ function WorkSchedulePage() {
 
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
-    if (String(item?.entry_type || '') !== 'calendar' || linkedId <= 0) return
+    const entryType = String(item?.entry_type || '')
+    const canOpenDetail = entryType === 'calendar' && linkedId > 0
+    if (!canOpenDetail) return false
     if (isMobile) {
       navigate(`/schedule/${linkedId}`)
-      return
+      return true
     }
     setDetailPopupEventId(linkedId)
+    return true
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {

@@ -33427,3 +33427,13 @@ button.danger {
     white-space: nowrap !important;
   }
 }
+
+
+/* 2026-04-23 overflow popup schedule detail open state */
+.schedule-popup-item-expanded.is-detail-openable {
+  cursor: pointer;
+}
+
+.schedule-popup-item-expanded.is-detail-unavailable {
+  cursor: default;
+}
