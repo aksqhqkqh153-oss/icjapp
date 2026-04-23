@@ -451,6 +451,10 @@ def _extract_reply_rows(preloaded: Optional[dict[str, Any]] = None) -> list[str]
 
 
 def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any = None) -> bool:
+    if isinstance(preloaded, dict) and preloaded.get('replyClassPresent'):
+        reply_rows = _extract_reply_rows(preloaded)
+        if any(_normalize_review_text(value) for value in reply_rows):
+            return True
     section_rows = _extract_section_rows(preloaded)
 
     review_indexes: list[int] = []
@@ -857,141 +861,103 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       return true;
     });
   };
-  const splitLines = (value) => uniq(String(value || '').split(/[\n]+/g));
-  const queryTexts = (root, selector) => {
-    try {
-      return uniq(Array.from(root.querySelectorAll(selector)).map((el) => el.innerText || el.textContent || ''));
-    } catch (_error) {
-      return [];
-    }
-  };
-  const hasArticleSections = (node) => {
-    if (!node || !(node instanceof Element)) return false;
-    return !!node.querySelector(':scope > article > section, article > section');
-  };
+  const textOf = (node) => node ? norm(node.innerText || node.textContent || '') : '';
   const reviewList = document.querySelector('.review-list');
   if (!reviewList) return [];
 
-  const candidates = [];
-  const seen = new Set();
-  const pushCandidate = (node) => {
-    if (!node || !(node instanceof Element)) return;
-    const key = node.id || node.getAttribute('data-review-id') || node.outerHTML.slice(0, 120);
-    if (!key || seen.has(key) || !hasArticleSections(node)) return;
-    seen.add(key);
-    candidates.push(node);
+  const cards = Array.from(reviewList.children).filter((node) => node instanceof Element && node.querySelector(':scope > article > section'));
+
+  const sectionsOf = (item) => Array.from(item.querySelectorAll(':scope > article > section'));
+  const findReviewSection = (item) => {
+    const sections = sectionsOf(item);
+    for (const section of sections) {
+      if (section.querySelector('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]')) return section;
+    }
+    return sections[1] || sections[2] || null;
+  };
+  const findReplySection = (item) => {
+    const sections = sectionsOf(item);
+    for (const section of sections) {
+      if (section.querySelector('.review-comment')) return section;
+    }
+    return sections[2] || sections[3] || null;
   };
 
-  Array.from(reviewList.children).forEach(pushCandidate);
-  Array.from(reviewList.querySelectorAll('.profile-review-item')).forEach(pushCandidate);
-  Array.from(reviewList.querySelectorAll(':scope > [id]')).forEach(pushCandidate);
-  Array.from(reviewList.querySelectorAll('[id]')).forEach((node) => {
-    if (node.closest('.review-list') === reviewList) pushCandidate(node);
-  });
+  return cards.map((item, index) => {
+    const sections = sectionsOf(item);
+    const reviewSection = findReviewSection(item);
+    const replySection = findReplySection(item);
+    const maskedName = textOf(item.querySelector('.prisma-typography.body14\:semibold.primary'));
+    const reviewText = textOf((reviewSection || item).querySelector('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]'));
+    const ratingText = uniq(Array.from((reviewSection || item).querySelectorAll('.prisma-typography.body16\:semibold.primary, [class*="body16:semibold"], div > div > div > div > span')).map((el) => textOf(el))).find((value) => /(^|\s)[0-5](?:\.\d)?($|\s)/.test(value) || value.includes('별점')) || '';
+    const replyComment = item.querySelector('.review-comment');
+    const replyRows = replyComment ? uniq([
+      ...Array.from(replyComment.querySelectorAll('article span, article p, article div, span, p, div')).map((el) => textOf(el)),
+      textOf(replyComment),
+    ]).filter((value) => value.length >= 2) : [];
 
-  return candidates.map((item, index) => {
-    const sections = Array.from(item.querySelectorAll(':scope > article > section, article > section'));
-    const sectionRows = sections.map((section, sectionIndex) => {
-      const sectionTextRaw = section.innerText || section.textContent || '';
-      const nestedArticle = section.querySelector('article');
-      const sectionReviewRows = uniq([
-        ...queryTexts(section, '.prisma-typography.body14\\:regular.primary.review-content'),
-        ...queryTexts(section, '.review-content'),
-        ...queryTexts(section, '[class*="review-content"]'),
-        ...queryTexts(section, 'div > div > span'),
-        ...queryTexts(section, 'span'),
-      ]).filter((value) => value.length >= 2);
-      const sectionAuthorRows = uniq([
-        ...queryTexts(section, '.prisma-typography.body14\\:semibold.primary'),
-        ...queryTexts(section, '.prisma-typography.body13\\:semibold.primary'),
-        ...queryTexts(section, '[class*="author"]'),
-        ...queryTexts(section, '[class*="reviewer"]'),
-        ...queryTexts(section, 'div > span'),
-        ...queryTexts(section, 'span'),
-      ]).filter((value) => value.length <= 20);
-      const sectionRatingRows = uniq([
-        ...queryTexts(section, '.prisma-typography.body16\\:semibold.primary'),
-        ...queryTexts(section, '[class*="body16:semibold"]'),
-        ...queryTexts(section, 'div > div > div > div > span'),
-      ]).filter((value) => /(^|\\s)[0-5](?:\\.\\d)?($|\\s)/.test(value) || value.includes('별점'));
-      const nestedTexts = nestedArticle ? uniq([
-        ...queryTexts(nestedArticle, '.prisma-typography.body14\\:regular.primary'),
-        ...queryTexts(nestedArticle, 'span'),
-        ...queryTexts(nestedArticle, 'p'),
-        ...queryTexts(nestedArticle, 'div'),
-      ]) : [];
-      const replyRows = nestedTexts.filter((value) => value.length >= 2);
-      return {
-        index: sectionIndex,
-        text: norm(sectionTextRaw),
-        rawText: String(sectionTextRaw || ''),
-        lines: splitLines(sectionTextRaw),
-        authorRows: sectionAuthorRows,
-        reviewRows: sectionReviewRows,
-        ratingRows: sectionRatingRows,
-        replyRows,
-        hasNestedArticle: !!nestedArticle,
-      };
-    });
+    const sectionRows = sections.map((section, sectionIndex) => ({
+      index: sectionIndex,
+      text: textOf(section),
+      rawText: String(section.innerText || section.textContent || ''),
+      lines: uniq(String(section.innerText || section.textContent || '').split(/[
+]+/g)),
+      author_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body14\:semibold.primary')).map((el) => textOf(el))).filter((value) => value.length <= 20),
+      review_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]')).map((el) => textOf(el))).filter(Boolean),
+      rating_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body16\:semibold.primary, [class*="body16:semibold"], div > div > div > div > span')).map((el) => textOf(el))).filter(Boolean),
+      reply_rows: section.querySelector('.review-comment') ? replyRows : [],
+      has_nested_article: !!section.querySelector('.review-comment article'),
+    }));
 
-    const authorCandidates = uniq([
-      ...sectionRows.flatMap((section) => section.authorRows || []),
-      ...queryTexts(item, '.prisma-typography.body14\\:semibold.primary'),
-      ...queryTexts(item, '.prisma-typography.body13\\:semibold.primary'),
-      ...queryTexts(item, '[class*="author"]'),
-      ...queryTexts(item, '[class*="reviewer"]'),
-    ]);
-
-    const likelyReviewSections = sectionRows.filter((section, idx) => {
-      if (section.hasNestedArticle) return false;
-      if (idx === 0 && section.authorRows.length) return false;
-      if ((section.reviewRows || []).length > 0) return true;
-      return (section.lines || []).some((line) => line.length >= 8);
-    });
-
-    const reviewContentRows = uniq([
-      ...likelyReviewSections.flatMap((section) => section.reviewRows || []),
-      ...sectionRows.flatMap((section, idx) => {
-        if (section.hasNestedArticle) return [];
-        if (idx === 0 && section.authorRows.length) return [];
-        return (section.lines || []).filter((line) => line.length >= 8);
-      }),
-      ...queryTexts(item, '.prisma-typography.body14\\:regular.primary.review-content'),
-      ...queryTexts(item, '.review-content'),
-      ...queryTexts(item, '[class*="review-content"]'),
-    ]);
-
-    const ratingCandidates = uniq([
-      ...sectionRows.flatMap((section) => section.ratingRows || []),
-      ...queryTexts(item, '.prisma-typography.body16\\:semibold.primary'),
-      ...queryTexts(item, '[class*="body16:semibold"]'),
-    ]);
-    const replyRows = uniq(sectionRows.flatMap((section) => section.replyRows || []));
-    const regularPrimaryRows = uniq(queryTexts(item, '.prisma-typography.body14\\:regular.primary'));
-    const textRows = uniq(sectionRows.flatMap((section) => section.lines || []));
     return {
       index,
       rootId: item.id || '',
-      itemText: norm(item.innerText || item.textContent || ''),
-      authorCandidates,
-      reviewContentRows,
-      contentCandidates: reviewContentRows.slice(),
-      ratingCandidates,
+      itemText: textOf(item),
+      authorCandidates: uniq([maskedName]).filter(Boolean),
+      contentCandidates: uniq([reviewText]).filter(Boolean),
+      reviewRows: uniq([reviewText]).filter(Boolean),
+      ratingCandidates: uniq([ratingText]).filter(Boolean),
       replyRows,
-      regularPrimaryRows,
-      textRows,
+      replyClassPresent: !!replyComment,
+      hasReply: !!replyComment && replyRows.length > 0,
+      missing: {
+        author: !maskedName,
+        review: !reviewText,
+        rating: !ratingText,
+      },
+      reviewSectionIndex: reviewSection ? sections.indexOf(reviewSection) : -1,
+      replySectionIndex: replySection ? sections.indexOf(replySection) : -1,
       sectionRows,
-      hasReply: replyRows.length > 0,
     };
   });
 }
 """
     try:
         rows = page.evaluate(js) or []
-        return rows if isinstance(rows, list) else []
     except Exception:
         return []
-
+    normalized: list[dict[str, Any]] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        if bool(row.get('hasReply')):
+            continue
+        normalized.append({
+            'rootId': str(row.get('rootId', '') or ''),
+            'itemText': _normalize_review_text(row.get('itemText', '')),
+            'authorCandidates': _normalize_unique_text_list(row.get('authorCandidates') or []),
+            'contentCandidates': _normalize_unique_text_list(row.get('contentCandidates') or []),
+            'reviewRows': _normalize_unique_text_list(row.get('reviewRows') or []),
+            'ratingCandidates': _normalize_unique_text_list(row.get('ratingCandidates') or []),
+            'replyRows': _normalize_unique_text_list(row.get('replyRows') or []),
+            'replyClassPresent': bool(row.get('replyClassPresent')),
+            'hasReply': bool(row.get('hasReply')),
+            'missing': row.get('missing') if isinstance(row.get('missing'), dict) else {},
+            'reviewSectionIndex': int(row.get('reviewSectionIndex', -1) or -1),
+            'replySectionIndex': int(row.get('replySectionIndex', -1) or -1),
+            'sectionRows': row.get('sectionRows') if isinstance(row.get('sectionRows'), list) else [],
+        })
+    return normalized
 
 def _find_real_name_by_content(reviews_data: list[dict[str, Any]], target_content: str) -> str:
     target = _normalize_review_text(target_content)
@@ -1632,7 +1598,12 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         slots[idx]['review'] = found[idx].get('review', '')
     state['slots'] = slots
 
+    missing_author = sum(1 for row in preloaded_items if isinstance(row, dict) and isinstance(row.get('missing'), dict) and row['missing'].get('author'))
+    missing_review = sum(1 for row in preloaded_items if isinstance(row, dict) and isinstance(row.get('missing'), dict) and row['missing'].get('review'))
+    missing_rating = sum(1 for row in preloaded_items if isinstance(row, dict) and isinstance(row.get('missing'), dict) and row['missing'].get('rating'))
     message = f'총 {len(found)}개의 미답변 리뷰를 찾았습니다.'
+    if preloaded_items:
+        message += f' 감지카드 {len(preloaded_items)}개 / 작성자누락 {missing_author}개 / 리뷰누락 {missing_review}개 / 별점누락 {missing_rating}개'
     if not found:
         try:
             (SCREENSHOT_DIR / 'soomgo_unanswered_items_debug.json').write_text(
@@ -1642,7 +1613,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
         except Exception:
             pass
         if preloaded_items:
-            message = '미답변 리뷰 카드까지는 감지되었지만 슬롯 입력용 작성자/리뷰내용 확정에 실패했습니다. review-list 하위 카드 class/id, article>section 순서, review-content 존재 여부를 확인해 주세요. debug json 저장됨'
+            message = '미답변 리뷰 카드는 감지되었지만 슬롯 입력 확정에 실패했습니다. debug json 저장됨 / 작성자누락 {}개 / 리뷰누락 {}개 / 별점누락 {}개'.format(missing_author, missing_review, missing_rating)
         else:
             message = '미답변 리뷰 목록은 감지되었지만 작성자/리뷰내용 추출에 실패했습니다. review-list 하위 카드 class/id, article>section 구조, review-content 요소 존재 여부를 확인해 주세요.'
     state['last_scan'] = {
