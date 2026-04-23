@@ -10589,7 +10589,14 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
         api(`/api/calendar/events/${eventId}/edit-logs`).catch(() => []),
       ])
       setItem(eventData)
-      setComments(Array.isArray(commentData) ? commentData : [])
+      setComments(
+        (Array.isArray(commentData) ? commentData : []).slice().sort((a, b) => {
+          const aTime = new Date(a?.created_at || 0).getTime() || 0
+          const bTime = new Date(b?.created_at || 0).getTime() || 0
+          if (bTime !== aTime) return bTime - aTime
+          return Number(b?.id || 0) - Number(a?.id || 0)
+        })
+      )
       setEditLogs(Array.isArray(logData) ? logData : [])
       setError('')
     } catch (err) {

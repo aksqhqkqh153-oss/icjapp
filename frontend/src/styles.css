@@ -24162,6 +24162,8 @@ textarea,
 .schedule-detail-image-grid.count-3, .schedule-comment-image-grid.count-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 .schedule-detail-image-grid.count-4, .schedule-comment-image-grid.count-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .schedule-detail-image-tile, .schedule-comment-image-tile { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; min-height: 102px; display: flex; align-items: center; justify-content: center; }
+.schedule-detail-image-grid.count-1 .schedule-detail-image-tile { min-height: auto; padding: 12px; }
+.schedule-detail-image-grid.count-1 .schedule-detail-image { width: 100%; max-width: 100%; height: auto; max-height: none; object-fit: contain; }
 .schedule-detail-image-tile { padding: 14px; }
 .schedule-detail-image { width: auto; max-width: min(100%, 320px); height: auto; max-height: min(240px, 28vh); object-fit: contain; display: block; margin: 0 auto; }
 .schedule-comment-image { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -24173,7 +24175,7 @@ textarea,
 .schedule-detail-comments-section { margin-top: 18px; padding-bottom: 72px; }
 .schedule-detail-comments-title { font-weight: 700; margin-bottom: 10px; text-align: center; }
 .schedule-detail-comments-list { display: grid; gap: 10px; }
-.schedule-comment-card { border-top: 1px solid rgba(15,23,42,0.08); padding-top: 10px; display: grid; gap: 8px; }
+.schedule-comment-card { border-top: 1px solid rgba(15,23,42,0.08); padding-top: 10px; min-height: 85px; display: grid; gap: 8px; align-content: start; }
 .schedule-comment-meta { font-size: 12px; color: #64748b; }
 .schedule-comment-content { white-space: pre-wrap; line-height: 1.6; }
 .schedule-comment-actions { color: #64748b; font-size: 14px; }
@@ -24272,8 +24274,8 @@ textarea,
 }
 .schedule-detail-popup-card{
   width:min(960px, calc(100vw - 24px));
-  height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 24px);
-  max-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 24px);
+  height:calc(100dvh - var(--app-bottom-nav-height));
+  max-height:calc(100dvh - var(--app-bottom-nav-height));
   overflow:hidden;
   padding:0;
   display:flex;
@@ -24308,7 +24310,7 @@ textarea,
 @media (min-width: 769px) {
   .schedule-detail-popup-backdrop.schedule-detail-popup-backdrop{
     align-items:stretch;
-    padding:var(--app-topbar-height) 12px var(--app-bottom-nav-height);
+    padding:0 12px var(--app-bottom-nav-height);
     background:rgba(246, 251, 255, 0.78);
     backdrop-filter:blur(8px);
   }
@@ -33659,6 +33661,8 @@ button.danger {
 @media (min-width: 769px) {
   .schedule-page .schedule-calendar-unified {
     width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     border: 1px solid #cfd8e3 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
@@ -33668,6 +33672,7 @@ button.danger {
   .schedule-page .schedule-calendar-unified > .calendar-weekdays,
   .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode {
     width: 100% !important;
+    min-width: 0 !important;
     margin: 0 !important;
     border-left: 0 !important;
     border-right: 0 !important;
