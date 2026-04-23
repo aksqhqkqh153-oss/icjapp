@@ -22200,19 +22200,21 @@ textarea,
 }
 
 .disposal-meta-action-inline-wrap-three {
-  grid-template-columns: auto auto auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
 }
 
 .disposal-company-save-button {
-  min-width: 136px;
+  min-width: 124px;
 }
 
 .disposal-header-action-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 112px;
-  padding: 8px 10px !important;
+  min-width: 96px;
+  padding: 8px 8px !important;
   border: 0 !important;
   border-left: 1px solid #9ca3af !important;
   background: #ffffff !important;
@@ -23555,9 +23557,10 @@ textarea,
 
 .schedule-date-time-inline-row {
   display: grid;
-  grid-template-columns: 72px minmax(110px, 0.95fr) 72px minmax(130px, 1fr) 104px minmax(130px, 1fr);
+  grid-template-columns: max-content 88px max-content max-content max-content max-content;
   gap: 8px;
   align-items: center;
+  justify-content: start;
 }
 
 .schedule-inline-field {
@@ -23567,7 +23570,7 @@ textarea,
 .schedule-inline-field-label {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 40px;
   border: 1px solid #cfd6e4;
   border-radius: 10px;
@@ -23581,12 +23584,30 @@ textarea,
 
 .schedule-inline-field-value input,
 .schedule-inline-field-time .schedule-time-actions {
-  width: 100%;
+  width: auto;
 }
 
-.schedule-inline-field-time .schedule-time-actions,
-.schedule-inline-field-time .schedule-time-actions input[type="text"] {
+.schedule-inline-field-value.schedule-date-short-field input {
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+  text-align: left;
+}
+
+.schedule-inline-field-time .schedule-time-actions {
   min-width: 0;
+  justify-content: flex-start;
+}
+
+.schedule-inline-field-time .schedule-time-actions input[type="text"] {
+  min-width: 64px;
+  width: 64px;
+  flex: 0 0 64px;
+  text-align: left;
+}
+
+.schedule-time-actions-compact .mobile-time-undecided {
+  flex: 0 0 auto;
 }
 
 .schedule-editor-assignee-grid {
