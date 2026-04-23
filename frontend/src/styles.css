@@ -24220,6 +24220,9 @@ textarea,
   height:100%;
   flex:1 1 auto;
 }
+.schedule-detail-card-v2.embedded .schedule-detail-sticky-stack{
+  top:0;
+}
 .schedule-detail-comment-composer.embedded{
   position:sticky;
   left:auto;
@@ -24230,15 +24233,15 @@ textarea,
 }
 @media (min-width: 769px) {
   .schedule-detail-popup-backdrop.schedule-detail-popup-backdrop{
-    align-items:flex-start;
-    padding:calc(var(--app-topbar-height) + 12px) 12px calc(var(--app-bottom-nav-height) + 12px);
+    align-items:stretch;
+    padding:var(--app-topbar-height) 12px var(--app-bottom-nav-height);
     background:rgba(246, 251, 255, 0.78);
     backdrop-filter:blur(8px);
   }
 
   .schedule-detail-page-v2{
-    min-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 26px);
-    height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 26px);
+    min-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height));
+    height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height));
     display:flex;
     flex-direction:column;
     gap:0;
@@ -33436,4 +33439,39 @@ button.danger {
 
 .schedule-popup-item-expanded.is-detail-unavailable {
   cursor: default;
+}
+
+
+/* 2026-04-23 pc schedule detail popup height + heading center alignment */
+@media (min-width: 769px){
+  .schedule-detail-popup-card{
+    width:min(960px, calc(100vw - 24px));
+    height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height));
+    max-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height));
+    margin:0 auto;
+  }
+
+  .work-schedule-heading-sub-row{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+    min-height:32px;
+  }
+
+  .work-schedule-headline-two-row .work-schedule-today-button{
+    position:absolute;
+    left:0;
+    top:50%;
+    transform:translateY(-50%);
+    justify-self:auto;
+    z-index:1;
+  }
+
+  .work-schedule-headline-two-row .work-schedule-headline-center{
+    width:100%;
+    justify-content:center;
+    padding:0 72px;
+  }
 }
