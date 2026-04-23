@@ -8052,6 +8052,13 @@ function CalendarPage() {
                 {date && (
                   <>
                     <div className="calendar-cell-topline schedule-header-line">
+                      {!isMobile && (
+                        <span
+                          className={`schedule-header-status-indicator ${dayCapacityClass}`.trim()}
+                          title={dayCapacity?.detail || ''}
+                          aria-hidden="true"
+                        />
+                      )}
                       <button type="button" className={`calendar-date-select ${dayCapacityClass} ${isSelected ? 'is-selected' : ''}`.trim()} title={dayCapacity?.detail || ''} onClick={() => selectDate(date, { keepVisibleMonth: true })}>
                         <span className="calendar-date">{date.getDate()}</span>
                       </button>
@@ -10723,15 +10730,13 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
           <div className="schedule-detail-author-bar">
             <div className="schedule-detail-author-text">글 작성자명 : {item.created_by_nickname || '계정 이름'}</div>
             <div className="schedule-detail-author-actions">
+              {canEditCurrentSchedule ? <button type="button" className="ghost small danger-outline schedule-detail-delete-button" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button> : null}
               {canEditCurrentSchedule && <button type="button" className="ghost small" onClick={() => navigate(`/schedule/${item.id}/edit`)}>수정</button>}
               <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
                 <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
                 {menuOpen && (
                   <div className="dropdown-menu right schedule-detail-setting-menu">
                     <button type="button" className="dropdown-item" onClick={() => { openScheduleEditLogPopup(editLogs.map(log => ({ ...log, created_label: formatLogDate(log.created_at) }))); setMenuOpen(false) }}>수정기록</button>
-                    {canEditCurrentSchedule ? (
-                      <button type="button" className="dropdown-item danger" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button>
-                    ) : null}
                   </div>
                 )}
               </div>

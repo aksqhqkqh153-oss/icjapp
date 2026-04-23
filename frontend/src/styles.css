@@ -33475,3 +33475,107 @@ button.danger {
     padding:0 72px;
   }
 }
+
+/* 2026-04-23 pc schedule detail/button/status indicator/layout fixes */
+@media (min-width: 769px){
+  .work-schedule-page .work-day-status-button,
+  .work-schedule-page .work-day-status-button .work-day-status-vehicle,
+  .work-schedule-page .work-day-status-button .work-day-status-summary,
+  .schedule-page .work-day-status-button,
+  .schedule-page .work-day-status-button .work-day-status-vehicle,
+  .schedule-page .work-day-status-button .work-day-status-summary {
+    color: #111111 !important;
+  }
+
+  .schedule-detail-assignment-bar.schedule-detail-assignment-bar-singleline {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    align-items: stretch !important;
+  }
+
+  .schedule-detail-assignment-bar.schedule-detail-assignment-bar-singleline .schedule-detail-chip,
+  .schedule-detail-assignment-bar.schedule-detail-assignment-bar-singleline .schedule-detail-chip-department,
+  .schedule-detail-assignment-bar.schedule-detail-assignment-bar-singleline .schedule-detail-assignee-chip {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 1 1 0 !important;
+    justify-content: flex-start !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-detail-author-actions {
+    flex-wrap: nowrap !important;
+  }
+
+  .schedule-detail-delete-button {
+    margin-right: 0 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    display: grid !important;
+    grid-template-columns: 10px 24px minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator {
+    display: block !important;
+    width: 10px !important;
+    min-width: 10px !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    align-self: stretch !important;
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator.calendar-day-state-full,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator.calendar-day-state-full {
+    background: #111111 !important;
+    border-color: #111111 !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator.calendar-day-state-critical,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator.calendar-day-state-critical {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator.calendar-day-state-warning,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator.calendar-day-state-warning {
+    background: #facc15 !important;
+    border-color: #eab308 !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator.calendar-day-state-normal,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator.calendar-day-state-normal {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .schedule-page .schedule-header-status-indicator.calendar-day-state-error,
+  .schedule-page .schedule-cell.detail-cell .schedule-header-status-indicator.calendar-day-state-error {
+    background: #f9a8d4 !important;
+    border-color: #f472b6 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line > .calendar-date-select,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line > .calendar-date-select {
+    grid-column: 2 !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line > .calendar-top-actions.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line > .calendar-top-actions.filled {
+    grid-column: 3 !important;
+  }
+}
