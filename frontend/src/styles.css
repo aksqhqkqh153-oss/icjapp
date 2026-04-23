@@ -33653,3 +33653,57 @@ button.danger {
     grid-column: 3 !important;
   }
 }
+
+
+/* 2026-04-23 desktop schedule unified weekday/grid column alignment */
+@media (min-width: 769px) {
+  .schedule-page .schedule-calendar-unified {
+    width: 100% !important;
+    border: 1px solid #cfd8e3 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    background: #fff !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-weekdays,
+  .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode {
+    width: 100% !important;
+    margin: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-weekdays {
+    border-top: 0 !important;
+    border-bottom: 1px solid #cfd8e3 !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-weekdays::before,
+  .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode::before {
+    display: none !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-weekdays .weekday {
+    border-right: 1px solid #cfd8e3 !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-weekdays .weekday:last-child {
+    border-right: 0 !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode {
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n+1) {
+    border-left: 0 !important;
+  }
+
+  .schedule-page .schedule-calendar-unified > .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n) {
+    border-right: 0 !important;
+  }
+}

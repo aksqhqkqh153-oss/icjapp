@@ -8029,7 +8029,8 @@ function CalendarPage() {
           </div>
         </div>
         {(!isMobile || !mobileCalendarCollapsed) && (<>
-          <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
+          <div className="schedule-calendar-unified">
+            <div className="calendar-weekdays">{['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day} className="weekday">{day}</div>)}</div>
           <div className={`calendar-grid schedule-grid detail-mode${isMobile ? ' mobile-calendar-grid' : ''}`}>
           {days.map((date, idx) => {
             const key = date ? fmtDate(date) : `blank-${idx}`
@@ -8125,6 +8126,7 @@ function CalendarPage() {
               </div>
             )
           })}
+            </div>
           </div>
         </>)}
 
