@@ -11696,7 +11696,7 @@ a:focus-visible {
 
 .disposal-jurisdiction-grid-row {
   display: grid;
-  grid-template-columns: 28px 68px minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 1.2fr);
+  grid-template-columns: 28px 68px minmax(0, 1.1fr) 110px minmax(0, 0.95fr) minmax(0, 1.2fr);
   gap: 6px;
   align-items: center;
   width: 100%;
@@ -11745,7 +11745,7 @@ a:focus-visible {
   }
 
   .disposal-jurisdiction-grid-row {
-    grid-template-columns: 22px 48px minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.05fr);
+    grid-template-columns: 22px 48px minmax(0, 1fr) 84px minmax(0, 0.9fr) minmax(0, 1.05fr);
     gap: 4px;
   }
 
@@ -23545,6 +23545,42 @@ textarea,
   min-width: 0;
 }
 
+.schedule-date-time-inline-row {
+  display: grid;
+  grid-template-columns: 72px minmax(110px, 0.95fr) 72px minmax(130px, 1fr) 104px minmax(130px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.schedule-inline-field {
+  min-width: 0;
+}
+
+.schedule-inline-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid #cfd6e4;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.schedule-inline-field-value input,
+.schedule-inline-field-time .schedule-time-actions {
+  width: 100%;
+}
+
+.schedule-inline-field-time .schedule-time-actions,
+.schedule-inline-field-time .schedule-time-actions input[type="text"] {
+  min-width: 0;
+}
+
 .schedule-editor-assignee-grid {
   gap: 10px;
 }
@@ -23569,6 +23605,15 @@ textarea,
   .schedule-date-time-compact-row,
   .schedule-form-grid-4 {
     gap: 8px;
+  }
+
+  .schedule-date-time-inline-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-inline-field-label {
+    min-height: 38px;
+    font-size: 12px;
   }
 
   .schedule-form-grid-4 {

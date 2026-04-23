@@ -10430,17 +10430,13 @@ function ScheduleFormPage({ mode }) {
             <label>메모</label>
             <textarea ref={memoTextareaRef} value={form.content} placeholder="메모" onChange={e => setForm({ ...form, content: e.target.value })} className="schedule-memo-box auto-grow" rows={6} />
           </div>
-          <div className="schedule-form-grid-4 schedule-editor-compact-grid schedule-date-time-compact-row schedule-date-time-short-row">
-            <div className="stack compact-gap schedule-compact-field schedule-date-badge-field">
-              <label>구분</label>
-              <input type="text" value="시" readOnly className="schedule-date-badge-input" aria-label="시작일 구분" />
-            </div>
-            <div className="stack compact-gap schedule-compact-field schedule-date-field schedule-date-short-field">
-              <label>시작일</label>
+          <div className="schedule-editor-compact-grid schedule-date-time-inline-row">
+            <div className="schedule-inline-field schedule-inline-field-label"><span>시작일</span></div>
+            <div className="schedule-inline-field schedule-inline-field-value schedule-date-short-field">
               <input type="text" inputMode="numeric" aria-label="시작일" placeholder="26-04-13" value={startDateText} onChange={e => setStartDateText(e.target.value.replace(/[^\d-]/g, '').slice(0, 8))} onBlur={() => commitDateField('move_start_date', startDateText, form.move_start_date || presetDate)} />
             </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>시작시각</label>
+            <div className="schedule-inline-field schedule-inline-field-label"><span>시작시각</span></div>
+            <div className="schedule-inline-field schedule-inline-field-time">
               <div className="inline-actions schedule-time-actions">
                 <input
                   type="text"
@@ -10454,8 +10450,8 @@ function ScheduleFormPage({ mode }) {
                 <button type="button" className={form.start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('start_time', form.start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>종료예상시각</label>
+            <div className="schedule-inline-field schedule-inline-field-label"><span>종료예상시각</span></div>
+            <div className="schedule-inline-field schedule-inline-field-time">
               <div className="inline-actions schedule-time-actions">
                 <input
                   type="text"
@@ -10470,17 +10466,13 @@ function ScheduleFormPage({ mode }) {
               </div>
             </div>
           </div>
-          <div className="schedule-form-grid-4 schedule-editor-compact-grid schedule-date-time-compact-row schedule-date-time-short-row">
-            <div className="stack compact-gap schedule-compact-field schedule-date-badge-field">
-              <label>구분</label>
-              <input type="text" value="종" readOnly className="schedule-date-badge-input" aria-label="종료일 구분" />
-            </div>
-            <div className="stack compact-gap schedule-compact-field schedule-date-field schedule-date-short-field">
-              <label>종료일</label>
+          <div className="schedule-editor-compact-grid schedule-date-time-inline-row">
+            <div className="schedule-inline-field schedule-inline-field-label"><span>종료일</span></div>
+            <div className="schedule-inline-field schedule-inline-field-value schedule-date-short-field">
               <input type="text" inputMode="numeric" aria-label="종료일" placeholder="26-04-13" value={endDateText} onChange={e => setEndDateText(e.target.value.replace(/[^\d-]/g, '').slice(0, 8))} onBlur={() => commitDateField('move_end_date', endDateText, form.move_end_date || form.move_start_date || presetDate)} />
             </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>시작시각</label>
+            <div className="schedule-inline-field schedule-inline-field-label"><span>시작시각</span></div>
+            <div className="schedule-inline-field schedule-inline-field-time">
               <div className="inline-actions schedule-time-actions">
                 <input
                   type="text"
@@ -10494,8 +10486,8 @@ function ScheduleFormPage({ mode }) {
                 <button type="button" className={form.move_end_start_time === '미정' ? 'ghost small active-icon mobile-visit-undecided mobile-time-undecided' : 'ghost small mobile-visit-undecided mobile-time-undecided'} onClick={() => changeTimeField('move_end_start_time', form.move_end_start_time === '미정' ? '09:00' : '미정')}>미정</button>
               </div>
             </div>
-            <div className="stack compact-gap schedule-compact-field schedule-time-field">
-              <label>종료예상시각</label>
+            <div className="schedule-inline-field schedule-inline-field-label"><span>종료예상시각</span></div>
+            <div className="schedule-inline-field schedule-inline-field-time">
               <div className="inline-actions schedule-time-actions">
                 <input
                   type="text"

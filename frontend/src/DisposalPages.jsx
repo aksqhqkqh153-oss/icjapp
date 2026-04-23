@@ -2222,6 +2222,7 @@ export function DisposalJurisdictionRegistryPage() {
         const fieldMap = {
           category: String(row.category || '기본'),
           place_prefix: String(row.place_prefix || ''),
+          district_type: String(row.district_type || ''),
           district_name: String(row.district_name || ''),
           report_link: String(row.report_link || ''),
         }
@@ -2276,7 +2277,7 @@ export function DisposalJurisdictionRegistryPage() {
 
   function addRow() {
     const uid = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    setRows(prev => [{ id: null, localId: uid, addedAt: Date.now(), category: '기본', place_prefix: '', district_name: '', report_link: '' }, ...prev])
+    setRows(prev => [{ id: null, localId: uid, addedAt: Date.now(), category: '기본', place_prefix: '', district_type: '', district_name: '', report_link: '' }, ...prev])
   }
 
   function toggleAll(checked) {
@@ -2298,6 +2299,7 @@ export function DisposalJurisdictionRegistryPage() {
         id: row.id || undefined,
         category: String(row.category || '기본').trim() || '기본',
         place_prefix: String(row.place_prefix || '').trim(),
+        district_type: String(row.district_type || '').trim(),
         district_name: String(row.district_name || '').trim(),
         report_link: String(row.report_link || '').trim(),
       }))
@@ -2359,6 +2361,7 @@ export function DisposalJurisdictionRegistryPage() {
             <select value={primaryFilter} onChange={e => setPrimaryFilter(e.target.value)}>
               <option value="category">1차필터: 구분</option>
               <option value="place_prefix">1차필터: 폐기장소입력칸</option>
+              <option value="district_type">1차필터: 행정구역구분</option>
               <option value="district_name">1차필터: 관할구역 입력칸</option>
               <option value="report_link">1차필터: 관할구역 폐기신고링크 입력칸</option>
               <option value="all">1차필터: 전체</option>
@@ -2384,6 +2387,7 @@ export function DisposalJurisdictionRegistryPage() {
             <div className="disposal-jurisdiction-head-spacer" />
             <div>구분</div>
             <div>폐기장소입력칸</div>
+            <div>행정구역구분</div>
             <div>관할구역 입력칸</div>
             <div>관할구역 폐기신고링크 입력칸</div>
           </div>
@@ -2392,6 +2396,7 @@ export function DisposalJurisdictionRegistryPage() {
               <label><input type="checkbox" checked={!!row.id && selectedIds.includes(row.id)} onChange={e => toggleOne(row.id, e.target.checked)} /></label>
               <input value={row.category || '기본'} onChange={e => updateRow(row.localId, 'category', e.target.value)} disabled={!canEdit} placeholder="구분" />
               <input value={row.place_prefix || ''} onChange={e => updateRow(row.localId, 'place_prefix', e.target.value)} disabled={!canEdit} placeholder="예: 서울특별시 노원구" />
+              <input value={row.district_type || ''} onChange={e => updateRow(row.localId, 'district_type', e.target.value)} disabled={!canEdit} placeholder="예: 시/군/구" />
               <input value={row.district_name || ''} onChange={e => updateRow(row.localId, 'district_name', e.target.value)} disabled={!canEdit} placeholder="관할구역명" />
               <input value={row.report_link || ''} onChange={e => updateRow(row.localId, 'report_link', e.target.value)} disabled={!canEdit} placeholder="https://..." />
             </div>

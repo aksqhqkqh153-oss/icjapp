@@ -410,6 +410,7 @@ class DisposalJurisdictionRowIn(BaseModel):
     id: Optional[int] = None
     category: str = '기본'
     place_prefix: str
+    district_type: str = ''
     district_name: str
     report_link: str = ''
 
@@ -7466,6 +7467,7 @@ def _disposal_jurisdiction_row_to_dict(row) -> dict[str, Any]:
         'id': int(row['id']),
         'category': str(row['category'] or '기본'),
         'place_prefix': str(row['place_prefix'] or ''),
+        'district_type': str(row['district_type'] or ''),
         'district_name': str(row['district_name'] or ''),
         'report_link': str(row['report_link'] or ''),
         'created_at': str(row['created_at'] or ''),
@@ -7760,17 +7762,17 @@ def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require
             like = f'%{keyword}%'
             rows = conn.execute(
                 f"""
-                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                SELECT id, category, place_prefix, district_type, district_name, report_link, created_at, updated_at
                 FROM disposal_jurisdiction_mappings
-                WHERE category LIKE ? OR place_prefix LIKE ? OR district_name LIKE ? OR report_link LIKE ?
+                WHERE category LIKE ? OR place_prefix LIKE ? OR district_type LIKE ? OR district_name LIKE ? OR report_link LIKE ?
                 ORDER BY {order_by_sql}
                 """,
-                (like, like, like, like),
+                (like, like, like, like, like),
             ).fetchall()
         else:
             rows = conn.execute(
                 f"""
-                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                SELECT id, category, place_prefix, district_type, district_name, report_link, created_at, updated_at
                 FROM disposal_jurisdiction_mappings
                 ORDER BY {order_by_sql}
                 """
@@ -7782,10 +7784,11 @@ def list_disposal_jurisdictions(q: str = Query(default=''), user=Depends(require
 def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, user=Depends(require_admin_or_subadmin)):
     rows = payload.rows or []
     saved_rows: list[dict[str, Any]] = []
-    normalized_rows: list[tuple[DisposalJurisdictionRowIn, str, str, str, str]] = []
+    normalized_rows: list[tuple[DisposalJurisdictionRowIn, str, str, str, str, str]] = []
     seen_place_prefixes: set[str] = set()
     for item in rows:
         place_prefix = _normalize_disposal_place_prefix(item.place_prefix)
+        district_type = str(item.district_type or '').strip()
         district_name = str(item.district_name or '').strip()
         if not place_prefix or not district_name:
             continue
@@ -7794,10 +7797,10 @@ def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, us
         seen_place_prefixes.add(place_prefix)
         category = str(item.category or '기본').strip() or '기본'
         report_link = str(item.report_link or '').strip()
-        normalized_rows.append((item, place_prefix, district_name, category, report_link))
+        normalized_rows.append((item, place_prefix, district_type, district_name, category, report_link))
 
     with get_conn() as conn:
-        for item, place_prefix, district_name, category, report_link in normalized_rows:
+        for item, place_prefix, district_type, district_name, category, report_link in normalized_rows:
             now = utcnow()
             duplicate_row = conn.execute(
                 'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ? AND id <> ?' if item.id else 'SELECT id FROM disposal_jurisdiction_mappings WHERE place_prefix = ?',
@@ -7814,21 +7817,21 @@ def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, us
                 conn.execute(
                     """
                     UPDATE disposal_jurisdiction_mappings
-                    SET category = ?, place_prefix = ?, district_name = ?, report_link = ?, updated_at = ?
+                    SET category = ?, place_prefix = ?, district_type = ?, district_name = ?, report_link = ?, updated_at = ?
                     WHERE id = ?
                     """,
-                    (category, place_prefix, district_name, report_link, now, int(existing['id'])),
+                    (category, place_prefix, district_type, district_name, report_link, now, int(existing['id'])),
                 )
                 saved_id = int(existing['id'])
             else:
                 if DB_ENGINE == 'postgresql':
                     row = conn.execute(
                         """
-                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_type, district_name, report_link, created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         RETURNING id
                         """,
-                        (category, place_prefix, district_name, report_link, int(user['id']), now, now),
+                        (category, place_prefix, district_type, district_name, report_link, int(user['id']), now, now),
                     ).fetchone()
                     if not row:
                         raise HTTPException(status_code=500, detail='관할구역 데이터를 저장하지 못했습니다.')
@@ -7836,15 +7839,15 @@ def bulk_save_disposal_jurisdictions(payload: DisposalJurisdictionBulkSaveIn, us
                 else:
                     cursor = conn.execute(
                         """
-                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_name, report_link, created_by, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO disposal_jurisdiction_mappings(category, place_prefix, district_type, district_name, report_link, created_by, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (category, place_prefix, district_name, report_link, int(user['id']), now, now),
+                        (category, place_prefix, district_type, district_name, report_link, int(user['id']), now, now),
                     )
                     saved_id = int(cursor.lastrowid)
             row = conn.execute(
                 """
-                SELECT id, category, place_prefix, district_name, report_link, created_at, updated_at
+                SELECT id, category, place_prefix, district_type, district_name, report_link, created_at, updated_at
                 FROM disposal_jurisdiction_mappings
                 WHERE id = ?
                 """,
