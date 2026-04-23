@@ -24088,7 +24088,8 @@ textarea,
 .schedule-detail-image-grid.count-3, .schedule-comment-image-grid.count-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 .schedule-detail-image-grid.count-4, .schedule-comment-image-grid.count-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .schedule-detail-image-tile, .schedule-comment-image-tile { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; min-height: 102px; display: flex; align-items: center; justify-content: center; }
-.schedule-detail-image { width: 42%; height: auto; max-height: 240px; object-fit: contain; display: block; margin: 0 auto; }
+.schedule-detail-image-tile { padding: 14px; }
+.schedule-detail-image { width: auto; max-width: min(100%, 320px); height: auto; max-height: min(240px, 28vh); object-fit: contain; display: block; margin: 0 auto; }
 .schedule-comment-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .schedule-comment-upload-hint { font-size: 12px; color: #64748b; white-space: nowrap; }
 .schedule-upload-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-width: 128px; padding: 6px; }
@@ -24165,7 +24166,8 @@ textarea,
     padding-bottom: 0;
   }
   .schedule-detail-image-tile, .schedule-comment-image-tile, .schedule-detail-empty-box { min-height: 84px; }
-  .schedule-detail-image { width: 42%; max-height: 168px; }
+  .schedule-detail-image-tile { padding: 10px; }
+  .schedule-detail-image { max-width: min(100%, 220px); max-height: min(168px, 24vh); }
   .schedule-detail-comment-composer { width: 100%; padding: 8px 10px; grid-template-columns: 40px minmax(0,1fr) auto 56px; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
   .schedule-log-head { grid-template-columns: 1fr; }
   .schedule-comment-upload-hint { font-size: 11px; }
@@ -24195,7 +24197,7 @@ textarea,
   height:16px;
 }
 .schedule-detail-popup-card{
-  width:min(980px, calc(100vw - 24px));
+  width:min(1120px, calc(100vw - 24px));
   max-height:calc(100vh - 32px);
   overflow:auto;
   padding:0;

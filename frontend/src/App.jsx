@@ -7814,7 +7814,11 @@ function CalendarPage() {
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
     if (String(item?.entry_type || 'calendar') !== 'calendar' || linkedId <= 0) return
-    navigate(`/schedule/${linkedId}`)
+    if (isMobile) {
+      navigate(`/schedule/${linkedId}`)
+      return
+    }
+    setDetailPopupEventId(linkedId)
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {
@@ -8090,7 +8094,7 @@ function CalendarPage() {
                               title={item.title}
                               onClick={(event) => {
                                 event.stopPropagation()
-                                navigate(`/schedule/${item.id}`)
+                                openScheduleDetailPopup(item)
                               }}
                             >
                               <span className="calendar-lane-color-block" aria-hidden="true" style={{ background: item.color || '#2563eb' }} />
@@ -9124,7 +9128,11 @@ function WorkSchedulePage() {
   function openScheduleDetailPopup(item) {
     const linkedId = Number(item?.event_id || item?.id || 0)
     if (String(item?.entry_type || '') !== 'calendar' || linkedId <= 0) return
-    navigate(`/schedule/${linkedId}`)
+    if (isMobile) {
+      navigate(`/schedule/${linkedId}`)
+      return
+    }
+    setDetailPopupEventId(linkedId)
   }
 
   function closeScheduleDetailPopup(shouldReload = false) {
