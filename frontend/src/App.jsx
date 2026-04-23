@@ -13567,6 +13567,15 @@ function LadderDispatchPage() {
     setSavedSelections(prev => ({ ...prev, [id]: checked }))
   }
 
+  function selectAllSavedItems() {
+    if (!savedList.length) return
+    const next = {}
+    savedList.forEach(item => {
+      if (item?.id) next[item.id] = true
+    })
+    setSavedSelections(next)
+  }
+
   function deleteSelectedSavedItems() {
     const ids = Object.entries(savedSelections).filter(([, checked]) => checked).map(([id]) => id)
     if (!ids.length) {
@@ -13720,7 +13729,10 @@ function LadderDispatchPage() {
             <div className="ladder-saved-header-row">
               <button type="button" className="small" onClick={() => setSavedListOpen(false)}>←</button>
               <strong>저장목록</strong>
-              <button type="button" className="small" onClick={deleteSelectedSavedItems}>삭제</button>
+              <div className="inline-actions wrap end">
+                <button type="button" className="small" onClick={selectAllSavedItems}>전체선택</button>
+                <button type="button" className="small" onClick={deleteSelectedSavedItems}>삭제</button>
+              </div>
             </div>
             <div className="ladder-saved-list">
               {savedList.length ? savedList.map(item => (
