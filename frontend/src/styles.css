@@ -24197,23 +24197,123 @@ textarea,
   height:16px;
 }
 .schedule-detail-popup-card{
-  width:min(1120px, calc(100vw - 24px));
-  max-height:calc(100vh - 32px);
-  overflow:auto;
+  width:min(960px, calc(100vw - 24px));
+  height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 24px);
+  max-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 24px);
+  overflow:hidden;
   padding:0;
+  display:flex;
+  flex-direction:column;
 }
 .embedded-schedule-detail-page{
-  padding-bottom:88px;
+  padding-bottom:0;
+  height:100%;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  gap:0;
 }
 .schedule-detail-card-v2.embedded{
   border:none;
   box-shadow:none;
-  min-height:auto;
+  min-height:0;
+  height:100%;
+  flex:1 1 auto;
 }
 .schedule-detail-comment-composer.embedded{
-  width:min(980px, calc(100vw - 24px));
+  position:sticky;
+  left:auto;
+  transform:none;
+  width:100%;
   bottom:0;
   border-radius:0 0 16px 16px;
+}
+@media (min-width: 769px) {
+  .schedule-detail-popup-backdrop.schedule-detail-popup-backdrop{
+    align-items:flex-start;
+    padding:calc(var(--app-topbar-height) + 12px) 12px calc(var(--app-bottom-nav-height) + 12px);
+    background:rgba(246, 251, 255, 0.78);
+    backdrop-filter:blur(8px);
+  }
+
+  .schedule-detail-page-v2{
+    min-height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 26px);
+    height:calc(100dvh - var(--app-topbar-height) - var(--app-bottom-nav-height) - 26px);
+    display:flex;
+    flex-direction:column;
+    gap:0;
+    padding-bottom:0;
+  }
+
+  .schedule-detail-card-v2{
+    flex:1 1 auto;
+    min-height:0;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .schedule-detail-sticky-stack{
+    flex:0 0 auto;
+  }
+
+  .schedule-detail-scroll-region{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    padding:18px 0 0;
+    gap:14px;
+  }
+
+  .schedule-detail-content-body{
+    flex:0 0 auto;
+    padding-top:0;
+  }
+
+  .schedule-detail-comments-section{
+    margin-top:0;
+    padding:14px 0 0;
+    border-top:1px solid rgba(15, 23, 42, 0.08);
+    display:flex;
+    flex-direction:column;
+    flex:1 1 auto;
+    min-height:0;
+  }
+
+  .schedule-detail-comments-title{
+    text-align:left;
+    margin:0 0 10px;
+    flex:0 0 auto;
+  }
+
+  .schedule-detail-comments-list{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding-right:4px;
+    padding-bottom:8px;
+  }
+
+  .schedule-detail-comment-composer{
+    position:sticky;
+    left:auto;
+    transform:none;
+    bottom:0;
+    width:100%;
+    max-width:none;
+    flex:0 0 auto;
+    border-top:1px solid rgba(15,23,42,0.1);
+    box-shadow:0 -10px 24px rgba(15,23,42,0.06);
+    z-index:70;
+  }
+
+  .schedule-detail-popup-card .schedule-detail-comment-composer{
+    border-top:1px solid rgba(15,23,42,0.12);
+  }
 }
 .schedule-page.mobile .mobile-schedule-detail-panel.collapsed .schedule-popup-list.embedded{
   max-height:calc(100vh - 340px);
@@ -24232,6 +24332,7 @@ textarea,
   .schedule-detail-popup-card{
     width:100vw;
     max-width:100vw;
+    height:100vh;
     max-height:100vh;
     border-radius:0;
   }
