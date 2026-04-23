@@ -33233,3 +33233,41 @@ button.danger {
     letter-spacing: 0 !important;
   }
 }
+
+
+/* 2026-04-23 pc schedule plus-row thin horizontal line cleanup */
+@media (min-width: 769px) {
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row {
+    border: 0 !important;
+    border-top: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    outline: 0 !important;
+    background-image: none !important;
+  }
+
+  .schedule-page .calendar-plus-row::before,
+  .schedule-page .calendar-plus-row::after,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row::before,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row::after,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row::before,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row::after,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row::before,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row::after {
+    display: none !important;
+    content: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell:not(.weekend) .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell.outside-month-cell:not(.weekend) .calendar-plus-row {
+    background: #ffffff !important;
+    box-shadow: inset 0 -1px 0 #ffffff !important;
+  }
+}
