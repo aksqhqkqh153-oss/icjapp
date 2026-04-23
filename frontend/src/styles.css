@@ -33121,3 +33121,115 @@ button.danger {
     text-align: center !important;
   }
 }
+
+
+/* 2026-04-23 pc schedule topline/status row responsive fit and handless width rebalance */
+@media (min-width: 769px) {
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line > *,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line > * {
+    min-width: 0 !important;
+  }
+
+  .schedule-page .calendar-top-actions.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-top-actions.filled {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 24px !important;
+    gap: 2px !important;
+    flex: 0 0 auto !important;
+    min-width: 56px !important;
+    margin-left: auto !important;
+  }
+
+  .schedule-page .calendar-top-actions.filled .calendar-entry-band,
+  .schedule-page .schedule-cell.detail-cell .calendar-top-actions.filled .calendar-entry-band {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding-inline: 4px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 18px !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics {
+    display: grid !important;
+    grid-template-columns: minmax(0, 2.65fr) repeat(3, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    gap: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 1px 0 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-day-summary-metric,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-metric {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 1px !important;
+    font-size: clamp(7px, 0.48vw, 9px) !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    justify-content: center !important;
+  }
+
+  .schedule-page .calendar-day-summary-metric.vehicle,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-metric.vehicle {
+    justify-content: flex-start !important;
+    font-size: clamp(7px, 0.46vw, 8.5px) !important;
+    letter-spacing: -0.15px !important;
+  }
+
+  .schedule-page .calendar-handless-banner.split-layout,
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    place-self: stretch end !important;
+    min-width: 18px !important;
+    width: 18px !important;
+    max-width: 18px !important;
+    margin: 0 0 0 auto !important;
+    padding: 0 !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+  }
+
+  .schedule-page .calendar-handless-banner.split-layout span,
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: clamp(8px, 0.5vw, 10px) !important;
+    line-height: 1 !important;
+    transform: none !important;
+    letter-spacing: 0 !important;
+  }
+}

@@ -8073,7 +8073,7 @@ function CalendarPage() {
                     ) : (
                       <div className="calendar-day-status-row">
                         <button type="button" className="calendar-day-summary-button redesigned split-layout calendar-day-status-metrics" title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
-                          <span className="calendar-day-summary-metric vehicle">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-metric vehicle">가용수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-metric">A {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-metric">B {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
                           <span className="calendar-day-summary-metric">C {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
