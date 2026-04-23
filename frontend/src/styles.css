@@ -33064,3 +33064,60 @@ button.danger {
     border-right: 1px solid #d7dee8 !important;
   }
 }
+
+/* 2026-04-23 pc schedule lane numeric width/gap/plus-row button alignment */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane.filled {
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    column-gap: 2px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .calendar-lane-title {
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "lnum" 1 !important;
+    font-kerning: none !important;
+    letter-spacing: 0 !important;
+    padding: 0 3px 0 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row {
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .schedule-page .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator,
+  .schedule-page .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row .calendar-more-indicator.single-plus,
+  .schedule-page .calendar-plus-row .single-plus,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row .single-plus,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row .single-plus,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row .single-plus {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+}
