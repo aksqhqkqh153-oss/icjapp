@@ -8072,11 +8072,11 @@ function CalendarPage() {
                       </button>
                     ) : (
                       <div className="calendar-day-status-row">
-                        <button type="button" className="calendar-day-summary-button redesigned split-layout" title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
-                          <span className="calendar-day-summary-vehicle">{String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
-                          <span className="calendar-day-summary-chip">A:{String(daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
-                          <span className="calendar-day-summary-chip">B:{String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
-                          <span className="calendar-day-summary-chip">C:{String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
+                        <button type="button" className="calendar-day-summary-button redesigned split-layout calendar-day-status-metrics" title={dayCapacity?.detail || ''} onClick={() => openCalendarStatus(daySummary)}>
+                          <span className="calendar-day-summary-metric vehicle">가용차량수 {String(daySummary?.available_vehicle_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-metric">A {String(daySummary?.status_a_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-metric">B {String(daySummary?.status_b_count ?? 0).padStart(2, '0')}</span>
+                          <span className="calendar-day-summary-metric">C {String(daySummary?.status_c_count ?? 0).padStart(2, '0')}</span>
                         </button>
                         <div className={`calendar-handless-banner split-layout ${daySummary?.is_handless_day ? 'handless' : 'general'}${shouldHighlightDayKind ? ' special-attention' : ''}`}><span>{daySummary?.is_handless_day ? '손' : '일'}</span></div>
                       </div>

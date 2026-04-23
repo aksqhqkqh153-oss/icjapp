@@ -32942,3 +32942,68 @@ button.danger {
     max-height: var(--pc-schedule-plus-height-final) !important;
   }
 }
+
+
+/* 2026-04-23 pc schedule day-status-row full metric labels */
+@media (min-width: 769px) {
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 22px !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics {
+    display: grid !important;
+    grid-template-columns: minmax(0, 2.3fr) repeat(3, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    gap: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 0 2px !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-day-summary-metric,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-metric {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 2px !important;
+    margin: 0 !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #1f2937 !important;
+  }
+
+  .schedule-page .calendar-day-summary-metric.vehicle,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-metric.vehicle {
+    justify-content: flex-start !important;
+    font-size: 8.5px !important;
+    letter-spacing: -0.1px !important;
+  }
+
+  .schedule-page .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics > .calendar-day-summary-metric + .calendar-day-summary-metric,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-summary-button.redesigned.split-layout.calendar-day-status-metrics > .calendar-day-summary-metric + .calendar-day-summary-metric {
+    border-left: 1px solid #d4d8dd !important;
+  }
+
+  .schedule-page .calendar-handless-banner.split-layout,
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout {
+    min-width: 22px !important;
+    width: 22px !important;
+    max-width: 22px !important;
+    padding: 0 !important;
+  }
+}
