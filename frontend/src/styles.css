@@ -33007,3 +33007,13 @@ button.danger {
     padding: 0 !important;
   }
 }
+
+/* 2026-04-23 pc schedule handless/fri/sat banner pink override */
+@media (min-width: 769px) {
+  .schedule-page .calendar-handless-banner.split-layout.special-attention,
+  .schedule-page .schedule-cell.detail-cell .calendar-handless-banner.split-layout.special-attention {
+    background: linear-gradient(180deg, #fbcfe8 0%, #f9a8d4 100%) !important;
+    color: #831843 !important;
+    border-color: #f472b6 !important;
+  }
+}
