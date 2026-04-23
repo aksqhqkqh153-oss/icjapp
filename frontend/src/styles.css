@@ -32631,3 +32631,48 @@ button.danger {
     justify-content: flex-end !important;
   }
 }
+
+/* 2026-04-23 pc schedule outer cell height sync for 5 lanes + more button */
+@media (min-width: 769px) {
+  .schedule-page {
+    --pc-schedule-header-height: 28px;
+    --pc-schedule-summary-height: 26px;
+    --pc-schedule-lane-height: 18px;
+    --pc-schedule-lane-count: 5;
+    --pc-schedule-more-height: 20px;
+    --pc-schedule-cell-min-height: calc(
+      var(--pc-schedule-header-height) +
+      var(--pc-schedule-summary-height) +
+      (var(--pc-schedule-lane-height) * var(--pc-schedule-lane-count)) +
+      var(--pc-schedule-more-height)
+    );
+  }
+
+  .schedule-page .schedule-grid.detail-mode {
+    grid-auto-rows: minmax(var(--pc-schedule-cell-min-height), auto) !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell {
+    min-height: var(--pc-schedule-cell-min-height) !important;
+    height: auto !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack {
+    min-height: calc((var(--pc-schedule-lane-height) * var(--pc-schedule-lane-count)) + var(--pc-schedule-more-height)) !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes {
+    min-height: calc(var(--pc-schedule-lane-height) * var(--pc-schedule-lane-count)) !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row {
+    min-height: var(--pc-schedule-more-height) !important;
+    height: var(--pc-schedule-more-height) !important;
+    max-height: var(--pc-schedule-more-height) !important;
+    flex-basis: var(--pc-schedule-more-height) !important;
+  }
+}
