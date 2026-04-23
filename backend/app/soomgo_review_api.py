@@ -468,22 +468,36 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
             review_indexes.append(row_index)
 
     review_start_index = min(review_indexes) if review_indexes else 1
+    blocked_exact = {'더보기', '리뷰', '답글', '답변', '답변쓰기', '답글쓰기', '댓글', '작성'}
+    blocked_contains = ('답변쓰기', '답글쓰기', '답변 달기', '답글 달기', '답변 작성', '답글 작성')
+
+    def is_meaningful_reply_text(value: Any) -> bool:
+        normalized = _normalize_review_text(value)
+        if not normalized:
+            return False
+        if normalized in blocked_exact:
+            return False
+        if any(token in normalized for token in blocked_contains):
+            return False
+        if len(normalized) < 6:
+            return False
+        if _is_likely_name_line(normalized) and len(normalized) <= 10:
+            return False
+        return True
 
     for row in section_rows:
         row_index = int(row.get('index', -1) or -1)
         if row_index <= review_start_index:
             continue
         if row.get('has_nested_article'):
-            return True
-        if row.get('reply_rows'):
-            meaningful_reply_rows = [
-                value for value in (row.get('reply_rows') or [])
-                if _normalize_review_text(value) not in {'더보기', '리뷰', '답글', '답변'}
-            ]
-            if meaningful_reply_rows:
+            if any(is_meaningful_reply_text(value) for value in (row.get('reply_rows') or [])):
                 return True
-        lines = row.get('lines') or []
-        if any('답변' in _normalize_review_text(value) or '답글' in _normalize_review_text(value) for value in lines):
+            if any(is_meaningful_reply_text(value) for value in (row.get('lines') or [])):
+                return True
+            continue
+        if any(is_meaningful_reply_text(value) for value in (row.get('reply_rows') or [])):
+            return True
+        if any(is_meaningful_reply_text(value) and ('답변' in _normalize_review_text(value) or '답글' in _normalize_review_text(value)) for value in (row.get('lines') or [])):
             return True
 
     if item is None:
@@ -496,7 +510,10 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
     for selector in article_selectors:
         try:
             locator = item.locator(selector)
-            if locator.count() > 0:
+            if locator.count() == 0:
+                continue
+            text = _normalize_review_text(locator.first.inner_text(timeout=1200))
+            if is_meaningful_reply_text(text):
                 return True
         except Exception:
             continue
@@ -506,16 +523,14 @@ def _has_meaningful_reply(preloaded: Optional[dict[str, Any]] = None, item: Any 
         "xpath=.//article/section[position()=3 or position()=4]//article/span",
         "xpath=.//article/section[position()=3 or position()=4]//article//*[contains(@class, 'body14:regular') and contains(@class, 'primary')]",
     ]
-    blocked = {'더보기', '리뷰', '답글', '답변'}
     for selector in selectors:
         try:
             locator = item.locator(selector)
             count = locator.count()
             for idx in range(count):
                 value = _normalize_review_text(locator.nth(idx).inner_text(timeout=1200))
-                if not value or value in blocked:
-                    continue
-                return True
+                if is_meaningful_reply_text(value):
+                    return True
         except Exception:
             continue
     return False

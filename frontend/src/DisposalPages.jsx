@@ -1074,6 +1074,55 @@ async function buildCompanyQuoteCanvas(options = {}) {
   return buildEstimateQuoteCanvas({ ...options, mode: 'company' })
 }
 
+async function saveCompanyEstimateRecordAsJpg(record = {}) {
+  const normalized = normalizeRecordShape(record)
+  if (!normalized) throw new Error('회사용 견적서를 저장할 데이터가 없습니다.')
+  const rendered = buildRenderedTemplate(normalized)
+  const exportSettings = loadDisposalExportSettings()
+  const canvas = await buildCompanyQuoteCanvas({
+    rows: rendered.reportRows,
+    customerName: normalized.customerName,
+    disposalDate: normalized.disposalDate,
+    location: normalized.location,
+  })
+  const blob = await canvasToJpegBlob(canvas)
+  const filename = buildEstimateExportFilename({
+    platform: normalized.platform,
+    customerName: normalized.customerName,
+    disposalDate: normalized.disposalDate,
+    suffix: '폐기밴드',
+    template: exportSettings.companyTemplate,
+    location: normalized.location,
+  })
+
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JPEG 이미지', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      window.alert('회사용 견적서가 저장되었습니다.')
+      return
+    } catch (error) {
+      if (error?.name === 'AbortError') return
+      throw error
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  window.alert('회사용 견적서 JPG 파일 다운로드가 시작되었습니다.')
+}
+
 function persistPreviewDraft(draft) {
   try {
     sessionStorage.setItem(DISPOSAL_PREVIEW_SESSION_KEY, JSON.stringify({
@@ -3375,7 +3424,22 @@ export function DisposalListPage() {
                       <span className="disposal-meta-link-button disposal-meta-platform">{group.platform || '-'}</span>
                       <span className="disposal-meta-link-button disposal-meta-customer-link"><strong className="disposal-meta-customer">{group.customerName}</strong></span>
                     </div>
-                    <div className="disposal-meta-action-inline-wrap">
+                    <div className="disposal-meta-action-inline-wrap disposal-meta-action-inline-wrap-three">
+                      <button
+                        type="button"
+                        className="ghost disposal-header-action-button disposal-company-save-button"
+                        onClick={async e => {
+                          e.stopPropagation()
+                          try {
+                            await saveCompanyEstimateRecordAsJpg(group)
+                          } catch (error) {
+                            window.alert(error?.message || '회사용 견적서를 저장하지 못했습니다.')
+                          }
+                        }}
+                        aria-label={`${group.customerName} 회사용견적저장`}
+                      >
+                        회사용견적저장
+                      </button>
                       <span className={`disposal-payment-badge disposal-header-action-button ${isPaid && isReported ? 'is-paid' : (isPaid ? 'is-mixed' : 'is-unpaid')}`.trim()} aria-label={`${group.customerName} 입금완/신고완 상태`}>{isPaid ? '입금완' : '입금전'}/{isReported ? '신고완' : '신고전'}</span>
                       {isTransferred ? <span className="disposal-transfer-badge disposal-header-action-button">결산반영완료</span> : <span className="disposal-transfer-badge disposal-header-action-button is-pending">결산대기</span>}
                     </div>

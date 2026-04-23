@@ -22199,6 +22199,14 @@ textarea,
   align-items: stretch;
 }
 
+.disposal-meta-action-inline-wrap-three {
+  grid-template-columns: auto auto auto;
+}
+
+.disposal-company-save-button {
+  min-width: 136px;
+}
+
 .disposal-header-action-button {
   display: inline-flex;
   align-items: center;
