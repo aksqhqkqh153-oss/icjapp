@@ -32820,3 +32820,125 @@ button.danger {
     align-items: center !important;
   }
 }
+
+
+/* 2026-04-23 pc schedule week-row boundary sync for 5 lanes + more button */
+@media (min-width: 769px) {
+  .schedule-page {
+    --pc-schedule-topline-height-final: 20px;
+    --pc-schedule-status-height-final: 22px;
+    --pc-schedule-lane-height-final: 14px;
+    --pc-schedule-lane-count-final: 5;
+    --pc-schedule-plus-height-final: 20px;
+    --pc-schedule-lanes-stack-height-final: calc(
+      (var(--pc-schedule-lane-height-final) * var(--pc-schedule-lane-count-final)) +
+      var(--pc-schedule-plus-height-final)
+    );
+    --pc-schedule-cell-height-final: calc(
+      var(--pc-schedule-topline-height-final) +
+      var(--pc-schedule-status-height-final) +
+      var(--pc-schedule-lanes-stack-height-final) +
+      2px
+    );
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode,
+  .schedule-page .schedule-grid.detail-mode {
+    grid-auto-rows: var(--pc-schedule-cell-height-final) !important;
+    align-items: stretch !important;
+    align-content: start !important;
+    row-gap: 0 !important;
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.today,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.weekend,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .schedule-cell.detail-cell {
+    min-height: var(--pc-schedule-cell-height-final) !important;
+    height: var(--pc-schedule-cell-height-final) !important;
+    max-height: var(--pc-schedule-cell-height-final) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-cell-topline.schedule-header-line,
+  .schedule-page .schedule-cell.detail-cell .calendar-cell-topline.schedule-header-line {
+    min-height: var(--pc-schedule-topline-height-final) !important;
+    height: var(--pc-schedule-topline-height-final) !important;
+    max-height: var(--pc-schedule-topline-height-final) !important;
+    flex: 0 0 var(--pc-schedule-topline-height-final) !important;
+  }
+
+  .schedule-page .calendar-day-status-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-day-status-row {
+    min-height: var(--pc-schedule-status-height-final) !important;
+    height: var(--pc-schedule-status-height-final) !important;
+    max-height: var(--pc-schedule-status-height-final) !important;
+    flex: 0 0 var(--pc-schedule-status-height-final) !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+  }
+
+  .schedule-page .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lanes-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex: 0 0 var(--pc-schedule-lanes-stack-height-final) !important;
+    min-height: var(--pc-schedule-lanes-stack-height-final) !important;
+    height: var(--pc-schedule-lanes-stack-height-final) !important;
+    max-height: var(--pc-schedule-lanes-stack-height-final) !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lanes {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: repeat(5, var(--pc-schedule-lane-height-final)) !important;
+    grid-auto-rows: var(--pc-schedule-lane-height-final) !important;
+    align-content: start !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex: 0 0 calc(var(--pc-schedule-lane-height-final) * var(--pc-schedule-lane-count-final)) !important;
+    min-height: calc(var(--pc-schedule-lane-height-final) * var(--pc-schedule-lane-count-final)) !important;
+    height: calc(var(--pc-schedule-lane-height-final) * var(--pc-schedule-lane-count-final)) !important;
+    max-height: calc(var(--pc-schedule-lane-height-final) * var(--pc-schedule-lane-count-final)) !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: 0 0 var(--pc-schedule-plus-height-final) !important;
+    min-height: var(--pc-schedule-plus-height-final) !important;
+    height: var(--pc-schedule-plus-height-final) !important;
+    max-height: var(--pc-schedule-plus-height-final) !important;
+  }
+}
