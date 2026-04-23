@@ -8058,7 +8058,7 @@ function CalendarPage() {
                             <span className="calendar-entry-label two-line schedule-single-line">스케줄</span>
                           </button>
                           <button type="button" className="calendar-entry-band filled schedule-add-band" onClick={() => openDateForm(date)} title="일정등록" aria-label="일정등록">
-                            <span className="calendar-entry-label plus-only">+</span>
+                            <span className="calendar-entry-label plus-only">등록</span>
                           </button>
                         </div>
                       )}

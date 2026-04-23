@@ -33382,3 +33382,48 @@ button.danger {
     border-right:1px solid #000 !important;
   }
 }
+
+
+/* 2026-04-23 desktop schedule add button label and action divider */
+@media (min-width: 769px) {
+  .schedule-page .schedule-cell.detail-cell .calendar-top-actions.filled {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 30px !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.secondary.filled {
+    min-width: 0 !important;
+    width: 100% !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-band.filled.schedule-add-band {
+    min-width: 30px !important;
+    width: 30px !important;
+    padding: 0 !important;
+    border-left: 1px solid rgba(148, 163, 184, 0.9) !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .schedule-page .schedule-cell.detail-cell .calendar-entry-label.plus-only {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.15px !important;
+    white-space: nowrap !important;
+  }
+}
