@@ -32676,3 +32676,44 @@ button.danger {
     flex-basis: var(--pc-schedule-more-height) !important;
   }
 }
+
+/* 2026-04-23 pc schedule lane text/gap/weekday column divider refinement */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .schedule-cell.detail-cell {
+    border-right: 1px solid #d7dee8 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n),
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell:nth-child(7n) {
+    border-right: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane.filled {
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    column-gap: 1px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled span,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .calendar-lane.filled span {
+    font-size: 11px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .calendar-lane-title {
+    padding: 0 3px 0 0 !important;
+    align-items: center !important;
+  }
+}
