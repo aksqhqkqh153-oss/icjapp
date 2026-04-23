@@ -33017,3 +33017,50 @@ button.danger {
     border-color: #f472b6 !important;
   }
 }
+
+/* 2026-04-23 pc schedule full weekday column border lines */
+@media (min-width: 769px) {
+  .schedule-page .calendar-weekdays,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode,
+  .schedule-page .schedule-grid.detail-mode {
+    column-gap: 0 !important;
+    gap: 0 !important;
+  }
+
+  .schedule-page .calendar-weekdays {
+    border-left: 1px solid #d7dee8 !important;
+    border-top: 1px solid #d7dee8 !important;
+    border-bottom: 1px solid #d7dee8 !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday {
+    border-right: 1px solid #d7dee8 !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-weekdays .weekday:last-child {
+    border-right: 1px solid #d7dee8 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode {
+    border-left: 1px solid #d7dee8 !important;
+    border-bottom: 1px solid #d7dee8 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .schedule-grid.detail-mode > .schedule-cell.detail-cell,
+  .schedule-page .schedule-cell.detail-cell {
+    border-right: 1px solid #d7dee8 !important;
+    border-bottom: 1px solid #d7dee8 !important;
+    box-sizing: border-box !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell:nth-child(7n),
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell:nth-child(7n),
+  .schedule-page .schedule-grid.detail-mode > .calendar-cell:nth-child(7n),
+  .schedule-page .schedule-grid.detail-mode > .schedule-cell.detail-cell:nth-child(7n) {
+    border-right: 1px solid #d7dee8 !important;
+  }
+}
