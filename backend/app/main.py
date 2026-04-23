@@ -5230,21 +5230,35 @@ def replace_calendar_event_department(payload: CalendarDepartmentReplaceIn, user
 @app.delete("/api/calendar/events/{event_id}")
 def delete_calendar_event(event_id: int, user=Depends(require_user)):
     _require_write_access(user, 'schedule')
+    actor_grade = int(user.get('grade') or 9)
+    can_delete_any_schedule = actor_grade <= 2
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"])).fetchone()
+        row = conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="본인이 등록한 일정만 삭제할 수 있습니다.")
+            raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
         row_data = row_to_dict(row)
+        owner_user_id = row_data.get('user_id')
+        if not can_delete_any_schedule and owner_user_id != user.get("id"):
+            raise HTTPException(status_code=403, detail="본인이 등록한 일정만 삭제할 수 있습니다.")
         group_id = str(row_data.get('sync_group_id') or '').strip()
         touched_dates = {str(row_data.get('event_date') or '')}
         if group_id:
-            group_rows = conn.execute("SELECT id, event_date FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id)).fetchall()
-            for item in group_rows:
-                touched_dates.add(str(item['event_date'] or ''))
-            conn.execute("DELETE FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id))
+            if can_delete_any_schedule:
+                group_rows = conn.execute("SELECT id, event_date FROM calendar_events WHERE sync_group_id = ?", (group_id,)).fetchall()
+                for item in group_rows:
+                    touched_dates.add(str(item['event_date'] or ''))
+                conn.execute("DELETE FROM calendar_events WHERE sync_group_id = ?", (group_id,))
+            else:
+                group_rows = conn.execute("SELECT id, event_date FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id)).fetchall()
+                for item in group_rows:
+                    touched_dates.add(str(item['event_date'] or ''))
+                conn.execute("DELETE FROM calendar_events WHERE user_id = ? AND sync_group_id = ?", (user['id'], group_id))
             _sync_storage_status_with_calendar_group(conn, row_data, remove_only=True)
         else:
-            conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
+            if can_delete_any_schedule:
+                conn.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
+            else:
+                conn.execute("DELETE FROM calendar_events WHERE id = ? AND user_id = ?", (event_id, user["id"]))
             if _is_storage_schedule_department(row_data.get('department_info')):
                 _sync_storage_status_with_calendar_group(conn, {**row_data, 'sync_group_id': _storage_schedule_group_id(event_id)}, remove_only=True)
         for event_date in touched_dates:

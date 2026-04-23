@@ -10548,6 +10548,7 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
   const navigate = useNavigate()
   const currentUser = getStoredUser()
   const canEditCurrentSchedule = canEditCalendarSchedule(currentUser)
+  const currentUserGrade = Number(currentUser?.grade || 9)
   const [item, setItem] = useState(null)
   const [comments, setComments] = useState([])
   const [editLogs, setEditLogs] = useState([])
@@ -10719,6 +10720,7 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
   const staffs = [item?.staff1, item?.staff2, item?.staff3].filter(Boolean)
   const departmentColor = departmentColorMap[item?.department_info] || item?.color || '#2563eb'
   const departmentTextColor = getReadableTextColor(departmentColor)
+  const canDeleteCurrentSchedule = canEditCurrentSchedule && (currentUserGrade <= 2 || Number(item?.user_id || 0) === Number(currentUser?.id || 0))
 
   if (error) return <div className="card error">{error}</div>
   if (!item) return <div className="card">불러오는 중...</div>
@@ -10730,7 +10732,7 @@ function ScheduleDetailContent({ eventId, embedded = false, onClose = null }) {
           <div className="schedule-detail-author-bar">
             <div className="schedule-detail-author-text">글 작성자명 : {item.created_by_nickname || '계정 이름'}</div>
             <div className="schedule-detail-author-actions">
-              {canEditCurrentSchedule ? <button type="button" className="ghost small danger-outline schedule-detail-delete-button" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button> : null}
+              {canDeleteCurrentSchedule ? <button type="button" className="ghost small danger-outline schedule-detail-delete-button" onClick={handleDeleteSchedule} disabled={deleting}>{deleting ? '삭제 중...' : '일정삭제'}</button> : null}
               {canEditCurrentSchedule && <button type="button" className="ghost small" onClick={() => navigate(`/schedule/${item.id}/edit`)}>수정</button>}
               <div className="dropdown-wrap" onClick={e => e.stopPropagation()}>
                 <button type="button" className="ghost small" onClick={() => setMenuOpen(v => !v)}>설정</button>
