@@ -32483,3 +32483,151 @@ button.danger {
     flex: 0 0 12px !important;
   }
 }
+
+
+/* 2026-04-23 desktop schedule calendar lane count/track/vertical-center refinement */
+@media (min-width: 769px) {
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.today,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.weekend,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.selected,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell.outside-month-cell,
+  .schedule-page .schedule-cell.detail-cell {
+    min-height: 118px !important;
+    height: 118px !important;
+    max-height: 118px !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes-stack,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes-stack,
+  .schedule-page .calendar-lanes-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    flex: 0 0 74px !important;
+    min-height: 74px !important;
+    height: 74px !important;
+    max-height: 74px !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lanes,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .schedule-cell.detail-cell .calendar-lanes,
+  .schedule-page .calendar-lanes {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: repeat(5, 14px) !important;
+    grid-auto-rows: 14px !important;
+    align-content: start !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    gap: 0 !important;
+    row-gap: 0 !important;
+    column-gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 70px !important;
+    height: 70px !important;
+    max-height: 70px !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane,
+  .schedule-page .calendar-lane.filled {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    min-height: 14px !important;
+    height: 14px !important;
+    max-height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    overflow: hidden !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled,
+  .schedule-page .calendar-lane.filled {
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    align-items: center !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane-color-block,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane-color-block,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-color-block,
+  .schedule-page .calendar-lane-color-block {
+    display: block !important;
+    width: 18px !important;
+    min-width: 18px !important;
+    max-width: 18px !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    max-height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-self: stretch !important;
+    border-radius: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane-title,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane-title,
+  .schedule-page .calendar-lane-title {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    max-height: 14px !important;
+    padding: 0 3px !important;
+    margin: 0 !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-lane.filled span,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .schedule-cell.detail-cell .calendar-lane.filled span,
+  .schedule-page .calendar-lane.filled span {
+    line-height: 1 !important;
+    padding-left: 0 !important;
+  }
+
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell .calendar-plus-row,
+  .schedule-page .calendar-grid.schedule-grid.detail-mode > .calendar-cell.schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .schedule-cell.detail-cell .calendar-plus-row,
+  .schedule-page .calendar-plus-row {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 12px !important;
+    height: 12px !important;
+    max-height: 12px !important;
+    flex: 0 0 12px !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+}

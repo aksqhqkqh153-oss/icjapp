@@ -7736,7 +7736,7 @@ function CalendarPage() {
     }
     return map
   }, [items])
-  const visibleLaneCount = 3
+  const visibleLaneCount = 5
   const workDayMap = useMemo(() => {
     const safeDays = Array.isArray(workDays) ? workDays : []
     return new Map(safeDays.filter(day => day?.date).map(day => [day.date, day]))
