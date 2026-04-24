@@ -20295,6 +20295,15 @@ function MaterialsPage({ user }) {
         ) : null}
         <div className="materials-catalog-table-wrap">
           <table className="materials-catalog-table">
+            <colgroup>
+              <col className="materials-catalog-col-check" />
+              <col className="materials-catalog-col-code" />
+              <col className="materials-catalog-col-name" />
+              <col className="materials-catalog-col-bundle" />
+              <col className="materials-catalog-col-price" />
+              <col className="materials-catalog-col-price" />
+              <col className="materials-catalog-col-enabled" />
+            </colgroup>
             <thead>
               <tr>
                 <th>체크박스</th>
@@ -20348,7 +20357,7 @@ function MaterialsPage({ user }) {
       <section className="materials-settlement-sheet">
         <div className="materials-sheet-banner">◆ 일일 본사 자재 출고 / 입금 현황</div>
         <div className="materials-sheet-table-wrap" style={getTableScaleStyle('settlements')}>
-          <table className="materials-sheet-table">
+          <table className="materials-sheet-table materials-summary-sheet-table">
             <thead>
               <tr>
                 <th rowSpan={2}>구매신청일</th>

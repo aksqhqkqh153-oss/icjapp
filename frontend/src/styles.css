@@ -33945,3 +33945,76 @@ button.danger {
 .materials-branch-issue-table td:first-child {
   text-align: center;
 }
+
+/* material catalog width compact fix */
+.materials-catalog-table {
+  min-width: 720px;
+  table-layout: fixed;
+}
+.materials-catalog-col-check { width: 34px; }
+.materials-catalog-col-code { width: 96px; }
+.materials-catalog-col-name { width: 150px; }
+.materials-catalog-col-bundle { width: 76px; }
+.materials-catalog-col-price { width: 86px; }
+.materials-catalog-col-enabled { width: 124px; }
+.materials-catalog-table th:first-child,
+.materials-catalog-table td:first-child,
+.materials-catalog-checkbox-cell {
+  width: 34px;
+  min-width: 34px;
+  max-width: 34px;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+.materials-catalog-table th:first-child {
+  font-size: 10.5px;
+  letter-spacing: -0.6px;
+  word-break: keep-all;
+}
+.materials-catalog-checkbox-cell input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+}
+.materials-catalog-table input,
+.materials-catalog-table select {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.materials-catalog-table th,
+.materials-catalog-table td {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* material settlement summary table auto width by cell content */
+.materials-sheet-table.materials-summary-sheet-table {
+  width: max-content;
+  min-width: 0;
+  table-layout: auto;
+}
+.materials-sheet-table.materials-summary-sheet-table th,
+.materials-sheet-table.materials-summary-sheet-table td {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  white-space: nowrap;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.materials-sheet-table.materials-summary-sheet-table th:first-child,
+.materials-sheet-table.materials-summary-sheet-table td:first-child {
+  width: auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .materials-catalog-table {
+    min-width: 700px;
+  }
+  .materials-catalog-col-check { width: 32px; }
+  .materials-catalog-col-code { width: 92px; }
+  .materials-catalog-col-name { width: 140px; }
+  .materials-catalog-col-bundle { width: 72px; }
+  .materials-catalog-col-price { width: 82px; }
+  .materials-catalog-col-enabled { width: 118px; }
+}
