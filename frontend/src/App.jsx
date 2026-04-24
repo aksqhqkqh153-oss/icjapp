@@ -19134,7 +19134,7 @@ function MaterialsPage({ user }) {
   const [catalogDeletedIds, setCatalogDeletedIds] = useState([])
   const [catalogSettingsOpen, setCatalogSettingsOpen] = useState(false)
   const [catalogShowInactive, setCatalogShowInactive] = useState(false)
-  const [catalogSortField, setCatalogSortField] = useState('received_at')
+  const [catalogSortField, setCatalogSortField] = useState('code')
   const resizeStateRef = useRef(null)
 
   const accountGuide = '3333-29-1202673 카카오뱅크 (심진수)'
@@ -19772,12 +19772,15 @@ function MaterialsPage({ user }) {
     return String(row?.received_at || '')
   }
 
-  const sortedCatalogRows = [...catalogRows].sort((a, b) => {
-    const av = getCatalogSortValue(a, catalogSortField)
-    const bv = getCatalogSortValue(b, catalogSortField)
-    if (typeof av === 'number' && typeof bv === 'number') return av - bv
-    return String(av).localeCompare(String(bv), 'ko-KR', { numeric: true, sensitivity: 'base' })
-  })
+  function sortCatalogRowsOnce(field) {
+    setCatalogSortField(field)
+    setCatalogRows(prev => [...prev].sort((a, b) => {
+      const av = getCatalogSortValue(a, field)
+      const bv = getCatalogSortValue(b, field)
+      if (typeof av === 'number' && typeof bv === 'number') return av - bv
+      return String(av).localeCompare(String(bv), 'ko-KR', { numeric: true, sensitivity: 'base' })
+    }))
+  }
 
   async function loadCatalogRows(includeInactive = catalogShowInactive) {
     if (!data?.permissions?.can_view_catalog) return
@@ -19905,8 +19908,7 @@ function MaterialsPage({ user }) {
           <div className="materials-catalog-actions-left">
             <label className="materials-catalog-filter-label">
               <span>필터</span>
-              <select value={catalogSortField} onChange={(event) => setCatalogSortField(event.target.value)}>
-                <option value="received_at">입고일시</option>
+              <select value={catalogSortField} onChange={(event) => sortCatalogRowsOnce(event.target.value)}>
                 <option value="code">품목코드</option>
                 <option value="name">품목명</option>
                 <option value="purchase_price">구매가</option>
@@ -19936,7 +19938,6 @@ function MaterialsPage({ user }) {
             <thead>
               <tr>
                 <th>체크박스</th>
-                <th>입고일시</th>
                 <th>품목코드</th>
                 <th>품목명</th>
                 <th>묶음별개수</th>
@@ -19946,14 +19947,13 @@ function MaterialsPage({ user }) {
               </tr>
             </thead>
             <tbody>
-              {sortedCatalogRows.length ? sortedCatalogRows.map((row) => {
+              {catalogRows.length ? catalogRows.map((row) => {
                 const selected = catalogSelectedKeys.includes(row.key)
                 return (
                   <tr key={row.key} className={selected ? 'is-selected' : ''}>
                     <td className="materials-catalog-checkbox-cell">
                       <input type="checkbox" checked={selected} onChange={() => toggleCatalogRowSelection(row.key)} />
                     </td>
-                    <td><input type="datetime-local" value={row.received_at} onChange={(e) => updateCatalogRow(row.key, 'received_at', e.target.value)} /></td>
                     <td><input value={row.code} onChange={(e) => updateCatalogRow(row.key, 'code', e.target.value.replace(/\s+/g, ''))} placeholder="예: tape-001" /></td>
                     <td><input value={row.name} onChange={(e) => updateCatalogRow(row.key, 'name', e.target.value)} placeholder="품목명 입력" /></td>
                     <td><input inputMode="numeric" value={row.bundle_count} onChange={(e) => updateCatalogRow(row.key, 'bundle_count', e.target.value.replace(/[^\d]/g, ''))} placeholder="0" /></td>
@@ -19969,7 +19969,7 @@ function MaterialsPage({ user }) {
                 )
               }) : (
                 <tr>
-                  <td colSpan={8} className="materials-catalog-empty">등록된 자재목록이 없습니다. 행추가 버튼으로 항목을 추가해 주세요.</td>
+                  <td colSpan={7} className="materials-catalog-empty">등록된 자재목록이 없습니다. 행추가 버튼으로 항목을 추가해 주세요.</td>
                 </tr>
               )}
             </tbody>
