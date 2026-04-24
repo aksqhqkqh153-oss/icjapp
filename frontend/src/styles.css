@@ -33790,3 +33790,78 @@ button.danger {
     padding-right: 6px;
   }
 }
+
+
+.materials-summary-page {
+  width: 100%;
+}
+
+.materials-summary-panel {
+  overflow: hidden;
+}
+
+.materials-summary-table-wrap {
+  width: 100%;
+  max-height: calc(100vh - 230px);
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.materials-summary-static-table {
+  min-width: 3600px;
+  width: max-content;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.materials-summary-static-table th,
+.materials-summary-static-table td {
+  min-width: 112px;
+  max-width: 180px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: pre-line;
+  line-height: 1.35;
+}
+
+.materials-summary-static-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e2e8f0;
+  font-weight: 800;
+}
+
+.materials-summary-static-table tbody tr.is-template-head td {
+  position: sticky;
+  top: 29px;
+  z-index: 1;
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.materials-summary-static-table tbody tr:nth-child(even):not(.is-template-head) td {
+  background: rgba(248, 250, 252, 0.72);
+}
+
+@media (max-width: 768px) {
+  .materials-summary-table-wrap {
+    max-height: calc(100vh - 210px);
+  }
+
+  .materials-summary-static-table {
+    min-width: 3000px;
+    font-size: 11px;
+  }
+
+  .materials-summary-static-table th,
+  .materials-summary-static-table td {
+    min-width: 96px;
+    padding: 5px 6px;
+  }
+}

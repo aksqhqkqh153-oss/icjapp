@@ -11,6 +11,7 @@ import { DisposalFormsPage, DisposalHubPage, DisposalJurisdictionRegistryPage, D
 import { WORK_SHIFT_TEMPLATE } from './workScheduleTemplate'
 import { QUOTE_WORKBOOK_TEMPLATE } from './quoteWorkbookTemplateData'
 import { QUOTE_IMPORTED_DATA } from './quoteImportedData'
+import { MATERIALS_SUMMARY_DATA } from './materialSummaryData'
 
 const PAGE_TITLES = {
   '/': '홈',
@@ -19087,6 +19088,52 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
   return normalized.map(width => `${width}px`).join(' ')
 }
 
+
+function MaterialsSummaryTablePage() {
+  const rows = MATERIALS_SUMMARY_DATA || []
+  const columnLabels = Array.from({ length: 30 }, (_, index) => {
+    let n = index + 1
+    let label = ''
+    while (n > 0) {
+      const mod = (n - 1) % 26
+      label = String.fromCharCode(65 + mod) + label
+      n = Math.floor((n - mod) / 26)
+    }
+    return label
+  })
+
+  return (
+    <div className="stack-page materials-page materials-summary-page">
+      <section className="card materials-panel materials-summary-panel">
+        <div className="materials-summary-head-inline">
+          <div>
+            <h3>자재결산</h3>
+            <div className="muted tiny-text">첨부된 자재 결산 시트의 A1~AD362 데이터를 표 형식으로 반영했습니다.</div>
+          </div>
+        </div>
+        <div className="materials-summary-table-wrap">
+          <table className="materials-summary-static-table">
+            <thead>
+              <tr>
+                {columnLabels.map(label => <th key={`materials-summary-col-${label}`}>{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? 'is-template-head' : ''}>
+                  {columnLabels.map((_, colIndex) => (
+                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{row?.[colIndex] || ''}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function MaterialsPage({ user }) {
 
   const isMobile = useIsMobile()
@@ -19227,6 +19274,7 @@ function MaterialsPage({ user }) {
       permissions.can_view_settlements ? { id: 'settlements', label: '구매결산' } : null,
       permissions.can_view_history ? { id: 'history', label: '구매목록' } : null,
       permissions.can_view_catalog ? { id: 'catalog', label: '자재목록' } : null,
+      isMaterialsAdminUser(user) ? { id: 'materialsSummary', label: '자재결산' } : null,
     ].filter(Boolean)
   }
 
@@ -20646,6 +20694,7 @@ function MaterialsPage({ user }) {
         </section>
       )}
       {activeTab === 'catalog' && renderCatalogContent()}
+      {activeTab === 'materialsSummary' && <MaterialsSummaryTablePage />}
     </div>
   )
 }
@@ -21658,7 +21707,7 @@ function App() {
         <Route path="/settlements/complaints-check" element={staffAllowed ? <PlaceholderFeaturePage title="컴플확인" description="컴플확인 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/ladder-dispatch" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <LadderDispatchPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/handover" element={staffAllowed ? <PlaceholderFeaturePage title="인수인계서" description="인수인계서 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/settlements/materials-summary" element={staffAllowed ? <PlaceholderFeaturePage title="자재결산" description="자재결산 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/settlements/materials-summary" element={staffAllowed ? <MaterialsSummaryTablePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settings" element={staffAllowed ? <SettingsPage onLogout={logout} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/policies" element={staffAllowed ? <PoliciesPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/work-shift-schedule" element={staffAllowed ? <WorkShiftSchedulePage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
