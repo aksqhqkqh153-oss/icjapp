@@ -19229,6 +19229,128 @@ function MaterialsSummaryTablePage() {
   )
 }
 
+
+
+const MATERIALS_BRANCH_ISSUE_MEMBERS = [
+  { branch: '1', name: '임채영' },
+  { branch: '2', name: '박우민' },
+  { branch: '3', name: '장준영' },
+  { branch: '4', name: '송지훈' },
+  { branch: '5', name: '' },
+  { branch: '6', name: '심훈' },
+  { branch: '7', name: '손영재' },
+  { branch: '8', name: '최명권' },
+  { branch: '9', name: '정경호' },
+  { branch: '10', name: '백인환' },
+  { branch: '11', name: '황인준' },
+  { branch: '12', name: '예비' },
+  { branch: '13', name: '예비' },
+  { branch: '14', name: '예비' },
+  { branch: '15', name: '예비' },
+  { branch: '16', name: '예비' },
+  { branch: '17', name: '예비' },
+  { branch: '18', name: '예비' },
+  { branch: '19', name: '예비' },
+  { branch: '20', name: '예비' },
+]
+
+function buildBranchMaterialIssueStatus() {
+  const rows = MATERIALS_SUMMARY_DATA || []
+  const headerRow = rows[0] || []
+  const codeRow = rows[1] || []
+  const priceRow = rows[2] || []
+  const itemColumns = []
+
+  for (let colIndex = 2; colIndex < Math.max(headerRow.length, codeRow.length, priceRow.length); colIndex += 1) {
+    const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
+    const itemCode = String(codeRow[colIndex] || '').trim()
+    const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
+    if (!itemName && !itemCode && !unitPrice) continue
+    itemColumns.push({
+      index: colIndex,
+      itemName,
+      itemCode,
+      unitPrice,
+      label: itemCode ? `${itemName || '품목'}(${itemCode})` : itemName || '품목',
+    })
+  }
+
+  const quantityByBusiness = new Map()
+  rows.slice(3).forEach(row => {
+    const name = String(row?.[1] || '').trim()
+    if (!name) return
+    itemColumns.forEach(column => {
+      const quantity = parseMaterialsSummaryNumber(row?.[column.index])
+      if (!quantity) return
+      const key = `${name}__${column.index}`
+      quantityByBusiness.set(key, (quantityByBusiness.get(key) || 0) + quantity)
+    })
+  })
+
+  const bodyRows = MATERIALS_BRANCH_ISSUE_MEMBERS.map(member => {
+    const cells = itemColumns.map(column => {
+      const quantity = quantityByBusiness.get(`${member.name}__${column.index}`) || 0
+      return quantity || ''
+    })
+    const totalQuantity = cells.reduce((sum, value) => sum + parseMaterialsSummaryNumber(value), 0)
+    const totalAmount = itemColumns.reduce((sum, column) => {
+      const quantity = quantityByBusiness.get(`${member.name}__${column.index}`) || 0
+      return sum + (quantity * column.unitPrice)
+    }, 0)
+    return {
+      branch: member.branch,
+      name: member.name,
+      cells,
+      totalQuantity,
+      totalAmount,
+    }
+  })
+
+  return {
+    itemColumns,
+    bodyRows,
+  }
+}
+
+
+function BranchMaterialIssueStatusSection() {
+  const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus()
+  return (
+    <div className="materials-branch-issue-section">
+      <div className="materials-section-title-row">
+        <strong>호점별 자재불출현황</strong>
+        <span className="muted tiny-text">호점/이름은 요청 기준으로 재배치하고, 자재결산 데이터를 기준으로 품목별 수량과 금액을 집계했습니다.</span>
+      </div>
+      <div className="materials-summary-table-wrap materials-branch-issue-wrap">
+        <table className="materials-summary-static-table materials-branch-issue-table">
+          <thead>
+            <tr>
+              <th>호점</th>
+              <th>이름</th>
+              {itemColumns.map(column => <th key={`branch-issue-head-${column.index}`}>{column.label}</th>)}
+              <th>합산수량</th>
+              <th>합산금액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bodyRows.map(row => (
+              <tr key={`branch-issue-row-${row.branch}`}>
+                <td>{row.branch}</td>
+                <td>{row.name}</td>
+                {row.cells.map((cell, index) => (
+                  <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
+                ))}
+                <td>{row.totalQuantity ? row.totalQuantity.toLocaleString('ko-KR') : ''}</td>
+                <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function BusinessMonthlyPurchasePage() {
   const { detailRows, businessSummaries, monthSummaries } = groupBusinessMonthlyMaterials()
 
@@ -19241,6 +19363,8 @@ function BusinessMonthlyPurchasePage() {
             <div className="muted tiny-text">자재결산 데이터를 기준으로 월간 사업자별 구매품목, 수량, 금액을 집계했습니다.</div>
           </div>
         </div>
+
+        <BranchMaterialIssueStatusSection />
 
         <div className="materials-business-summary-grid">
           <div className="materials-business-summary-card">

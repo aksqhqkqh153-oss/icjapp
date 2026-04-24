@@ -33810,21 +33810,22 @@ button.danger {
 }
 
 .materials-summary-static-table {
+  min-width: 3600px;
   width: max-content;
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
   font-size: 12px;
 }
 
 .materials-summary-static-table th,
 .materials-summary-static-table td {
-  width: auto;
-  min-width: max-content;
+  min-width: 112px;
+  max-width: 180px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   padding: 6px 8px;
   text-align: center;
   vertical-align: middle;
-  white-space: nowrap;
+  white-space: pre-line;
   line-height: 1.35;
 }
 
@@ -33854,14 +33855,13 @@ button.danger {
   }
 
   .materials-summary-static-table {
-    width: max-content;
+    min-width: 3000px;
     font-size: 11px;
   }
 
   .materials-summary-static-table th,
   .materials-summary-static-table td {
-    width: auto;
-    min-width: max-content;
+    min-width: 96px;
     padding: 5px 6px;
   }
 }
@@ -33910,4 +33910,38 @@ button.danger {
   .materials-business-detail-table {
     min-width: 960px;
   }
+}
+
+.materials-branch-issue-section {
+  margin: 0 0 18px;
+}
+
+.materials-section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+.materials-branch-issue-wrap {
+  margin-bottom: 16px;
+}
+
+.materials-branch-issue-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.materials-branch-issue-table th,
+.materials-branch-issue-table td {
+  white-space: nowrap;
+  width: auto;
+  min-width: 0;
+}
+
+.materials-branch-issue-table th:first-child,
+.materials-branch-issue-table td:first-child {
+  text-align: center;
 }
