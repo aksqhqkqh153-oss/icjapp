@@ -19254,7 +19254,7 @@ const MATERIALS_BRANCH_ISSUE_MEMBERS = [
   { branch: '20', name: '예비' },
 ]
 
-function buildBranchMaterialIssueStatus() {
+function buildBranchMaterialIssueStatus(selectedMonth = '') {
   const rows = MATERIALS_SUMMARY_DATA || []
   const headerRow = rows[0] || []
   const codeRow = rows[1] || []
@@ -19271,14 +19271,16 @@ function buildBranchMaterialIssueStatus() {
       itemName,
       itemCode,
       unitPrice,
-      label: itemCode ? `${itemName || '품목'}(${itemCode})` : itemName || '품목',
+      label: itemCode || itemName || '품목',
     })
   }
 
   const quantityByBusiness = new Map()
   rows.slice(3).forEach(row => {
+    const date = String(row?.[0] || '').trim()
     const name = String(row?.[1] || '').trim()
     if (!name) return
+    if (selectedMonth && date.slice(0, 7) !== selectedMonth) return
     itemColumns.forEach(column => {
       const quantity = parseMaterialsSummaryNumber(row?.[column.index])
       if (!quantity) return
@@ -19313,13 +19315,13 @@ function buildBranchMaterialIssueStatus() {
 }
 
 
-function BranchMaterialIssueStatusSection() {
-  const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus()
+function BranchMaterialIssueStatusSection({ selectedMonth }) {
+  const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus(selectedMonth)
   return (
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
         <strong>호점별 자재불출현황</strong>
-        <span className="muted tiny-text">호점/이름은 요청 기준으로 재배치하고, 자재결산 데이터를 기준으로 품목별 수량과 금액을 집계했습니다.</span>
+        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량과 금액을 집계합니다.</span>
       </div>
       <div className="materials-summary-table-wrap materials-branch-issue-wrap">
         <table className="materials-summary-static-table materials-branch-issue-table">
@@ -19352,7 +19354,19 @@ function BranchMaterialIssueStatusSection() {
 }
 
 function BusinessMonthlyPurchasePage() {
-  const { detailRows, businessSummaries, monthSummaries } = groupBusinessMonthlyMaterials()
+  const groupedMaterials = useMemo(() => groupBusinessMonthlyMaterials(), [])
+  const monthOptions = groupedMaterials.monthSummaries.map(row => row.month)
+  const [selectedMonth, setSelectedMonth] = useState(() => monthOptions[0] || '')
+
+  useEffect(() => {
+    if (!selectedMonth && monthOptions[0]) {
+      setSelectedMonth(monthOptions[0])
+    }
+  }, [selectedMonth, monthOptions])
+
+  const detailRows = selectedMonth ? groupedMaterials.detailRows.filter(row => row.month === selectedMonth) : groupedMaterials.detailRows
+  const businessSummaries = selectedMonth ? groupedMaterials.businessSummaries.filter(row => row.month === selectedMonth) : groupedMaterials.businessSummaries
+  const monthSummaries = selectedMonth ? groupedMaterials.monthSummaries.filter(row => row.month === selectedMonth) : groupedMaterials.monthSummaries
 
   return (
     <div className="stack-page materials-page materials-business-monthly-page">
@@ -19364,7 +19378,18 @@ function BusinessMonthlyPurchasePage() {
           </div>
         </div>
 
-        <BranchMaterialIssueStatusSection />
+        <div className="materials-business-month-filter">
+          <label htmlFor="materials-business-month-select">조회 월</label>
+          <select
+            id="materials-business-month-select"
+            value={selectedMonth}
+            onChange={event => setSelectedMonth(event.target.value)}
+          >
+            {monthOptions.map(month => <option key={`business-month-option-${month}`} value={month}>{month}</option>)}
+          </select>
+        </div>
+
+        <BranchMaterialIssueStatusSection selectedMonth={selectedMonth} />
 
         <div className="materials-business-summary-grid">
           <div className="materials-business-summary-card">
@@ -19414,8 +19439,7 @@ function BusinessMonthlyPurchasePage() {
                 <th>월</th>
                 <th>구매일</th>
                 <th>사업자</th>
-                <th>품목</th>
-                <th>품목코드</th>
+                <th>상품코드</th>
                 <th>수량</th>
                 <th>단가</th>
                 <th>금액</th>
@@ -19427,15 +19451,14 @@ function BusinessMonthlyPurchasePage() {
                   <td>{row.month}</td>
                   <td>{row.date}</td>
                   <td>{row.business}</td>
-                  <td>{row.itemName}</td>
-                  <td>{row.itemCode}</td>
+                  <td>{row.itemCode || row.itemName}</td>
                   <td>{row.quantity.toLocaleString('ko-KR')}</td>
                   <td>{row.unitPrice.toLocaleString('ko-KR')}원</td>
                   <td>{row.amount.toLocaleString('ko-KR')}원</td>
                 </tr>
               ))}
               {!detailRows.length ? (
-                <tr><td colSpan={8}>집계할 자재 구매 데이터가 없습니다.</td></tr>
+                <tr><td colSpan={7}>집계할 자재 구매 데이터가 없습니다.</td></tr>
               ) : null}
             </tbody>
           </table>

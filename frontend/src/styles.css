@@ -34018,3 +34018,31 @@ button.danger {
   .materials-catalog-col-price { width: 82px; }
   .materials-catalog-col-enabled { width: 118px; }
 }
+
+
+/* business monthly purchase month filter */
+.materials-business-month-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 14px;
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.78);
+}
+.materials-business-month-filter label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+}
+.materials-business-month-filter select {
+  height: 32px;
+  min-width: 128px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
