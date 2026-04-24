@@ -33810,22 +33810,21 @@ button.danger {
 }
 
 .materials-summary-static-table {
-  min-width: 3600px;
   width: max-content;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-size: 12px;
 }
 
 .materials-summary-static-table th,
 .materials-summary-static-table td {
-  min-width: 112px;
-  max-width: 180px;
+  width: auto;
+  min-width: max-content;
   border: 1px solid rgba(15, 23, 42, 0.12);
   padding: 6px 8px;
   text-align: center;
   vertical-align: middle;
-  white-space: pre-line;
+  white-space: nowrap;
   line-height: 1.35;
 }
 
@@ -33855,13 +33854,14 @@ button.danger {
   }
 
   .materials-summary-static-table {
-    min-width: 3000px;
+    width: max-content;
     font-size: 11px;
   }
 
   .materials-summary-static-table th,
   .materials-summary-static-table td {
-    min-width: 96px;
+    width: auto;
+    min-width: max-content;
     padding: 5px 6px;
   }
 }
