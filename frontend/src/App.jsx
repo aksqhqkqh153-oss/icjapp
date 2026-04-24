@@ -19089,9 +19089,8 @@ function buildMaterialsGridTemplate(key, widths, isMobile) {
 }
 
 
-function MaterialsSummaryTablePage() {
-  const rows = MATERIALS_SUMMARY_DATA || []
-  const columnLabels = Array.from({ length: 30 }, (_, index) => {
+function getSpreadsheetColumnLabels(count) {
+  return Array.from({ length: count }, (_, index) => {
     let n = index + 1
     let label = ''
     while (n > 0) {
@@ -19101,6 +19100,102 @@ function MaterialsSummaryTablePage() {
     }
     return label
   })
+}
+
+function parseMaterialsSummaryNumber(value) {
+  if (value === null || value === undefined || value === '') return 0
+  const normalized = String(value).replace(/,/g, '').trim()
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function buildBusinessMonthlyMaterialRows() {
+  const rows = MATERIALS_SUMMARY_DATA || []
+  const headerRow = rows[0] || []
+  const codeRow = rows[1] || []
+  const priceRow = rows[2] || []
+  const result = []
+
+  rows.slice(3).forEach((row, rowIndex) => {
+    const date = String(row?.[0] || '').trim()
+    const name = String(row?.[1] || '').trim()
+    if (!date || !name) return
+    const month = date.slice(0, 7)
+    for (let colIndex = 2; colIndex < Math.max(headerRow.length, codeRow.length, priceRow.length, row.length); colIndex += 1) {
+      const quantity = parseMaterialsSummaryNumber(row?.[colIndex])
+      if (!quantity) continue
+      const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
+      const itemCode = String(codeRow[colIndex] || '').trim()
+      const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
+      if (!itemName && !itemCode) continue
+      result.push({
+        id: `${rowIndex}-${colIndex}`,
+        month,
+        date,
+        business: name,
+        itemName,
+        itemCode,
+        quantity,
+        unitPrice,
+        amount: quantity * unitPrice,
+      })
+    }
+  })
+
+  return result
+}
+
+function groupBusinessMonthlyMaterials() {
+  const detailRows = buildBusinessMonthlyMaterialRows()
+  const businessMap = new Map()
+  const monthMap = new Map()
+
+  detailRows.forEach(row => {
+    const businessKey = `${row.month}__${row.business}`
+    if (!businessMap.has(businessKey)) {
+      businessMap.set(businessKey, {
+        month: row.month,
+        business: row.business,
+        quantity: 0,
+        amount: 0,
+        itemCount: 0,
+      })
+    }
+    const businessSummary = businessMap.get(businessKey)
+    businessSummary.quantity += row.quantity
+    businessSummary.amount += row.amount
+    businessSummary.itemCount += 1
+
+    if (!monthMap.has(row.month)) {
+      monthMap.set(row.month, {
+        month: row.month,
+        quantity: 0,
+        amount: 0,
+        businessCount: new Set(),
+      })
+    }
+    const monthSummary = monthMap.get(row.month)
+    monthSummary.quantity += row.quantity
+    monthSummary.amount += row.amount
+    monthSummary.businessCount.add(row.business)
+  })
+
+  const businessSummaries = Array.from(businessMap.values()).sort((a, b) => b.month.localeCompare(a.month) || a.business.localeCompare(b.business, 'ko-KR'))
+  const monthSummaries = Array.from(monthMap.values())
+    .map(row => ({ ...row, businessCount: row.businessCount.size }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+
+  return {
+    detailRows: detailRows.sort((a, b) => b.date.localeCompare(a.date) || a.business.localeCompare(b.business, 'ko-KR') || a.itemCode.localeCompare(b.itemCode)),
+    businessSummaries,
+    monthSummaries,
+  }
+}
+
+function MaterialsSummaryTablePage() {
+  const rows = MATERIALS_SUMMARY_DATA || []
+  const columnCount = Math.max(0, ...rows.map(row => Array.isArray(row) ? row.length : 0))
+  const columnLabels = getSpreadsheetColumnLabels(columnCount)
 
   return (
     <div className="stack-page materials-page materials-summary-page">
@@ -19108,7 +19203,7 @@ function MaterialsSummaryTablePage() {
         <div className="materials-summary-head-inline">
           <div>
             <h3>자재결산</h3>
-            <div className="muted tiny-text">첨부된 자재 결산 시트의 A1~AD362 데이터를 표 형식으로 반영했습니다.</div>
+            <div className="muted tiny-text">첨부된 자재 결산 시트 데이터를 표 형식으로 반영했습니다.</div>
           </div>
         </div>
         <div className="materials-summary-table-wrap">
@@ -19122,10 +19217,102 @@ function MaterialsSummaryTablePage() {
               {rows.map((row, rowIndex) => (
                 <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? 'is-template-head' : ''}>
                   {columnLabels.map((_, colIndex) => (
-                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{row?.[colIndex] || ''}</td>
+                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{row?.[colIndex] ?? ''}</td>
                   ))}
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function BusinessMonthlyPurchasePage() {
+  const { detailRows, businessSummaries, monthSummaries } = groupBusinessMonthlyMaterials()
+
+  return (
+    <div className="stack-page materials-page materials-business-monthly-page">
+      <section className="card materials-panel materials-summary-panel">
+        <div className="materials-summary-head-inline">
+          <div>
+            <h3>사업자월간구매비</h3>
+            <div className="muted tiny-text">자재결산 데이터를 기준으로 월간 사업자별 구매품목, 수량, 금액을 집계했습니다.</div>
+          </div>
+        </div>
+
+        <div className="materials-business-summary-grid">
+          <div className="materials-business-summary-card">
+            <strong>월 총 구매비용</strong>
+            <table className="materials-summary-static-table materials-business-summary-table">
+              <thead>
+                <tr><th>월</th><th>사업자수</th><th>총수량</th><th>월 총 구매비용</th></tr>
+              </thead>
+              <tbody>
+                {monthSummaries.map(row => (
+                  <tr key={`month-summary-${row.month}`}>
+                    <td>{row.month}</td>
+                    <td>{row.businessCount.toLocaleString('ko-KR')}</td>
+                    <td>{row.quantity.toLocaleString('ko-KR')}</td>
+                    <td>{row.amount.toLocaleString('ko-KR')}원</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="materials-business-summary-card">
+            <strong>사업자별 합산 금액</strong>
+            <table className="materials-summary-static-table materials-business-summary-table">
+              <thead>
+                <tr><th>월</th><th>사업자</th><th>품목수</th><th>총수량</th><th>합산 금액</th></tr>
+              </thead>
+              <tbody>
+                {businessSummaries.map(row => (
+                  <tr key={`business-summary-${row.month}-${row.business}`}>
+                    <td>{row.month}</td>
+                    <td>{row.business}</td>
+                    <td>{row.itemCount.toLocaleString('ko-KR')}</td>
+                    <td>{row.quantity.toLocaleString('ko-KR')}</td>
+                    <td>{row.amount.toLocaleString('ko-KR')}원</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="materials-summary-table-wrap">
+          <table className="materials-summary-static-table materials-business-detail-table">
+            <thead>
+              <tr>
+                <th>월</th>
+                <th>구매일</th>
+                <th>사업자</th>
+                <th>품목</th>
+                <th>품목코드</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detailRows.map(row => (
+                <tr key={`business-monthly-${row.id}`}>
+                  <td>{row.month}</td>
+                  <td>{row.date}</td>
+                  <td>{row.business}</td>
+                  <td>{row.itemName}</td>
+                  <td>{row.itemCode}</td>
+                  <td>{row.quantity.toLocaleString('ko-KR')}</td>
+                  <td>{row.unitPrice.toLocaleString('ko-KR')}원</td>
+                  <td>{row.amount.toLocaleString('ko-KR')}원</td>
+                </tr>
+              ))}
+              {!detailRows.length ? (
+                <tr><td colSpan={8}>집계할 자재 구매 데이터가 없습니다.</td></tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -19275,12 +19462,13 @@ function MaterialsPage({ user }) {
       permissions.can_view_history ? { id: 'history', label: '구매목록' } : null,
       permissions.can_view_catalog ? { id: 'catalog', label: '자재목록' } : null,
       isMaterialsAdminUser(user) ? { id: 'materialsSummary', label: '자재결산' } : null,
+      isMaterialsAdminUser(user) ? { id: 'businessMonthlyPurchase', label: '사업자월간구매비' } : null,
     ].filter(Boolean)
   }
 
   const visibleTabs = buildVisibleTabs(data?.permissions || {})
   const paddedVisibleTabs = [...visibleTabs]
-  while (paddedVisibleTabs.length < 8) paddedVisibleTabs.push(null)
+  while (paddedVisibleTabs.length < 9) paddedVisibleTabs.push(null)
   const productRows = data?.products || []
   const purchasableProductRows = productRows.filter(product => Number(product.purchase_enabled ?? 1) !== 0)
   const pendingRequests = data?.pending_requests || []
@@ -20695,6 +20883,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'catalog' && renderCatalogContent()}
       {activeTab === 'materialsSummary' && <MaterialsSummaryTablePage />}
+      {activeTab === 'businessMonthlyPurchase' && <BusinessMonthlyPurchasePage />}
     </div>
   )
 }
