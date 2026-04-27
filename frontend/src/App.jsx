@@ -19781,7 +19781,7 @@ function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || 
     })
   })
 
-  const bodyRows = MATERIALS_BRANCH_ISSUE_MEMBERS.map(member => {
+  const bodyRows = MATERIALS_BRANCH_ISSUE_MEMBERS.map((member, memberIndex) => {
     const cells = itemColumns.map(column => {
       const quantity = quantityByBusiness.get(`${member.name}__${column.index}`) || 0
       return quantity || ''
@@ -19792,14 +19792,16 @@ function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || 
       return sum + (quantity * column.unitPrice)
     }, 0)
     return {
+      id: `${member.branch || 'branch'}-${member.name || 'empty'}-${memberIndex}`,
       branch: member.branch,
+      branchSort: memberIndex,
       name: member.name,
       cells,
       totalQuantity,
       totalAmount,
       detailRows: (detailRowsByBusiness.get(member.name) || []).sort((a, b) => b.date.localeCompare(a.date)),
     }
-  })
+  }).sort((a, b) => a.branchSort - b.branchSort)
 
   return { itemColumns, bodyRows }
 }
@@ -19819,7 +19821,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
 
   const toggleBranchDetail = row => {
     if (!row?.name || !row.detailRows?.length) return
-    setExpandedBranch(prev => (prev === row.branch ? '' : row.branch))
+    setExpandedBranch(prev => (prev === row.id ? '' : row.id))
   }
 
   const showPricePopup = (event, column) => {
@@ -19843,13 +19845,12 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
         <strong>호점별 자재불출현황</strong>
-        <span className="muted tiny-text"><span className="materials-branch-issue-help-green">연두색 배경</span>으로 색칠 된 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
+        <span className="muted tiny-text">행에 마우스 커서를 가져다 댈 때 <span className="materials-branch-issue-help-green">연두색 배경</span>으로 색칠 된 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
       </div>
       <div className="materials-summary-table-wrap materials-branch-issue-wrap">
         <table className="materials-summary-static-table materials-branch-issue-table">
           <thead>
             <tr>
-              <th rowSpan={2}>호점</th>
               <th rowSpan={2}>이름</th>
               {itemColumns.map(column => (
                 <th key={`branch-issue-name-head-${column.index}`} className="materials-branch-issue-item-name-head">
@@ -19877,37 +19878,34 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
           </thead>
           <tbody>
             <tr className="materials-branch-issue-total-row">
-              <td></td>
               <td>합계</td>
               {totalCells.map((cell, index) => (
                 <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
               ))}
             </tr>
             <tr className="materials-branch-issue-code-cost-total-row">
-              <td></td>
               <td><span>상품코드<br />비용합계</span></td>
               {codeCostTotalCells.map((amount, index) => (
                 <td key={`branch-issue-code-cost-total-cell-${index}`}>{amount ? `${amount.toLocaleString('ko-KR')}원` : ''}</td>
               ))}
             </tr>
             {bodyRows.map(row => {
-              const isExpanded = expandedBranch === row.branch
+              const isExpanded = expandedBranch === row.id
               const clickable = Boolean(row.name && row.detailRows?.length)
               return (
-                <React.Fragment key={`branch-issue-row-group-${row.branch}`}>
+                <React.Fragment key={`branch-issue-row-group-${row.id}`}>
                   <tr
                     className={`${clickable ? 'materials-branch-issue-clickable-row' : ''}${isExpanded ? ' is-expanded' : ''}`.trim()}
                     onClick={() => toggleBranchDetail(row)}
                   >
-                    <td>{row.branch}</td>
                     <td>{row.name}</td>
                     {row.cells.map((cell, index) => (
-                      <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
+                      <td key={`branch-issue-cell-${row.id}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
                     ))}
                   </tr>
                   {isExpanded ? (
                     <tr className="materials-branch-issue-detail-row">
-                      <td colSpan={itemColumns.length + 2}>
+                      <td colSpan={itemColumns.length + 1}>
                         <div className="materials-branch-issue-detail-box">
                           <strong>{formatBusinessMonthlyMonthLabel(selectedMonth)} {row.name} 월간 상세 구매 수량</strong>
                           <table className="materials-branch-issue-detail-table">

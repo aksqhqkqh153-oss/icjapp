@@ -34758,7 +34758,7 @@ button.danger {
   color: #0f172a;
 }
 
-.materials-branch-issue-code-cost-total-row td:nth-child(2) {
+.materials-branch-issue-code-cost-total-row td:first-child {
   white-space: normal;
   line-height: 1.25;
 }
