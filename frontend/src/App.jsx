@@ -19654,6 +19654,7 @@ function MaterialsSummaryTablePage() {
 
 
 const MATERIALS_BRANCH_ISSUE_MEMBERS = [
+  { branch: '본점', name: '심진수' },
   { branch: '1', name: '임채영' },
   { branch: '2', name: '박우민' },
   { branch: '3', name: '장준영' },
@@ -19817,6 +19818,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
             <tr>
               <th rowSpan={2}>호점</th>
               <th rowSpan={2}>이름</th>
+              <th rowSpan={2}>비용</th>
               {itemColumns.map(column => (
                 <th key={`branch-issue-name-head-${column.index}`} className="materials-branch-issue-item-name-head">
                   {column.displayName}
@@ -19835,6 +19837,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
             <tr className="materials-branch-issue-total-row">
               <td></td>
               <td>합계</td>
+              <td>{totalAmount ? `${totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
               {totalCells.map((cell, index) => (
                 <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
               ))}
@@ -19850,13 +19853,14 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
                   >
                     <td>{row.branch}</td>
                     <td>{row.name}{clickable ? <span className="materials-branch-issue-toggle-mark">{isExpanded ? '접기' : '상세'}</span> : null}</td>
+                    <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
                     {row.cells.map((cell, index) => (
                       <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
                     ))}
                   </tr>
                   {isExpanded ? (
                     <tr className="materials-branch-issue-detail-row">
-                      <td colSpan={itemColumns.length + 2}>
+                      <td colSpan={itemColumns.length + 3}>
                         <div className="materials-branch-issue-detail-box">
                           <strong>{formatBusinessMonthlyMonthLabel(selectedMonth)} {row.name} 월간 상세 구매 수량</strong>
                           <table className="materials-branch-issue-detail-table">
