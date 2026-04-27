@@ -1955,7 +1955,7 @@ function DisposalItemsEditor({
 
   function handleItemGridKeyDown(event, rowIndex, colIndex) {
     const key = event.key
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) return
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(key)) return
 
     const activeElement = event.currentTarget
     const isTextInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement
@@ -1979,7 +1979,7 @@ function DisposalItemsEditor({
     if (key === 'ArrowLeft') nextCol -= 1
     if (key === 'ArrowRight') nextCol += 1
     if (key === 'ArrowUp') nextRow -= 1
-    if (key === 'ArrowDown') nextRow += 1
+    if (key === 'ArrowDown' || key === 'Enter') nextRow += 1
 
     nextRow = Math.max(0, Math.min(maxRowIndex, nextRow))
     nextCol = Math.max(0, Math.min(7, nextCol))
@@ -1988,9 +1988,9 @@ function DisposalItemsEditor({
     const nextEl = document.querySelector(selector)
     if (nextEl && typeof nextEl.focus === 'function') {
       nextEl.focus()
-      if ((key === 'ArrowLeft' || key === 'ArrowRight') && (nextEl instanceof HTMLInputElement || nextEl instanceof HTMLTextAreaElement)) {
+      if (nextEl instanceof HTMLInputElement || nextEl instanceof HTMLTextAreaElement) {
         const nextValue = String(nextEl.value || '')
-        const caretPosition = key === 'ArrowLeft' ? nextValue.length : 0
+        const caretPosition = key === 'ArrowLeft' ? nextValue.length : nextValue.length
         try {
           nextEl.setSelectionRange(caretPosition, caretPosition)
         } catch (error) {
