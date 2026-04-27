@@ -7562,6 +7562,7 @@ def _normalize_disposal_record_payload(payload: dict[str, Any], current_user: di
         'finalStatus': str(payload.get('finalStatus') or ''),
         'platform': str(payload.get('platform') or ''),
         'customerName': str(payload.get('customerName') or ''),
+        'unreportedReason': str(payload.get('unreportedReason') or payload.get('unreported_reason') or ''),
         'items': items,
         'totals': {
             'totalQty': totals.get('totalQty', 0),
@@ -7587,6 +7588,7 @@ def _disposal_record_row_to_dict(row) -> dict[str, Any]:
         'finalStatus': str(data.get('final_status') or ''),
         'platform': str(data.get('platform') or ''),
         'customerName': str(data.get('customer_name') or ''),
+        'unreportedReason': str(data.get('unreported_reason') or ''),
         'items': json_loads(data.get('items_json'), []),
         'totals': json_loads(data.get('totals_json'), {}),
         'settlementTransferredAt': str(data.get('settlement_transferred_at') or ''),
@@ -7719,13 +7721,13 @@ def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_admin
                 """
                 UPDATE disposal_records
                 SET disposal_date = ?, location = ?, district = ?, final_status = ?, platform = ?, customer_name = ?,
-                    items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?,
+                    unreported_reason = ?, items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?,
                     created_by_username = ?, created_by_grade = ?, saved_at = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
-                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                    normalized['unreportedReason'], json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
                     int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
                     normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
                     normalized['savedAt'], now, normalized['id'],
@@ -7736,13 +7738,13 @@ def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_admin
                 """
                 INSERT INTO disposal_records(
                     id, disposal_date, location, district, final_status, platform, customer_name,
-                    items_json, totals_json, settlement_transferred_at, created_by_user_id,
+                    unreported_reason, items_json, totals_json, settlement_transferred_at, created_by_user_id,
                     created_by_username, created_by_grade, saved_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
-                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                    normalized['unreportedReason'], json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
                     int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
                     normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
                     normalized['savedAt'], now, now,
@@ -7788,10 +7790,10 @@ def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=De
             now = utcnow()
             if existing:
                 conn.execute(
-                    "UPDATE disposal_records SET disposal_date = ?, location = ?, district = ?, final_status = ?, platform = ?, customer_name = ?, items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?, created_by_username = ?, created_by_grade = ?, saved_at = ?, updated_at = ? WHERE id = ?",
+                    "UPDATE disposal_records SET disposal_date = ?, location = ?, district = ?, final_status = ?, platform = ?, customer_name = ?, unreported_reason = ?, items_json = ?, totals_json = ?, settlement_transferred_at = ?, created_by_user_id = ?, created_by_username = ?, created_by_grade = ?, saved_at = ?, updated_at = ? WHERE id = ?",
                     (
                         normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
-                        json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                        normalized['unreportedReason'], json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
                         int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
                         normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
                         normalized['savedAt'], now, normalized['id'],
@@ -7799,10 +7801,10 @@ def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=De
                 )
             else:
                 conn.execute(
-                    "INSERT INTO disposal_records(id, disposal_date, location, district, final_status, platform, customer_name, items_json, totals_json, settlement_transferred_at, created_by_user_id, created_by_username, created_by_grade, saved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO disposal_records(id, disposal_date, location, district, final_status, platform, customer_name, unreported_reason, items_json, totals_json, settlement_transferred_at, created_by_user_id, created_by_username, created_by_grade, saved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
-                        json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
+                        normalized['unreportedReason'], json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
                         int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
                         normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
                         normalized['savedAt'], now, now,

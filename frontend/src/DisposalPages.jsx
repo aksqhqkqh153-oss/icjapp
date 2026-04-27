@@ -365,6 +365,7 @@ function normalizeRecordShape(record) {
     finalStatus: String(record.finalStatus || ''),
     platform: String(record.platform || ''),
     customerName: String(record.customerName || ''),
+    unreportedReason: String(record.unreportedReason || record.unreported_reason || ''),
     createdByUserId: String(record.createdByUserId || record.created_by_user_id || ''),
     createdByUsername: String(record.createdByUsername || record.created_by_username || ''),
     createdByGrade: String(record.createdByGrade || record.created_by_grade || ''),
@@ -1270,6 +1271,7 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
         platform: record.platform || '-',
         customerName: record.customerName || '-',
         location: record.location || '-',
+        unreportedReason: String(record.unreportedReason || ''),
         disposalDate: record.disposalDate || '-',
         paymentStatus: getAggregateItemStatus(record, 'payment'),
         reportStatus: getAggregateItemStatus(record, 'report'),
@@ -3197,6 +3199,7 @@ export function DisposalListPage() {
   const [bulkPaymentDates, setBulkPaymentDates] = useState({})
   const [bulkReportStatuses, setBulkReportStatuses] = useState({})
   const settlementBaselineRef = useRef({})
+  const unreportedReasonInputRefs = useRef({})
 
   const alertSearchQuery = String(searchParams.get('query') || '').trim()
   const alertRecordId = String(searchParams.get('recordId') || '').trim()
@@ -3233,6 +3236,17 @@ export function DisposalListPage() {
   const dailySettlementSummary = useMemo(() => buildDailySettlementSummary(groupedRows), [groupedRows])
 
   useEffect(() => {
+    if (!hasUnreportedAlertFocus || !alertRecordId) return
+    const timer = window.setTimeout(() => {
+      const target = unreportedReasonInputRefs.current?.[alertRecordId]
+      if (!target) return
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      target.focus?.({ preventScroll: true })
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [hasUnreportedAlertFocus, alertRecordId, groupedRows.length])
+
+  useEffect(() => {
     setSelectedRowKeys(prev => prev.filter(key => visibleRowKeySet.has(key)))
   }, [visibleRowKeys.join('|')])
 
@@ -3245,6 +3259,14 @@ export function DisposalListPage() {
 
   function toggleRowSelection(rowKey, checked) {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
+  }
+
+  async function updateUnreportedReason(recordId, reason) {
+    const target = records.find(record => record.id === recordId)
+    if (!target) return
+    const nextTarget = normalizeRecordShape({ ...target, unreportedReason: String(reason || '') })
+    const savedTarget = await upsertDisposalRecordToServer(nextTarget)
+    setRecords(prev => prev.map(record => record.id === recordId ? savedTarget : record))
   }
 
   async function updateRecordStatuses(recordId, updater) {
@@ -3526,6 +3548,26 @@ export function DisposalListPage() {
                     <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
                       <span className="disposal-meta-location">{group.location}</span>
                     </button>
+                    <label className={`disposal-unreported-reason-box${hasUnreportedAlertFocus && alertRecordId === group.recordId ? ' disposal-unreported-reason-box-alert-focus' : ''}`.trim()}>
+                      <span>폐기 미신고 사유</span>
+                      <textarea
+                        ref={node => {
+                          if (node) unreportedReasonInputRefs.current[group.recordId] = node
+                          else delete unreportedReasonInputRefs.current[group.recordId]
+                        }}
+                        defaultValue={group.unreportedReason || ''}
+                        placeholder="미신고 사유 입력"
+                        rows={1}
+                        onBlur={e => updateUnreportedReason(group.recordId, e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                          }
+                        }}
+                        aria-label={`${group.customerName} 폐기 미신고 사유`}
+                      />
+                    </label>
                     <div className="disposal-meta-row-end-actions">
                       {!isTransferred && (
                         <button
