@@ -19189,7 +19189,9 @@ function loadMaterialsSummaryRows() {
 
 function saveMaterialsSummaryRows(rows = []) {
   try {
-    localStorage.setItem(MATERIALS_SUMMARY_EDIT_STORAGE_KEY, JSON.stringify(cloneMaterialsSummaryRows(rows)))
+    const clonedRows = cloneMaterialsSummaryRows(rows)
+    localStorage.setItem(MATERIALS_SUMMARY_EDIT_STORAGE_KEY, JSON.stringify(clonedRows))
+    window.dispatchEvent(new CustomEvent("icj-materials-summary-rows-updated", { detail: { rows: clonedRows } }))
   } catch {}
 }
 
@@ -19710,8 +19712,11 @@ function formatBusinessMonthlyBranchIssueCode(value = '') {
   return raw
 }
 
-function buildBranchMaterialIssueStatus(selectedMonth = '') {
-  const rows = MATERIALS_SUMMARY_DATA || []
+function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || [], selectedMonth = '', catalogRows = [], products = []) {
+  const sourceRows = Array.isArray(summaryRows) && summaryRows.length ? summaryRows : (MATERIALS_SUMMARY_DATA || [])
+  const columnCount = Math.max(0, ...sourceRows.map(row => Array.isArray(row) ? row.length : 0))
+  const salePriceMap = buildMaterialsSalePriceMap(catalogRows, products)
+  const rows = applyMaterialsSummarySalePrices(sourceRows, salePriceMap, columnCount)
   const headerRow = rows[0] || []
   const codeRow = rows[1] || []
   const priceRow = rows[2] || []
@@ -19794,14 +19799,16 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
 }
 
 
-function BranchMaterialIssueStatusSection({ selectedMonth }) {
-  const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus(selectedMonth)
+function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], catalogRows = [], products = [] }) {
+  const { itemColumns, bodyRows } = useMemo(() => buildBranchMaterialIssueStatus(summaryRows, selectedMonth, catalogRows, products), [summaryRows, selectedMonth, catalogRows, products])
   const [expandedBranch, setExpandedBranch] = useState('')
+  const [pricePopup, setPricePopup] = useState(null)
   const totalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
   const totalAmount = bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.totalAmount), 0)
 
   useEffect(() => {
     setExpandedBranch('')
+    setPricePopup(null)
   }, [selectedMonth])
 
   const toggleBranchDetail = row => {
@@ -19831,7 +19838,17 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
             <tr>
               {itemColumns.map(column => (
                 <th key={`branch-issue-code-head-${column.index}`} className="materials-branch-issue-item-code-head">
-                  {column.displayCode}
+                  <button
+                    type="button"
+                    className="materials-branch-issue-code-button"
+                    onClick={event => {
+                      event.stopPropagation()
+                      setPricePopup(prev => prev?.index === column.index ? null : column)
+                    }}
+                    title="자재판매가격 보기"
+                  >
+                    {column.displayCode}
+                  </button>
                 </th>
               ))}
             </tr>
@@ -19892,6 +19909,14 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
             })}
           </tbody>
         </table>
+        {pricePopup ? (
+          <div className="materials-branch-issue-price-popup" role="dialog" aria-label="자재판매가격">
+            <button type="button" className="materials-branch-issue-price-close" onClick={() => setPricePopup(null)}>×</button>
+            <strong>{String(pricePopup.itemName || pricePopup.itemCode || '자재').replace(/\n/g, ' ')}</strong>
+            <div>자재코드: {pricePopup.displayCode || pricePopup.itemCode || '-'}</div>
+            <div>판매가격: {pricePopup.unitPrice ? `${pricePopup.unitPrice.toLocaleString('ko-KR')}원` : '가격 정보 없음'}</div>
+          </div>
+        ) : null}
       </div>
     </div>
   )
@@ -19899,7 +19924,22 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
 
 
 function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
-  const summaryRows = useMemo(() => loadMaterialsSummaryRows(), [])
+  const [summaryRows, setSummaryRows] = useState(() => loadMaterialsSummaryRows())
+
+  useEffect(() => {
+    const refreshSummaryRows = event => {
+      const nextRows = event?.detail?.rows
+      setSummaryRows(Array.isArray(nextRows) && nextRows.length ? cloneMaterialsSummaryRows(nextRows) : loadMaterialsSummaryRows())
+    }
+    window.addEventListener('icj-materials-summary-rows-updated', refreshSummaryRows)
+    window.addEventListener('storage', refreshSummaryRows)
+    refreshSummaryRows()
+    return () => {
+      window.removeEventListener('icj-materials-summary-rows-updated', refreshSummaryRows)
+      window.removeEventListener('storage', refreshSummaryRows)
+    }
+  }, [])
+
   const groupedMaterials = useMemo(() => groupBusinessMonthlyMaterials(summaryRows, catalogRows, products), [summaryRows, catalogRows, products])
   const monthOptions = groupedMaterials.monthSummaries.map(row => row.month)
   const defaultMonth = useMemo(() => pickDefaultBusinessMonth(monthOptions), [monthOptions])
@@ -19976,7 +20016,7 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
             </table>
           </div>
         </div>
-        <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} />
+        <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} summaryRows={summaryRows} catalogRows={catalogRows} products={products} />
       </section>
     </div>
   )

@@ -34692,3 +34692,57 @@ button.danger {
   color: #334155;
   background: #f8fafc !important;
 }
+
+/* 2026-04-27 사업자월간구매비 자재코드 단가 팝업 */
+.materials-branch-issue-code-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 3px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.materials-branch-issue-code-button:hover {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+}
+
+.materials-branch-issue-wrap {
+  position: relative;
+}
+
+.materials-branch-issue-price-popup {
+  position: sticky;
+  left: 12px;
+  bottom: 12px;
+  z-index: 20;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 210px;
+  max-width: 280px;
+  padding: 10px 32px 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+  font-size: 12px;
+  color: #111827;
+}
+
+.materials-branch-issue-price-close {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+}
