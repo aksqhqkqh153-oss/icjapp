@@ -27,7 +27,7 @@ STATE_PATH = DATA_DIR / 'state.json'
 SOOMGO_REVIEW_SETTING_KEY = 'soomgo_review_state_json'
 SCREENSHOT_DIR = DATA_DIR / 'screenshots'
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-DEFAULT_TARGET_FILE_DIR = r'G:\내 드라이브\1. 이청잘\이청잘 견적서\임시저장사진\1. 리뷰'
+DEFAULT_TARGET_FILE_DIR = r'G:\내 드라이브\1. 이청잘\이청잘 견적서\임시저장사진\1. 리뷰 내 이미지 파일'
 
 DEFAULT_PROMPT = (
     "1. 고객님 리뷰 문맥을 자연스럽게 반영할 것\n"
@@ -95,7 +95,8 @@ def _effective_target_file_dir(state: Optional[dict[str, Any]] = None) -> Path:
     if isinstance(state, dict):
         raw = str(state.get('settings', {}).get('target_file_dir', '') or '').strip()
     legacy = str(SCREENSHOT_DIR)
-    if not raw or raw == legacy:
+    legacy_review_dir = r'G:\내 드라이브\1. 이청잘\이청잘 견적서\임시저장사진\1. 리뷰'
+    if not raw or raw == legacy or raw == legacy_review_dir:
         raw = DEFAULT_TARGET_FILE_DIR
     return Path(raw).expanduser()
 

@@ -21492,7 +21492,7 @@ function SoomgoReviewSettingsModal({ open, onClose, state, setState, onSave, onM
           <div className="card muted small">이 화면에서 저장하는 로그인 정보와 프롬프트는 계정별 설정이 아닌 앱 전체 공용 설정으로 저장됩니다.</div>
           <label className="stack compact-gap"><span>숨고 로그인 이메일</span><input value={state.settings.soomgo_email || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_email: e.target.value } }))} /></label>
           <label className="stack compact-gap"><span>숨고 로그인 비밀번호</span><input type="password" value={state.settings.soomgo_password || ''} onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, soomgo_password: e.target.value } }))} /></label>
-          <label className="stack compact-gap"><span>리뷰 이미지 폴더경로지정</span><input value={state.settings.target_file_dir || ''} placeholder="예: G:\내 드라이브\1. 이청잘\...\1. 리뷰" onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, target_file_dir: e.target.value } }))} /></label>
+          <label className="stack compact-gap"><span>리뷰 이미지 폴더경로지정</span><input value={state.settings.target_file_dir || ''} placeholder="예: G:\내 드라이브\1. 이청잘\이청잘 견적서\임시저장사진\1. 리뷰 내 이미지 파일" onChange={e => setState(prev => ({ ...prev, settings: { ...prev.settings, target_file_dir: e.target.value } }))} /></label>
           <div className="row gap wrap">
             <button type="button" className="ghost" onClick={handleTargetDirectoryPrompt}>폴더경로지정</button>
           </div>
