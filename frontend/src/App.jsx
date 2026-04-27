@@ -19377,12 +19377,12 @@ function groupBusinessMonthlyMaterials(summaryRows = MATERIALS_SUMMARY_DATA || [
 
 function MaterialsSummaryTablePage() {
   const [summaryRows, setSummaryRows] = useState(() => loadMaterialsSummaryRows())
-  const [editMode, setEditMode] = useState(false)
+  const [editMode, setEditMode] = useState(true)
   const [draftRows, setDraftRows] = useState(() => cloneMaterialsSummaryRows(summaryRows))
   const [selectedRows, setSelectedRows] = useState(() => new Set())
   const [changedCells, setChangedCells] = useState(() => new Set())
   const [activeCell, setActiveCell] = useState(null)
-  const editBaselineRowsRef = useRef([])
+  const editBaselineRowsRef = useRef(cloneMaterialsSummaryRows(summaryRows))
   const pendingCellNavigationRef = useRef(null)
   const [materialsCatalogRows, setMaterialsCatalogRows] = useState([])
   const [materialsProducts, setMaterialsProducts] = useState([])
@@ -19421,12 +19421,12 @@ function MaterialsSummaryTablePage() {
 
   const cancelEdit = () => {
     setDraftRows(cloneMaterialsSummaryRows(summaryRows))
-    editBaselineRowsRef.current = []
+    editBaselineRowsRef.current = cloneMaterialsSummaryRows(summaryRows)
     pendingCellNavigationRef.current = null
     setSelectedRows(new Set())
     setChangedCells(new Set())
     setActiveCell(null)
-    setEditMode(false)
+    setEditMode(true)
   }
 
   const saveEdit = () => {
@@ -19436,9 +19436,10 @@ function MaterialsSummaryTablePage() {
     setSelectedRows(new Set())
     setChangedCells(new Set())
     setActiveCell(null)
-    editBaselineRowsRef.current = []
+    editBaselineRowsRef.current = cloneMaterialsSummaryRows(normalized)
     pendingCellNavigationRef.current = null
-    setEditMode(false)
+    setDraftRows(cloneMaterialsSummaryRows(normalized))
+    setEditMode(true)
   }
 
   const commitDraftCell = (rowIndex, colIndex, value, nextActiveCell = null) => {
@@ -19516,16 +19517,10 @@ function MaterialsSummaryTablePage() {
             {editMode && <div className="muted tiny-text">편집할 셀만 클릭해서 수정합니다. 전체 셀을 입력칸으로 바꾸지 않아 렉을 줄였습니다.</div>}
           </div>
           <div className="materials-summary-edit-actions">
-            {editMode ? (
-              <>
-                <button type="button" className="materials-summary-action-button" onClick={addDraftRow}>행추가</button>
-                <button type="button" className="materials-summary-action-button danger" onClick={deleteSelectedDraftRows} disabled={selectedRows.size === 0}>행삭제</button>
-                <button type="button" className="materials-summary-action-button primary" onClick={saveEdit}>저장</button>
-                <button type="button" className="materials-summary-action-button" onClick={cancelEdit}>취소</button>
-              </>
-            ) : (
-              <button type="button" className="materials-summary-action-button primary" onClick={startEdit}>편집</button>
-            )}
+            <button type="button" className="materials-summary-action-button" onClick={addDraftRow}>행추가</button>
+            <button type="button" className="materials-summary-action-button danger" onClick={deleteSelectedDraftRows} disabled={selectedRows.size === 0}>행삭제</button>
+            <button type="button" className="materials-summary-action-button primary" onClick={saveEdit}>저장</button>
+            <button type="button" className="materials-summary-action-button" onClick={cancelEdit}>취소</button>
           </div>
         </div>
         <div className="materials-summary-table-wrap">
@@ -19678,8 +19673,11 @@ const MATERIALS_BRANCH_ISSUE_MEMBERS = [
 ]
 
 function formatBusinessMonthlyBranchIssueItemName(value = '') {
-  const raw = String(value || '').replace(/\n/g, ' ').trim()
+  const raw = String(value || '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+  const compact = raw.replace(/\s+(?=\()/g, '').replace(/\s+/g, '')
   const manualBreakMap = {
+    '이사테이프': '테이프',
+    '테이프': '테이프',
     '이불박스(흰)': '이불박스\n(흰)',
     '이불박스(노)': '이불박스\n(노)',
     '대박스(흰)': '대박스\n(흰)',
@@ -19687,15 +19685,20 @@ function formatBusinessMonthlyBranchIssueItemName(value = '') {
     '옷박스(흰)': '옷박스\n(흰)',
     '옷박스(노)': '옷박스\n(노)',
     '폐기스티커': '폐기\n스티커',
-    '토르박스': '토르\n박스',
-    '청쪼끼(95)': '청쪼끼\n(95)',
-    '청조끼(100)': '청조끼\n(100)',
-    '청조끼(105)': '청조끼\n(105)',
-    '청조끼(110)': '청조끼\n(110)',
+    '조끼청(95)': '조끼청\n(95)',
+    '조끼청(100)': '조끼청\n(100)',
+    '조끼청(105)': '조끼청\n(105)',
+    '조끼청(110)': '조끼청\n(110)',
+    '청쪼끼(95)': '조끼청\n(95)',
+    '청조끼(95)': '조끼청\n(95)',
+    '청조끼(100)': '조끼청\n(100)',
+    '청조끼(105)': '조끼청\n(105)',
+    '청조끼(110)': '조끼청\n(110)',
     '반팔(L)': '반팔\n(L)',
     '반팔(LL)': '반팔\n(LL)',
+    '토르박스': '토르\n박스',
   }
-  return manualBreakMap[raw] || raw
+  return manualBreakMap[compact] || raw
 }
 
 function formatBusinessMonthlyBranchIssueCode(value = '') {
