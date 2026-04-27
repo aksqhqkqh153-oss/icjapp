@@ -34460,3 +34460,15 @@ button.danger {
     max-height: min(38vh, 330px);
   }
 }
+
+/* business monthly purchase branch issue total row fix */
+.materials-branch-issue-total-row td {
+  background: #eff6ff !important;
+  font-weight: 800;
+}
+
+/* business monthly purchase branch issue total row fix */
+.materials-branch-issue-total-row td {
+  background: #eff6ff !important;
+  font-weight: 800;
+}

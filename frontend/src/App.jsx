@@ -19611,6 +19611,9 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
 
 function BranchMaterialIssueStatusSection({ selectedMonth }) {
   const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus(selectedMonth)
+  const totalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
+  const totalAmount = bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.totalAmount), 0)
+
   return (
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
@@ -19624,11 +19627,18 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
               <th>호점</th>
               <th>이름</th>
               {itemColumns.map(column => <th key={`branch-issue-head-${column.index}`}>{column.label}</th>)}
-              <th>합산수량</th>
               <th>합산금액</th>
             </tr>
           </thead>
           <tbody>
+            <tr className="materials-branch-issue-total-row">
+              <td></td>
+              <td>합계</td>
+              {totalCells.map((cell, index) => (
+                <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
+              ))}
+              <td>{totalAmount ? `${totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
+            </tr>
             {bodyRows.map(row => (
               <tr key={`branch-issue-row-${row.branch}`}>
                 <td>{row.branch}</td>
@@ -19636,7 +19646,6 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
                 {row.cells.map((cell, index) => (
                   <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
                 ))}
-                <td>{row.totalQuantity ? row.totalQuantity.toLocaleString('ko-KR') : ''}</td>
                 <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
               </tr>
             ))}
@@ -19687,8 +19696,6 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
           </select>
         </div>
 
-        <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} />
-
         <div className="materials-business-summary-grid">
           <div className="materials-business-summary-card">
             <strong>월 총 구매비용</strong>
@@ -19729,6 +19736,8 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
             </table>
           </div>
         </div>
+
+        <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} />
 
         <div className="materials-summary-table-wrap">
           <table className="materials-summary-static-table materials-business-detail-table">
