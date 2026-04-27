@@ -34177,3 +34177,43 @@ button.danger {
   outline: 2px solid rgba(37, 99, 235, 0.55);
   outline-offset: -2px;
 }
+
+/* 자재구매/현황 > 자재결산: 셀 세로폭/중첩 보정 */
+.materials-summary-page .materials-summary-static-table {
+  border-collapse: collapse;
+}
+
+.materials-summary-page .materials-summary-static-table th,
+.materials-summary-page .materials-summary-static-table td {
+  height: auto;
+  min-height: 18px;
+  padding: 3px 4px;
+  line-height: 1.35;
+  vertical-align: middle;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.materials-summary-page .materials-summary-static-table thead th,
+.materials-summary-page .materials-summary-static-table tbody tr.is-template-head td {
+  line-height: 1.25;
+}
+
+.materials-summary-page .materials-summary-static-table td:empty,
+.materials-summary-page .materials-summary-static-table th:empty {
+  min-height: 18px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+@media (max-width: 768px) {
+  .materials-summary-page .materials-summary-static-table th,
+  .materials-summary-page .materials-summary-static-table td {
+    min-height: 17px;
+    padding: 3px 3px;
+    line-height: 1.3;
+  }
+}
