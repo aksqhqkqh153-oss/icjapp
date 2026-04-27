@@ -19350,6 +19350,7 @@ function MaterialsSummaryTablePage() {
   const [draftRows, setDraftRows] = useState(() => cloneMaterialsSummaryRows(summaryRows))
   const [selectedRows, setSelectedRows] = useState(() => new Set())
   const [changedCells, setChangedCells] = useState(() => new Set())
+  const [activeCell, setActiveCell] = useState(null)
   const [materialsCatalogRows, setMaterialsCatalogRows] = useState([])
   const [materialsProducts, setMaterialsProducts] = useState([])
   const salePriceMap = useMemo(() => buildMaterialsSalePriceMap(materialsCatalogRows, materialsProducts), [materialsCatalogRows, materialsProducts])
@@ -19379,6 +19380,7 @@ function MaterialsSummaryTablePage() {
     setDraftRows(normalized)
     setSelectedRows(new Set())
     setChangedCells(new Set())
+    setActiveCell(null)
     setEditMode(true)
   }
 
@@ -19386,6 +19388,7 @@ function MaterialsSummaryTablePage() {
     setDraftRows(cloneMaterialsSummaryRows(summaryRows))
     setSelectedRows(new Set())
     setChangedCells(new Set())
+    setActiveCell(null)
     setEditMode(false)
   }
 
@@ -19395,14 +19398,21 @@ function MaterialsSummaryTablePage() {
     saveMaterialsSummaryRows(normalized)
     setSelectedRows(new Set())
     setChangedCells(new Set())
+    setActiveCell(null)
     setEditMode(false)
   }
 
   const updateDraftCell = (rowIndex, colIndex, value) => {
+    const originalValue = String(draftRows?.[rowIndex]?.[colIndex] ?? '')
+    const nextValue = String(value ?? '')
+    if (originalValue === nextValue) {
+      setActiveCell(null)
+      return
+    }
     setDraftRows(prev => {
       const next = normalizeMaterialsSummaryRows(prev, columnCount)
       if (!next[rowIndex]) next[rowIndex] = Array.from({ length: columnCount }, () => '')
-      next[rowIndex][colIndex] = value
+      next[rowIndex][colIndex] = nextValue
       return next
     })
     setChangedCells(prev => {
@@ -19410,7 +19420,17 @@ function MaterialsSummaryTablePage() {
       next.add(`${rowIndex}-${colIndex}`)
       return next
     })
+    setActiveCell(null)
   }
+
+  const openEditCell = (rowIndex, colIndex, readOnlyFormulaCell) => {
+    if (!editMode || readOnlyFormulaCell) return
+    setActiveCell({ rowIndex, colIndex })
+  }
+
+  const isActiveEditCell = (rowIndex, colIndex) => Boolean(
+    activeCell && activeCell.rowIndex === rowIndex && activeCell.colIndex === colIndex
+  )
 
   const addDraftRow = () => {
     setDraftRows(prev => [...normalizeMaterialsSummaryRows(prev, columnCount), Array.from({ length: columnCount }, () => '')])
@@ -19438,6 +19458,7 @@ function MaterialsSummaryTablePage() {
           <div>
             <h3>자재결산</h3>
             <div className="muted tiny-text">첨부된 자재 결산 시트 데이터를 표 형식으로 반영했습니다.</div>
+            {editMode && <div className="muted tiny-text">편집할 셀만 클릭해서 수정합니다. 전체 셀을 입력칸으로 바꾸지 않아 렉을 줄였습니다.</div>}
           </div>
           <div className="materials-summary-edit-actions">
             {editMode ? (
@@ -19468,14 +19489,27 @@ function MaterialsSummaryTablePage() {
                     const readOnlyFormulaCell = rowIndex === 2 && colIndex >= 2
                     return (
                       <th key={`materials-summary-fixed-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
-                        {editMode && !readOnlyFormulaCell ? (
+                        {editMode && !readOnlyFormulaCell && isActiveEditCell(rowIndex, colIndex) ? (
                           <input
                             className="materials-summary-cell-input"
                             defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
+                            autoFocus
                             onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
-                            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter') event.currentTarget.blur()
+                              if (event.key === 'Escape') setActiveCell(null)
+                            }}
                           />
-                        ) : value}
+                        ) : (
+                          <button
+                            type="button"
+                            className="materials-summary-cell-edit-trigger"
+                            onClick={() => openEditCell(rowIndex, colIndex, readOnlyFormulaCell)}
+                            disabled={!editMode || readOnlyFormulaCell}
+                          >
+                            {value}
+                          </button>
+                        )}
                       </th>
                     )
                   })}
@@ -19503,14 +19537,27 @@ function MaterialsSummaryTablePage() {
                       const readOnlyFormulaCell = colIndex === 29
                       return (
                         <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
-                          {editMode && !readOnlyFormulaCell ? (
+                          {editMode && !readOnlyFormulaCell && isActiveEditCell(rowIndex, colIndex) ? (
                             <input
                               className="materials-summary-cell-input"
                               defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
-                            onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
-                            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                              autoFocus
+                              onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') event.currentTarget.blur()
+                                if (event.key === 'Escape') setActiveCell(null)
+                              }}
                             />
-                          ) : value}
+                          ) : (
+                            <button
+                              type="button"
+                              className="materials-summary-cell-edit-trigger"
+                              onClick={() => openEditCell(rowIndex, colIndex, readOnlyFormulaCell)}
+                              disabled={!editMode || readOnlyFormulaCell}
+                            >
+                              {value}
+                            </button>
+                          )}
                         </td>
                       )
                     })}

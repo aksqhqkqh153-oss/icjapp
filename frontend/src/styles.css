@@ -34578,3 +34578,35 @@ button.danger {
 .materials-summary-page .materials-summary-static-table tbody tr:first-child td {
   border-top: 3px solid rgba(37, 99, 235, 0.22);
 }
+
+.materials-summary-cell-edit-trigger {
+  display: block;
+  width: 100%;
+  min-width: 40px;
+  min-height: 18px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.materials-summary-cell-edit-trigger:disabled {
+  cursor: default;
+}
+
+.materials-summary-static-table.is-editing .materials-summary-cell-edit-trigger:not(:disabled):hover {
+  outline: 1px solid rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.materials-summary-static-table th.materials-summary-cell-changed,
+.materials-summary-static-table th.materials-summary-cell-changed input,
+.materials-summary-static-table th.materials-summary-cell-changed .materials-summary-cell-edit-trigger,
+.materials-summary-static-table td.materials-summary-cell-changed .materials-summary-cell-edit-trigger {
+  background: #dbeafe !important;
+}
