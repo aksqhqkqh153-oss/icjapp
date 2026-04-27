@@ -363,14 +363,11 @@ function getDisposalUserIdentity(user = {}) {
 
 function canUserViewDisposalRecord(record, user = getDisposalCurrentUser()) {
   if (!record) return false
-  if (isDisposalAdminLike(user)) return true
-  const { userId, username } = getDisposalUserIdentity(user)
-  const recordUserId = String(record?.createdByUserId || '').trim()
-  const recordUsername = String(record?.createdByUsername || '').trim()
-  if (!recordUserId && !recordUsername) return true
-  if (userId && recordUserId && userId === recordUserId) return true
-  if (username && recordUsername && username === recordUsername) return true
-  return false
+  return isDisposalAdminLike(user)
+}
+
+function canManageDisposalRecords(user = getDisposalCurrentUser()) {
+  return isDisposalAdminLike(user)
 }
 
 function attachDisposalRecordOwner(record, user = getDisposalCurrentUser()) {
@@ -443,15 +440,6 @@ async function migrateLocalDisposalRecordsToServer(records = loadLegacyLocalDisp
   })
 }
 
-async function replaceLocalDisposalRecordsToServer(records = loadLegacyLocalDisposalRecords()) {
-  const normalized = (records || []).map(normalizeRecordShape).filter(Boolean)
-  if (!normalized.length) return { ok: true, count: 0 }
-  return api('/api/disposal/records/replace-local', {
-    method: 'POST',
-    body: JSON.stringify({ records: normalized }),
-  })
-}
-
 async function upsertDisposalRecordToServer(record) {
   const normalized = normalizeRecordShape(record)
   const response = await api('/api/disposal/records/upsert', {
@@ -480,8 +468,8 @@ async function deleteDisposalRecordsFromServer(ids = []) {
 
 async function bootstrapDisposalRecords() {
   const legacyLocalRecords = loadLegacyLocalDisposalRecords()
-  if (legacyLocalRecords.length) {
-    await replaceLocalDisposalRecordsToServer(legacyLocalRecords)
+  if (legacyLocalRecords.length && canManageDisposalRecords()) {
+    await migrateLocalDisposalRecordsToServer(legacyLocalRecords)
     clearLegacyLocalDisposalRecords()
   }
   return fetchDisposalRecordsFromServer()

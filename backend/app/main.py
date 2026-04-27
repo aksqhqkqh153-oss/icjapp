@@ -7599,7 +7599,7 @@ def _ensure_disposal_record_access(row_dict: dict[str, Any], user: dict) -> None
 
 
 @app.get('/api/disposal/records')
-def get_disposal_records(user=Depends(require_user)):
+def get_disposal_records(user=Depends(require_admin_or_subadmin)):
     with get_conn() as conn:
         if _is_admin_like_user(user):
             rows = conn.execute("SELECT * FROM disposal_records ORDER BY saved_at DESC, updated_at DESC, created_at DESC").fetchall()
@@ -7612,7 +7612,7 @@ def get_disposal_records(user=Depends(require_user)):
 
 
 @app.post('/api/disposal/records/upsert')
-def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_user)):
+def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_admin_or_subadmin)):
     incoming = payload.model_dump()
     with get_conn() as conn:
         existing = None
@@ -7663,7 +7663,7 @@ def upsert_disposal_record(payload: DisposalRecordIn, user=Depends(require_user)
 
 
 @app.post('/api/disposal/records/delete')
-def delete_disposal_records(payload: DisposalRecordDeleteIn, user=Depends(require_user)):
+def delete_disposal_records(payload: DisposalRecordDeleteIn, user=Depends(require_admin_or_subadmin)):
     ids = [str(item or '').strip() for item in payload.ids if str(item or '').strip()]
     deleted_ids: list[str] = []
     with get_conn() as conn:
@@ -7679,7 +7679,7 @@ def delete_disposal_records(payload: DisposalRecordDeleteIn, user=Depends(requir
 
 
 @app.post('/api/disposal/records/migrate-local')
-def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_user)):
+def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_admin_or_subadmin)):
     migrated: list[dict[str, Any]] = []
     with get_conn() as conn:
         for item in payload.records[:500]:
@@ -7723,34 +7723,10 @@ def migrate_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=De
 
 
 @app.post('/api/disposal/records/replace-local')
-def replace_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_user)):
-    normalized_records = []
-    for item in payload.records[:500]:
-        incoming = item.model_dump() if isinstance(item, BaseModel) else dict(item or {})
-        normalized_records.append(_normalize_disposal_record_payload(incoming, user, None))
-
-    with get_conn() as conn:
-        if _is_admin_like_user(user):
-            conn.execute("DELETE FROM disposal_records")
-        else:
-            conn.execute(
-                "DELETE FROM disposal_records WHERE CAST(COALESCE(created_by_user_id, '') AS TEXT) = ? OR created_by_username = ?",
-                (str(user.get('id') or ''), str(user.get('username') or '')),
-            )
-
-        now = utcnow()
-        for normalized in normalized_records:
-            conn.execute(
-                "INSERT INTO disposal_records(id, disposal_date, location, district, final_status, platform, customer_name, items_json, totals_json, settlement_transferred_at, created_by_user_id, created_by_username, created_by_grade, saved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    normalized['id'], normalized['disposalDate'], normalized['location'], normalized['district'], normalized['finalStatus'], normalized['platform'], normalized['customerName'],
-                    json.dumps(normalized['items'], ensure_ascii=False), json.dumps(normalized['totals'], ensure_ascii=False), normalized['settlementTransferredAt'],
-                    int(normalized['createdByUserId']) if str(normalized['createdByUserId']).isdigit() else None,
-                    normalized['createdByUsername'], int(normalized['createdByGrade']) if str(normalized['createdByGrade']).isdigit() else None,
-                    normalized['savedAt'], now, now,
-                )
-            )
-    return {'ok': True, 'count': len(normalized_records)}
+def replace_local_disposal_records(payload: DisposalRecordBulkMigrateIn, user=Depends(require_admin_or_subadmin)):
+    # Backward-compatible endpoint name only.
+    # 안전 정책: 기존 DB를 삭제/초기화하지 않고 migrate-local과 동일하게 병합 저장만 수행한다.
+    return migrate_local_disposal_records(payload, user)
 
 
 @app.get('/api/disposal/jurisdictions')
