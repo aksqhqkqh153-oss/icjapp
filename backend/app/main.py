@@ -7623,9 +7623,12 @@ def _build_disposal_unreported_alerts(conn) -> list[dict[str, Any]]:
         item_summary = ', '.join(item_names[:3])
         if len(item_names) > 3:
             item_summary += f' 외 {len(item_names) - 3}건'
+        unreported_reason = str(record.get('unreportedReason') or '').strip()
         body = f"[{disposal_date}] {customer_name} 고객님의 입금일시가 입력되었지만 폐기물 신고처리가 완료되지 않았습니다."
         if item_summary:
             body += f"\n미신고 품목: {item_summary}"
+        if unreported_reason:
+            body += f"\n폐기 미신고 사유: {unreported_reason}"
         alerts.append({
             'id': f"disposal-unreported-{record_id or len(alerts)}",
             'type': 'disposal_admin_alert',

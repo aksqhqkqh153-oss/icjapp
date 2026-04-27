@@ -3234,6 +3234,7 @@ export function DisposalListPage() {
   const [bulkPaymentModal, setBulkPaymentModal] = useState({ open: false, recordId: '', group: null, rows: [] })
   const [bulkPaymentDates, setBulkPaymentDates] = useState({})
   const [bulkReportStatuses, setBulkReportStatuses] = useState({})
+  const [dirtyUnreportedReasons, setDirtyUnreportedReasons] = useState({})
   const settlementBaselineRef = useRef({})
   const unreportedReasonInputRefs = useRef({})
 
@@ -3270,6 +3271,17 @@ export function DisposalListPage() {
   const selectedVisibleCount = useMemo(() => selectedRowKeys.filter(key => visibleRowKeySet.has(key)).length, [selectedRowKeys, visibleRowKeySet])
   const allVisibleChecked = visibleRowKeys.length > 0 && selectedVisibleCount === visibleRowKeys.length
   const dailySettlementSummary = useMemo(() => buildDailySettlementSummary(groupedRows), [groupedRows])
+  const dirtyUnreportedReasonEntries = useMemo(() => Object.entries(dirtyUnreportedReasons).filter(([, value]) => value !== undefined), [dirtyUnreportedReasons])
+  const hasDirtyUnreportedReasons = dirtyUnreportedReasonEntries.length > 0
+
+  useEffect(() => {
+    if (!hasDirtyUnreportedReasons) return undefined
+    function handleBeforeUnload(event) {
+      event.preventDefault()
+      event.returnValue = '\n      return '\n    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasDirtyUnreportedReasons])
 
   useEffect(() => {
     if (!hasUnreportedAlertFocus || !alertRecordId) return
@@ -3297,15 +3309,84 @@ export function DisposalListPage() {
     setSelectedRowKeys(prev => checked ? Array.from(new Set([...prev, rowKey])) : prev.filter(key => key !== rowKey))
   }
 
-  async function updateUnreportedReason(recordId, reason) {
+  function getOriginalUnreportedReason(recordId) {
     const target = records.find(record => record.id === recordId)
-    if (!target) return
+    return String(target?.unreportedReason || '').trim()
+  }
+
+  function getUnreportedReasonDraft(recordId, fallback = '') {
+    return Object.prototype.hasOwnProperty.call(dirtyUnreportedReasons, recordId) ? dirtyUnreportedReasons[recordId] : fallback
+  }
+
+  function changeUnreportedReasonDraft(recordId, value) {
+    const nextValue = String(value || '')
+    const originalValue = getOriginalUnreportedReason(recordId)
+    setDirtyUnreportedReasons(prev => {
+      const next = { ...prev }
+      if (nextValue.trim() === originalValue) delete next[recordId]
+      else next[recordId] = nextValue
+      return next
+    })
+  }
+
+  async function saveUnreportedReason(recordId, reason, options = {}) {
+    const { silent = false } = options
+    const target = records.find(record => record.id === recordId)
+    if (!target) return false
     const nextReason = String(reason || '').trim()
-    if (String(target?.unreportedReason || '').trim() === nextReason) return
+    if (String(target?.unreportedReason || '').trim() === nextReason) {
+      setDirtyUnreportedReasons(prev => {
+        const next = { ...prev }
+        delete next[recordId]
+        return next
+      })
+      if (!silent) window.alert('저장할 변경사항이 없습니다.')
+      return true
+    }
     const nextTarget = normalizeRecordShape({ ...target, unreportedReason: nextReason, savedAt: new Date().toISOString() })
     const savedTarget = await upsertDisposalRecordToServer(nextTarget)
     setRecords(prev => prev.map(record => record.id === recordId ? savedTarget : record))
+    setDirtyUnreportedReasons(prev => {
+      const next = { ...prev }
+      delete next[recordId]
+      return next
+    })
+    if (!silent) window.alert('폐기 미신고 사유가 저장되었습니다.')
+    return true
   }
+
+  async function saveAllDirtyUnreportedReasons() {
+    const entries = Object.entries(dirtyUnreportedReasons).filter(([, value]) => value !== undefined)
+    if (!entries.length) return true
+    let nextRecords = records
+    const savedById = {}
+    for (const [recordId, reason] of entries) {
+      const target = nextRecords.find(record => record.id === recordId)
+      if (!target) continue
+      const nextReason = String(reason || '').trim()
+      if (String(target?.unreportedReason || '').trim() === nextReason) continue
+      const nextTarget = normalizeRecordShape({ ...target, unreportedReason: nextReason, savedAt: new Date().toISOString() })
+      const savedTarget = await upsertDisposalRecordToServer(nextTarget)
+      savedById[recordId] = savedTarget
+      nextRecords = nextRecords.map(record => record.id === recordId ? savedTarget : record)
+    }
+    if (Object.keys(savedById).length) setRecords(nextRecords)
+    setDirtyUnreportedReasons({})
+    return true
+  }
+
+  async function navigateWithUnreportedReasonGuard(path) {
+    if (!path) return
+    if (!hasDirtyUnreportedReasons) {
+      navigate(path)
+      return
+    }
+    const confirmed = window.confirm("'폐기 미신고 사유'가 입력(변동)되었습니다. 저장하고 사이트를 이동 하시겠습니까?")
+    if (!confirmed) return
+    const saved = await saveAllDirtyUnreportedReasons()
+    if (saved) navigate(path)
+  }
+
 
   async function updateRecordStatuses(recordId, updater) {
     const target = records.find(record => record.id === recordId)
@@ -3487,6 +3568,10 @@ export function DisposalListPage() {
   }
 
   function handleCategoryNavigate(path) {
+    if (hasDirtyUnreportedReasons) {
+      navigateWithUnreportedReasonGuard(path)
+      return
+    }
     if (!pendingSettlementMessages.length) {
       navigate(path)
       return
@@ -3549,11 +3634,11 @@ export function DisposalListPage() {
                       className="disposal-meta-top-click-group"
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/disposal/forms/${group.recordId}`)}
+                      onClick={() => navigateWithUnreportedReasonGuard(`/disposal/forms/${group.recordId}`)}
                       onKeyDown={e => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()
-                          navigate(`/disposal/forms/${group.recordId}`)
+                          navigateWithUnreportedReasonGuard(`/disposal/forms/${group.recordId}`)
                         }
                       }}
                       aria-label={`${group.customerName} 폐기양식으로 이동`}
@@ -3583,29 +3668,38 @@ export function DisposalListPage() {
                     </div>
                   </div>
                   <div className={`disposal-meta-row disposal-meta-row-middle disposal-meta-row-middle-with-action${group.hasUnreportedReasonTarget ? ' has-unreported-reason' : ' no-unreported-reason'}`.trim()}>
-                    <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
+                    <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigateWithUnreportedReasonGuard(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
                       <span className="disposal-meta-location">{group.location}</span>
                     </button>
                     {group.hasUnreportedReasonTarget ? (
                       <label className={`disposal-unreported-reason-box${hasUnreportedAlertFocus && alertRecordId === group.recordId ? ' disposal-unreported-reason-box-alert-focus' : ''}`.trim()}>
-                      <span>폐기 미신고 사유</span>
-                      <textarea
-                        ref={node => {
-                          if (node) unreportedReasonInputRefs.current[group.recordId] = node
-                          else delete unreportedReasonInputRefs.current[group.recordId]
-                        }}
-                        defaultValue={group.unreportedReason || ''}
-                        placeholder="미신고 사유 입력"
-                        rows={1}
-                        onBlur={e => updateUnreportedReason(group.recordId, e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            e.currentTarget.blur()
-                          }
-                        }}
-                        aria-label={`${group.customerName} 폐기 미신고 사유`}
-                      />
+                        <span>폐기 미신고 사유</span>
+                        <div className="disposal-unreported-reason-input-row">
+                          <textarea
+                            ref={node => {
+                              if (node) unreportedReasonInputRefs.current[group.recordId] = node
+                              else delete unreportedReasonInputRefs.current[group.recordId]
+                            }}
+                            value={getUnreportedReasonDraft(group.recordId, group.unreportedReason || '')}
+                            placeholder="미신고 사유 입력"
+                            rows={1}
+                            onChange={e => changeUnreportedReasonDraft(group.recordId, e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                saveUnreportedReason(group.recordId, e.currentTarget.value)
+                              }
+                            }}
+                            aria-label={`${group.customerName} 폐기 미신고 사유`}
+                          />
+                          <button
+                            type="button"
+                            className="ghost disposal-unreported-reason-save-button"
+                            onClick={() => saveUnreportedReason(group.recordId, getUnreportedReasonDraft(group.recordId, group.unreportedReason || ''))}
+                          >
+                            사유저장
+                          </button>
+                        </div>
                       </label>
                     ) : null}
                     <div className="disposal-meta-row-end-actions">
@@ -3647,7 +3741,7 @@ export function DisposalListPage() {
                     <div className="disposal-list-grid-check-cell">
                       <input type="checkbox" checked={selectedRowKeys.includes(row.key)} onChange={e => toggleRowSelection(row.key, e.target.checked)} aria-label={`${group.customerName} ${row.itemName} 선택`} />
                     </div>
-                    <button type="button" className="disposal-list-grid-button disposal-list-grid-button-customer" onClick={() => navigate(`/disposal/forms/${group.recordId}`)}>
+                    <button type="button" className="disposal-list-grid-button disposal-list-grid-button-customer" onClick={() => navigateWithUnreportedReasonGuard(`/disposal/forms/${group.recordId}`)}>
                       <span>{row.itemName}</span>
                       <span>{formatNumber(row.quantity)}</span>
                       <span>{formatCurrency(row.unitCost)}</span>
