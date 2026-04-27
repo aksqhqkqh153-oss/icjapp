@@ -33810,23 +33810,26 @@ button.danger {
 }
 
 .materials-summary-static-table {
-  min-width: 3600px;
+  min-width: 0;
   width: max-content;
+  max-width: none;
   border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 12px;
+  table-layout: auto;
+  font-size: 10px;
+  letter-spacing: -0.35px;
 }
 
 .materials-summary-static-table th,
 .materials-summary-static-table td {
-  min-width: 112px;
-  max-width: 180px;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   border: 1px solid rgba(15, 23, 42, 0.12);
-  padding: 6px 8px;
+  padding: 3px 4px;
   text-align: center;
   vertical-align: middle;
-  white-space: pre-line;
-  line-height: 1.35;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .materials-summary-static-table thead th {
@@ -33839,7 +33842,7 @@ button.danger {
 
 .materials-summary-static-table tbody tr.is-template-head td {
   position: sticky;
-  top: 29px;
+  top: 22px;
   z-index: 1;
   background: #f8fafc;
   font-weight: 700;
@@ -33855,14 +33858,14 @@ button.danger {
   }
 
   .materials-summary-static-table {
-    min-width: 3000px;
-    font-size: 11px;
+    min-width: 0;
+    font-size: 9px;
   }
 
   .materials-summary-static-table th,
   .materials-summary-static-table td {
-    min-width: 96px;
-    padding: 5px 6px;
+    min-width: 0;
+    padding: 2px 3px;
   }
 }
 
@@ -34131,4 +34134,33 @@ button.danger {
   .disposal-page .disposal-settlement-action-button {
     width: 100%;
   }
+}
+
+/* 자재구매/현황 > 자재결산: 한 화면 확인용 초압축 표 */
+.materials-summary-page .materials-summary-panel {
+  padding: 10px;
+}
+.materials-summary-page .materials-summary-head-inline {
+  margin-bottom: 6px;
+}
+.materials-summary-page .materials-summary-table-wrap {
+  max-height: calc(100vh - 170px);
+  border-radius: 10px;
+}
+.materials-summary-page .materials-summary-static-table {
+  font-size: 8.5px;
+}
+.materials-summary-page .materials-summary-static-table th,
+.materials-summary-page .materials-summary-static-table td {
+  padding: 1px 2px;
+  line-height: 1.05;
+  letter-spacing: -0.45px;
+}
+.materials-summary-page .materials-summary-static-table tbody tr.is-template-head td {
+  top: 18px;
+}
+.materials-summary-page .materials-summary-static-table th:empty,
+.materials-summary-page .materials-summary-static-table td:empty {
+  padding-left: 1px;
+  padding-right: 1px;
 }
