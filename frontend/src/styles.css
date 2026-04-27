@@ -34524,3 +34524,57 @@ button.danger {
   min-width: 38px;
   box-sizing: border-box;
 }
+
+/* 2026-04-27 자재결산 sticky 헤더 행 높이/가림 최종 보정 */
+.materials-summary-page .materials-summary-table-wrap {
+  overflow: auto;
+  isolation: isolate;
+}
+
+.materials-summary-page .materials-summary-static-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.materials-summary-page .materials-summary-static-table thead th,
+.materials-summary-page .materials-summary-static-table thead td {
+  height: 24px;
+  min-height: 24px;
+  max-height: 24px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  box-sizing: border-box;
+  position: sticky;
+  background-clip: padding-box;
+}
+
+.materials-summary-page .materials-summary-static-table thead tr.materials-summary-column-head-row th {
+  top: 0;
+  z-index: 40;
+}
+
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-0 th,
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-0 td {
+  top: 24px;
+  z-index: 39;
+  background: #f8fafc;
+}
+
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-1 th,
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-1 td {
+  top: 48px;
+  z-index: 38;
+  background: #f8fafc;
+}
+
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-2 th,
+.materials-summary-page .materials-summary-static-table thead tr.is-template-head-2 td {
+  top: 72px;
+  z-index: 37;
+  background: #f8fafc;
+  box-shadow: 0 2px 0 rgba(15, 23, 42, 0.22);
+}
+
+.materials-summary-page .materials-summary-static-table tbody tr:first-child td {
+  border-top: 3px solid rgba(37, 99, 235, 0.22);
+}
