@@ -19236,11 +19236,24 @@ function formatMaterialsSummaryCellValue(value, rowIndex, colIndex, row, codeRow
   return value ?? ''
 }
 
-function formatBusinessMonthlyMonthLabel(value) {
+function normalizeBusinessMonthlyMonthKey(value) {
   const raw = String(value || '').trim()
-  const match = raw.match(/^(\d{4})-(\d{2})$/)
-  if (!match) return raw || '날짜선택'
-  return `${match[1]}년 ${match[2]}월`
+  if (!raw) return ''
+  const normalized = raw.replace(/\s+/g, '')
+  let match = normalized.match(/^(\d{4})-(\d{1,2})(?:-|$)/)
+  if (match) return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`
+  match = normalized.match(/^(\d{4})[.\/](\d{1,2})(?:[.\/]|$)/)
+  if (match) return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`
+  match = normalized.match(/^(\d{2})[.\/](\d{1,2})(?:[.\/]|$)/)
+  if (match) return `20${match[1]}-${String(Number(match[2])).padStart(2, '0')}`
+  return ''
+}
+
+function formatBusinessMonthlyMonthLabel(value) {
+  const monthKey = normalizeBusinessMonthlyMonthKey(value)
+  if (!monthKey) return String(value || '').trim() || '날짜선택'
+  const [year, month] = monthKey.split('-')
+  return `${year}년 ${month}월`
 }
 
 const MATERIALS_BUSINESS_MONTHLY_ITEM_EXCLUDE_RULES = [
@@ -19252,7 +19265,7 @@ const MATERIALS_BUSINESS_MONTHLY_ITEM_EXCLUDE_RULES = [
 
 function shouldExcludeBusinessMonthlyItem(itemCode, month) {
   const codeKey = normalizeMaterialsCodeKey(itemCode)
-  const monthKey = String(month || '').slice(0, 7)
+  const monthKey = normalizeBusinessMonthlyMonthKey(month)
   if (!codeKey || !monthKey) return false
   return MATERIALS_BUSINESS_MONTHLY_ITEM_EXCLUDE_RULES.some(rule => (
     normalizeMaterialsCodeKey(rule.code) === codeKey && monthKey >= rule.fromMonth
@@ -19287,7 +19300,8 @@ function buildBusinessMonthlyMaterialRows(summaryRows = MATERIALS_SUMMARY_DATA |
     const date = String(row?.[0] || '').trim()
     const name = String(row?.[1] || '').trim()
     if (!date || !name) return
-    const month = date.slice(0, 7)
+    const month = normalizeBusinessMonthlyMonthKey(date)
+    if (!month) return
     for (let colIndex = 2; colIndex < Math.max(headerRow.length, codeRow.length, priceRow.length, row.length); colIndex += 1) {
       const quantity = parseMaterialsSummaryNumber(row?.[colIndex])
       if (!quantity) continue
@@ -19723,7 +19737,9 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
     const date = String(row?.[0] || '').trim()
     const name = String(row?.[1] || '').trim()
     if (!name) return
-    if (selectedMonth && date.slice(0, 7) !== selectedMonth) return
+    const month = normalizeBusinessMonthlyMonthKey(date)
+    if (!month) return
+    if (selectedMonth && month !== selectedMonth) return
 
     const itemDetails = []
     itemColumns.forEach(column => {
