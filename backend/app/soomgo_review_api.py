@@ -380,8 +380,53 @@ def _extract_item_text_by_selectors(item: Any, selectors: list[str], min_length:
     return ''
 
 
+
+def _extract_dom_exact_review_fields(item: Any) -> tuple[str, str, str]:
+    """Extract author/rating/review using confirmed Soomgo card-relative XPath."""
+    js = """
+(element) => {
+  const norm = (value) => String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  const pickByXPath = (xpath) => {
+    try {
+      const node = document.evaluate(xpath, element, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      return node ? norm(node.innerText || node.textContent || '') : '';
+    } catch (_) {
+      return '';
+    }
+  };
+  const firstText = (nodes) => {
+    for (const node of nodes || []) {
+      const value = norm(node && (node.innerText || node.textContent || ''));
+      if (value) return value;
+    }
+    return '';
+  };
+  const author = pickByXPath('./article/section[1]/div/div[1]/div[2]/div/span')
+    || firstText(Array.from(element.querySelectorAll('article > section:nth-of-type(1) span')).filter((node) => {
+      const value = norm(node.innerText || node.textContent || '');
+      return value && value.length <= 20 && !value.includes('리뷰') && !value.includes('답변');
+    }));
+  const review = pickByXPath('./article/section[3]/div/div[2]/span')
+    || firstText(Array.from(element.querySelectorAll('article > section:nth-of-type(3) [class*="review-content"], article > section:nth-of-type(3) div > div:nth-child(2) > span')));
+  const rating = pickByXPath('./article/section[3]/div/div[1]/div/div/span')
+    || firstText(Array.from(element.querySelectorAll('article > section:nth-of-type(3) div > div:first-child span, article > section:nth-of-type(3) [class*="body16:semibold"]')));
+  return { author, review, rating };
+}
+"""
+    try:
+        row = item.evaluate(js) or {}
+    except Exception:
+        row = {}
+    if not isinstance(row, dict):
+        row = {}
+    author = _normalize_review_text(row.get('author', ''))
+    rating = _extract_rating_value(_normalize_review_text(row.get('rating', '')))
+    review = _sanitize_review_body(_strip_rating_prefix(_normalize_review_text(row.get('review', ''))))
+    return author, rating, review
+
 def _extract_dom_author_name(item: Any) -> str:
     selectors = [
+        "xpath=.//article/section[1]/div/div[1]/div[2]/div/span",
         "xpath=.//article/section[1]//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:semibold') and contains(@class, 'primary')]",
         "xpath=.//article/section[1]//*[contains(@class, 'prisma-typography') and contains(@class, 'body13:semibold') and contains(@class, 'primary')]",
         "xpath=.//article/section[1]//span",
@@ -403,6 +448,7 @@ def _extract_dom_author_name(item: Any) -> str:
 
 def _extract_dom_review_content(item: Any) -> str:
     selectors = [
+        "xpath=.//article/section[3]/div/div[2]/span",
         "xpath=.//article/section[position()=2 or position()=3]//*[contains(@class, 'review-content')]",
         "xpath=.//article/section[position()=2 or position()=3]/div/div[2]/span",
         "xpath=.//article/section[position()=2 or position()=3]//span[contains(@class, 'review-content')]",
@@ -416,6 +462,7 @@ def _extract_dom_review_content(item: Any) -> str:
 
 def _extract_dom_rating_text(item: Any) -> str:
     selectors = [
+        "xpath=.//article/section[3]/div/div[1]/div/div/span",
         "xpath=.//article/section[position()=2 or position()=3]//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
         "xpath=.//article/section[position()=2 or position()=3]/div/div[1]/div/div/span",
         "xpath=.//*[contains(@class, 'prisma-typography') and contains(@class, 'body16:semibold') and contains(@class, 'primary')]",
@@ -909,14 +956,16 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
     const sections = sectionsOf(item);
     const reviewSection = findReviewSection(item);
     const replySection = findReplySection(item);
-    const maskedName = firstText(authorNodes(sections[0] || item)) || firstText(authorNodes(item));
+    const confirmedAuthorNode = sections[0] ? sections[0].querySelector(':scope > div > div:first-child > div:nth-child(2) > div > span') : null;
+    const maskedName = textOf(confirmedAuthorNode) || firstText(authorNodes(sections[0] || item)) || firstText(authorNodes(item));
     const userProvidedReviewNode = sections[2] ? sections[2].querySelector(':scope > div > div:nth-child(2) > span') : null;
+    const confirmedRatingNode = sections[2] ? sections[2].querySelector(':scope > div > div:first-child > div > div > span') : null;
     const reviewText = firstText([
       userProvidedReviewNode,
       ...reviewNodes(reviewSection || item),
       ...reviewNodes(item),
     ]);
-    const ratingText = uniq(ratingNodes(reviewSection || item).map((el) => textOf(el))).find((value) => /(^|\s)[0-5](?:\.\d)?($|\s)/.test(value) || value.includes('별점')) || '';
+    const ratingText = textOf(confirmedRatingNode) || uniq(ratingNodes(reviewSection || item).map((el) => textOf(el))).find((value) => /(^|\s)[0-5](?:\.\d)?($|\s)/.test(value) || value.includes('별점')) || '';
     const replyComment = item.querySelector('.review-comment');
     const replyRows = replyComment ? uniq([
       ...qsa(replyComment, 'article span, article p, article div, span, p, div').map((el) => textOf(el)),
@@ -1180,6 +1229,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         pass
 
     preloaded = preloaded or {}
+    exact_author_name, exact_rating_text, exact_content_text = _extract_dom_exact_review_fields(item)
     section_rows = _extract_section_rows(preloaded)
     author_candidates = [
         _normalize_review_text(value)
@@ -1197,9 +1247,9 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         if _normalize_review_text(value)
     ]
 
-    rating_text = _extract_dom_rating_text(item) or _best_preloaded_rating_text(section_rows, rating_candidates)
+    rating_text = exact_rating_text or _extract_dom_rating_text(item) or _best_preloaded_rating_text(section_rows, rating_candidates)
     preloaded_item_text = _normalize_review_text(preloaded.get('itemText', ''))
-    content_text = _extract_dom_review_content(item) or _best_preloaded_review_text(section_rows, '', content_candidates, preloaded_item_text)
+    content_text = exact_content_text or _extract_dom_review_content(item) or _best_preloaded_review_text(section_rows, '', content_candidates, preloaded_item_text)
 
     item_text = preloaded_item_text
     if not item_text:
@@ -1208,7 +1258,7 @@ def _extract_review_item_fields(item: Any, reviews_data: list[dict[str, Any]], p
         except Exception:
             item_text = ''
 
-    author_name = _extract_dom_author_name(item)
+    author_name = exact_author_name if _is_likely_name_line(exact_author_name) else _extract_dom_author_name(item)
     if not author_name and section_rows:
         for candidate in section_rows[0].get('author_rows') or []:
             if candidate and _is_likely_name_line(candidate):
