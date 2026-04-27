@@ -34217,3 +34217,66 @@ button.danger {
     line-height: 1.3;
   }
 }
+
+/* 2026-04-27 자재구매/현황 PC 전용 6열 버튼 및 자재결산 한 화면 보정 */
+@media (min-width: 769px) {
+  .materials-page .materials-tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .materials-page .materials-hero {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .materials-page button.materials-tab {
+    padding: 8px 6px;
+    font-size: 12px;
+    line-height: 1.15;
+    min-height: 34px;
+  }
+
+  .stack-page.materials-page.materials-summary-page {
+    gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .materials-summary-page .materials-summary-panel {
+    gap: 6px;
+    padding: 8px 10px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .materials-summary-page .materials-summary-head-inline {
+    margin-bottom: 2px;
+  }
+
+  .materials-summary-page .materials-summary-head-inline h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .materials-summary-page .materials-summary-head-inline .tiny-text {
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  .materials-summary-page .materials-summary-table-wrap {
+    max-height: calc(100vh - 130px);
+    min-height: 0;
+  }
+
+  .materials-summary-page .materials-summary-static-table {
+    font-size: 8px;
+  }
+
+  .materials-summary-page .materials-summary-static-table th,
+  .materials-summary-page .materials-summary-static-table td {
+    padding: 2px 3px;
+    line-height: 1.22;
+  }
+}
