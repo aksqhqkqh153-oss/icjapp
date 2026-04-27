@@ -1598,6 +1598,7 @@ function DisposalItemsEditor({
   draft,
   rendered,
   updateItem,
+  updateAllItemReportNo,
   addItemRow,
   deleteMode,
   selectedItemRows,
@@ -2802,6 +2803,7 @@ useEffect(() => {
             draft={draft}
             rendered={rendered}
             updateItem={updateItem}
+            updateAllItemReportNo={updateAllItemReportNo}
             addItemRow={addItemRow}
             deleteMode={deleteMode}
             selectedItemRows={selectedItemRows}
