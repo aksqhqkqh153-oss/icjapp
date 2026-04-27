@@ -1272,6 +1272,7 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
         customerName: record.customerName || '-',
         location: record.location || '-',
         unreportedReason: String(record.unreportedReason || ''),
+        hasUnreportedReasonTarget: false,
         disposalDate: record.disposalDate || '-',
         paymentStatus: getAggregateItemStatus(record, 'payment'),
         reportStatus: getAggregateItemStatus(record, 'report'),
@@ -1290,6 +1291,9 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
       const reportAmount = quantity * unitCost
       const feeAmount = Math.round(reportAmount * 0.3)
       const finalAmount = reportAmount + feeAmount
+      if (!!item?.paymentDone && String(item?.paymentSettledAt || "").trim() && !item?.reportDone) {
+        group.hasUnreportedReasonTarget = true
+      }
       group.rows.push({
         key: `${record.id}-${index}`,
         recordId: record.id,
@@ -3544,11 +3548,12 @@ export function DisposalListPage() {
                       {isTransferred ? <span className="disposal-transfer-badge disposal-header-action-button">결산반영완료</span> : <span className="disposal-transfer-badge disposal-header-action-button is-pending">결산대기</span>}
                     </div>
                   </div>
-                  <div className="disposal-meta-row disposal-meta-row-middle disposal-meta-row-middle-with-action">
+                  <div className={`disposal-meta-row disposal-meta-row-middle disposal-meta-row-middle-with-action${group.hasUnreportedReasonTarget ? ' has-unreported-reason' : ' no-unreported-reason'}`.trim()}>
                     <button type="button" className="disposal-meta-link-button disposal-meta-location-link" onClick={() => navigate(`/disposal/forms/${group.recordId}`)} aria-label={`${group.customerName} 폐기양식으로 이동`}>
                       <span className="disposal-meta-location">{group.location}</span>
                     </button>
-                    <label className={`disposal-unreported-reason-box${hasUnreportedAlertFocus && alertRecordId === group.recordId ? ' disposal-unreported-reason-box-alert-focus' : ''}`.trim()}>
+                    {group.hasUnreportedReasonTarget ? (
+                      <label className={`disposal-unreported-reason-box${hasUnreportedAlertFocus && alertRecordId === group.recordId ? ' disposal-unreported-reason-box-alert-focus' : ''}`.trim()}>
                       <span>폐기 미신고 사유</span>
                       <textarea
                         ref={node => {
@@ -3567,7 +3572,8 @@ export function DisposalListPage() {
                         }}
                         aria-label={`${group.customerName} 폐기 미신고 사유`}
                       />
-                    </label>
+                      </label>
+                    ) : null}
                     <div className="disposal-meta-row-end-actions">
                       {!isTransferred && (
                         <button

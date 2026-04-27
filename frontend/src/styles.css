@@ -34052,6 +34052,14 @@ button.danger {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto !important;
 }
 
+.disposal-meta-row-middle-with-action.no-unreported-reason {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+.disposal-meta-row-middle-with-action.has-unreported-reason {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto !important;
+}
+
 .disposal-unreported-reason-box {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
