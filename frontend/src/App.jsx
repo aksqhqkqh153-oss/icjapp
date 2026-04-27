@@ -19471,8 +19471,9 @@ function MaterialsSummaryTablePage() {
                         {editMode && !readOnlyFormulaCell ? (
                           <input
                             className="materials-summary-cell-input"
-                            value={draftRows?.[rowIndex]?.[colIndex] ?? ''}
-                            onChange={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                            defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
+                            onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
                           />
                         ) : value}
                       </th>
@@ -19505,8 +19506,9 @@ function MaterialsSummaryTablePage() {
                           {editMode && !readOnlyFormulaCell ? (
                             <input
                               className="materials-summary-cell-input"
-                              value={draftRows?.[rowIndex]?.[colIndex] ?? ''}
-                              onChange={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                              defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
+                            onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                            onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
                             />
                           ) : value}
                         </td>
@@ -19720,7 +19722,7 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
             <strong>사업자별 합산 금액</strong>
             <table className="materials-summary-static-table materials-business-summary-table">
               <thead>
-                <tr><th>월</th><th>사업자</th><th>품목수</th><th>총수량</th><th>합산 금액</th></tr>
+                <tr><th>월</th><th>사업자</th><th>품목수</th><th>합산 금액</th></tr>
               </thead>
               <tbody>
                 {businessSummaries.map(row => (
@@ -19728,7 +19730,6 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
                     <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
                     <td>{row.business}</td>
                     <td>{row.itemCount.toLocaleString('ko-KR')}</td>
-                    <td>{row.quantity.toLocaleString('ko-KR')}</td>
                     <td>{row.amount.toLocaleString('ko-KR')}원</td>
                   </tr>
                 ))}

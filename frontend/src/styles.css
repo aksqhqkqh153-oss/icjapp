@@ -34472,3 +34472,55 @@ button.danger {
   background: #eff6ff !important;
   font-weight: 800;
 }
+
+/* 2026-04-27 사업자월간구매비 표 폭 압축 및 자재결산 편집 렉 완화 */
+.materials-business-monthly-page .materials-business-summary-card {
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px;
+}
+
+.materials-business-monthly-page .materials-business-summary-table,
+.materials-business-monthly-page .materials-business-detail-table,
+.materials-business-monthly-page .materials-branch-issue-table {
+  width: max-content;
+  min-width: 0 !important;
+  table-layout: auto;
+}
+
+.materials-business-monthly-page .materials-business-summary-table th,
+.materials-business-monthly-page .materials-business-summary-table td,
+.materials-business-monthly-page .materials-business-detail-table th,
+.materials-business-monthly-page .materials-business-detail-table td,
+.materials-business-monthly-page .materials-branch-issue-table th,
+.materials-business-monthly-page .materials-branch-issue-table td {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  white-space: nowrap;
+  padding: 3px 5px;
+  font-size: 10.5px;
+  line-height: 1.18;
+}
+
+.materials-business-monthly-page .materials-business-summary-grid {
+  grid-template-columns: repeat(2, max-content);
+  align-items: start;
+  justify-content: start;
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.materials-business-monthly-page .materials-summary-table-wrap {
+  overflow: auto;
+}
+
+.materials-summary-page .materials-summary-static-table.is-editing {
+  contain: layout paint;
+}
+
+.materials-summary-page .materials-summary-cell-input {
+  width: 100%;
+  min-width: 38px;
+  box-sizing: border-box;
+}
