@@ -19236,8 +19236,32 @@ function formatMaterialsSummaryCellValue(value, rowIndex, colIndex, row, codeRow
   return value ?? ''
 }
 
-function buildBusinessMonthlyMaterialRows() {
-  const rows = MATERIALS_SUMMARY_DATA || []
+function formatBusinessMonthlyMonthLabel(value) {
+  const raw = String(value || '').trim()
+  const match = raw.match(/^(\d{4})-(\d{2})$/)
+  if (!match) return raw || '날짜선택'
+  return `${match[1].slice(2)}.${match[2]}`
+}
+
+function getCurrentBusinessMonthKey() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+function pickDefaultBusinessMonth(monthOptions = []) {
+  if (!Array.isArray(monthOptions) || monthOptions.length === 0) return ''
+  const currentMonth = getCurrentBusinessMonthKey()
+  if (monthOptions.includes(currentMonth)) return currentMonth
+  return [...monthOptions].sort((a, b) => String(b).localeCompare(String(a)))[0] || ''
+}
+
+function buildBusinessMonthlyMaterialRows(summaryRows = MATERIALS_SUMMARY_DATA || [], catalogRows = [], products = []) {
+  const sourceRows = Array.isArray(summaryRows) && summaryRows.length ? summaryRows : (MATERIALS_SUMMARY_DATA || [])
+  const columnCount = Math.max(0, ...sourceRows.map(row => Array.isArray(row) ? row.length : 0))
+  const salePriceMap = buildMaterialsSalePriceMap(catalogRows, products)
+  const rows = applyMaterialsSummarySalePrices(sourceRows, salePriceMap, columnCount)
   const headerRow = rows[0] || []
   const codeRow = rows[1] || []
   const priceRow = rows[2] || []
@@ -19252,8 +19276,9 @@ function buildBusinessMonthlyMaterialRows() {
       const quantity = parseMaterialsSummaryNumber(row?.[colIndex])
       if (!quantity) continue
       const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
-      const itemCode = String(codeRow[colIndex] || '').trim()
-      const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
+      const itemCode = normalizeMaterialsSummaryItemCode(codeRow[colIndex])
+      const codeKey = normalizeMaterialsCodeKey(itemCode)
+      const unitPrice = salePriceMap.get(codeKey) || parseMaterialsSummaryNumber(priceRow[colIndex])
       if (!itemName && !itemCode) continue
       result.push({
         id: `${rowIndex}-${colIndex}`,
@@ -19272,8 +19297,8 @@ function buildBusinessMonthlyMaterialRows() {
   return result
 }
 
-function groupBusinessMonthlyMaterials() {
-  const detailRows = buildBusinessMonthlyMaterialRows()
+function groupBusinessMonthlyMaterials(summaryRows = MATERIALS_SUMMARY_DATA || [], catalogRows = [], products = []) {
+  const detailRows = buildBusinessMonthlyMaterialRows(summaryRows, catalogRows, products)
   const businessMap = new Map()
   const monthMap = new Map()
 
@@ -19510,7 +19535,7 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
 
   for (let colIndex = 2; colIndex < Math.max(headerRow.length, codeRow.length, priceRow.length); colIndex += 1) {
     const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
-    const itemCode = String(codeRow[colIndex] || '').trim()
+    const itemCode = normalizeMaterialsSummaryItemCode(codeRow[colIndex])
     const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
     if (!itemName && !itemCode && !unitPrice) continue
     itemColumns.push({
@@ -19600,20 +19625,23 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
   )
 }
 
-function BusinessMonthlyPurchasePage() {
-  const groupedMaterials = useMemo(() => groupBusinessMonthlyMaterials(), [])
+function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
+  const summaryRows = useMemo(() => loadMaterialsSummaryRows(), [])
+  const groupedMaterials = useMemo(() => groupBusinessMonthlyMaterials(summaryRows, catalogRows, products), [summaryRows, catalogRows, products])
   const monthOptions = groupedMaterials.monthSummaries.map(row => row.month)
-  const [selectedMonth, setSelectedMonth] = useState(() => monthOptions[0] || '')
+  const defaultMonth = useMemo(() => pickDefaultBusinessMonth(monthOptions), [monthOptions])
+  const [selectedMonth, setSelectedMonth] = useState('')
 
   useEffect(() => {
-    if (!selectedMonth && monthOptions[0]) {
-      setSelectedMonth(monthOptions[0])
+    if (selectedMonth && monthOptions.length && !monthOptions.includes(selectedMonth)) {
+      setSelectedMonth('')
     }
   }, [selectedMonth, monthOptions])
 
-  const detailRows = selectedMonth ? groupedMaterials.detailRows.filter(row => row.month === selectedMonth) : groupedMaterials.detailRows
-  const businessSummaries = selectedMonth ? groupedMaterials.businessSummaries.filter(row => row.month === selectedMonth) : groupedMaterials.businessSummaries
-  const monthSummaries = selectedMonth ? groupedMaterials.monthSummaries.filter(row => row.month === selectedMonth) : groupedMaterials.monthSummaries
+  const effectiveMonth = selectedMonth || defaultMonth
+  const detailRows = effectiveMonth ? groupedMaterials.detailRows.filter(row => row.month === effectiveMonth) : groupedMaterials.detailRows
+  const businessSummaries = effectiveMonth ? groupedMaterials.businessSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.businessSummaries
+  const monthSummaries = effectiveMonth ? groupedMaterials.monthSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.monthSummaries
 
   return (
     <div className="stack-page materials-page materials-business-monthly-page">
@@ -19626,17 +19654,18 @@ function BusinessMonthlyPurchasePage() {
         </div>
 
         <div className="materials-business-month-filter">
-          <label htmlFor="materials-business-month-select">조회 월</label>
+          <label htmlFor="materials-business-month-select">조회월</label>
           <select
             id="materials-business-month-select"
             value={selectedMonth}
             onChange={event => setSelectedMonth(event.target.value)}
           >
-            {monthOptions.map(month => <option key={`business-month-option-${month}`} value={month}>{month}</option>)}
+            <option value="">날짜선택</option>
+            {monthOptions.map(month => <option key={`business-month-option-${month}`} value={month}>{formatBusinessMonthlyMonthLabel(month)}</option>)}
           </select>
         </div>
 
-        <BranchMaterialIssueStatusSection selectedMonth={selectedMonth} />
+        <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} />
 
         <div className="materials-business-summary-grid">
           <div className="materials-business-summary-card">
@@ -19648,7 +19677,7 @@ function BusinessMonthlyPurchasePage() {
               <tbody>
                 {monthSummaries.map(row => (
                   <tr key={`month-summary-${row.month}`}>
-                    <td>{row.month}</td>
+                    <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
                     <td>{row.businessCount.toLocaleString('ko-KR')}</td>
                     <td>{row.quantity.toLocaleString('ko-KR')}</td>
                     <td>{row.amount.toLocaleString('ko-KR')}원</td>
@@ -19667,7 +19696,7 @@ function BusinessMonthlyPurchasePage() {
               <tbody>
                 {businessSummaries.map(row => (
                   <tr key={`business-summary-${row.month}-${row.business}`}>
-                    <td>{row.month}</td>
+                    <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
                     <td>{row.business}</td>
                     <td>{row.itemCount.toLocaleString('ko-KR')}</td>
                     <td>{row.quantity.toLocaleString('ko-KR')}</td>
@@ -19695,10 +19724,10 @@ function BusinessMonthlyPurchasePage() {
             <tbody>
               {detailRows.map(row => (
                 <tr key={`business-monthly-${row.id}`}>
-                  <td>{row.month}</td>
-                  <td>{row.date}</td>
+                  <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
+                  <td>{formatMaterialsSummaryDateCell(row.date)}</td>
                   <td>{row.business}</td>
-                  <td>{row.itemCode || row.itemName}</td>
+                  <td>{normalizeMaterialsSummaryItemCode(row.itemCode || row.itemName)}</td>
                   <td>{row.quantity.toLocaleString('ko-KR')}</td>
                   <td>{row.unitPrice.toLocaleString('ko-KR')}원</td>
                   <td>{row.amount.toLocaleString('ko-KR')}원</td>
@@ -21286,7 +21315,7 @@ function MaterialsPage({ user }) {
       )}
       {activeTab === 'catalog' && renderCatalogContent()}
       {activeTab === 'materialsSummary' && <MaterialsSummaryTablePage />}
-      {activeTab === 'businessMonthlyPurchase' && <BusinessMonthlyPurchasePage />}
+      {activeTab === 'businessMonthlyPurchase' && <BusinessMonthlyPurchasePage catalogRows={catalogRows} products={productRows} />}
     </div>
   )
 }
