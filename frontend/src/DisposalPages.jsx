@@ -28,14 +28,14 @@ const DATE_FILTER_OPTIONS = [
 ]
 
 const FILTER_OPTIONS = [
-  { value: 'latest', label: '1차' },
+  { value: 'latest', label: '1차(최신수정)' },
+  { value: 'unreported', label: '폐기미신고' },
   { value: 'date', label: '폐기일자순' },
   { value: 'customer', label: '고객명순' },
-  { value: 'status', label: '최종현황순' },
 ]
 
 const SORT_DIRECTION_OPTIONS = [
-  { value: 'desc', label: '2차' },
+  { value: 'desc', label: '내림차순' },
   { value: 'asc', label: '오름차순' },
 ]
 
@@ -793,14 +793,29 @@ function buildDraftChangeSummary(initialDraft, currentDraft) {
   return changed
 }
 
+function hasDisposalUnreportedPaidItem(record) {
+  return getFilledRecordItems(record).some(item => !!item?.paymentDone && String(item?.paymentSettledAt || '').trim() && !item?.reportDone)
+}
+
+function compareDisposalDateText(a, b) {
+  const aParsed = getDateValueParts(a)
+  const bParsed = getDateValueParts(b)
+  if (aParsed?.date && bParsed?.date) return aParsed.date.getTime() - bParsed.date.getTime()
+  if (aParsed?.date) return -1
+  if (bParsed?.date) return 1
+  return String(a || '').localeCompare(String(b || ''), 'ko')
+}
+
 function sortRecords(records, sortKey, sortDirection = 'desc') {
+  const direction = sortDirection === 'asc' ? 1 : -1
   const list = [...records]
-  let sorted = list
-  if (sortKey === 'customer') sorted = list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
-  else if (sortKey === 'date') sorted = list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
-  else if (sortKey === 'status') sorted = list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
-  else sorted = list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')))
-  return sortDirection === 'asc' ? sorted : [...sorted].reverse()
+  return list.sort((a, b) => {
+    let compared = 0
+    if (sortKey === 'customer') compared = String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko')
+    else if (sortKey === 'date') compared = compareDisposalDateText(a.disposalDate, b.disposalDate)
+    else compared = String(a.savedAt || '').localeCompare(String(b.savedAt || ''))
+    return compared * direction
+  })
 }
 
 
@@ -1272,6 +1287,8 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
   sorted.forEach((record) => {
     const customerGroupKey = makeDisposalRecordKey(record)
     const searchable = normalizeSearchText([record?.platform, record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
+    const hasUnreportedPaidItem = hasDisposalUnreportedPaidItem(record)
+    if (sortKey === 'unreported' && !hasUnreportedPaidItem) return
     if (normalizedQuery && !searchable.includes(normalizedQuery)) return
     if (!matchesDateFilter(record, dateFilter, customStartDate, customEndDate, 'disposalDate')) return
     if (!grouped.has(customerGroupKey)) {
@@ -1336,10 +1353,14 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
       rows: sortGroupedRows(group.rows),
     }))
 
-  if (sortKey === 'customer') return list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko'))
-  if (sortKey === 'date') return list.sort((a, b) => String(a.disposalDate || '').localeCompare(String(b.disposalDate || ''), 'ko'))
-  if (sortKey === 'status') return list.sort((a, b) => String(a.finalStatus || '').localeCompare(String(b.finalStatus || ''), 'ko'))
-  return list.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))
+  return list.sort((a, b) => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+    let compared = 0
+    if (sortKey === 'customer') compared = String(a.customerName || '').localeCompare(String(b.customerName || ''), 'ko')
+    else if (sortKey === 'date') compared = compareDisposalDateText(a.disposalDate, b.disposalDate)
+    else compared = String(a.savedAt || '').localeCompare(String(b.savedAt || ''))
+    return compared * direction
+  })
 }
 
 
@@ -3279,7 +3300,9 @@ export function DisposalListPage() {
   async function updateUnreportedReason(recordId, reason) {
     const target = records.find(record => record.id === recordId)
     if (!target) return
-    const nextTarget = normalizeRecordShape({ ...target, unreportedReason: String(reason || '') })
+    const nextReason = String(reason || '').trim()
+    if (String(target?.unreportedReason || '').trim() === nextReason) return
+    const nextTarget = normalizeRecordShape({ ...target, unreportedReason: nextReason, savedAt: new Date().toISOString() })
     const savedTarget = await upsertDisposalRecordToServer(nextTarget)
     setRecords(prev => prev.map(record => record.id === recordId ? savedTarget : record))
   }
