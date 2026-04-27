@@ -4728,12 +4728,17 @@ def add_board_comment(category: str, post_id: int, payload: CommentIn, user=Depe
 def list_notifications(user=Depends(require_user)):
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50", (user["id"],)).fetchall()
-        return [row_to_dict(r) for r in rows]
+        items = [row_to_dict(r) for r in rows]
+        if _is_admin_like_user(user):
+            items = _build_disposal_unreported_alerts(conn) + items
+        return items
 
 @app.get("/api/notifications/unread-count")
 def notifications_unread_count(user=Depends(require_user)):
     with get_conn() as conn:
         count = conn.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (user["id"],)).fetchone()[0]
+        if _is_admin_like_user(user):
+            count = int(count or 0) + len(_build_disposal_unreported_alerts(conn))
         return {"count": int(count or 0)}
 
 
@@ -4749,12 +4754,20 @@ def badges_summary(user=Depends(require_user)):
             "SELECT COUNT(*) FROM friend_requests WHERE target_user_id = ? AND status = 'pending'",
             (user['id'],),
         ).fetchone()[0] or 0
+        if _is_admin_like_user(user):
+            notification_count = int(notification_count or 0) + len(_build_disposal_unreported_alerts(conn))
         return {
             'notification_count': int(notification_count),
             'chat_count': int(chat_count),
             'friend_request_count': int(friend_request_count),
             'menu_count': int(friend_request_count),
         }
+
+
+@app.get("/api/disposal/unreported-alerts")
+def list_disposal_unreported_alerts(user=Depends(require_admin_or_subadmin)):
+    with get_conn() as conn:
+        return {'alerts': _build_disposal_unreported_alerts(conn)}
 
 @app.post("/api/notifications/{notification_id}/read")
 def mark_notification_read(notification_id: int, user=Depends(require_user)):
@@ -7584,6 +7597,47 @@ def _disposal_record_row_to_dict(row) -> dict[str, Any]:
     }
 
 
+def _build_disposal_unreported_alerts(conn) -> list[dict[str, Any]]:
+    rows = conn.execute("SELECT * FROM disposal_records ORDER BY saved_at DESC, updated_at DESC, created_at DESC").fetchall()
+    alerts: list[dict[str, Any]] = []
+    for row in rows:
+        record = _disposal_record_row_to_dict(row)
+        items = record.get('items') if isinstance(record.get('items'), list) else []
+        unreported_items = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            payment_done = bool(item.get('paymentDone'))
+            payment_settled_at = str(item.get('paymentSettledAt') or '').strip()
+            report_done = bool(item.get('reportDone'))
+            if payment_done and payment_settled_at and not report_done:
+                unreported_items.append(item)
+        if not unreported_items:
+            continue
+        record_id = str(record.get('id') or '').strip()
+        customer_name = str(record.get('customerName') or '').strip() or '고객'
+        disposal_date = str(record.get('disposalDate') or '').strip() or '-'
+        item_names = [str(item.get('itemName') or '').strip() for item in unreported_items if str(item.get('itemName') or '').strip()]
+        item_summary = ', '.join(item_names[:3])
+        if len(item_names) > 3:
+            item_summary += f' 외 {len(item_names) - 3}건'
+        body = f"[{disposal_date}] {customer_name} 고객님의 입금일시가 입력되었지만 폐기물 신고처리가 완료되지 않았습니다."
+        if item_summary:
+            body += f"\n미신고 품목: {item_summary}"
+        alerts.append({
+            'id': f"disposal-unreported-{record_id or len(alerts)}",
+            'type': 'disposal_admin_alert',
+            'title': '폐기신고 미처리 알림',
+            'body': body,
+            'created_at': record.get('savedAt') or record.get('disposalDate') or '',
+            'is_read': 0,
+            'disposal_record_id': record_id,
+            'disposal_search_query': customer_name,
+            'disposalDate': disposal_date,
+            'customerName': customer_name,
+            'itemCount': len(unreported_items),
+        })
+    return alerts
 def _ensure_disposal_record_access(row_dict: dict[str, Any], user: dict) -> None:
     if _is_admin_like_user(user):
         return

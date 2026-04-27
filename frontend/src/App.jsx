@@ -1718,6 +1718,22 @@ function loadDisposalAdminAlertItems() {
   }
 }
 
+async function fetchDisposalAdminAlertItems() {
+  try {
+    const response = await api('/api/disposal/unreported-alerts', { icjCache: { skip: true } })
+    const alerts = Array.isArray(response?.alerts) ? response.alerts : []
+    return alerts.map(item => ({
+      key: String(item?.id || item?.disposal_record_id || `${item?.disposalDate || ''}-${item?.customerName || ''}`),
+      recordId: String(item?.disposal_record_id || '').trim(),
+      disposalDate: String(item?.disposalDate || '').trim() || '-',
+      customerName: String(item?.customerName || '').trim() || '고객',
+      message: String(item?.body || '').trim() || `(${String(item?.disposalDate || '').trim() || '-'}) ${String(item?.customerName || '').trim() || '고객'} 고객님의 폐기 신고처리가 되어 있지 않습니다.`,
+    })).filter(Boolean)
+  } catch (_) {
+    return loadDisposalAdminAlertItems()
+  }
+}
+
 function disposalAdminAlertSignature(items = []) {
   return (items || []).map(item => `${item.key}:${item.disposalDate}:${item.customerName}`).sort().join('|')
 }
@@ -1751,14 +1767,14 @@ function DisposalAdminAlertModal({ open, items = [], onClose, onOpenSettlements 
         <div className="stack disposal-admin-alert-list" style={{ gap: 10 }}>
           {items.map((item) => (
             <div key={item.key} className="card disposal-admin-alert-item">
-              <div className="disposal-admin-alert-message">[{item.disposalDate}] 폐기예정인 {item.customerName} 고객님의 폐기 신고접수가 되어 있지 않습니다.</div>
-              <div className="disposal-admin-alert-note">* 폐기 신고 날짜 전으로, 날짜가 가까워 지면 신고 처리를 진행해주세요</div>
+              <div className="disposal-admin-alert-message">{item.message || "폐기물 신고처리가 되어 있지 않습니다."}</div>
+              <div className="disposal-admin-alert-note">* 입금일시가 입력된 건은 폐기물 신고처리 여부를 확인해주세요</div>
             </div>
           ))}
         </div>
         <div className="disposal-confirm-actions">
           <button type="button" className="ghost" onClick={onClose}>닫기</button>
-          <button type="button" onClick={onOpenSettlements}>폐기결산 보기</button>
+          <button type="button" onClick={onOpenSettlements}>폐기목록 보기</button>
         </div>
       </div>
     </div>
@@ -1887,13 +1903,12 @@ function Layout({ children, user, onLogout }) {
   useEffect(() => {
     let ignore = false
     async function loadBadges() {
-      const localAlertCount = Number(user?.grade || 6) <= 2 ? loadDisposalAdminAlertItems().length : 0
       try {
         const result = await api('/api/badges-summary')
         const next = result || { notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 }
-        if (!ignore) setBadges({ ...next, notification_count: Number(next.notification_count || 0) + localAlertCount })
+        if (!ignore) setBadges(next)
       } catch (_) {
-        if (!ignore) setBadges({ notification_count: localAlertCount, chat_count: 0, friend_request_count: 0, menu_count: 0 })
+        if (!ignore) setBadges({ notification_count: 0, chat_count: 0, friend_request_count: 0, menu_count: 0 })
       }
     }
     function handleRefresh() {
@@ -1920,8 +1935,8 @@ function Layout({ children, user, onLogout }) {
       setDisposalAdminAlertOpen(false)
       return undefined
     }
-    const syncDisposalAlerts = () => {
-      const nextItems = loadDisposalAdminAlertItems()
+    const syncDisposalAlerts = async () => {
+      const nextItems = await fetchDisposalAdminAlertItems()
       const nextSignature = disposalAdminAlertSignature(nextItems)
       setDisposalAdminAlerts(nextItems)
       if (!nextItems.length) {
@@ -1971,7 +1986,7 @@ function Layout({ children, user, onLogout }) {
         onClose={() => setDisposalAdminAlertOpen(false)}
         onOpenSettlements={() => {
           setDisposalAdminAlertOpen(false)
-          navigate('/disposal/settlements')
+          navigate('/disposal/list?alert=disposal_unreported')
         }}
       />
       {isSearchView ? (
@@ -10867,8 +10882,7 @@ function NotificationsPage({ user }) {
     const [n, p] = await Promise.all([api('/api/notifications'), api('/api/preferences')])
     const hiddenTypes = new Set(['follow', 'favorite', 'direct_chat', 'direct_chat_request', 'group_invite', 'chat_mention'])
     const serverItems = (n || []).filter(item => !hiddenTypes.has(String(item?.type || '')))
-    const localAlertItems = Number(user?.grade || 6) <= 2 ? buildDisposalAdminNotificationItems(loadDisposalAdminAlertItems()) : []
-    setItems([...localAlertItems, ...serverItems])
+    setItems(serverItems)
     setPrefs(p || {})
   }
 
