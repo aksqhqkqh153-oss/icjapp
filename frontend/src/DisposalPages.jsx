@@ -1616,7 +1616,7 @@ function DisposalItemsEditor({
   onOpenRegistry,
   onSaveEstimate,
 }) {
-  const effectiveVisibleRows = existingRecordId ? Math.max(1, Math.min(ITEM_ROW_COUNT, (draft.items || []).length || 1)) : clampVisibleItemRows(defaultVisibleRows)
+  const effectiveVisibleRows = Math.max(1, Math.min(ITEM_ROW_COUNT, (draft.items || []).length || defaultVisibleRows || DEFAULT_VISIBLE_ITEM_ROWS))
   const visibleRows = useMemo(() => (draft.items || []).slice(0, effectiveVisibleRows), [draft.items, effectiveVisibleRows])
   const visibleRendered = useMemo(
     () => buildRenderedTemplate({ ...draft, items: visibleRows }),
@@ -2524,6 +2524,15 @@ export function DisposalFormsPage() {
           if (!recordId && !loadedRecordId) {
             const nextValue = clampVisibleItemRows(settings.defaultVisibleRows)
             setDraft(prev => {
+              const hasCurrentCustomerData = !!(
+                String(prev?.customerName || '').trim() ||
+                String(prev?.platform || '').trim() ||
+                String(prev?.disposalDate || '').trim() ||
+                String(prev?.location || '').trim() ||
+                String(prev?.district || '').trim() ||
+                (prev.items || []).some(item => hasMeaningfulItemContent(item))
+              )
+              if (hasCurrentCustomerData) return prev
               const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
               const resizedItems = Array.from({ length: nextValue }, (_, index) => currentItems[index] || createEmptyItem())
               return { ...prev, items: resizedItems }
@@ -2684,7 +2693,7 @@ useEffect(() => {
       const remaining = (prev.items || []).filter((_, index) => !selectedSet.has(index))
       return {
         ...prev,
-        items: (remaining.length ? remaining : [createEmptyItem()]).concat(Array.from({ length: Math.max(0, getDefaultVisibleItemRows() - Math.max(1, remaining.length)) }, () => createEmptyItem())).slice(0, ITEM_ROW_COUNT),
+        items: (remaining.length ? remaining : [createEmptyItem()]).slice(0, ITEM_ROW_COUNT),
       }
     })
     setSelectedItemRows([])
@@ -2692,10 +2701,7 @@ useEffect(() => {
   }
 
   async function configureDefaultVisibleRows() {
-    const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
-    const isDetailDraft = !!effectiveRecordId
-    const currentRowCount = Math.max(1, Math.min(ITEM_ROW_COUNT, (draft.items || []).length || 1))
-    const promptDefaultValue = isDetailDraft ? currentRowCount : (defaultVisibleRows || getDefaultVisibleItemRows())
+    const promptDefaultValue = defaultVisibleRows || getDefaultVisibleItemRows()
     const input = window.prompt(`기본품목칸 수를 입력해 주세요. (1~${ITEM_ROW_COUNT})`, String(promptDefaultValue))
     if (input === null) return
     const parsed = Number(input)
@@ -2705,27 +2711,31 @@ useEffect(() => {
     }
     const nextValue = clampVisibleItemRows(parsed)
 
-    if (isDetailDraft) {
-      setDraft(prev => {
-        const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
-        const resizedItems = Array.from({ length: nextValue }, (_, index) => currentItems[index] || createEmptyItem())
-        return { ...prev, items: resizedItems }
-      })
-      setItemSettingsOpen(false)
-      window.alert(`해당 고객 폐기양식 상세의 기본품목칸 수가 ${nextValue}칸으로 변경되었습니다. 저장하면 해당 고객 기록에만 반영됩니다.`)
-      return
-    }
-
     try {
       const savedValue = await saveSharedDefaultVisibleItemRows(nextValue)
       setDefaultVisibleRows(savedValue)
-      setDraft(prev => {
-        const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
-        const resizedItems = Array.from({ length: savedValue }, (_, index) => currentItems[index] || createEmptyItem())
-        return { ...prev, items: resizedItems }
-      })
+
+      const hasCurrentCustomerData = !!(
+        String(draft?.customerName || '').trim() ||
+        String(draft?.platform || '').trim() ||
+        String(draft?.disposalDate || '').trim() ||
+        String(draft?.location || '').trim() ||
+        String(draft?.district || '').trim() ||
+        (draft.items || []).some(item => hasMeaningfulItemContent(item))
+      )
+      const isDetailDraft = !!String(recordId || loadedRecordId || '').trim()
+
+      if (!isDetailDraft && !hasCurrentCustomerData) {
+        setDraft(prev => {
+          const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+          const resizedItems = Array.from({ length: savedValue }, (_, index) => currentItems[index] || createEmptyItem())
+          return { ...prev, items: resizedItems }
+        })
+        setSavedDraftBaseline(normalizeDraftForCompare({ ...createInitialDraft(), items: Array.from({ length: savedValue }, () => createEmptyItem()) }))
+      }
+
       setItemSettingsOpen(false)
-      window.alert(`신규 폐기양식 기본품목칸 공통 설정이 ${savedValue}칸으로 변경되었습니다.`)
+      window.alert(`폐기양식 기본품목칸 공통 설정이 ${savedValue}칸으로 변경되었습니다. 품목추가/선택삭제는 현재 작업 중인 양식의 품목칸만 변경합니다.`)
     } catch {
       window.alert('기본품목칸 공통 설정 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
     }
