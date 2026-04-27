@@ -19123,6 +19123,62 @@ function parseMaterialsSummaryNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+
+function normalizeMaterialsSummaryItemCode(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  return raw.replace(/-(\d{3,})(?=$|[^0-9])/g, (_, digits) => `-${String(Number(digits)).padStart(2, '0')}`)
+}
+
+function normalizeMaterialsCodeKey(value) {
+  const compact = String(value || '').replace(/\s+/g, '').trim().toLowerCase()
+  if (!compact) return ''
+  return compact.replace(/-(\d+)$/g, (_, digits) => `-${String(Number(digits)).padStart(2, '0')}`)
+}
+
+function formatMaterialsSummaryDateCell(value) {
+  const raw = String(value || '').trim()
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return raw
+  return `${match[1].slice(2)}.${match[2]}.${match[3]}`
+}
+
+function buildMaterialsSalePriceMap(catalogRows = [], products = []) {
+  const map = new Map()
+  ;[...(Array.isArray(catalogRows) ? catalogRows : []), ...(Array.isArray(products) ? products : [])].forEach(item => {
+    const code = normalizeMaterialsCodeKey(item?.code)
+    if (!code || map.has(code)) return
+    const salePrice = parseMaterialsSummaryNumber(item?.sale_price ?? item?.unit_price)
+    if (salePrice > 0) map.set(code, salePrice)
+  })
+  return map
+}
+
+function calculateMaterialsSummaryCost(row, codeRow, salePriceMap) {
+  if (!Array.isArray(row) || !salePriceMap || salePriceMap.size === 0) return null
+  let total = 0
+  for (let colIndex = 2; colIndex <= 26; colIndex += 1) {
+    const quantity = parseMaterialsSummaryNumber(row[colIndex])
+    if (!quantity) continue
+    const codeKey = normalizeMaterialsCodeKey(codeRow?.[colIndex])
+    const salePrice = salePriceMap.get(codeKey) || 0
+    if (!salePrice) continue
+    total += Math.abs(quantity) * salePrice
+  }
+  return total > 0 ? String(total) : ''
+}
+
+function formatMaterialsSummaryCellValue(value, rowIndex, colIndex, row, codeRow, salePriceMap) {
+  if (colIndex === 0 && rowIndex >= 3) return formatMaterialsSummaryDateCell(value)
+  if (rowIndex === 1) return normalizeMaterialsSummaryItemCode(value)
+  if (colIndex >= 2 && colIndex <= 26) return normalizeMaterialsSummaryItemCode(value)
+  if (colIndex === 29 && rowIndex >= 3) {
+    const calculated = calculateMaterialsSummaryCost(row, codeRow, salePriceMap)
+    if (calculated !== null && calculated !== '') return calculated
+  }
+  return value ?? ''
+}
+
 function buildBusinessMonthlyMaterialRows() {
   const rows = MATERIALS_SUMMARY_DATA || []
   const headerRow = rows[0] || []
@@ -19208,8 +19264,28 @@ function groupBusinessMonthlyMaterials() {
 
 function MaterialsSummaryTablePage() {
   const rows = MATERIALS_SUMMARY_DATA || []
+  const codeRow = rows[1] || []
+  const [materialsCatalogRows, setMaterialsCatalogRows] = useState([])
+  const [materialsProducts, setMaterialsProducts] = useState([])
+  const salePriceMap = useMemo(() => buildMaterialsSalePriceMap(materialsCatalogRows, materialsProducts), [materialsCatalogRows, materialsProducts])
   const columnCount = Math.max(0, ...rows.map(row => Array.isArray(row) ? row.length : 0))
   const columnLabels = getSpreadsheetColumnLabels(columnCount)
+
+  useEffect(() => {
+    let alive = true
+    api('/api/materials/overview')
+      .then(response => {
+        if (!alive) return
+        setMaterialsCatalogRows(Array.isArray(response?.catalog_rows) ? response.catalog_rows : [])
+        setMaterialsProducts(Array.isArray(response?.products) ? response.products : [])
+      })
+      .catch(() => {
+        if (!alive) return
+        setMaterialsCatalogRows([])
+        setMaterialsProducts([])
+      })
+    return () => { alive = false }
+  }, [])
 
   return (
     <div className="stack-page materials-page materials-summary-page">
@@ -19231,7 +19307,7 @@ function MaterialsSummaryTablePage() {
               {rows.map((row, rowIndex) => (
                 <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? 'is-template-head' : ''}>
                   {columnLabels.map((_, colIndex) => (
-                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{row?.[colIndex] ?? ''}</td>
+                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)}</td>
                   ))}
                 </tr>
               ))}
