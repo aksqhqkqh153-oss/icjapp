@@ -19201,10 +19201,34 @@ function normalizeMaterialsSummaryRows(rows = [], columnCount = 0) {
   })
 }
 
+function getMaterialsSummarySalePriceByColumn(codeRow, colIndex, salePriceMap) {
+  if (!salePriceMap || salePriceMap.size === 0) return ''
+  const codeKey = normalizeMaterialsCodeKey(codeRow?.[colIndex])
+  if (!codeKey) return ''
+  const salePrice = salePriceMap.get(codeKey) || 0
+  return salePrice > 0 ? String(salePrice) : ''
+}
+
+function applyMaterialsSummarySalePrices(rows = [], salePriceMap, columnCount = 0) {
+  const next = normalizeMaterialsSummaryRows(rows, columnCount)
+  if (!salePriceMap || salePriceMap.size === 0) return next
+  const codeRow = next[1] || []
+  if (!next[2]) next[2] = Array.from({ length: columnCount }, () => '')
+  for (let colIndex = 2; colIndex < columnCount; colIndex += 1) {
+    const salePrice = getMaterialsSummarySalePriceByColumn(codeRow, colIndex, salePriceMap)
+    if (salePrice) next[2][colIndex] = salePrice
+  }
+  return next
+}
+
 function formatMaterialsSummaryCellValue(value, rowIndex, colIndex, row, codeRow, salePriceMap) {
   if (colIndex === 0 && rowIndex >= 3) return formatMaterialsSummaryDateCell(value)
   if (rowIndex === 1) return normalizeMaterialsSummaryItemCode(value)
-  if (colIndex >= 2 && colIndex <= 26) return normalizeMaterialsSummaryItemCode(value)
+  if (rowIndex === 2 && colIndex >= 2) {
+    const salePrice = getMaterialsSummarySalePriceByColumn(codeRow, colIndex, salePriceMap)
+    if (salePrice) return salePrice
+  }
+  if (rowIndex > 2 && colIndex >= 2 && colIndex <= 26) return normalizeMaterialsSummaryItemCode(value)
   if (colIndex === 29 && rowIndex >= 3) {
     const calculated = calculateMaterialsSummaryCost(row, codeRow, salePriceMap)
     if (calculated !== null && calculated !== '') return calculated
@@ -19341,7 +19365,7 @@ function MaterialsSummaryTablePage() {
   }
 
   const saveEdit = () => {
-    const normalized = normalizeMaterialsSummaryRows(draftRows, columnCount)
+    const normalized = applyMaterialsSummarySalePrices(draftRows, salePriceMap, columnCount)
     setSummaryRows(normalized)
     saveMaterialsSummaryRows(normalized)
     setSelectedRows(new Set())
@@ -19413,7 +19437,7 @@ function MaterialsSummaryTablePage() {
             </thead>
             <tbody>
               {visibleRows.map((row, rowIndex) => (
-                <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? 'is-template-head' : ''}>
+                <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? `is-template-head is-template-head-${rowIndex}` : ''}>
                   {editMode && (
                     <td className="materials-summary-select-col">
                       {rowIndex >= 3 ? (
@@ -19429,7 +19453,7 @@ function MaterialsSummaryTablePage() {
                   {columnLabels.map((_, colIndex) => {
                     const value = formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)
                     const changed = changedCells.has(`${rowIndex}-${colIndex}`)
-                    const readOnlyFormulaCell = rowIndex >= 3 && colIndex === 29
+                    const readOnlyFormulaCell = (rowIndex === 2 && colIndex >= 2) || (rowIndex >= 3 && colIndex === 29)
                     return (
                       <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
                         {editMode && !readOnlyFormulaCell ? (

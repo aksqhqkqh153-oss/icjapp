@@ -33842,10 +33842,18 @@ button.danger {
 
 .materials-summary-static-table tbody tr.is-template-head td {
   position: sticky;
-  top: 22px;
-  z-index: 1;
+  z-index: 3;
   background: #f8fafc;
   font-weight: 700;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.12);
+}
+
+.materials-summary-static-table tbody tr.is-template-head-0 td { top: 22px; }
+.materials-summary-static-table tbody tr.is-template-head-1 td { top: 44px; }
+.materials-summary-static-table tbody tr.is-template-head-2 td { top: 66px; }
+
+.materials-summary-static-table thead th {
+  z-index: 4;
 }
 
 .materials-summary-static-table tbody tr:nth-child(even):not(.is-template-head) td {
@@ -34156,9 +34164,9 @@ button.danger {
   line-height: 1.05;
   letter-spacing: -0.45px;
 }
-.materials-summary-page .materials-summary-static-table tbody tr.is-template-head td {
-  top: 18px;
-}
+.materials-summary-page .materials-summary-static-table tbody tr.is-template-head-0 td { top: 18px; }
+.materials-summary-page .materials-summary-static-table tbody tr.is-template-head-1 td { top: 36px; }
+.materials-summary-page .materials-summary-static-table tbody tr.is-template-head-2 td { top: 54px; }
 .materials-summary-page .materials-summary-static-table th:empty,
 .materials-summary-page .materials-summary-static-table td:empty {
   padding-left: 1px;
