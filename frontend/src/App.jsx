@@ -19782,21 +19782,21 @@ function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || 
   })
 
   const bodyRows = MATERIALS_BRANCH_ISSUE_MEMBERS.map((member, memberIndex) => {
-    const cells = itemColumns.map(column => {
-      const quantity = quantityByBusiness.get(`${member.name}__${column.index}`) || 0
-      return quantity || ''
+    const quantityCells = itemColumns.map(column => quantityByBusiness.get(`${member.name}__${column.index}`) || 0)
+    const cells = itemColumns.map((column, columnIndex) => {
+      const quantity = quantityCells[columnIndex] || 0
+      const amount = quantity * parseMaterialsSummaryNumber(column.unitPrice)
+      return amount || ''
     })
-    const totalQuantity = cells.reduce((sum, value) => sum + parseMaterialsSummaryNumber(value), 0)
-    const totalAmount = itemColumns.reduce((sum, column) => {
-      const quantity = quantityByBusiness.get(`${member.name}__${column.index}`) || 0
-      return sum + (quantity * column.unitPrice)
-    }, 0)
+    const totalQuantity = quantityCells.reduce((sum, value) => sum + parseMaterialsSummaryNumber(value), 0)
+    const totalAmount = cells.reduce((sum, value) => sum + parseMaterialsSummaryNumber(value), 0)
     return {
       id: `${member.branch || 'branch'}-${member.name || 'empty'}-${memberIndex}`,
       branch: member.branch,
       branchSort: memberIndex,
       name: member.name,
       cells,
+      quantityCells,
       totalQuantity,
       totalAmount,
       detailRows: (detailRowsByBusiness.get(member.name) || []).sort((a, b) => b.date.localeCompare(a.date)),
@@ -19811,8 +19811,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
   const { itemColumns, bodyRows } = useMemo(() => buildBranchMaterialIssueStatus(summaryRows, selectedMonth, catalogRows, products), [summaryRows, selectedMonth, catalogRows, products])
   const [expandedBranch, setExpandedBranch] = useState('')
   const [pricePopup, setPricePopup] = useState(null)
-  const totalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
-  const codeCostTotalCells = itemColumns.map((column, index) => totalCells[index] * parseMaterialsSummaryNumber(column.unitPrice))
+  const codeCostTotalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
 
   useEffect(() => {
     setExpandedBranch('')
@@ -19877,12 +19876,6 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
             </tr>
           </thead>
           <tbody>
-            <tr className="materials-branch-issue-total-row">
-              <td>합계</td>
-              {totalCells.map((cell, index) => (
-                <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
-              ))}
-            </tr>
             <tr className="materials-branch-issue-code-cost-total-row">
               <td><span>상품코드<br />비용합계</span></td>
               {codeCostTotalCells.map((amount, index) => (
@@ -19900,7 +19893,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
                   >
                     <td>{row.name}</td>
                     {row.cells.map((cell, index) => (
-                      <td key={`branch-issue-cell-${row.id}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
+                      <td key={`branch-issue-cell-${row.id}-${index}`}>{cell === '' ? '' : `${Number(cell).toLocaleString('ko-KR')}원`}</td>
                     ))}
                   </tr>
                   {isExpanded ? (
