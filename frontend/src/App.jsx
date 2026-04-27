@@ -19662,6 +19662,36 @@ const MATERIALS_BRANCH_ISSUE_MEMBERS = [
   { branch: '20', name: '예비' },
 ]
 
+function formatBusinessMonthlyBranchIssueItemName(value = '') {
+  const raw = String(value || '').replace(/\n/g, ' ').trim()
+  const manualBreakMap = {
+    '이불박스(흰)': '이불박스\n(흰)',
+    '이불박스(노)': '이불박스\n(노)',
+    '대박스(흰)': '대박스\n(흰)',
+    '대박스(노)': '대박스\n(노)',
+    '옷박스(흰)': '옷박스\n(흰)',
+    '옷박스(노)': '옷박스\n(노)',
+    '폐기스티커': '폐기\n스티커',
+    '토르박스': '토르\n박스',
+    '청쪼끼(95)': '청쪼끼\n(95)',
+    '청조끼(100)': '청조끼\n(100)',
+    '청조끼(105)': '청조끼\n(105)',
+    '청조끼(110)': '청조끼\n(110)',
+    '반팔(L)': '반팔\n(L)',
+    '반팔(LL)': '반팔\n(LL)',
+  }
+  return manualBreakMap[raw] || raw
+}
+
+function formatBusinessMonthlyBranchIssueCode(value = '') {
+  const raw = String(value || '').trim()
+  const match = raw.match(/(\d{1,2})\s*$/)
+  if (match) return match[1].padStart(2, '0')
+  const digits = raw.replace(/\D/g, '')
+  if (digits) return digits.slice(-2).padStart(2, '0')
+  return raw
+}
+
 function buildBranchMaterialIssueStatus(selectedMonth = '') {
   const rows = MATERIALS_SUMMARY_DATA || []
   const headerRow = rows[0] || []
@@ -19675,7 +19705,15 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
     const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
     if (shouldExcludeBusinessMonthlyItem(itemCode || itemName, selectedMonth)) continue
     if (!itemName && !itemCode && !unitPrice) continue
-    itemColumns.push({ index: colIndex, itemName, itemCode, unitPrice, label: itemCode || itemName || '품목' })
+    itemColumns.push({
+      index: colIndex,
+      itemName,
+      itemCode,
+      unitPrice,
+      label: itemCode || itemName || '품목',
+      displayName: formatBusinessMonthlyBranchIssueItemName(itemName || itemCode || '품목'),
+      displayCode: formatBusinessMonthlyBranchIssueCode(itemCode || itemName),
+    })
   }
 
   const quantityByBusiness = new Map()
@@ -19755,16 +19793,26 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
         <strong>호점별 자재불출현황</strong>
-        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량과 금액을 집계합니다. 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
+        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량을 집계합니다. 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
       </div>
       <div className="materials-summary-table-wrap materials-branch-issue-wrap">
         <table className="materials-summary-static-table materials-branch-issue-table">
           <thead>
             <tr>
-              <th>호점</th>
-              <th>이름</th>
-              {itemColumns.map(column => <th key={`branch-issue-head-${column.index}`}>{column.label}</th>)}
-              <th>합산금액</th>
+              <th rowSpan={2}>호점</th>
+              <th rowSpan={2}>이름</th>
+              {itemColumns.map(column => (
+                <th key={`branch-issue-name-head-${column.index}`} className="materials-branch-issue-item-name-head">
+                  {column.displayName}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {itemColumns.map(column => (
+                <th key={`branch-issue-code-head-${column.index}`} className="materials-branch-issue-item-code-head">
+                  {column.displayCode}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -19774,7 +19822,6 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
               {totalCells.map((cell, index) => (
                 <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
               ))}
-              <td>{totalAmount ? `${totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
             </tr>
             {bodyRows.map(row => {
               const isExpanded = expandedBranch === row.branch
@@ -19790,11 +19837,10 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
                     {row.cells.map((cell, index) => (
                       <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
                     ))}
-                    <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
                   </tr>
                   {isExpanded ? (
                     <tr className="materials-branch-issue-detail-row">
-                      <td colSpan={itemColumns.length + 3}>
+                      <td colSpan={itemColumns.length + 2}>
                         <div className="materials-branch-issue-detail-box">
                           <strong>{formatBusinessMonthlyMonthLabel(selectedMonth)} {row.name} 월간 상세 구매 수량</strong>
                           <table className="materials-branch-issue-detail-table">

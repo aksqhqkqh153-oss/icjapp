@@ -34666,3 +34666,29 @@ button.danger {
   white-space: nowrap;
   font-size: 10.5px;
 }
+
+/* 2026-04-27 사업자월간구매비 호점별 자재불출현황 양식 반영 */
+.materials-business-monthly-page .materials-branch-issue-table thead th {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.materials-business-monthly-page .materials-branch-issue-table th[rowspan="2"] {
+  min-width: 54px;
+}
+
+.materials-business-monthly-page .materials-branch-issue-item-name-head {
+  min-width: 42px;
+  height: 34px;
+  white-space: pre-line !important;
+  line-height: 1.1 !important;
+  word-break: keep-all;
+}
+
+.materials-business-monthly-page .materials-branch-issue-item-code-head {
+  height: 22px;
+  font-size: 10px !important;
+  font-weight: 800;
+  color: #334155;
+  background: #f8fafc !important;
+}
