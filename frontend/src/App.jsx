@@ -19820,7 +19820,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
         <strong>호점별 자재불출현황</strong>
-        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량을 집계합니다. 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
+        <span className="muted tiny-text"><span className="materials-branch-issue-help-green">연두색 배경</span>으로 색칠 된 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
       </div>
       <div className="materials-summary-table-wrap materials-branch-issue-wrap">
         <table className="materials-summary-static-table materials-branch-issue-table">
@@ -19872,7 +19872,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
                     onClick={() => toggleBranchDetail(row)}
                   >
                     <td>{row.branch}</td>
-                    <td>{row.name}{clickable ? <span className="materials-branch-issue-toggle-mark">{isExpanded ? '접기' : '상세'}</span> : null}</td>
+                    <td>{row.name}</td>
                     <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
                     {row.cells.map((cell, index) => (
                       <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
@@ -19952,19 +19952,10 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
   }, [selectedMonth, monthOptions])
 
   const effectiveMonth = selectedMonth || defaultMonth
-  const businessSummaries = effectiveMonth ? groupedMaterials.businessSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.businessSummaries
-  const monthSummaries = effectiveMonth ? groupedMaterials.monthSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.monthSummaries
 
   return (
     <div className="stack-page materials-page materials-business-monthly-page">
       <section className="card materials-panel materials-summary-panel">
-        <div className="materials-summary-head-inline">
-          <div>
-            <h3>사업자월간구매비</h3>
-            <div className="muted tiny-text">자재결산 데이터를 기준으로 월간 사업자별 구매품목, 수량, 금액을 집계했습니다.</div>
-          </div>
-        </div>
-
         <div className="materials-business-month-filter">
           <label htmlFor="materials-business-month-select">조회월</label>
           <select
@@ -19977,45 +19968,6 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
           </select>
         </div>
 
-        <div className="materials-business-summary-grid">
-          <div className="materials-business-summary-card">
-            <strong>월 총 구매비용</strong>
-            <table className="materials-summary-static-table materials-business-summary-table">
-              <thead>
-                <tr><th>월</th><th>사업자수</th><th>총수량</th><th>월 총 구매비용</th></tr>
-              </thead>
-              <tbody>
-                {monthSummaries.map(row => (
-                  <tr key={`month-summary-${row.month}`}>
-                    <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
-                    <td>{row.businessCount.toLocaleString('ko-KR')}</td>
-                    <td>{row.quantity.toLocaleString('ko-KR')}</td>
-                    <td>{row.amount.toLocaleString('ko-KR')}원</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="materials-business-summary-card">
-            <strong>사업자별 합산 금액</strong>
-            <table className="materials-summary-static-table materials-business-summary-table">
-              <thead>
-                <tr><th>월</th><th>사업자</th><th>품목수</th><th>합산 금액</th></tr>
-              </thead>
-              <tbody>
-                {businessSummaries.map(row => (
-                  <tr key={`business-summary-${row.month}-${row.business}`}>
-                    <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
-                    <td>{row.business}</td>
-                    <td>{row.itemCount.toLocaleString('ko-KR')}</td>
-                    <td>{row.amount.toLocaleString('ko-KR')}원</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
         <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} summaryRows={summaryRows} catalogRows={catalogRows} products={products} />
       </section>
     </div>
