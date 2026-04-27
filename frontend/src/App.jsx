@@ -19168,6 +19168,39 @@ function calculateMaterialsSummaryCost(row, codeRow, salePriceMap) {
   return total > 0 ? String(total) : ''
 }
 
+const MATERIALS_SUMMARY_EDIT_STORAGE_KEY = 'icj_materials_summary_rows_v1'
+
+function cloneMaterialsSummaryRows(rows = []) {
+  return (Array.isArray(rows) ? rows : []).map(row => Array.isArray(row) ? [...row] : [])
+}
+
+function loadMaterialsSummaryRows() {
+  const fallbackRows = cloneMaterialsSummaryRows(MATERIALS_SUMMARY_DATA || [])
+  try {
+    const saved = localStorage.getItem(MATERIALS_SUMMARY_EDIT_STORAGE_KEY)
+    if (!saved) return fallbackRows
+    const parsed = JSON.parse(saved)
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallbackRows
+    return cloneMaterialsSummaryRows(parsed)
+  } catch {
+    return fallbackRows
+  }
+}
+
+function saveMaterialsSummaryRows(rows = []) {
+  try {
+    localStorage.setItem(MATERIALS_SUMMARY_EDIT_STORAGE_KEY, JSON.stringify(cloneMaterialsSummaryRows(rows)))
+  } catch {}
+}
+
+function normalizeMaterialsSummaryRows(rows = [], columnCount = 0) {
+  return cloneMaterialsSummaryRows(rows).map(row => {
+    const next = [...row]
+    while (next.length < columnCount) next.push('')
+    return next
+  })
+}
+
 function formatMaterialsSummaryCellValue(value, rowIndex, colIndex, row, codeRow, salePriceMap) {
   if (colIndex === 0 && rowIndex >= 3) return formatMaterialsSummaryDateCell(value)
   if (rowIndex === 1) return normalizeMaterialsSummaryItemCode(value)
@@ -19263,13 +19296,18 @@ function groupBusinessMonthlyMaterials() {
 }
 
 function MaterialsSummaryTablePage() {
-  const rows = MATERIALS_SUMMARY_DATA || []
-  const codeRow = rows[1] || []
+  const [summaryRows, setSummaryRows] = useState(() => loadMaterialsSummaryRows())
+  const [editMode, setEditMode] = useState(false)
+  const [draftRows, setDraftRows] = useState(() => cloneMaterialsSummaryRows(summaryRows))
+  const [selectedRows, setSelectedRows] = useState(() => new Set())
+  const [changedCells, setChangedCells] = useState(() => new Set())
   const [materialsCatalogRows, setMaterialsCatalogRows] = useState([])
   const [materialsProducts, setMaterialsProducts] = useState([])
   const salePriceMap = useMemo(() => buildMaterialsSalePriceMap(materialsCatalogRows, materialsProducts), [materialsCatalogRows, materialsProducts])
-  const columnCount = Math.max(0, ...rows.map(row => Array.isArray(row) ? row.length : 0))
+  const visibleRows = editMode ? draftRows : summaryRows
+  const columnCount = Math.max(0, ...visibleRows.map(row => Array.isArray(row) ? row.length : 0))
   const columnLabels = getSpreadsheetColumnLabels(columnCount)
+  const codeRow = visibleRows[1] || []
 
   useEffect(() => {
     let alive = true
@@ -19287,28 +19325,123 @@ function MaterialsSummaryTablePage() {
     return () => { alive = false }
   }, [])
 
+  const startEdit = () => {
+    const normalized = normalizeMaterialsSummaryRows(summaryRows, columnCount)
+    setDraftRows(normalized)
+    setSelectedRows(new Set())
+    setChangedCells(new Set())
+    setEditMode(true)
+  }
+
+  const cancelEdit = () => {
+    setDraftRows(cloneMaterialsSummaryRows(summaryRows))
+    setSelectedRows(new Set())
+    setChangedCells(new Set())
+    setEditMode(false)
+  }
+
+  const saveEdit = () => {
+    const normalized = normalizeMaterialsSummaryRows(draftRows, columnCount)
+    setSummaryRows(normalized)
+    saveMaterialsSummaryRows(normalized)
+    setSelectedRows(new Set())
+    setChangedCells(new Set())
+    setEditMode(false)
+  }
+
+  const updateDraftCell = (rowIndex, colIndex, value) => {
+    setDraftRows(prev => {
+      const next = normalizeMaterialsSummaryRows(prev, columnCount)
+      if (!next[rowIndex]) next[rowIndex] = Array.from({ length: columnCount }, () => '')
+      next[rowIndex][colIndex] = value
+      return next
+    })
+    setChangedCells(prev => {
+      const next = new Set(prev)
+      next.add(`${rowIndex}-${colIndex}`)
+      return next
+    })
+  }
+
+  const addDraftRow = () => {
+    setDraftRows(prev => [...normalizeMaterialsSummaryRows(prev, columnCount), Array.from({ length: columnCount }, () => '')])
+  }
+
+  const toggleSelectedRow = rowIndex => {
+    setSelectedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(rowIndex)) next.delete(rowIndex)
+      else next.add(rowIndex)
+      return next
+    })
+  }
+
+  const deleteSelectedDraftRows = () => {
+    if (selectedRows.size === 0) return
+    setDraftRows(prev => normalizeMaterialsSummaryRows(prev, columnCount).filter((_, rowIndex) => rowIndex < 3 || !selectedRows.has(rowIndex)))
+    setSelectedRows(new Set())
+  }
+
   return (
     <div className="stack-page materials-page materials-summary-page">
       <section className="card materials-panel materials-summary-panel">
-        <div className="materials-summary-head-inline">
+        <div className="materials-summary-head-inline materials-summary-head-editable">
           <div>
             <h3>자재결산</h3>
             <div className="muted tiny-text">첨부된 자재 결산 시트 데이터를 표 형식으로 반영했습니다.</div>
           </div>
+          <div className="materials-summary-edit-actions">
+            {editMode ? (
+              <>
+                <button type="button" className="materials-summary-action-button" onClick={addDraftRow}>행추가</button>
+                <button type="button" className="materials-summary-action-button danger" onClick={deleteSelectedDraftRows} disabled={selectedRows.size === 0}>행삭제</button>
+                <button type="button" className="materials-summary-action-button primary" onClick={saveEdit}>저장</button>
+                <button type="button" className="materials-summary-action-button" onClick={cancelEdit}>취소</button>
+              </>
+            ) : (
+              <button type="button" className="materials-summary-action-button primary" onClick={startEdit}>편집</button>
+            )}
+          </div>
         </div>
         <div className="materials-summary-table-wrap">
-          <table className="materials-summary-static-table">
+          <table className={`materials-summary-static-table${editMode ? ' is-editing' : ''}`}>
             <thead>
               <tr>
+                {editMode && <th className="materials-summary-select-col">선택</th>}
                 {columnLabels.map(label => <th key={`materials-summary-col-${label}`}>{label}</th>)}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, rowIndex) => (
+              {visibleRows.map((row, rowIndex) => (
                 <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? 'is-template-head' : ''}>
-                  {columnLabels.map((_, colIndex) => (
-                    <td key={`materials-summary-cell-${rowIndex}-${colIndex}`}>{formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)}</td>
-                  ))}
+                  {editMode && (
+                    <td className="materials-summary-select-col">
+                      {rowIndex >= 3 ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.has(rowIndex)}
+                          onChange={() => toggleSelectedRow(rowIndex)}
+                          aria-label={`${rowIndex + 1}행 선택`}
+                        />
+                      ) : null}
+                    </td>
+                  )}
+                  {columnLabels.map((_, colIndex) => {
+                    const value = formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)
+                    const changed = changedCells.has(`${rowIndex}-${colIndex}`)
+                    const readOnlyFormulaCell = rowIndex >= 3 && colIndex === 29
+                    return (
+                      <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
+                        {editMode && !readOnlyFormulaCell ? (
+                          <input
+                            className="materials-summary-cell-input"
+                            value={draftRows?.[rowIndex]?.[colIndex] ?? ''}
+                            onChange={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                          />
+                        ) : value}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>

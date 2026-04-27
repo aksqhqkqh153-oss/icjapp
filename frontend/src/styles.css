@@ -34280,3 +34280,97 @@ button.danger {
     line-height: 1.22;
   }
 }
+
+/* 2026-04-27 자재구매/현황 > 자재결산 편집 모드 */
+.materials-summary-head-editable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.materials-summary-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.materials-summary-action-button {
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 9px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.materials-summary-action-button.primary {
+  border-color: rgba(37, 99, 235, 0.55);
+  background: #2563eb;
+  color: #fff;
+}
+
+.materials-summary-action-button.danger {
+  border-color: rgba(220, 38, 38, 0.42);
+  color: #b91c1c;
+}
+
+.materials-summary-action-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.materials-summary-static-table.is-editing th,
+.materials-summary-static-table.is-editing td {
+  min-width: 48px;
+  padding: 2px;
+}
+
+.materials-summary-select-col {
+  min-width: 42px !important;
+  width: 42px !important;
+  text-align: center !important;
+  background: #f8fafc;
+}
+
+.materials-summary-cell-input {
+  width: 100%;
+  min-width: 44px;
+  height: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 5px;
+  padding: 2px 4px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.materials-summary-cell-input:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.22);
+  border-color: #2563eb;
+}
+
+.materials-summary-static-table td.materials-summary-cell-changed,
+.materials-summary-static-table td.materials-summary-cell-changed input {
+  background: #dbeafe !important;
+}
+
+@media (max-width: 768px) {
+  .materials-summary-head-editable {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .materials-summary-edit-actions {
+    justify-content: flex-start;
+  }
+}
