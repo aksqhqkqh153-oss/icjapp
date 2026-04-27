@@ -864,6 +864,26 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
     });
   };
   const textOf = (node) => node ? norm(node.innerText || node.textContent || '') : '';
+  const hasClass = (node, name) => !!node && node.classList && node.classList.contains(name);
+  const hasClassPart = (node, part) => !!node && String(node.className || '').includes(part);
+  const qsa = (root, selector) => {
+    try { return Array.from(root.querySelectorAll(selector)); } catch (_) { return []; }
+  };
+  const firstText = (rows) => {
+    for (const node of rows || []) {
+      const value = textOf(node);
+      if (value) return value;
+    }
+    return '';
+  };
+  const reviewNodes = (root) => qsa(root, '.review-content, [class*="review-content"], [class~="review-content"]').filter((el) =>
+    hasClass(el, 'review-content') || hasClassPart(el, 'review-content')
+  );
+  const authorNodes = (root) => qsa(root, '[class~="body14:semibold"], [class~="body13:semibold"], span').filter((el) => {
+    const value = textOf(el);
+    return value && value.length <= 20 && !value.includes('리뷰') && !value.includes('답변');
+  });
+  const ratingNodes = (root) => qsa(root, '[class~="body16:semibold"], [class*="body16:semibold"], div > div > div > div > span');
   const reviewList = document.querySelector('.review-list');
   if (!reviewList) return [];
 
@@ -873,28 +893,33 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
   const findReviewSection = (item) => {
     const sections = sectionsOf(item);
     for (const section of sections) {
-      if (section.querySelector('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]')) return section;
+      if (reviewNodes(section).length) return section;
     }
-    return sections[1] || sections[2] || null;
+    return sections[2] || sections[1] || null;
   };
   const findReplySection = (item) => {
     const sections = sectionsOf(item);
     for (const section of sections) {
       if (section.querySelector('.review-comment')) return section;
     }
-    return sections[2] || sections[3] || null;
+    return sections[3] || sections[2] || null;
   };
 
   return cards.map((item, index) => {
     const sections = sectionsOf(item);
     const reviewSection = findReviewSection(item);
     const replySection = findReplySection(item);
-    const maskedName = textOf(item.querySelector('.prisma-typography.body14\:semibold.primary'));
-    const reviewText = textOf((reviewSection || item).querySelector('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]'));
-    const ratingText = uniq(Array.from((reviewSection || item).querySelectorAll('.prisma-typography.body16\:semibold.primary, [class*="body16:semibold"], div > div > div > div > span')).map((el) => textOf(el))).find((value) => /(^|\s)[0-5](?:\.\d)?($|\s)/.test(value) || value.includes('별점')) || '';
+    const maskedName = firstText(authorNodes(sections[0] || item)) || firstText(authorNodes(item));
+    const userProvidedReviewNode = sections[2] ? sections[2].querySelector(':scope > div > div:nth-child(2) > span') : null;
+    const reviewText = firstText([
+      userProvidedReviewNode,
+      ...reviewNodes(reviewSection || item),
+      ...reviewNodes(item),
+    ]);
+    const ratingText = uniq(ratingNodes(reviewSection || item).map((el) => textOf(el))).find((value) => /(^|\s)[0-5](?:\.\d)?($|\s)/.test(value) || value.includes('별점')) || '';
     const replyComment = item.querySelector('.review-comment');
     const replyRows = replyComment ? uniq([
-      ...Array.from(replyComment.querySelectorAll('article span, article p, article div, span, p, div')).map((el) => textOf(el)),
+      ...qsa(replyComment, 'article span, article p, article div, span, p, div').map((el) => textOf(el)),
       textOf(replyComment),
     ]).filter((value) => value.length >= 2) : [];
 
@@ -902,11 +927,13 @@ def _collect_unanswered_review_items(page: Any) -> list[dict[str, Any]]:
       index: sectionIndex,
       text: textOf(section),
       rawText: String(section.innerText || section.textContent || ''),
-      lines: uniq(String(section.innerText || section.textContent || '').split(/[
-]+/g)),
-      author_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body14\:semibold.primary')).map((el) => textOf(el))).filter((value) => value.length <= 20),
-      review_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body14\:regular.primary.review-content, .review-content, [class*="review-content"]')).map((el) => textOf(el))).filter(Boolean),
-      rating_rows: uniq(Array.from(section.querySelectorAll('.prisma-typography.body16\:semibold.primary, [class*="body16:semibold"], div > div > div > div > span')).map((el) => textOf(el))).filter(Boolean),
+      lines: uniq(String(section.innerText || section.textContent || '').split(/[\n]+/g)),
+      author_rows: uniq(authorNodes(section).map((el) => textOf(el))).filter((value) => value.length <= 20),
+      review_rows: uniq([
+        textOf(section.querySelector(':scope > div > div:nth-child(2) > span')),
+        ...reviewNodes(section).map((el) => textOf(el)),
+      ]).filter(Boolean),
+      rating_rows: uniq(ratingNodes(section).map((el) => textOf(el))).filter(Boolean),
       reply_rows: section.querySelector('.review-comment') ? replyRows : [],
       has_nested_article: !!section.querySelector('.review-comment article'),
     }));

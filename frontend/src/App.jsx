@@ -19240,7 +19240,7 @@ function formatBusinessMonthlyMonthLabel(value) {
   const raw = String(value || '').trim()
   const match = raw.match(/^(\d{4})-(\d{2})$/)
   if (!match) return raw || '날짜선택'
-  return `${match[1].slice(2)}.${match[2]}`
+  return `${match[1]}년 ${match[2]}월`
 }
 
 function getCurrentBusinessMonthKey() {
@@ -19351,6 +19351,8 @@ function MaterialsSummaryTablePage() {
   const [selectedRows, setSelectedRows] = useState(() => new Set())
   const [changedCells, setChangedCells] = useState(() => new Set())
   const [activeCell, setActiveCell] = useState(null)
+  const editBaselineRowsRef = useRef([])
+  const pendingCellNavigationRef = useRef(null)
   const [materialsCatalogRows, setMaterialsCatalogRows] = useState([])
   const [materialsProducts, setMaterialsProducts] = useState([])
   const salePriceMap = useMemo(() => buildMaterialsSalePriceMap(materialsCatalogRows, materialsProducts), [materialsCatalogRows, materialsProducts])
@@ -19378,6 +19380,8 @@ function MaterialsSummaryTablePage() {
   const startEdit = () => {
     const normalized = normalizeMaterialsSummaryRows(summaryRows, columnCount)
     setDraftRows(normalized)
+    editBaselineRowsRef.current = cloneMaterialsSummaryRows(normalized)
+    pendingCellNavigationRef.current = null
     setSelectedRows(new Set())
     setChangedCells(new Set())
     setActiveCell(null)
@@ -19386,6 +19390,8 @@ function MaterialsSummaryTablePage() {
 
   const cancelEdit = () => {
     setDraftRows(cloneMaterialsSummaryRows(summaryRows))
+    editBaselineRowsRef.current = []
+    pendingCellNavigationRef.current = null
     setSelectedRows(new Set())
     setChangedCells(new Set())
     setActiveCell(null)
@@ -19399,28 +19405,46 @@ function MaterialsSummaryTablePage() {
     setSelectedRows(new Set())
     setChangedCells(new Set())
     setActiveCell(null)
+    editBaselineRowsRef.current = []
+    pendingCellNavigationRef.current = null
     setEditMode(false)
   }
 
-  const updateDraftCell = (rowIndex, colIndex, value) => {
-    const originalValue = String(draftRows?.[rowIndex]?.[colIndex] ?? '')
+  const commitDraftCell = (rowIndex, colIndex, value, nextActiveCell = null) => {
+    const previousDraftValue = String(draftRows?.[rowIndex]?.[colIndex] ?? '')
     const nextValue = String(value ?? '')
-    if (originalValue === nextValue) {
-      setActiveCell(null)
-      return
+    const cellKey = `${rowIndex}-${colIndex}`
+    const baselineValue = String(editBaselineRowsRef.current?.[rowIndex]?.[colIndex] ?? '')
+
+    if (previousDraftValue !== nextValue) {
+      setDraftRows(prev => {
+        const next = normalizeMaterialsSummaryRows(prev, columnCount)
+        if (!next[rowIndex]) next[rowIndex] = Array.from({ length: columnCount }, () => '')
+        next[rowIndex][colIndex] = nextValue
+        return next
+      })
     }
-    setDraftRows(prev => {
-      const next = normalizeMaterialsSummaryRows(prev, columnCount)
-      if (!next[rowIndex]) next[rowIndex] = Array.from({ length: columnCount }, () => '')
-      next[rowIndex][colIndex] = nextValue
-      return next
-    })
+
     setChangedCells(prev => {
       const next = new Set(prev)
-      next.add(`${rowIndex}-${colIndex}`)
+      if (baselineValue !== nextValue) next.add(cellKey)
+      else next.delete(cellKey)
       return next
     })
-    setActiveCell(null)
+    setActiveCell(nextActiveCell)
+  }
+
+  const handleDraftCellBlur = (rowIndex, colIndex, value) => {
+    const nextActiveCell = pendingCellNavigationRef.current
+    pendingCellNavigationRef.current = null
+    commitDraftCell(rowIndex, colIndex, value, nextActiveCell)
+  }
+
+  const moveDraftCell = (rowIndex, colIndex, rowDelta) => {
+    const minRowIndex = rowIndex < 3 ? 0 : 3
+    const maxRowIndex = Math.max(minRowIndex, normalizeMaterialsSummaryRows(draftRows, columnCount).length - 1)
+    const nextRowIndex = Math.max(minRowIndex, Math.min(maxRowIndex, rowIndex + rowDelta))
+    pendingCellNavigationRef.current = { rowIndex: nextRowIndex, colIndex }
   }
 
   const openEditCell = (rowIndex, colIndex, readOnlyFormulaCell) => {
@@ -19494,10 +19518,22 @@ function MaterialsSummaryTablePage() {
                             className="materials-summary-cell-input"
                             defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
                             autoFocus
-                            onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                            onBlur={event => handleDraftCellBlur(rowIndex, colIndex, event.target.value)}
                             onKeyDown={event => {
-                              if (event.key === 'Enter') event.currentTarget.blur()
-                              if (event.key === 'Escape') setActiveCell(null)
+                              if (event.key === 'ArrowDown' || (event.key === 'Enter' && !event.shiftKey)) {
+                                event.preventDefault()
+                                moveDraftCell(rowIndex, colIndex, 1)
+                                event.currentTarget.blur()
+                              }
+                              if (event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey)) {
+                                event.preventDefault()
+                                moveDraftCell(rowIndex, colIndex, -1)
+                                event.currentTarget.blur()
+                              }
+                              if (event.key === 'Escape') {
+                                pendingCellNavigationRef.current = null
+                                setActiveCell(null)
+                              }
                             }}
                           />
                         ) : (
@@ -19536,16 +19572,28 @@ function MaterialsSummaryTablePage() {
                       const changed = changedCells.has(`${rowIndex}-${colIndex}`)
                       const readOnlyFormulaCell = colIndex === 29
                       return (
-                        <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
+                        <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={`${changed ? 'materials-summary-cell-changed' : ''}${colIndex === 29 ? ' materials-summary-cost-cell' : ''}`.trim()}>
                           {editMode && !readOnlyFormulaCell && isActiveEditCell(rowIndex, colIndex) ? (
                             <input
                               className="materials-summary-cell-input"
                               defaultValue={draftRows?.[rowIndex]?.[colIndex] ?? ''}
                               autoFocus
-                              onBlur={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                              onBlur={event => handleDraftCellBlur(rowIndex, colIndex, event.target.value)}
                               onKeyDown={event => {
-                                if (event.key === 'Enter') event.currentTarget.blur()
-                                if (event.key === 'Escape') setActiveCell(null)
+                                if (event.key === 'ArrowDown' || (event.key === 'Enter' && !event.shiftKey)) {
+                                  event.preventDefault()
+                                  moveDraftCell(rowIndex, colIndex, 1)
+                                  event.currentTarget.blur()
+                                }
+                                if (event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey)) {
+                                  event.preventDefault()
+                                  moveDraftCell(rowIndex, colIndex, -1)
+                                  event.currentTarget.blur()
+                                }
+                                if (event.key === 'Escape') {
+                                  pendingCellNavigationRef.current = null
+                                  setActiveCell(null)
+                                }
                               }}
                             />
                           ) : (
@@ -19609,26 +19657,40 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
     const itemCode = normalizeMaterialsSummaryItemCode(codeRow[colIndex])
     const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
     if (!itemName && !itemCode && !unitPrice) continue
-    itemColumns.push({
-      index: colIndex,
-      itemName,
-      itemCode,
-      unitPrice,
-      label: itemCode || itemName || '품목',
-    })
+    itemColumns.push({ index: colIndex, itemName, itemCode, unitPrice, label: itemCode || itemName || '품목' })
   }
 
   const quantityByBusiness = new Map()
-  rows.slice(3).forEach(row => {
+  const detailRowsByBusiness = new Map()
+
+  rows.slice(3).forEach((row, sourceRowIndex) => {
     const date = String(row?.[0] || '').trim()
     const name = String(row?.[1] || '').trim()
     if (!name) return
     if (selectedMonth && date.slice(0, 7) !== selectedMonth) return
+
+    const itemDetails = []
     itemColumns.forEach(column => {
       const quantity = parseMaterialsSummaryNumber(row?.[column.index])
       if (!quantity) return
       const key = `${name}__${column.index}`
       quantityByBusiness.set(key, (quantityByBusiness.get(key) || 0) + quantity)
+      itemDetails.push({
+        itemName: column.itemName,
+        itemCode: column.itemCode,
+        quantity,
+        unitPrice: column.unitPrice,
+        amount: quantity * column.unitPrice,
+      })
+    })
+
+    if (!itemDetails.length) return
+    if (!detailRowsByBusiness.has(name)) detailRowsByBusiness.set(name, [])
+    detailRowsByBusiness.get(name).push({
+      id: `${name}-${date}-${sourceRowIndex}`,
+      date,
+      name,
+      itemDetails,
     })
   })
 
@@ -19648,26 +19710,34 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
       cells,
       totalQuantity,
       totalAmount,
+      detailRows: (detailRowsByBusiness.get(member.name) || []).sort((a, b) => b.date.localeCompare(a.date)),
     }
   })
 
-  return {
-    itemColumns,
-    bodyRows,
-  }
+  return { itemColumns, bodyRows }
 }
 
 
 function BranchMaterialIssueStatusSection({ selectedMonth }) {
   const { itemColumns, bodyRows } = buildBranchMaterialIssueStatus(selectedMonth)
+  const [expandedBranch, setExpandedBranch] = useState('')
   const totalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
   const totalAmount = bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.totalAmount), 0)
+
+  useEffect(() => {
+    setExpandedBranch('')
+  }, [selectedMonth])
+
+  const toggleBranchDetail = row => {
+    if (!row?.name || !row.detailRows?.length) return
+    setExpandedBranch(prev => (prev === row.branch ? '' : row.branch))
+  }
 
   return (
     <div className="materials-branch-issue-section">
       <div className="materials-section-title-row">
         <strong>호점별 자재불출현황</strong>
-        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량과 금액을 집계합니다.</span>
+        <span className="muted tiny-text">선택 월 기준으로 호점별 품목 수량과 금액을 집계합니다. 호점 행을 클릭하면 월간 상세 구매 수량이 펼쳐집니다.</span>
       </div>
       <div className="materials-summary-table-wrap materials-branch-issue-wrap">
         <table className="materials-summary-static-table materials-branch-issue-table">
@@ -19688,22 +19758,58 @@ function BranchMaterialIssueStatusSection({ selectedMonth }) {
               ))}
               <td>{totalAmount ? `${totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
             </tr>
-            {bodyRows.map(row => (
-              <tr key={`branch-issue-row-${row.branch}`}>
-                <td>{row.branch}</td>
-                <td>{row.name}</td>
-                {row.cells.map((cell, index) => (
-                  <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
-                ))}
-                <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
-              </tr>
-            ))}
+            {bodyRows.map(row => {
+              const isExpanded = expandedBranch === row.branch
+              const clickable = Boolean(row.name && row.detailRows?.length)
+              return (
+                <React.Fragment key={`branch-issue-row-group-${row.branch}`}>
+                  <tr
+                    className={`${clickable ? 'materials-branch-issue-clickable-row' : ''}${isExpanded ? ' is-expanded' : ''}`.trim()}
+                    onClick={() => toggleBranchDetail(row)}
+                  >
+                    <td>{row.branch}</td>
+                    <td>{row.name}{clickable ? <span className="materials-branch-issue-toggle-mark">{isExpanded ? '접기' : '상세'}</span> : null}</td>
+                    {row.cells.map((cell, index) => (
+                      <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
+                    ))}
+                    <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
+                  </tr>
+                  {isExpanded ? (
+                    <tr className="materials-branch-issue-detail-row">
+                      <td colSpan={itemColumns.length + 3}>
+                        <div className="materials-branch-issue-detail-box">
+                          <strong>{formatBusinessMonthlyMonthLabel(selectedMonth)} {row.name} 월간 상세 구매 수량</strong>
+                          <table className="materials-branch-issue-detail-table">
+                            <thead>
+                              <tr><th>구매일</th><th>상품코드</th><th>품목</th><th>수량</th><th>단가</th><th>금액</th></tr>
+                            </thead>
+                            <tbody>
+                              {row.detailRows.flatMap(detail => detail.itemDetails.map((item, itemIndex) => (
+                                <tr key={`${detail.id}-${item.itemCode || item.itemName}-${itemIndex}`}>
+                                  <td>{formatMaterialsSummaryDateCell(detail.date)}</td>
+                                  <td>{normalizeMaterialsSummaryItemCode(item.itemCode || item.itemName)}</td>
+                                  <td>{item.itemName || item.itemCode}</td>
+                                  <td>{item.quantity.toLocaleString('ko-KR')}</td>
+                                  <td>{item.unitPrice ? `${item.unitPrice.toLocaleString('ko-KR')}원` : ''}</td>
+                                  <td>{item.amount ? `${item.amount.toLocaleString('ko-KR')}원` : ''}</td>
+                                </tr>
+                              )))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </React.Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>
     </div>
   )
 }
+
 
 function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
   const summaryRows = useMemo(() => loadMaterialsSummaryRows(), [])
@@ -19719,7 +19825,6 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
   }, [selectedMonth, monthOptions])
 
   const effectiveMonth = selectedMonth || defaultMonth
-  const detailRows = effectiveMonth ? groupedMaterials.detailRows.filter(row => row.month === effectiveMonth) : groupedMaterials.detailRows
   const businessSummaries = effectiveMonth ? groupedMaterials.businessSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.businessSummaries
   const monthSummaries = effectiveMonth ? groupedMaterials.monthSummaries.filter(row => row.month === effectiveMonth) : groupedMaterials.monthSummaries
 
@@ -19784,40 +19889,7 @@ function BusinessMonthlyPurchasePage({ catalogRows = [], products = [] }) {
             </table>
           </div>
         </div>
-
         <BranchMaterialIssueStatusSection selectedMonth={effectiveMonth} />
-
-        <div className="materials-summary-table-wrap">
-          <table className="materials-summary-static-table materials-business-detail-table">
-            <thead>
-              <tr>
-                <th>월</th>
-                <th>구매일</th>
-                <th>사업자</th>
-                <th>상품코드</th>
-                <th>수량</th>
-                <th>단가</th>
-                <th>금액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detailRows.map(row => (
-                <tr key={`business-monthly-${row.id}`}>
-                  <td>{formatBusinessMonthlyMonthLabel(row.month)}</td>
-                  <td>{formatMaterialsSummaryDateCell(row.date)}</td>
-                  <td>{row.business}</td>
-                  <td>{normalizeMaterialsSummaryItemCode(row.itemCode || row.itemName)}</td>
-                  <td>{row.quantity.toLocaleString('ko-KR')}</td>
-                  <td>{row.unitPrice.toLocaleString('ko-KR')}원</td>
-                  <td>{row.amount.toLocaleString('ko-KR')}원</td>
-                </tr>
-              ))}
-              {!detailRows.length ? (
-                <tr><td colSpan={7}>집계할 자재 구매 데이터가 없습니다.</td></tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
       </section>
     </div>
   )

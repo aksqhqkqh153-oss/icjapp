@@ -34610,3 +34610,59 @@ button.danger {
 .materials-summary-static-table td.materials-summary-cell-changed .materials-summary-cell-edit-trigger {
   background: #dbeafe !important;
 }
+
+/* 2026-04-27 자재결산 편집 UX 보정: 비용 글자 크기 통일 */
+.materials-summary-static-table td.materials-summary-cost-cell,
+.materials-summary-static-table td.materials-summary-cost-cell .materials-summary-cell-edit-trigger {
+  font-size: inherit !important;
+  line-height: inherit !important;
+  font-weight: inherit;
+}
+
+/* 2026-04-27 사업자월간구매비 호점별 상세 펼침 */
+.materials-business-monthly-page .materials-branch-issue-clickable-row {
+  cursor: pointer;
+}
+
+.materials-business-monthly-page .materials-branch-issue-clickable-row:hover td,
+.materials-business-monthly-page .materials-branch-issue-clickable-row.is-expanded td {
+  background: #f8fafc;
+}
+
+.materials-business-monthly-page .materials-branch-issue-toggle-mark {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.materials-business-monthly-page .materials-branch-issue-detail-row > td {
+  padding: 8px !important;
+  background: #f8fafc;
+}
+
+.materials-business-monthly-page .materials-branch-issue-detail-box {
+  display: grid;
+  gap: 6px;
+  min-width: 620px;
+}
+
+.materials-business-monthly-page .materials-branch-issue-detail-table {
+  width: max-content;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+.materials-business-monthly-page .materials-branch-issue-detail-table th,
+.materials-business-monthly-page .materials-branch-issue-detail-table td {
+  border: 1px solid #dbeafe;
+  background: #fff;
+  padding: 4px 6px;
+  white-space: nowrap;
+  font-size: 10.5px;
+}
