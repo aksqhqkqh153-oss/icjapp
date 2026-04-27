@@ -2724,11 +2724,9 @@ useEffect(() => {
       return false
     }
     const current = loadAllRecords()
-    const visibleCurrent = loadRecords()
     const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
-    const matchedRecord = effectiveRecordId ? null : findMatchingRecord(visibleCurrent, draft)
-    const existingRecord = current.find(record => record.id === (effectiveRecordId || matchedRecord?.id || '')) || matchedRecord || null
-    const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId || matchedRecord?.id || '', { existingRecord })
+    const existingRecord = effectiveRecordId ? (current.find(record => record.id === effectiveRecordId) || null) : null
+    const nextRecord = makeRecordFromDraft(draft, rendered.totals, effectiveRecordId, { existingRecord })
     const savedRecord = await upsertDisposalRecordToServer(nextRecord)
     setLoadedRecordId(savedRecord.id)
     setSavedAt(savedRecord.savedAt)
@@ -2831,8 +2829,13 @@ useEffect(() => {
                 setSavedDraftBaseline(normalizeDraftForCompare(draft))
                 return
               }
-              const nextRecords = upsertRecordByCustomerLocation(currentRecords, nextRecord)
-              const savedRecord = await upsertDisposalRecordToServer(nextRecords[0])
+              const newRecord = attachDisposalRecordOwner({
+                ...nextRecord,
+                id: String(nextRecord?.id || '').trim() || ('disposal-' + Date.now()),
+                savedAt: new Date().toISOString(),
+              })
+              const savedRecord = await upsertDisposalRecordToServer(newRecord)
+              setLoadedRecordId(savedRecord?.id || '')
               setSavedAt(savedRecord?.savedAt || '')
               setSavedDraftBaseline(normalizeDraftForCompare(draft))
             }}
