@@ -2692,7 +2692,11 @@ useEffect(() => {
   }
 
   async function configureDefaultVisibleRows() {
-    const input = window.prompt(`기본품목칸 수를 입력해 주세요. (1~${ITEM_ROW_COUNT})`, String(defaultVisibleRows || getDefaultVisibleItemRows()))
+    const effectiveRecordId = String(recordId || loadedRecordId || '').trim()
+    const isDetailDraft = !!effectiveRecordId
+    const currentRowCount = Math.max(1, Math.min(ITEM_ROW_COUNT, (draft.items || []).length || 1))
+    const promptDefaultValue = isDetailDraft ? currentRowCount : (defaultVisibleRows || getDefaultVisibleItemRows())
+    const input = window.prompt(`기본품목칸 수를 입력해 주세요. (1~${ITEM_ROW_COUNT})`, String(promptDefaultValue))
     if (input === null) return
     const parsed = Number(input)
     if (!Number.isFinite(parsed) || parsed < 1) {
@@ -2700,18 +2704,28 @@ useEffect(() => {
       return
     }
     const nextValue = clampVisibleItemRows(parsed)
+
+    if (isDetailDraft) {
+      setDraft(prev => {
+        const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+        const resizedItems = Array.from({ length: nextValue }, (_, index) => currentItems[index] || createEmptyItem())
+        return { ...prev, items: resizedItems }
+      })
+      setItemSettingsOpen(false)
+      window.alert(`해당 고객 폐기양식 상세의 기본품목칸 수가 ${nextValue}칸으로 변경되었습니다. 저장하면 해당 고객 기록에만 반영됩니다.`)
+      return
+    }
+
     try {
       const savedValue = await saveSharedDefaultVisibleItemRows(nextValue)
       setDefaultVisibleRows(savedValue)
-      if (!recordId && !loadedRecordId) {
-        setDraft(prev => {
-          const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
-          const resizedItems = Array.from({ length: savedValue }, (_, index) => currentItems[index] || createEmptyItem())
-          return { ...prev, items: resizedItems }
-        })
-      }
+      setDraft(prev => {
+        const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+        const resizedItems = Array.from({ length: savedValue }, (_, index) => currentItems[index] || createEmptyItem())
+        return { ...prev, items: resizedItems }
+      })
       setItemSettingsOpen(false)
-      window.alert(`기본품목칸 수가 ${savedValue}칸으로 변경되었습니다.`)
+      window.alert(`신규 폐기양식 기본품목칸 공통 설정이 ${savedValue}칸으로 변경되었습니다.`)
     } catch {
       window.alert('기본품목칸 공통 설정 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
     }
