@@ -19243,6 +19243,22 @@ function formatBusinessMonthlyMonthLabel(value) {
   return `${match[1]}년 ${match[2]}월`
 }
 
+const MATERIALS_BUSINESS_MONTHLY_ITEM_EXCLUDE_RULES = [
+  { code: '노비-01', fromMonth: '2026-01' },
+  { code: '흰비-01', fromMonth: '2026-02' },
+  { code: '침비-01', fromMonth: '2026-01' },
+  { code: '스티커-01', fromMonth: '2025-12' },
+]
+
+function shouldExcludeBusinessMonthlyItem(itemCode, month) {
+  const codeKey = normalizeMaterialsCodeKey(itemCode)
+  const monthKey = String(month || '').slice(0, 7)
+  if (!codeKey || !monthKey) return false
+  return MATERIALS_BUSINESS_MONTHLY_ITEM_EXCLUDE_RULES.some(rule => (
+    normalizeMaterialsCodeKey(rule.code) === codeKey && monthKey >= rule.fromMonth
+  ))
+}
+
 function getCurrentBusinessMonthKey() {
   const now = new Date()
   const year = now.getFullYear()
@@ -19277,6 +19293,7 @@ function buildBusinessMonthlyMaterialRows(summaryRows = MATERIALS_SUMMARY_DATA |
       if (!quantity) continue
       const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
       const itemCode = normalizeMaterialsSummaryItemCode(codeRow[colIndex])
+      if (shouldExcludeBusinessMonthlyItem(itemCode || itemName, month)) continue
       const codeKey = normalizeMaterialsCodeKey(itemCode)
       const unitPrice = salePriceMap.get(codeKey) || parseMaterialsSummaryNumber(priceRow[colIndex])
       if (!itemName && !itemCode) continue
@@ -19656,6 +19673,7 @@ function buildBranchMaterialIssueStatus(selectedMonth = '') {
     const itemName = String(headerRow[colIndex] || '').replace(/\n/g, ' ').trim()
     const itemCode = normalizeMaterialsSummaryItemCode(codeRow[colIndex])
     const unitPrice = parseMaterialsSummaryNumber(priceRow[colIndex])
+    if (shouldExcludeBusinessMonthlyItem(itemCode || itemName, selectedMonth)) continue
     if (!itemName && !itemCode && !unitPrice) continue
     itemColumns.push({ index: colIndex, itemName, itemCode, unitPrice, label: itemCode || itemName || '품목' })
   }
