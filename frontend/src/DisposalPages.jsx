@@ -4525,7 +4525,20 @@ export function DisposalSettlementsPage() {
                 ))}
               </div>
             ) : (
-              <div key={row.key} className="disposal-month-settlement-row disposal-month-settlement-item">
+              <div
+                key={row.key}
+                className="disposal-month-settlement-row disposal-month-settlement-item disposal-month-settlement-item-clickable"
+                role="button"
+                tabIndex={0}
+                title="폐기양식 상세 화면으로 이동"
+                onClick={() => row.recordId && navigate(`/disposal/forms/${row.recordId}`)}
+                onKeyDown={e => {
+                  if ((e.key === 'Enter' || e.key === ' ') && row.recordId) {
+                    e.preventDefault()
+                    navigate(`/disposal/forms/${row.recordId}`)
+                  }
+                }}
+              >
                 {row.cells.map((cell, index) => (
                   <div key={`${row.key}-${index}`}>{cell}</div>
                 ))}

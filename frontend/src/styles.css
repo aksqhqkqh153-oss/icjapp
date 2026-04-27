@@ -34164,3 +34164,16 @@ button.danger {
   padding-left: 1px;
   padding-right: 1px;
 }
+
+.disposal-month-settlement-item-clickable {
+  cursor: pointer;
+}
+
+.disposal-month-settlement-item-clickable:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.disposal-month-settlement-item-clickable:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.55);
+  outline-offset: -2px;
+}
