@@ -34722,22 +34722,21 @@ button.danger {
 }
 
 .materials-branch-issue-price-popup {
-  position: sticky;
-  left: 12px;
-  bottom: 12px;
-  z-index: 20;
+  position: fixed;
+  z-index: 1000;
   display: inline-flex;
   flex-direction: column;
   gap: 4px;
   min-width: 210px;
   max-width: 280px;
-  padding: 10px 32px 10px 12px;
+  padding: 10px 12px;
   border: 1px solid rgba(15, 23, 42, 0.18);
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
   font-size: 12px;
   color: #111827;
+  pointer-events: none;
 }
 
 .materials-branch-issue-price-close {
@@ -34750,4 +34749,16 @@ button.danger {
   line-height: 1;
   cursor: pointer;
   color: #6b7280;
+}
+
+
+.materials-branch-issue-code-cost-total-row td {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.materials-branch-issue-code-cost-total-row td:nth-child(2) {
+  white-space: normal;
+  line-height: 1.25;
 }

@@ -19712,6 +19712,12 @@ function formatBusinessMonthlyBranchIssueCode(value = '') {
   return raw
 }
 
+function getBusinessMonthlyBranchIssueDisplayCode(itemName = '', itemCode = '') {
+  const compactName = String(itemName || '').replace(/\n/g, ' ').replace(/\s+/g, '').trim()
+  if (['폐기스티커', '반팔(L)', '반팔(LL)', '토르박스'].includes(compactName)) return '01'
+  return formatBusinessMonthlyBranchIssueCode(itemCode || itemName)
+}
+
 function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || [], selectedMonth = '', catalogRows = [], products = []) {
   const sourceRows = Array.isArray(summaryRows) && summaryRows.length ? summaryRows : (MATERIALS_SUMMARY_DATA || [])
   const columnCount = Math.max(0, ...sourceRows.map(row => Array.isArray(row) ? row.length : 0))
@@ -19735,7 +19741,7 @@ function buildBranchMaterialIssueStatus(summaryRows = MATERIALS_SUMMARY_DATA || 
       unitPrice,
       label: itemCode || itemName || '품목',
       displayName: formatBusinessMonthlyBranchIssueItemName(itemName || itemCode || '품목'),
-      displayCode: formatBusinessMonthlyBranchIssueCode(itemCode || itemName),
+      displayCode: getBusinessMonthlyBranchIssueDisplayCode(itemName, itemCode),
     })
   }
 
@@ -19804,7 +19810,7 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
   const [expandedBranch, setExpandedBranch] = useState('')
   const [pricePopup, setPricePopup] = useState(null)
   const totalCells = itemColumns.map((_, index) => bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.cells[index]), 0))
-  const totalAmount = bodyRows.reduce((sum, row) => sum + parseMaterialsSummaryNumber(row.totalAmount), 0)
+  const codeCostTotalCells = itemColumns.map((column, index) => totalCells[index] * parseMaterialsSummaryNumber(column.unitPrice))
 
   useEffect(() => {
     setExpandedBranch('')
@@ -19815,6 +19821,23 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
     if (!row?.name || !row.detailRows?.length) return
     setExpandedBranch(prev => (prev === row.branch ? '' : row.branch))
   }
+
+  const showPricePopup = (event, column) => {
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const popupWidth = 240
+    const popupHeight = 96
+    const gap = 8
+    let left = rect.right + gap
+    if (left + popupWidth > window.innerWidth - gap) left = rect.left - popupWidth - gap
+    if (left < gap) left = gap
+    let top = rect.top + (rect.height / 2) - (popupHeight / 2)
+    if (top + popupHeight > window.innerHeight - gap) top = window.innerHeight - popupHeight - gap
+    if (top < gap) top = gap
+    setPricePopup({ ...column, left, top })
+  }
+
+  const hidePricePopup = () => setPricePopup(null)
 
   return (
     <div className="materials-branch-issue-section">
@@ -19828,7 +19851,6 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
             <tr>
               <th rowSpan={2}>호점</th>
               <th rowSpan={2}>이름</th>
-              <th rowSpan={2}>비용</th>
               {itemColumns.map(column => (
                 <th key={`branch-issue-name-head-${column.index}`} className="materials-branch-issue-item-name-head">
                   {column.displayName}
@@ -19841,10 +19863,10 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
                   <button
                     type="button"
                     className="materials-branch-issue-code-button"
-                    onClick={event => {
-                      event.stopPropagation()
-                      setPricePopup(prev => prev?.index === column.index ? null : column)
-                    }}
+                    onMouseEnter={event => showPricePopup(event, column)}
+                    onFocus={event => showPricePopup(event, column)}
+                    onMouseLeave={hidePricePopup}
+                    onBlur={hidePricePopup}
                     title="자재판매가격 보기"
                   >
                     {column.displayCode}
@@ -19857,9 +19879,15 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
             <tr className="materials-branch-issue-total-row">
               <td></td>
               <td>합계</td>
-              <td>{totalAmount ? `${totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
               {totalCells.map((cell, index) => (
                 <td key={`branch-issue-total-cell-${index}`}>{cell ? cell.toLocaleString('ko-KR') : ''}</td>
+              ))}
+            </tr>
+            <tr className="materials-branch-issue-code-cost-total-row">
+              <td></td>
+              <td><span>상품코드<br />비용합계</span></td>
+              {codeCostTotalCells.map((amount, index) => (
+                <td key={`branch-issue-code-cost-total-cell-${index}`}>{amount ? `${amount.toLocaleString('ko-KR')}원` : ''}</td>
               ))}
             </tr>
             {bodyRows.map(row => {
@@ -19873,14 +19901,13 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
                   >
                     <td>{row.branch}</td>
                     <td>{row.name}</td>
-                    <td>{row.totalAmount ? `${row.totalAmount.toLocaleString('ko-KR')}원` : ''}</td>
                     {row.cells.map((cell, index) => (
                       <td key={`branch-issue-cell-${row.branch}-${index}`}>{cell === '' ? '' : Number(cell).toLocaleString('ko-KR')}</td>
                     ))}
                   </tr>
                   {isExpanded ? (
                     <tr className="materials-branch-issue-detail-row">
-                      <td colSpan={itemColumns.length + 3}>
+                      <td colSpan={itemColumns.length + 2}>
                         <div className="materials-branch-issue-detail-box">
                           <strong>{formatBusinessMonthlyMonthLabel(selectedMonth)} {row.name} 월간 상세 구매 수량</strong>
                           <table className="materials-branch-issue-detail-table">
@@ -19910,8 +19937,12 @@ function BranchMaterialIssueStatusSection({ selectedMonth, summaryRows = [], cat
           </tbody>
         </table>
         {pricePopup ? (
-          <div className="materials-branch-issue-price-popup" role="dialog" aria-label="자재판매가격">
-            <button type="button" className="materials-branch-issue-price-close" onClick={() => setPricePopup(null)}>×</button>
+          <div
+            className="materials-branch-issue-price-popup"
+            role="dialog"
+            aria-label="자재판매가격"
+            style={{ left: `${pricePopup.left}px`, top: `${pricePopup.top}px` }}
+          >
             <strong>{String(pricePopup.itemName || pricePopup.itemCode || '자재').replace(/\n/g, ' ')}</strong>
             <div>자재코드: {pricePopup.displayCode || pricePopup.itemCode || '-'}</div>
             <div>판매가격: {pricePopup.unitPrice ? `${pricePopup.unitPrice.toLocaleString('ko-KR')}원` : '가격 정보 없음'}</div>
