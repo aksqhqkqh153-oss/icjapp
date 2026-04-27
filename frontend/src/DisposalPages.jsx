@@ -3278,7 +3278,9 @@ export function DisposalListPage() {
     if (!hasDirtyUnreportedReasons) return undefined
     function handleBeforeUnload(event) {
       event.preventDefault()
-      event.returnValue = '\n      return '\n    }
+      event.returnValue = ''
+      return ''
+    }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasDirtyUnreportedReasons])
