@@ -22007,6 +22007,7 @@ function App() {
   }
 
   const staffAllowed = canAccessStaffRoutes(user)
+  const disposalAdminAllowed = Number(user?.grade || 9) <= 2
 
   return (
     <>
@@ -22040,13 +22041,13 @@ function App() {
         <Route path="/operations-dashboard" element={staffAllowed ? <OperationsDashboardPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/quote-forms" element={staffAllowed ? <Navigate to="/quotes" replace /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/storage-status" element={staffAllowed ? <StorageStatusPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal" element={staffAllowed ? <DisposalHubPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/forms" element={staffAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/forms/preview" element={staffAllowed ? <DisposalPreviewPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/forms/:recordId" element={staffAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/list" element={staffAllowed ? <DisposalListPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/settlements" element={staffAllowed ? <DisposalSettlementsPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
-        <Route path="/disposal/jurisdictions" element={staffAllowed ? <DisposalJurisdictionRegistryPage /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
+        <Route path="/disposal" element={disposalAdminAllowed ? <DisposalHubPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms" element={disposalAdminAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms/preview" element={disposalAdminAllowed ? <DisposalPreviewPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/forms/:recordId" element={disposalAdminAllowed ? <DisposalFormsPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/list" element={disposalAdminAllowed ? <DisposalListPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/settlements" element={disposalAdminAllowed ? <DisposalSettlementsPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
+        <Route path="/disposal/jurisdictions" element={disposalAdminAllowed ? <DisposalJurisdictionRegistryPage /> : <AccessDeniedRedirect message="폐기 화면은 관리자/부관리자 계정만 접근할 수 있습니다." />} />
         <Route path="/settlements" element={staffAllowed ? (isEmployeeRestrictedUser(user) ? <AccessDeniedRedirect message="직원 계정은 결산자료에 접근할 수 없습니다." /> : <SettlementPage />) : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/soomgo-review-finder" element={staffAllowed ? <SoomgoReviewFinderPage user={user} /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />
         <Route path="/settlements/complaints-check" element={staffAllowed ? <PlaceholderFeaturePage title="컴플확인" description="컴플확인 기능은 다음 업데이트에서 연결할 예정입니다." /> : <AccessDeniedRedirect message="직원 이상 등급만 접근할 수 있습니다." />} />

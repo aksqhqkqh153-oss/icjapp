@@ -15,6 +15,7 @@ const ITEM_ROW_COUNT = 30
 const TEMPLATE_ITEM_ROW_COUNT = 17
 const DEFAULT_VISIBLE_ITEM_ROWS = 8
 const DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY = 'icj_disposal_default_visible_rows_v1'
+let disposalDefaultVisibleRowsMemory = DEFAULT_VISIBLE_ITEM_ROWS
 const DISPOSAL_PREVIEW_SESSION_KEY = 'icj_disposal_preview_draft_v1'
 const FEE_RATE = 1.3
 const DATE_FILTER_OPTIONS = [
@@ -158,19 +159,51 @@ function clampVisibleItemRows(value) {
   return Math.max(1, Math.min(ITEM_ROW_COUNT, Math.round(numeric)))
 }
 
-function getDefaultVisibleItemRows() {
+function getDefaultVisibleItemRowsFromLocal() {
   try {
-    const raw = Number(localStorage.getItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY) || DEFAULT_VISIBLE_ITEM_ROWS)
+    const raw = Number(localStorage.getItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY) || disposalDefaultVisibleRowsMemory || DEFAULT_VISIBLE_ITEM_ROWS)
     return clampVisibleItemRows(raw)
   } catch {
-    return DEFAULT_VISIBLE_ITEM_ROWS
+    return clampVisibleItemRows(disposalDefaultVisibleRowsMemory || DEFAULT_VISIBLE_ITEM_ROWS)
   }
 }
 
+disposalDefaultVisibleRowsMemory = getDefaultVisibleItemRowsFromLocal()
+
+function getDefaultVisibleItemRows() {
+  return clampVisibleItemRows(disposalDefaultVisibleRowsMemory || DEFAULT_VISIBLE_ITEM_ROWS)
+}
+
 function setDefaultVisibleItemRowsStorage(value) {
+  const nextValue = clampVisibleItemRows(value)
+  disposalDefaultVisibleRowsMemory = nextValue
   try {
-    localStorage.setItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY, String(clampVisibleItemRows(value)))
+    localStorage.setItem(DISPOSAL_DEFAULT_VISIBLE_ROWS_KEY, String(nextValue))
   } catch {}
+}
+
+async function fetchSharedDisposalSettings() {
+  const response = await api('/api/disposal/settings', { icjCache: { skip: true } })
+  const nextValue = clampVisibleItemRows(response?.settings?.defaultVisibleRows)
+  setDefaultVisibleItemRowsStorage(nextValue)
+  try {
+    window.dispatchEvent(new CustomEvent('icj-disposal-settings-updated', { detail: { defaultVisibleRows: nextValue } }))
+  } catch {}
+  return { defaultVisibleRows: nextValue }
+}
+
+async function saveSharedDefaultVisibleItemRows(value) {
+  const nextValue = clampVisibleItemRows(value)
+  const response = await api('/api/disposal/settings', {
+    method: 'POST',
+    body: JSON.stringify({ data: { defaultVisibleRows: nextValue } }),
+  })
+  const savedValue = clampVisibleItemRows(response?.settings?.defaultVisibleRows || nextValue)
+  setDefaultVisibleItemRowsStorage(savedValue)
+  try {
+    window.dispatchEvent(new CustomEvent('icj-disposal-settings-updated', { detail: { defaultVisibleRows: savedValue } }))
+  } catch {}
+  return savedValue
 }
 
 function createEmptyItem() {
@@ -308,7 +341,7 @@ function normalizeRecordShape(record) {
   if (!record || typeof record !== 'object') return null
   const sourceItems = Array.isArray(record.items) ? record.items : []
   const defaultVisibleRows = getDefaultVisibleItemRows()
-  const visibleItemCount = Math.max(defaultVisibleRows, Math.min(ITEM_ROW_COUNT, sourceItems.length || defaultVisibleRows))
+  const visibleItemCount = sourceItems.length ? Math.max(1, Math.min(ITEM_ROW_COUNT, sourceItems.length)) : defaultVisibleRows
   const defaultPaid = /입금완/.test(String(record?.finalStatus || '').trim())
   const defaultReported = /신고완/.test(String(record?.finalStatus || '').trim())
   const items = Array.from({ length: visibleItemCount }, (_, index) => {
@@ -1582,7 +1615,7 @@ function DisposalItemsEditor({
   onOpenRegistry,
   onSaveEstimate,
 }) {
-  const effectiveVisibleRows = clampVisibleItemRows(defaultVisibleRows)
+  const effectiveVisibleRows = existingRecordId ? Math.max(1, Math.min(ITEM_ROW_COUNT, (draft.items || []).length || 1)) : clampVisibleItemRows(defaultVisibleRows)
   const visibleRows = useMemo(() => (draft.items || []).slice(0, effectiveVisibleRows), [draft.items, effectiveVisibleRows])
   const visibleRendered = useMemo(
     () => buildRenderedTemplate({ ...draft, items: visibleRows }),
@@ -2483,6 +2516,26 @@ export function DisposalFormsPage() {
 
   useEffect(() => {
     let cancelled = false
+    fetchSharedDisposalSettings()
+      .then(settings => {
+        if (!cancelled && settings?.defaultVisibleRows) {
+          setDefaultVisibleRows(clampVisibleItemRows(settings.defaultVisibleRows))
+          if (!recordId && !loadedRecordId) {
+            const nextValue = clampVisibleItemRows(settings.defaultVisibleRows)
+            setDraft(prev => {
+              const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+              const resizedItems = Array.from({ length: nextValue }, (_, index) => currentItems[index] || createEmptyItem())
+              return { ...prev, items: resizedItems }
+            })
+          }
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [recordId, loadedRecordId])
+
+  useEffect(() => {
+    let cancelled = false
     async function loadRecord() {
       try {
         await bootstrapDisposalRecords()
@@ -2503,7 +2556,7 @@ export function DisposalFormsPage() {
           location: found.location || '',
           district: found.district || '',
           finalStatus: found.finalStatus || '',
-          items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+          items: Array.from({ length: Math.max(1, Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
         })
         setSavedAt(found.savedAt || '')
         setSavedDraftBaseline(normalizeDraftForCompare({
@@ -2513,7 +2566,7 @@ export function DisposalFormsPage() {
           location: found.location || '',
           district: found.district || '',
           finalStatus: found.finalStatus || '',
-          items: Array.from({ length: Math.max(getDefaultVisibleItemRows(), Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
+          items: Array.from({ length: Math.max(1, Math.min(ITEM_ROW_COUNT, found.items?.length || getDefaultVisibleItemRows())) }, (_, index) => ({ ...createEmptyItem(), ...(found.items?.[index] || {}) })),
         }))
         return
       }
@@ -2637,22 +2690,30 @@ useEffect(() => {
     setDeleteMode(false)
   }
 
-  function configureDefaultVisibleRows() {
+  async function configureDefaultVisibleRows() {
     const input = window.prompt(`기본품목칸 수를 입력해 주세요. (1~${ITEM_ROW_COUNT})`, String(defaultVisibleRows || getDefaultVisibleItemRows()))
     if (input === null) return
-    const nextValue = Math.max(1, Math.min(ITEM_ROW_COUNT, Number(input) || getDefaultVisibleItemRows()))
-    setDefaultVisibleRows(nextValue)
-    setDefaultVisibleItemRowsStorage(nextValue)
-    setDraft(prev => {
-      const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
-      if (currentItems.length >= nextValue) return prev
-      return {
-        ...prev,
-        items: currentItems.concat(Array.from({ length: nextValue - currentItems.length }, () => createEmptyItem())),
+    const parsed = Number(input)
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      window.alert('기본품목칸 수는 1 이상의 숫자로 입력해주세요.')
+      return
+    }
+    const nextValue = clampVisibleItemRows(parsed)
+    try {
+      const savedValue = await saveSharedDefaultVisibleItemRows(nextValue)
+      setDefaultVisibleRows(savedValue)
+      if (!recordId && !loadedRecordId) {
+        setDraft(prev => {
+          const currentItems = Array.isArray(prev.items) ? [...prev.items] : []
+          const resizedItems = Array.from({ length: savedValue }, (_, index) => currentItems[index] || createEmptyItem())
+          return { ...prev, items: resizedItems }
+        })
       }
-    })
-    setItemSettingsOpen(false)
-    window.alert(`기본품목칸 수가 ${nextValue}칸으로 변경되었습니다.`)
+      setItemSettingsOpen(false)
+      window.alert(`기본품목칸 수가 ${savedValue}칸으로 변경되었습니다.`)
+    } catch {
+      window.alert('기본품목칸 공통 설정 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   async function saveCurrentDraftRecord(options = {}) {

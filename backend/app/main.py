@@ -7598,6 +7598,42 @@ def _ensure_disposal_record_access(row_dict: dict[str, Any], user: dict) -> None
     raise HTTPException(status_code=403, detail='해당 폐기 데이터에 접근할 수 없습니다.')
 
 
+DISPOSAL_SETTINGS_ADMIN_KEY = 'disposal_settings_admin_shared_v1'
+
+def _normalize_disposal_settings(data: Any = None) -> dict[str, Any]:
+    source = data if isinstance(data, dict) else {}
+    try:
+        default_visible_rows = int(round(float(source.get('defaultVisibleRows', 8))))
+    except Exception:
+        default_visible_rows = 8
+    default_visible_rows = max(1, min(30, default_visible_rows))
+    return {'defaultVisibleRows': default_visible_rows}
+
+def _load_disposal_settings(conn) -> dict[str, Any]:
+    raw = _get_admin_setting(conn, DISPOSAL_SETTINGS_ADMIN_KEY, '{}')
+    try:
+        parsed = json.loads(raw or '{}')
+    except Exception:
+        parsed = {}
+    return _normalize_disposal_settings(parsed)
+
+@app.get('/api/disposal/settings')
+def get_disposal_settings(user=Depends(require_admin_or_subadmin)):
+    with get_conn() as conn:
+        return {'settings': _load_disposal_settings(conn)}
+
+@app.post('/api/disposal/settings')
+def save_disposal_settings(payload: PreferenceIn, user=Depends(require_admin_or_subadmin)):
+    settings = _normalize_disposal_settings(payload.data or {})
+    with get_conn() as conn:
+        now = utcnow()
+        conn.execute(
+            "INSERT INTO admin_settings(key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (DISPOSAL_SETTINGS_ADMIN_KEY, json.dumps(settings, ensure_ascii=False), now),
+        )
+    return {'ok': True, 'settings': settings}
+
+
 @app.get('/api/disposal/records')
 def get_disposal_records(user=Depends(require_admin_or_subadmin)):
     with get_conn() as conn:
