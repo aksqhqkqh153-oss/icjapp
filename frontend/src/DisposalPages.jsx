@@ -331,6 +331,17 @@ function makeCustomerLocationKey(customerName, location) {
   return `${customerKey}__${locationKey}`
 }
 
+function makeDisposalRecordKey(record = {}) {
+  const recordId = String(record?.id || '').trim()
+  if (recordId) return recordId
+  return makeCustomerLocationKey(record?.customerName, record?.location) || 'unsaved-' + Date.now()
+}
+
+function createDisposalRecordId() {
+  const randomPart = Math.random().toString(36).slice(2, 8)
+  return 'disposal-' + Date.now() + '-' + randomPart
+}
+
 function findMatchingRecord(records = [], draft = {}) {
   const targetKey = makeCustomerLocationKey(draft?.customerName, draft?.location)
   if (!targetKey || targetKey === '__') return null
@@ -357,7 +368,7 @@ function normalizeRecordShape(record) {
     }
   })
   return {
-    id: String(record.id || `disposal-${Date.now()}`),
+    id: String(record.id || createDisposalRecordId()),
     savedAt: String(record.savedAt || new Date().toISOString()),
     disposalDate: String(record.disposalDate || ''),
     location: String(record.location || ''),
@@ -684,7 +695,7 @@ function makeRecordFromDraft(draft, totals, existingId = '', options = {}) {
   const reportDone = filledItems.length > 0 && filledItems.every(item => !!item?.reportDone)
   const hasEligibleSettlementItems = filledItems.some(item => !!item?.paymentDone && String(item?.paymentSettledAt || '').trim())
   return attachDisposalRecordOwner({
-    id: existingId || `disposal-${Date.now()}`,
+    id: existingId || createDisposalRecordId(),
     savedAt: new Date().toISOString(),
     disposalDate: draft.disposalDate,
     location: draft.location,
@@ -1259,7 +1270,7 @@ function buildDisposalListGroups(records, sortKey, sortDirection = 'desc', searc
   const sorted = sortRecords(records, sortKey, sortDirection)
   const normalizedQuery = normalizeSearchText(searchQuery)
   sorted.forEach((record) => {
-    const customerGroupKey = makeCustomerLocationKey(record?.customerName, record?.location) || String(record?.id || '')
+    const customerGroupKey = makeDisposalRecordKey(record)
     const searchable = normalizeSearchText([record?.platform, record?.customerName, record?.location, record?.disposalDate, record?.district, record?.finalStatus].join(' '))
     if (normalizedQuery && !searchable.includes(normalizedQuery)) return
     if (!matchesDateFilter(record, dateFilter, customStartDate, customEndDate, 'disposalDate')) return
@@ -2861,7 +2872,7 @@ useEffect(() => {
               }
               const newRecord = attachDisposalRecordOwner({
                 ...nextRecord,
-                id: String(nextRecord?.id || '').trim() || ('disposal-' + Date.now()),
+                id: String(nextRecord?.id || '').trim() || createDisposalRecordId(),
                 savedAt: new Date().toISOString(),
               })
               const savedRecord = await upsertDisposalRecordToServer(newRecord)
