@@ -19455,32 +19455,19 @@ function MaterialsSummaryTablePage() {
         <div className="materials-summary-table-wrap">
           <table className={`materials-summary-static-table${editMode ? ' is-editing' : ''}`}>
             <thead>
-              <tr>
+              <tr className="materials-summary-column-head-row">
                 {editMode && <th className="materials-summary-select-col">선택</th>}
                 {columnLabels.map(label => <th key={`materials-summary-col-${label}`}>{label}</th>)}
               </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row, rowIndex) => (
-                <tr key={`materials-summary-row-${rowIndex}`} className={rowIndex < 3 ? `is-template-head is-template-head-${rowIndex}` : ''}>
-                  {editMode && (
-                    <td className="materials-summary-select-col">
-                      {rowIndex >= 3 ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(rowIndex)}
-                          onChange={() => toggleSelectedRow(rowIndex)}
-                          aria-label={`${rowIndex + 1}행 선택`}
-                        />
-                      ) : null}
-                    </td>
-                  )}
+              {visibleRows.slice(0, 3).map((row, rowIndex) => (
+                <tr key={`materials-summary-fixed-row-${rowIndex}`} className={`is-template-head is-template-head-${rowIndex}`}>
+                  {editMode && <th className="materials-summary-select-col" />}
                   {columnLabels.map((_, colIndex) => {
                     const value = formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)
                     const changed = changedCells.has(`${rowIndex}-${colIndex}`)
-                    const readOnlyFormulaCell = (rowIndex === 2 && colIndex >= 2) || (rowIndex >= 3 && colIndex === 29)
+                    const readOnlyFormulaCell = rowIndex === 2 && colIndex >= 2
                     return (
-                      <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
+                      <th key={`materials-summary-fixed-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
                         {editMode && !readOnlyFormulaCell ? (
                           <input
                             className="materials-summary-cell-input"
@@ -19488,11 +19475,46 @@ function MaterialsSummaryTablePage() {
                             onChange={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
                           />
                         ) : value}
-                      </td>
+                      </th>
                     )
                   })}
                 </tr>
               ))}
+            </thead>
+            <tbody>
+              {visibleRows.slice(3).map((row, bodyRowIndex) => {
+                const rowIndex = bodyRowIndex + 3
+                return (
+                  <tr key={`materials-summary-row-${rowIndex}`}>
+                    {editMode && (
+                      <td className="materials-summary-select-col">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.has(rowIndex)}
+                          onChange={() => toggleSelectedRow(rowIndex)}
+                          aria-label={`${rowIndex + 1}행 선택`}
+                        />
+                      </td>
+                    )}
+                    {columnLabels.map((_, colIndex) => {
+                      const value = formatMaterialsSummaryCellValue(row?.[colIndex], rowIndex, colIndex, row, codeRow, salePriceMap)
+                      const changed = changedCells.has(`${rowIndex}-${colIndex}`)
+                      const readOnlyFormulaCell = colIndex === 29
+                      return (
+                        <td key={`materials-summary-cell-${rowIndex}-${colIndex}`} className={changed ? 'materials-summary-cell-changed' : ''}>
+                          {editMode && !readOnlyFormulaCell ? (
+                            <input
+                              className="materials-summary-cell-input"
+                              value={draftRows?.[rowIndex]?.[colIndex] ?? ''}
+                              onChange={event => updateDraftCell(rowIndex, colIndex, event.target.value)}
+                            />
+                          ) : value}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
