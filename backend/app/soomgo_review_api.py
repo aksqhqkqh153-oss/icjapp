@@ -5,6 +5,7 @@ import html
 import json
 import os
 import re
+import time
 import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,6 +39,7 @@ DEFAULT_PROMPT = (
 
 
 SLOT_COUNT = 6
+SOOMGO_SCAN_MAX_SECONDS = 115
 ADMIN_GRADES = {1, 2}
 SENSITIVE_SETTING_KEYS = {'soomgo_email', 'soomgo_password', 'prompt', 'outer_html', 'anonymous_name', 'review_input', 'target_file_dir', 'auto_scan_on_open'}
 
@@ -1416,10 +1418,14 @@ def _extract_next_data_outer_html(page: Any) -> str:
     return ''
 
 
-def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) -> str:
+def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True, ensure_time_left: Any = None) -> str:
     playwright = browser = context = page = None
     try:
+        if callable(ensure_time_left):
+            ensure_time_left('대시보드 로그인 전')
         playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
+        if callable(ensure_time_left):
+            ensure_time_left('대시보드 로그인 후')
         page.goto('https://soomgo.com/mypage/cash-dashboard', wait_until='domcontentloaded', timeout=30000)
         page.wait_for_load_state('domcontentloaded')
         try:
@@ -1454,20 +1460,31 @@ def _run_auto_fill_outer_html(email: str, password: str, headless: bool = True) 
                 pass
 
 def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> dict[str, Any]:
+    scan_started_at = time.monotonic()
+
+    def ensure_scan_time_left(step: str = '') -> None:
+        if time.monotonic() - scan_started_at > SOOMGO_SCAN_MAX_SECONDS:
+            suffix = f' ({step})' if step else ''
+            raise RuntimeError(f'자동 숨고리뷰 찾기가 {SOOMGO_SCAN_MAX_SECONDS}초 안에 완료되지 않아 중단되었습니다{suffix}. 숨고 로그인 상태 또는 페이지 로딩 지연을 확인해 주세요.')
+
     settings = state.get('settings', {})
     email = str(settings.get('soomgo_email', '')).strip()
     password = str(settings.get('soomgo_password', '')).strip()
     if not email or not password:
         raise RuntimeError('숨고 로그인 이메일/비밀번호를 먼저 설정해 주세요.')
 
-    outer_html = _run_auto_fill_outer_html(email, password, headless=headless)
+    ensure_scan_time_left('대시보드 접속 전')
+    outer_html = _run_auto_fill_outer_html(email, password, headless=headless, ensure_time_left=ensure_scan_time_left)
+    ensure_scan_time_left('대시보드 리뷰 데이터 추출 후')
     settings['outer_html'] = outer_html
     reviews_data = _parse_reviews_from_outer_html(outer_html)
 
     playwright = browser = context = page = None
     found: list[dict[str, str]] = []
     try:
+        ensure_scan_time_left('프로필 로그인 전')
         playwright, browser, context, page = _playwright_login_page(email, password, headless=headless)
+        ensure_scan_time_left('프로필 로그인 후')
         page.goto('https://soomgo.com/profile#id_profile_review', wait_until='domcontentloaded', timeout=30000)
         page.wait_for_selector('.grid-item.span-8.profile-section', timeout=20000)
         try:
@@ -1478,6 +1495,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             pass
 
         for _ in range(10):
+            ensure_scan_time_left('더보기 로딩')
             more_button = page.locator("xpath=//button[.//*[contains(@class, 'prisma-typography') and contains(@class, 'body14:regular') and contains(@class, 'secondary') and contains(normalize-space(text()), '더보기')]]").last
             if more_button.count() == 0:
                 break
@@ -1496,6 +1514,7 @@ def _scan_unanswered_reviews(state: dict[str, Any], headless: bool = True) -> di
             item_count = 0
         total_items = max(item_count, len(preloaded_items))
         for index in range(total_items):
+            ensure_scan_time_left('리뷰 카드 분석')
             if len(found) >= SLOT_COUNT:
                 break
             preloaded = preloaded_items[index] if index < len(preloaded_items) and isinstance(preloaded_items[index], dict) else {}

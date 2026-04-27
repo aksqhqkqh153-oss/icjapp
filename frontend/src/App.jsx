@@ -21530,6 +21530,7 @@ function SoomgoReviewSlotCard({ slot, index, onChange, onGenerate }) {
 
 function SoomgoReviewFinderPage({ user }) {
   const canManageHiddenSettings = Number(user?.grade || 6) <= 2
+  const SOOMGO_AUTO_SCAN_TIMEOUT_MS = 120000
   const createEmptySoomgoSlots = () => Array.from({ length: 6 }, (_, index) => ({ index, masked_name: '', real_name: '', rating: '', review: '', reply: '', situation: '', specifics: '' }))
   const normalizeSoomgoMemoState = (memos = {}) => ({
     soomgo: String(memos?.soomgo || ''),
@@ -21806,16 +21807,28 @@ function SoomgoReviewFinderPage({ user }) {
     if (shouldPreClear) {
       clearSlotsBeforeAutoScan()
     }
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), SOOMGO_AUTO_SCAN_TIMEOUT_MS)
     setLoading(true)
     try {
-      const data = await api('/api/soomgo-review/scan-auto', { method: 'POST' })
+      const data = await api('/api/soomgo-review/scan-auto', { method: 'POST', signal: controller.signal, cache: 'no-store' })
       setState(prev => ({ ...prev, ...data }))
     } catch (error) {
-      openCopyableErrorDialog('자동 숨고리뷰 찾기 오류', error, '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+      const isTimeout = error?.name === 'AbortError' || String(error?.message || '').includes('aborted')
+      const nextMessage = isTimeout
+        ? '자동 숨고리뷰 찾기 요청이 120초 안에 완료되지 않아 중단했습니다. 숨고 로그인/페이지 구조/서버 Playwright 실행 상태를 확인해 주세요.'
+        : (error?.message || '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
+      setState(prev => ({
+        ...prev,
+        last_scan: { ok: false, message: nextMessage, updated_at: new Date().toLocaleString('ko-KR'), found_count: 0 },
+      }))
+      openCopyableErrorDialog('자동 숨고리뷰 찾기 오류', { message: nextMessage }, '자동 숨고리뷰 찾기 중 오류가 발생했습니다.')
     } finally {
+      window.clearTimeout(timeoutId)
       setLoading(false)
     }
   }
+
 
   async function handleManualScan() {
     if (!canManageHiddenSettings) return window.alert('관리자 / 부관리자만 실행할 수 있습니다.')
@@ -21882,6 +21895,12 @@ function SoomgoReviewFinderPage({ user }) {
             {canManageHiddenSettings ? <button type="button" className="ghost" onClick={() => setSettingsOpen(true)}>설정</button> : null}
             <button type="button" className="ghost" onClick={() => persistState()} disabled={saving}>{saving ? '저장중...' : '저장'}</button>
           </div>
+          {state.last_scan?.message ? (
+            <div className={`card small ${state.last_scan?.ok ? 'success' : 'danger'}`}>
+              {state.last_scan.message}
+              {state.last_scan.updated_at ? <span className="muted"> · {state.last_scan.updated_at}</span> : null}
+            </div>
+          ) : null}
         </div>
       </section>
 
